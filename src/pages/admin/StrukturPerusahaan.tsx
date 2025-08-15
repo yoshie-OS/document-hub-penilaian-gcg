@@ -14,6 +14,7 @@ import { useSidebar } from '@/contexts/SidebarContext';
 import { useYear } from '@/contexts/YearContext';
 import { Users, Briefcase, Plus, Edit, Trash2, Calendar } from 'lucide-react';
 import { seedSubdirektorat } from '@/lib/seed/seedDirektorat';
+import { seedAnakPerusahaan } from '@/lib/seed/seedAnakPerusahaan';
 import { triggerStrukturPerusahaanUpdate } from '@/lib/strukturPerusahaan';
 import { YearSelectorPanel, ConfirmDialog, FormDialog, ActionButton, IconButton, PageHeaderPanel } from '@/components/panels';
 import { useToast } from '@/hooks/use-toast';
@@ -40,6 +41,16 @@ interface Divisi {
   nama: string;
   tahun: number;
   kategori?: string;
+  createdAt: Date;
+  isActive: boolean;
+}
+
+interface AnakPerusahaan {
+  id: number;
+  nama: string;
+  tahun: number;
+  kategori: string;
+  deskripsi: string;
   createdAt: Date;
   isActive: boolean;
 }
@@ -74,6 +85,7 @@ const StrukturPerusahaan = () => {
   const [direktorat, setDirektorat] = useState<Direktorat[]>([]);
   const [subdirektorat, setSubdirektorat] = useState<Subdirektorat[]>([]);
   const [divisi, setDivisi] = useState<Divisi[]>([]);
+  const [anakPerusahaan, setAnakPerusahaan] = useState<AnakPerusahaan[]>([]);
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
 
   // Direktorat states
@@ -94,15 +106,22 @@ const StrukturPerusahaan = () => {
   const [divisiToDelete, setDivisiToDelete] = useState<Divisi | null>(null);
   const [divisiForm, setDivisiForm] = useState({ nama: '' });
 
+  // Anak Perusahaan states
+  const [isAnakPerusahaanDialogOpen, setIsAnakPerusahaanDialogOpen] = useState(false);
+  const [editingAnakPerusahaan, setEditingAnakPerusahaan] = useState<AnakPerusahaan | null>(null);
+  const [anakPerusahaanToDelete, setAnakPerusahaanToDelete] = useState<AnakPerusahaan | null>(null);
+  const [anakPerusahaanForm, setAnakPerusahaanForm] = useState({ nama: '', kategori: '', deskripsi: '' });
+
   // Tambahkan state untuk trigger reload data per tahun
   const [reloadFlag, setReloadFlag] = useState(0);
 
   // Helper function untuk toast notification
-  const showUpdateToast = (type: 'direktorat' | 'subdirektorat' | 'divisi') => {
+  const showUpdateToast = (type: 'direktorat' | 'subdirektorat' | 'divisi' | 'anakPerusahaan') => {
     const labels = {
       direktorat: 'Direktorat',
       subdirektorat: 'Sub Direktorat',
-      divisi: 'Divisi'
+      divisi: 'Divisi',
+      anakPerusahaan: 'Anak Perusahaan & Badan Afiliasi'
     };
     
     toast({
@@ -116,6 +135,7 @@ const StrukturPerusahaan = () => {
     const direktoratData = localStorage.getItem('direktorat');
     const subdirektoratData = localStorage.getItem('subdirektorat');
     const divisiData = localStorage.getItem('divisi');
+    const anakPerusahaanData = localStorage.getItem('anakPerusahaan');
     
     if (direktoratData) {
       const direktoratList = JSON.parse(direktoratData);
@@ -145,6 +165,16 @@ const StrukturPerusahaan = () => {
       })));
     } else {
       setDivisi([]);
+    }
+
+    if (anakPerusahaanData) {
+      const anakPerusahaanList = JSON.parse(anakPerusahaanData);
+      setAnakPerusahaan(anakPerusahaanList.map((d: any) => ({
+        ...d,
+        createdAt: new Date(d.createdAt || Date.now())
+      })));
+    } else {
+      setAnakPerusahaan([]);
     }
   }, [selectedYear, reloadFlag]);
 
@@ -329,6 +359,7 @@ const StrukturPerusahaan = () => {
   const filteredDirektorat = direktorat.filter(d => d.tahun === selectedYear);
   const filteredSubdirektorat = subdirektorat.filter(d => d.tahun === selectedYear);
   const filteredDivisi = divisi.filter(d => d.tahun === selectedYear);
+  const filteredAnakPerusahaan = anakPerusahaan.filter(d => d.tahun === selectedYear);
 
   // Handler untuk data default direktorat
   const getAllUniqueDirektoratNames = () => {
@@ -404,6 +435,97 @@ const StrukturPerusahaan = () => {
     showUpdateToast('divisi');
   };
 
+  // Handler untuk data default anak perusahaan
+  const handleUseDefaultAnakPerusahaan = () => {
+    const anakPerusahaanData = localStorage.getItem('anakPerusahaan');
+    const anakPerusahaanList = anakPerusahaanData ? JSON.parse(anakPerusahaanData) : [];
+    
+    const newAnakPerusahaan = seedAnakPerusahaan.map((item) => ({
+      id: Date.now() + Math.random(),
+      nama: item.nama,
+      tahun: selectedYear,
+      kategori: item.kategori,
+      deskripsi: item.deskripsi,
+      createdAt: new Date(),
+      isActive: true
+    }));
+    const updatedAnakPerusahaanList = [...anakPerusahaanList, ...newAnakPerusahaan];
+    localStorage.setItem('anakPerusahaan', JSON.stringify(updatedAnakPerusahaanList));
+    setReloadFlag(f => f + 1);
+    triggerStrukturPerusahaanUpdate(); // Trigger update
+    showUpdateToast('anakPerusahaan');
+  };
+
+  // Anak Perusahaan handlers
+  const handleAnakPerusahaanSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!anakPerusahaanForm.nama || !anakPerusahaanForm.kategori || !anakPerusahaanForm.deskripsi) {
+      alert('Semua field wajib diisi!');
+      return;
+    }
+    if (editingAnakPerusahaan) {
+      const updatedAnakPerusahaan: AnakPerusahaan = {
+        ...editingAnakPerusahaan,
+        nama: anakPerusahaanForm.nama,
+        kategori: anakPerusahaanForm.kategori,
+        deskripsi: anakPerusahaanForm.deskripsi,
+        tahun: selectedYear
+      };
+      const updatedAnakPerusahaanList = anakPerusahaan.map(d => d.id === editingAnakPerusahaan.id ? updatedAnakPerusahaan : d);
+      setAnakPerusahaan(updatedAnakPerusahaanList);
+      localStorage.setItem('anakPerusahaan', JSON.stringify(updatedAnakPerusahaanList));
+      setEditingAnakPerusahaan(null);
+      alert('Anak Perusahaan berhasil diupdate!');
+      triggerStrukturPerusahaanUpdate(); // Trigger update
+      showUpdateToast('anakPerusahaan');
+    } else {
+      const newAnakPerusahaan: AnakPerusahaan = {
+        id: Date.now(),
+        nama: anakPerusahaanForm.nama,
+        kategori: anakPerusahaanForm.kategori,
+        deskripsi: anakPerusahaanForm.deskripsi,
+        tahun: selectedYear,
+        createdAt: new Date(),
+        isActive: true
+      };
+      const updatedAnakPerusahaanList = [...anakPerusahaan, newAnakPerusahaan];
+      setAnakPerusahaan(updatedAnakPerusahaanList);
+      localStorage.setItem('anakPerusahaan', JSON.stringify(updatedAnakPerusahaanList));
+      alert('Anak Perusahaan berhasil ditambahkan!');
+      triggerStrukturPerusahaanUpdate(); // Trigger update
+      showUpdateToast('anakPerusahaan');
+    }
+    setAnakPerusahaanForm({ nama: '', kategori: '', deskripsi: '' });
+    setIsAnakPerusahaanDialogOpen(false);
+  };
+
+  const handleDeleteAnakPerusahaan = () => {
+    if (!anakPerusahaanToDelete) return;
+    const updatedAnakPerusahaanList = anakPerusahaan.filter(d => d.id !== anakPerusahaanToDelete.id);
+    setAnakPerusahaan(updatedAnakPerusahaanList);
+    localStorage.setItem('anakPerusahaan', JSON.stringify(updatedAnakPerusahaanList));
+    setAnakPerusahaanToDelete(null);
+    alert('Anak Perusahaan berhasil dihapus!');
+    triggerStrukturPerusahaanUpdate(); // Trigger update
+    showUpdateToast('anakPerusahaan');
+  };
+
+  const openEditAnakPerusahaan = (anakPerusahaan: AnakPerusahaan) => {
+    setEditingAnakPerusahaan(anakPerusahaan);
+    setAnakPerusahaanForm({
+      nama: anakPerusahaan.nama,
+      kategori: anakPerusahaan.kategori,
+      deskripsi: anakPerusahaan.deskripsi
+    });
+    setIsAnakPerusahaanDialogOpen(true);
+  };
+
+  const openAddAnakPerusahaan = () => {
+    setEditingAnakPerusahaan(null);
+    setAnakPerusahaanForm({ nama: '', kategori: '', deskripsi: '' });
+    setIsAnakPerusahaanDialogOpen(true);
+  };
+
   return (
     <div className="min-h-screen bg-blue-50">
       <Sidebar />
@@ -426,7 +548,7 @@ const StrukturPerusahaan = () => {
           />
 
           <Tabs defaultValue="direktorat" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="direktorat" className="flex items-center space-x-2">
                 <Users className="w-4 h-4" />
                 <span>Direktorat</span>
@@ -434,6 +556,10 @@ const StrukturPerusahaan = () => {
               <TabsTrigger value="subdirektorat" className="flex items-center space-x-2">
                 <Briefcase className="w-4 h-4" />
                 <span>Subdirektorat</span>
+              </TabsTrigger>
+              <TabsTrigger value="anak-perusahaan" className="flex items-center space-x-2">
+                <Briefcase className="w-4 h-4" />
+                <span>Anak Perusahaan & Badan Afiliasi</span>
               </TabsTrigger>
               <TabsTrigger value="divisi" className="flex items-center space-x-2">
                 <Briefcase className="w-4 h-4" />
@@ -571,6 +697,81 @@ const StrukturPerusahaan = () => {
                         ))}
                       </TableBody>
                     </Table>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Anak Perusahaan & Badan Afiliasi Tab */}
+            <TabsContent value="anak-perusahaan" id="anak-perusahaan-list">
+              <Card className="border-0 shadow-lg">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="flex items-center space-x-2">
+                        <Briefcase className="w-5 h-5 text-purple-600" />
+                        <span>Daftar Anak Perusahaan & Badan Afiliasi</span>
+                      </CardTitle>
+                      <CardDescription>
+                        {filteredAnakPerusahaan.length} anak perusahaan & badan afiliasi ditemukan untuk tahun {selectedYear}
+                      </CardDescription>
+                    </div>
+                    <Button onClick={openAddAnakPerusahaan} className="bg-purple-600 hover:bg-purple-700">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Tambah Anak Perusahaan
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {filteredAnakPerusahaan.length === 0 && (
+                    <div className="mb-4 flex justify-end">
+                      <Button onClick={handleUseDefaultAnakPerusahaan} className="bg-amber-600 hover:bg-amber-700">
+                        Gunakan Data Default Anak Perusahaan
+                      </Button>
+                    </div>
+                  )}
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>No</TableHead>
+                        <TableHead>Nama</TableHead>
+                        <TableHead>Kategori</TableHead>
+                        <TableHead>Deskripsi</TableHead>
+                        <TableHead>Aksi</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredAnakPerusahaan.map((item, index) => (
+                        <TableRow key={item.id}>
+                          <TableCell>{index + 1}</TableCell>
+                          <TableCell className="font-medium">{item.nama}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-xs">
+                              {item.kategori}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-sm text-gray-600">{item.deskripsi}</TableCell>
+                          <TableCell>
+                            <div className="flex space-x-2">
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => openEditAnakPerusahaan(item)}
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => setAnakPerusahaanToDelete(item)}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -777,6 +978,78 @@ const StrukturPerusahaan = () => {
          onConfirm={handleDeleteDivisi}
          title="Hapus Divisi"
          description={`Apakah Anda yakin ingin menghapus divisi "${divisiToDelete?.nama}"? Tindakan ini tidak dapat dibatalkan.`}
+         variant="danger"
+         confirmText="Hapus"
+       />
+
+       {/* Anak Perusahaan Dialog */}
+       <Dialog open={isAnakPerusahaanDialogOpen} onOpenChange={setIsAnakPerusahaanDialogOpen}>
+         <DialogContent className="max-w-md">
+           <DialogHeader>
+             <DialogTitle>
+               {editingAnakPerusahaan ? 'Edit Anak Perusahaan' : 'Tambah Anak Perusahaan Baru'}
+             </DialogTitle>
+             <DialogDescription>
+               {editingAnakPerusahaan ? 'Edit data anak perusahaan' : 'Tambahkan anak perusahaan baru ke struktur perusahaan'}
+             </DialogDescription>
+           </DialogHeader>
+           <form onSubmit={handleAnakPerusahaanSubmit} className="space-y-4">
+             <div>
+               <Label htmlFor="nama">Nama Anak Perusahaan *</Label>
+               <Input
+                 id="nama"
+                 value={anakPerusahaanForm.nama}
+                 onChange={(e) => setAnakPerusahaanForm({ ...anakPerusahaanForm, nama: e.target.value })}
+                 placeholder="Masukkan nama anak perusahaan"
+                 required
+               />
+             </div>
+             <div>
+               <Label htmlFor="kategori">Kategori *</Label>
+               <select
+                 id="kategori"
+                 value={anakPerusahaanForm.kategori}
+                 onChange={(e) => setAnakPerusahaanForm({ ...anakPerusahaanForm, kategori: e.target.value })}
+                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                 required
+               >
+                 <option value="">Pilih Kategori</option>
+                 <option value="Anak Perusahaan">Anak Perusahaan</option>
+                 <option value="Badan Afiliasi">Badan Afiliasi</option>
+                 <option value="Joint Venture">Joint Venture</option>
+                 <option value="Unit Bisnis">Unit Bisnis</option>
+               </select>
+             </div>
+             <div>
+               <Label htmlFor="deskripsi">Deskripsi *</Label>
+               <textarea
+                 id="deskripsi"
+                 value={anakPerusahaanForm.deskripsi}
+                 onChange={(e) => setAnakPerusahaanForm({ ...anakPerusahaanForm, deskripsi: e.target.value })}
+                 placeholder="Masukkan deskripsi anak perusahaan"
+                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[80px]"
+                 required
+               />
+             </div>
+             <div className="flex justify-end space-x-2">
+               <Button type="button" variant="outline" onClick={() => setIsAnakPerusahaanDialogOpen(false)}>
+                 Batal
+               </Button>
+               <Button type="submit">
+                 {editingAnakPerusahaan ? 'Update' : 'Simpan'}
+               </Button>
+             </div>
+           </form>
+         </DialogContent>
+       </Dialog>
+
+       {/* Delete Anak Perusahaan Dialog */}
+       <ConfirmDialog
+         isOpen={!!anakPerusahaanToDelete}
+         onClose={() => setAnakPerusahaanToDelete(null)}
+         onConfirm={handleDeleteAnakPerusahaan}
+         title="Hapus Anak Perusahaan"
+         description={`Apakah Anda yakin ingin menghapus anak perusahaan "${anakPerusahaanToDelete?.nama}"? Tindakan ini tidak dapat dibatalkan.`}
          variant="danger"
          confirmText="Hapus"
        />
