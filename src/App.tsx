@@ -104,13 +104,13 @@ const AppRoutes = () => {
         } 
       />
       <Route 
-        path="/penilaian-gcg" 
+        path="/performa-gcg" 
         element={
           <SuperAdminRoute>
             <div className="min-h-screen bg-gray-50 flex items-center justify-center">
               <div className="text-center">
-                <h1 className="text-2xl font-bold text-gray-900 mb-4">Penilaian GCG</h1>
-                <p className="text-gray-600">Halaman penilaian GCG akan dikembangkan selanjutnya</p>
+                <h1 className="text-2xl font-bold text-gray-900 mb-4">Performa GCG</h1>
+                <p className="text-gray-600">Halaman performa GCG akan dikembangkan selanjutnya</p>
               </div>
             </div>
           </SuperAdminRoute>

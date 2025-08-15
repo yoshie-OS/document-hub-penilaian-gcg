@@ -41,8 +41,8 @@ const Topbar = () => {
         return { title: 'Manajemen Dokumen', breadcrumb: ['Dashboard', 'Manajemen Dokumen'] };
       case '/list-gcg':
         return { title: 'Monitoring & Upload GCG', breadcrumb: ['Dashboard', 'Super Admin', 'Monitoring & Upload GCG'] };
-      case '/penilaian-gcg':
-        return { title: 'Penilaian GCG', breadcrumb: ['Dashboard', 'Penilaian GCG'] };
+      case '/performa-gcg':
+        return { title: 'Performa GCG', breadcrumb: ['Dashboard', 'Performa GCG'] };
       case '/admin/kelola-akun':
         return { title: 'Manajemen User', breadcrumb: ['Dashboard', 'Admin', 'Manajemen User'] };
               case '/admin/checklist-gcg':

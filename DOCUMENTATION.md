@@ -105,8 +105,8 @@ UserProvider
    - **Fitur:** Upload dokumen langsung dari checklist
    - **Kaitan:** Terintegrasi dengan `FileUploadDialog`
 
-#### **C. Penilaian GCG** (`/penilaian-gcg`)
-**Fungsi:** Halaman untuk penilaian GCG (dalam pengembangan)
+#### **C. Performa GCG** (`/performa-gcg`)
+**Fungsi:** Halaman untuk performa GCG (dalam pengembangan)
 
 ---
 

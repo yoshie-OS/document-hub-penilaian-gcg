@@ -44,9 +44,9 @@ const Sidebar = () => {
     },
 
     { 
-      name: 'Penilaian GCG', 
+      name: 'Performa GCG', 
       icon: BarChart3, 
-      path: '/penilaian-gcg',
+      path: '/performa-gcg',
       badge: null,
       badgeIcon: Lock
     }
@@ -142,8 +142,8 @@ const Sidebar = () => {
           <div className="px-4 space-y-1">
             {menuItems
               .filter(item => {
-                // Hide Penilaian GCG menu if user is not superadmin
-                if (item.name === 'Penilaian GCG' && user?.role !== 'superadmin') {
+                      // Hide Performa GCG menu if user is not superadmin
+      if (item.name === 'Performa GCG' && user?.role !== 'superadmin') {
                   return false;
                 }
                 return true;
