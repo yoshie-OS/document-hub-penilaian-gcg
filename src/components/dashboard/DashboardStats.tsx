@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { useFileUpload } from '@/contexts/FileUploadContext';
 import { useChecklist } from '@/contexts/ChecklistContext';
+
 import { useYear } from '@/contexts/YearContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -114,8 +115,13 @@ const DashboardStats = () => {
   const { selectedYear } = useYear();
   const { getYearStats, getFilesByYear } = useFileUpload();
   const { checklist } = useChecklist();
+
   const { isSidebarOpen } = useSidebar();
   const [showAllAspects, setShowAllAspects] = useState(false);
+  
+  // Memoize the autoplay plugin to prevent infinite re-renders
+  const autoplayPlugin = useMemo(() => autoplay(), []);
+  
   const [sliderRef, instanceRef] = useKeenSlider({
     loop: true,
     mode: 'free-snap',
@@ -135,7 +141,7 @@ const DashboardStats = () => {
       // Force recalculation on window resize or sidebar toggle
       slider.update();
     }
-  }, [autoplay()]);
+  }, [autoplayPlugin]);
 
   // Update slider when sidebar state changes
   useEffect(() => {
@@ -175,45 +181,65 @@ const DashboardStats = () => {
       };
     }
 
-    const yearStats = getYearStats(selectedYear);
-    const yearChecklist = checklist.filter(item => item.tahun === selectedYear);
-    const totalChecklist = yearChecklist.length;
-    const progress = totalChecklist > 0 ? Math.round((yearStats.uploadedCount / totalChecklist) * 100) : 0;
+    try {
+      const yearStats = getYearStats(selectedYear);
+      const yearChecklist = checklist?.filter(item => item.tahun === selectedYear) || [];
+      const totalChecklist = yearChecklist.length;
+      const progress = totalChecklist > 0 ? Math.round((yearStats?.uploadedCount || 0) / totalChecklist * 100) : 0;
 
-    return {
-      totalChecklist,
-      uploadedFiles: yearStats.uploadedCount,
-      pendingFiles: totalChecklist - yearStats.uploadedCount,
-      totalSize: yearStats.totalSize,
-      progress
-    };
+      return {
+        totalChecklist,
+        uploadedFiles: yearStats?.uploadedCount || 0,
+        pendingFiles: totalChecklist - (yearStats?.uploadedCount || 0),
+        totalSize: yearStats?.totalSize || 0,
+        progress
+      };
+    } catch (error) {
+      console.error('Error calculating stats:', error);
+      return {
+        totalChecklist: 0,
+        uploadedFiles: 0,
+        pendingFiles: 0,
+        totalSize: 0,
+        progress: 0
+      };
+    }
   };
 
   // Get statistics per aspect
   const getAspectStats = () => {
     if (!selectedYear) return [];
 
-    const yearFiles = getFilesByYear(selectedYear);
-    const yearChecklist = checklist.filter(item => item.tahun === selectedYear);
-    const aspects = [...new Set(yearChecklist.map(item => item.aspek))];
-    
-    return aspects.map(aspek => {
-      const aspectItems = yearChecklist.filter(item => item.aspek === aspek);
-      const uploadedFiles = yearFiles.filter(file => file.aspect === aspek);
-      const totalItems = aspectItems.length;
-      const uploadedCount = uploadedFiles.length;
-      const pendingCount = totalItems - uploadedCount;
-      const progress = totalItems > 0 ? Math.round((uploadedCount / totalItems) * 100) : 0;
+    try {
+      const yearFiles = getFilesByYear(selectedYear) || [];
+      const yearChecklist = checklist?.filter(item => item.tahun === selectedYear) || [];
+      
+      // Get unique aspek names from checklist
+      const aspekNames = [...new Set(yearChecklist.map(item => item.aspek))];
+      
+      return aspekNames.map(aspekName => {
+        if (!aspekName) return null;
+        
+        const aspectItems = yearChecklist.filter(item => item.aspek === aspekName);
+        const uploadedFiles = yearFiles.filter(file => file.aspect === aspekName);
+        const totalItems = aspectItems.length;
+        const uploadedCount = uploadedFiles.length;
+        const pendingCount = totalItems - uploadedCount;
+        const progress = totalItems > 0 ? Math.round((uploadedCount / totalItems) * 100) : 0;
 
-      return {
-        aspek,
-        totalItems,
-        uploadedCount,
-        pendingCount,
-        progress,
-        files: uploadedFiles
-      };
-    });
+        return {
+          aspek: aspekName,
+          totalItems,
+          uploadedCount,
+          pendingCount,
+          progress,
+          files: uploadedFiles
+        };
+      }).filter(Boolean); // Remove null values
+    } catch (error) {
+      console.error('Error calculating aspect stats:', error);
+      return [];
+    }
   };
 
   const stats = getStats();

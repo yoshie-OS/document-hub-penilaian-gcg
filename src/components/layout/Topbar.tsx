@@ -51,6 +51,8 @@ const Topbar = () => {
         return { title: 'Pengaturan Metadata', breadcrumb: ['Dashboard', 'Admin', 'Pengaturan Metadata'] };
       case '/admin/struktur-perusahaan':
         return { title: 'Struktur Organisasi', breadcrumb: ['Dashboard', 'Admin', 'Struktur Organisasi'] };
+      case '/admin/pengaturan-baru':
+        return { title: 'Pengaturan Baru', breadcrumb: ['Dashboard', 'Admin', 'Pengaturan Baru'] };
                       case '/admin/arsip-dokumen':
           return { title: 'Arsip Dokumen', breadcrumb: ['Dashboard', 'Admin', 'Arsip Dokumen'] };
       case '/admin/dashboard':

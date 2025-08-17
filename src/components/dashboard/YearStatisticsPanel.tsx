@@ -3,6 +3,7 @@ import { useKeenSlider, KeenSliderPlugin } from 'keen-slider/react';
 import 'keen-slider/keen-slider.min.css';
 import { Button } from '@/components/ui/button';
 import { ChevronUp, ChevronDown, Eye } from 'lucide-react';
+import { LucideIcon } from 'lucide-react';
 import AnalysisCard from '@/components/cards/AnalysisCard';
 
 // Keen-slider autoplay plugin
@@ -46,7 +47,7 @@ interface YearStatisticsPanelProps {
   selectedYear: number | null;
   aspectStats: AspectData[];
   overallProgress?: AspectData | null;
-  getAspectIcon: (aspekName: string) => React.ComponentType<any>;
+  getAspectIcon: (aspekName: string) => LucideIcon;
   getAspectColor: (aspekName: string, progress: number) => string;
   onAspectClick?: (aspectName: string) => void;
   isSidebarOpen?: boolean;
@@ -72,6 +73,10 @@ const YearStatisticsPanel: React.FC<YearStatisticsPanelProps> = ({
   showOverallProgress = false
 }) => {
   const [showAllAspects, setShowAllAspects] = useState(false);
+  
+  // Memoize the autoplay plugin to prevent infinite re-renders
+  const autoplayPlugin = useMemo(() => autoplay(), []);
+  
   const [sliderRef, instanceRef] = useKeenSlider({
     loop: true,
     mode: 'free-snap',
@@ -88,9 +93,10 @@ const YearStatisticsPanel: React.FC<YearStatisticsPanelProps> = ({
       slider.moveToIdx(0, true);
     },
     updated(slider) {
-      slider.update();
+      // Don't call slider.update() here as it causes infinite recursion
+      // The slider will update automatically when needed
     }
-  }, [autoplay()]);
+  }, [autoplayPlugin]);
 
   // Create analysis data for aspects
   const analysisData = useMemo(() => {
@@ -175,7 +181,10 @@ const YearStatisticsPanel: React.FC<YearStatisticsPanelProps> = ({
              <div className="flex items-center justify-between">
                <div className="flex items-center space-x-3">
                  <div className="p-1.5 bg-white/20 rounded-md">
-                   {React.createElement(getAspectIcon(overallProgress.aspek), { className: "w-4 h-4 text-white" })}
+                   {(() => {
+                     const IconComponent = getAspectIcon(overallProgress.aspek);
+                     return <IconComponent className="w-4 h-4 text-white" />;
+                   })()}
                  </div>
                  <div>
                    <h3 className="text-lg font-bold">{overallProgress.aspek}</h3>

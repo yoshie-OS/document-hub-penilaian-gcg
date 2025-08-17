@@ -22,6 +22,7 @@ import StrukturPerusahaan from './pages/admin/StrukturPerusahaan';
 import DashboardAdmin from './pages/admin/DashboardAdmin';
 import KelolaAkun from './pages/admin/KelolaAkun';
 import MetaData from './pages/admin/MetaData';
+import PengaturanBaru from './pages/admin/PengaturanBaru';
 import NotFound from './pages/NotFound';
 import { useUser } from './contexts/UserContext';
 
@@ -161,6 +162,14 @@ const AppRoutes = () => {
         element={
           <SuperAdminRoute>
             <MetaData />
+          </SuperAdminRoute>
+        } 
+      />
+      <Route 
+        path="/admin/pengaturan-baru" 
+        element={
+          <SuperAdminRoute>
+            <PengaturanBaru />
           </SuperAdminRoute>
         } 
       />

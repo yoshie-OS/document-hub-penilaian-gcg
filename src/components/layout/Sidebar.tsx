@@ -85,6 +85,12 @@ const Sidebar = () => {
         icon: Settings,
         path: '/admin/meta-data',
         badgeIcon: Lock
+      },
+      {
+        name: 'Pengaturan Baru',
+        icon: Settings,
+        path: '/admin/pengaturan-baru',
+        badgeIcon: Lock
       }
     );
   }
