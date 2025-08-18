@@ -95,7 +95,7 @@ const QuickActionsSection: React.FC<QuickActionsSectionProps> = ({
     {
       id: 'manage-metadata',
       title: 'Pengaturan Metadata',
-      description: 'Kelola aspek dan klasifikasi GCG',
+              description: 'Kelola aspek GCG',
       icon: <Settings className="w-6 h-6" />,
       action: () => console.log('Pengaturan Metadata clicked'),
       variant: 'outline',

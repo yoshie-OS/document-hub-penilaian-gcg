@@ -8,7 +8,7 @@ import { FileUploadProvider } from './contexts/FileUploadContext';
 import { DocumentMetadataProvider } from './contexts/DocumentMetadataContext';
 import { SidebarProvider } from './contexts/SidebarContext';
 import { YearProvider } from './contexts/YearContext';
-import { KlasifikasiProvider } from './contexts/KlasifikasiContext';
+
 import { StrukturPerusahaanProvider } from './contexts/StrukturPerusahaanContext';
 import { Toaster } from './components/ui/toaster';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -190,14 +190,12 @@ const App = () => {
             <FileUploadProvider>
               <DocumentMetadataProvider>
                 <YearProvider>
-                  <KlasifikasiProvider>
                     <StrukturPerusahaanProvider>
                       <SidebarProvider>
                         <AppRoutes />
                         <Toaster />
                       </SidebarProvider>
                     </StrukturPerusahaanProvider>
-                  </KlasifikasiProvider>
                 </YearProvider>
               </DocumentMetadataProvider>
             </FileUploadProvider>

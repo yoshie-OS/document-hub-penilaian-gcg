@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Separator } from '@/components/ui/separator';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { useYear } from '@/contexts/YearContext';
 import { useStrukturPerusahaan } from '@/contexts/StrukturPerusahaanContext';
@@ -18,6 +20,7 @@ import { useChecklist, ChecklistGCG } from '@/contexts/ChecklistContext';
 import { useToast } from '@/hooks/use-toast';
 import { seedUser } from '@/lib/seed/seedUser';
 import { seedChecklistGCG } from '@/lib/seed/seedChecklistGCG';
+import { ActionButton } from '@/components/panels';
 
 // Data subdirektorat untuk assignment
 const SUBDIREKTORAT_OPTIONS = [
@@ -39,7 +42,7 @@ const SUBDIREKTORAT_OPTIONS = [
   { value: "Sub Direktorat Portfolio Management", label: "Portfolio Management" }
 ];
 import { Toaster } from '@/components/ui/toaster';
-import { Calendar, Building2, Users, FileText, Settings, Plus, CheckCircle, Trash2, Edit, Copy, Eye, X } from 'lucide-react';
+import { Calendar, Building2, Users, FileText, Settings, Plus, CheckCircle, Trash2, Edit, Copy, Eye, X, Briefcase, Building, UserCheck, FileCheck, ChevronRight, ArrowRight, Target } from 'lucide-react';
 import { PageHeaderPanel } from '@/components/panels';
 
 // Komponen Assignment Dropdown
@@ -177,7 +180,7 @@ interface ChecklistAssignment {
 
 const PengaturanBaru = () => {
   const { isSidebarOpen } = useSidebar();
-  const { availableYears, addYear, setSelectedYear, selectedYear } = useYear();
+  const { availableYears, addYear, setSelectedYear, selectedYear, removeYear } = useYear();
   const { 
     direktorat, 
     subdirektorat, 
@@ -378,12 +381,15 @@ const PengaturanBaru = () => {
       // Set as active year
       setSelectedYear(tahunForm.tahun);
       
+      // Auto-copy data dari tahun sebelumnya
+      copyDataFromPreviousYear(tahunForm.tahun);
+      
       // Update progress
       setSetupProgress(prev => ({ ...prev, tahunBuku: true }));
       
       toast({
         title: "Berhasil!",
-        description: `Tahun buku ${tahunForm.tahun} berhasil ditambahkan dan diaktifkan`,
+        description: `Tahun buku ${tahunForm.tahun} berhasil ditambahkan dengan data dari tahun sebelumnya`,
       });
 
       // Reset form
@@ -396,9 +402,196 @@ const PengaturanBaru = () => {
     } catch (error) {
       toast({
         title: "Error",
-        description: "Gagal menambahkan tahun buku",
+        description: "Gagal menambahkan tahun buku atau copy data",
         variant: "destructive"
       });
+    }
+  };
+
+  // Function untuk copy data dari tahun sebelumnya
+  const copyDataFromPreviousYear = async (newYear: number) => {
+    try {
+      // Cari tahun sebelumnya (tahun terbesar yang lebih kecil dari tahun baru)
+      const previousYear = availableYears
+        .filter(year => year < newYear)
+        .sort((a, b) => b - a)[0];
+
+      if (!previousYear) {
+        // Jika tidak ada tahun sebelumnya, gunakan data default
+        toast({
+          title: "Info",
+          description: "Tidak ada data tahun sebelumnya, menggunakan data default",
+        });
+        return;
+      }
+
+      // Copy Struktur Organisasi
+      await copyStrukturOrganisasi(previousYear, newYear);
+      
+      // Copy Manajemen Akun
+      await copyManajemenAkun(previousYear, newYear);
+      
+      // Copy Kelola Dokumen
+      await copyKelolaDokumen(previousYear, newYear);
+
+      toast({
+        title: "Berhasil!",
+        description: `Data dari tahun ${previousYear} berhasil di-copy ke tahun ${newYear}`,
+      });
+    } catch (error) {
+      console.error('Error copying data:', error);
+      throw new Error('Gagal copy data dari tahun sebelumnya');
+    }
+  };
+
+  // Copy Struktur Organisasi
+  const copyStrukturOrganisasi = async (fromYear: number, toYear: number) => {
+    try {
+      // Copy Direktorat
+      const direktoratFromYear = direktorat?.filter(d => d.tahun === fromYear) || [];
+      direktoratFromYear.forEach(d => {
+        addDirektorat({
+          nama: d.nama,
+          deskripsi: d.deskripsi,
+          tahun: toYear
+        });
+      });
+
+      // Copy Subdirektorat
+      const subdirektoratFromYear = subdirektorat?.filter(s => s.tahun === fromYear) || [];
+      subdirektoratFromYear.forEach(s => {
+        addSubdirektorat({
+          nama: s.nama,
+          direktoratId: s.direktoratId,
+          deskripsi: s.deskripsi,
+          tahun: toYear
+        });
+      });
+
+      // Copy Anak Perusahaan
+      const anakPerusahaanFromYear = anakPerusahaan?.filter(a => a.tahun === fromYear) || [];
+      anakPerusahaanFromYear.forEach(a => {
+        addAnakPerusahaan({
+          nama: a.nama,
+          kategori: a.kategori,
+          deskripsi: a.deskripsi,
+          tahun: toYear
+        });
+      });
+
+      // Copy Divisi
+      const divisiFromYear = divisi?.filter(d => d.tahun === fromYear) || [];
+      divisiFromYear.forEach(d => {
+        addDivisi({
+          nama: d.nama,
+          subdirektoratId: d.subdirektoratId,
+          deskripsi: d.deskripsi,
+          tahun: toYear
+        });
+      });
+
+      console.log(`Struktur organisasi berhasil di-copy dari tahun ${fromYear} ke ${toYear}`);
+    } catch (error) {
+      console.error('Error copying struktur organisasi:', error);
+      throw error;
+    }
+  };
+
+  // Copy Manajemen Akun
+  const copyManajemenAkun = async (fromYear: number, toYear: number) => {
+    try {
+      const usersFromYear = users?.filter(u => u.tahun === fromYear) || [];
+      
+      // Pastikan selalu ada super admin untuk tahun baru
+      const hasSuperAdmin = usersFromYear.some(u => u.role === 'superadmin');
+      
+      usersFromYear.forEach(user => {
+        const newUser = {
+          ...user,
+          id: Date.now() + Math.random(), // Generate new ID
+          tahun: toYear
+        };
+        
+        // Update users state
+        setUsers(prev => [...prev, newUser]);
+      });
+
+      // Jika tidak ada super admin, tambahkan
+      if (!hasSuperAdmin) {
+        const superAdminUser = {
+          id: Date.now() + 1000,
+          tahun: toYear,
+          email: 'superadmin@posindonesia.co.id',
+          password: 'superadmin123',
+          role: 'superadmin' as UserRole,
+          name: 'Super Administrator',
+          direktorat: 'Direksi',
+          subdirektorat: 'Direksi Utama',
+          divisi: 'Direksi'
+        };
+        setUsers(prev => [...prev, superAdminUser]);
+      }
+
+      // Persist ke localStorage
+      const allUsers = [...(users || []), ...usersFromYear.map(u => ({ ...u, id: Date.now() + Math.random(), tahun: toYear }))];
+      if (!hasSuperAdmin) {
+        allUsers.push({
+          id: Date.now() + 1000,
+          tahun: toYear,
+          email: 'superadmin@posindonesia.co.id',
+          password: 'superadmin123',
+          role: 'superadmin' as UserRole,
+          name: 'Super Administrator',
+          direktorat: 'Direksi',
+          subdirektorat: 'Direksi Utama',
+          divisi: 'Direksi'
+        });
+      }
+      localStorage.setItem('users', JSON.stringify(allUsers));
+
+      console.log(`Manajemen akun berhasil di-copy dari tahun ${fromYear} ke ${toYear}`);
+    } catch (error) {
+      console.error('Error copying manajemen akun:', error);
+      throw error;
+    }
+  };
+
+  // Copy Kelola Dokumen
+  const copyKelolaDokumen = async (fromYear: number, toYear: number) => {
+    try {
+      // Get checklist items from previous year
+      const checklistFromYear = checklistItems?.filter(c => c.tahun === fromYear) || [];
+      
+      // Copy checklist items dengan tahun baru
+      const newChecklistItems = checklistFromYear.map(item => ({
+        ...item,
+        id: Date.now() + Math.random(), // Generate new ID
+        tahun: toYear
+      }));
+
+      // Update checklist items state
+      setChecklistItems(prev => [...prev, ...newChecklistItems]);
+      
+      // Persist ke localStorage
+      const allChecklistItems = [...(checklistItems || []), ...newChecklistItems];
+      localStorage.setItem('checklistItems', JSON.stringify(allChecklistItems));
+
+      // Copy assignments jika ada
+      const assignmentsFromYear = assignments?.filter(a => a.tahun === fromYear) || [];
+      const newAssignments = assignmentsFromYear.map(assignment => ({
+        ...assignment,
+        id: Date.now() + Math.random(), // Generate new ID
+        tahun: toYear,
+        assignedAt: new Date()
+      }));
+
+      setAssignments(prev => [...prev, ...newAssignments]);
+      localStorage.setItem('checklistAssignments', JSON.stringify([...assignments || [], ...newAssignments]));
+
+      console.log(`Kelola dokumen berhasil di-copy dari tahun ${fromYear} ke ${toYear}`);
+    } catch (error) {
+      console.error('Error copying kelola dokumen:', error);
+      throw error;
     }
   };
 
@@ -676,6 +869,23 @@ const PengaturanBaru = () => {
         tahun: selectedYear || new Date().getFullYear()
       }));
 
+      // Pastikan selalu ada super admin untuk tahun ini
+      const hasSuperAdmin = defaultUsers.some(user => user.role === 'superadmin');
+      if (!hasSuperAdmin) {
+        const superAdminUser = {
+          id: Date.now() + 1000, // ID yang lebih unik
+          tahun: selectedYear || new Date().getFullYear(),
+          email: 'superadmin@posindonesia.co.id',
+          password: 'superadmin123',
+          role: 'superadmin' as UserRole,
+          name: 'Super Administrator',
+          direktorat: 'Direksi',
+          subdirektorat: 'Direksi Utama',
+          divisi: 'Direksi'
+        };
+        defaultUsers.push(superAdminUser);
+      }
+
       setUsers(prev => [...prev, ...defaultUsers]);
       localStorage.setItem('users', JSON.stringify([...users, ...defaultUsers]));
       
@@ -683,7 +893,7 @@ const PengaturanBaru = () => {
       
       toast({
         title: "Berhasil!",
-        description: "Data default user berhasil digunakan",
+        description: "Data default user berhasil digunakan dengan Super Admin",
       });
     } catch (error) {
       toast({
@@ -888,6 +1098,17 @@ const PengaturanBaru = () => {
     });
   };
 
+  // Handle delete year
+  const handleDeleteYear = (year: number) => {
+    if (confirm(`Apakah Anda yakin ingin menghapus tahun ${year}?`)) {
+      removeYear(year);
+      toast({
+        title: "Berhasil!",
+        description: `Tahun ${year} berhasil dihapus!`,
+      });
+    }
+  };
+
   // Handle save individual item
   const handleSaveItem = (itemId: number) => {
     try {
@@ -1074,73 +1295,120 @@ const PengaturanBaru = () => {
 
             {/* Tahun Buku Tab */}
             <TabsContent value="tahun-buku">
-              <Card className="border-0 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Calendar className="w-5 h-5 text-blue-600" />
-                    <span>Setup Tahun Buku Baru</span>
-                  </CardTitle>
-                  <CardDescription>
-                    Tambahkan tahun buku baru untuk memulai setup GCG
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleTahunSubmit} className="space-y-4 max-w-md">
-                    <div>
-                      <Label htmlFor="tahun">Tahun Buku *</Label>
-                      <Input
-                        id="tahun"
-                        type="number"
-                        value={tahunForm.tahun}
-                        onChange={(e) => setTahunForm({ ...tahunForm, tahun: parseInt(e.target.value) })}
-                        placeholder="Contoh: 2025"
-                        min={new Date().getFullYear()}
-                        required
-                      />
-                    </div>
-                    
-                    <div>
-                      <Label htmlFor="nama">Nama Tahun Buku *</Label>
-                      <Input
-                        id="nama"
-                        value={tahunForm.nama}
-                        onChange={(e) => setTahunForm({ ...tahunForm, nama: e.target.value })}
-                        placeholder="Contoh: Tahun Buku 2025"
-                        required
-                      />
-                    </div>
-                    
-                    <div>
-                      <Label htmlFor="deskripsi">Deskripsi</Label>
-                      <Input
-                        id="deskripsi"
-                        value={tahunForm.deskripsi}
-                        onChange={(e) => setTahunForm({ ...tahunForm, deskripsi: e.target.value })}
-                        placeholder="Deskripsi tahun buku (opsional)"
-                      />
-                    </div>
+              <div className="space-y-6">
+                {/* Header */}
+                <div className="mb-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                  <div className="flex items-center space-x-2">
+                    <Calendar className="w-5 h-5 text-orange-600" />
+                    <span className="font-semibold text-orange-900">Kelola Tahun Buku</span>
+                  </div>
+                  <p className="text-orange-700 text-sm mt-1">
+                    Tambah atau hapus tahun buku untuk sistem GCG
+                  </p>
+                </div>
 
-                    <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700">
-                      <Plus className="w-4 h-4 mr-2" />
-                      Tambah Tahun Buku
-                    </Button>
-                  </form>
-
-                  {/* Info tahun yang sudah ada */}
-                  {availableYears.length > 0 && (
-                    <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-                      <h4 className="font-medium text-gray-900 mb-2">Tahun Buku yang Tersedia:</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {availableYears.map((tahun) => (
-                          <span key={tahun} className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
-                            {tahun}
-                          </span>
-                        ))}
+                {/* Tahun Table */}
+                <Card className="border-0 shadow-lg">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="flex items-center space-x-2">
+                          <Calendar className="w-5 h-5 text-orange-600" />
+                          <span>Daftar Tahun Buku</span>
+                        </CardTitle>
+                        <CardDescription>
+                          {availableYears?.length || 0} tahun buku tersedia dalam sistem
+                        </CardDescription>
                       </div>
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <ActionButton
+                            variant="default"
+                            icon={<Plus className="w-4 h-4" />}
+                            onClick={() => {}}
+                          >
+                            Tambah Tahun
+                          </ActionButton>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Tambah Tahun Buku Baru</DialogTitle>
+                            <DialogDescription>
+                              Masukkan tahun buku yang akan ditambahkan ke sistem
+                            </DialogDescription>
+                          </DialogHeader>
+                          <form onSubmit={handleTahunSubmit} className="space-y-4">
+                            <div>
+                              <Label htmlFor="year">Tahun Buku</Label>
+                              <Input
+                                id="year"
+                                type="number"
+                                min="2020"
+                                max="2030"
+                                value={tahunForm.tahun || ''}
+                                onChange={(e) => setTahunForm({ ...tahunForm, tahun: parseInt(e.target.value) })}
+                                placeholder="Contoh: 2025"
+                                required
+                              />
+                            </div>
+                            <div className="flex justify-end space-x-2">
+                              <Button type="submit" variant="default">
+                                Tambah Tahun
+                              </Button>
+                            </div>
+                          </form>
+                        </DialogContent>
+                      </Dialog>
                     </div>
-                  )}
-                </CardContent>
-              </Card>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>No</TableHead>
+                          <TableHead>Tahun Buku</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Aksi</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {availableYears?.sort((a, b) => b - a).map((year, index) => (
+                          <TableRow key={year}>
+                            <TableCell>{index + 1}</TableCell>
+                            <TableCell className="font-medium">{year}</TableCell>
+                            <TableCell>
+                              <span className="px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
+                                Aktif
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                className="text-red-600 border-red-200 hover:bg-red-50"
+                                onClick={() => handleDeleteYear(year)}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+
+                {/* Empty State */}
+                {(!availableYears || availableYears.length === 0) && (
+                  <div className="text-center py-12">
+                    <Calendar className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">Belum ada tahun buku</h3>
+                    <p className="text-gray-500">
+                      Mulai dengan menambahkan tahun buku pertama ke sistem
+                    </p>
+                  </div>
+                )}
+              </div>
             </TabsContent>
 
                          {/* Struktur Organisasi Tab */}
@@ -1218,7 +1486,10 @@ const PengaturanBaru = () => {
 
                    {/* Direktorat Table */}
                    <div>
-                     <h3 className="text-lg font-semibold text-gray-900 mb-3">Direktorat</h3>
+                     <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
+                       <Briefcase className="w-5 h-5 text-emerald-600 mr-2" />
+                       Direktorat
+                     </h3>
                      <Table>
                        <TableHeader>
                          <TableRow>
@@ -1228,37 +1499,43 @@ const PengaturanBaru = () => {
                            <TableHead>Aksi</TableHead>
                          </TableRow>
                        </TableHeader>
-                                               <TableBody>
-                          {direktorat && direktorat.length > 0 ? direktorat.map((item) => (
-                            <TableRow key={item.id}>
-                              <TableCell className="font-medium">{item.nama}</TableCell>
-                              <TableCell>{item.deskripsi}</TableCell>
-                              <TableCell>{item.tahun}</TableCell>
-                              <TableCell>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => deleteDirektorat(item.id)}
-                                  className="text-red-600 hover:text-red-700"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          )) : (
-                            <TableRow>
-                              <TableCell colSpan={4} className="text-center text-gray-500 py-8">
-                                Belum ada data direktorat untuk tahun {selectedYear}
-                              </TableCell>
-                            </TableRow>
-                          )}
-                        </TableBody>
+                       <TableBody>
+                         {direktorat && direktorat.length > 0 ? direktorat.map((item) => (
+                           <TableRow key={item.id}>
+                             <TableCell className="font-medium">{item.nama}</TableCell>
+                             <TableCell>{item.deskripsi}</TableCell>
+                             <TableCell>{item.tahun}</TableCell>
+                             <TableCell>
+                               <Button
+                                 variant="ghost"
+                                 size="sm"
+                                 onClick={() => deleteDirektorat(item.id)}
+                                 className="text-red-600 hover:text-red-700"
+                               >
+                                 <Trash2 className="w-4 h-4" />
+                               </Button>
+                             </TableCell>
+                           </TableRow>
+                         )) : (
+                           <TableRow>
+                             <TableCell colSpan={4} className="text-center text-gray-500 py-8">
+                               Belum ada data direktorat untuk tahun {selectedYear}
+                             </TableCell>
+                           </TableRow>
+                         )}
+                       </TableBody>
                      </Table>
                    </div>
 
+                   {/* Separator */}
+                   <Separator className="my-8" />
+
                    {/* Subdirektorat Table */}
                    <div>
-                     <h3 className="text-lg font-semibold text-gray-900 mb-3">Subdirektorat</h3>
+                     <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
+                       <Users className="w-5 h-5 text-blue-600 mr-2" />
+                       Subdirektorat
+                     </h3>
                      <Table>
                        <TableHeader>
                          <TableRow>
@@ -1303,9 +1580,15 @@ const PengaturanBaru = () => {
                      </Table>
                    </div>
 
+                   {/* Separator */}
+                   <Separator className="my-8" />
+
                    {/* Anak Perusahaan Table */}
                    <div>
-                     <h3 className="text-lg font-semibold text-gray-900 mb-3">Anak Perusahaan & Badan Afiliasi</h3>
+                     <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
+                       <Building className="w-5 h-5 text-purple-600 mr-2" />
+                       Anak Perusahaan & Badan Afiliasi
+                     </h3>
                      <Table>
                        <TableHeader>
                          <TableRow>
@@ -1347,9 +1630,15 @@ const PengaturanBaru = () => {
                      </Table>
                    </div>
 
+                   {/* Separator */}
+                   <Separator className="my-8" />
+
                    {/* Divisi Table */}
                    <div>
-                     <h3 className="text-lg font-semibold text-gray-900 mb-3">Divisi</h3>
+                     <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
+                       <Building2 className="w-5 h-5 text-orange-600 mr-2" />
+                       Divisi
+                     </h3>
                      <Table>
                        <TableHeader>
                          <TableRow>
@@ -1598,21 +1887,21 @@ const PengaturanBaru = () => {
                                                            {/* Checklist Items Table with Enhanced Design */}
                     <div>
                       <h3 className="text-lg font-semibold text-gray-900 mb-3">Dokumen GCG Checklist</h3>
-                      <div className="overflow-hidden rounded-lg border border-indigo-100">
+                      <div className="overflow-hidden rounded-lg border border-indigo-100 shadow-lg">
                         <Table>
                           <TableHeader>
-                            <TableRow className="bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-100">
-                              <TableHead className="text-indigo-900 font-semibold w-16">No</TableHead>
-                              <TableHead className="text-indigo-900 font-semibold w-48">Aspek (Opsional)</TableHead>
-                              <TableHead className="text-indigo-900 font-semibold w-96">Deskripsi</TableHead>
-                              <TableHead className="text-indigo-900 font-semibold w-32">Assign To</TableHead>
-                              <TableHead className="text-indigo-900 font-semibold w-24">Aksi</TableHead>
+                            <TableRow className="bg-gradient-to-r from-indigo-600 to-purple-600 border-indigo-200">
+                              <TableHead className="text-white font-bold w-16 text-center">No</TableHead>
+                              <TableHead className="text-white font-bold w-48 text-center">Aspek (Opsional)</TableHead>
+                              <TableHead className="text-white font-bold w-96 text-center">Deskripsi</TableHead>
+                              <TableHead className="text-white font-bold w-48 text-center">Assign To</TableHead>
+                              <TableHead className="text-white font-bold w-32 text-center">Aksi</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
                             {checklistItems && checklistItems.length > 0 ? checklistItems.map((item, index) => (
-                              <TableRow key={item.id} className="hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 transition-colors duration-200">
-                                <TableCell className="font-medium text-gray-700">
+                              <TableRow key={item.id} className="hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 transition-all duration-200 border-b border-gray-100">
+                                <TableCell className="font-bold text-gray-700 text-center bg-gray-50">
                                   {index + 1}
                                 </TableCell>
                                 <TableCell>
@@ -1625,11 +1914,17 @@ const PengaturanBaru = () => {
                                       trackItemChange(item.id);
                                     }}
                                   >
-                                    <SelectTrigger className="w-44">
+                                    <SelectTrigger className="w-44 border-2 border-gray-200 hover:border-indigo-400 focus:border-indigo-500 transition-colors">
                                       <SelectValue placeholder="Pilih Aspek (Opsional)" />
                                     </SelectTrigger>
                                     <SelectContent>
                                       <SelectItem value="none">Tidak Ada Aspek</SelectItem>
+                                      <SelectItem value="Transparansi">Transparansi</SelectItem>
+                                      <SelectItem value="Akuntabilitas">Akuntabilitas</SelectItem>
+                                      <SelectItem value="Responsibilitas">Responsibilitas</SelectItem>
+                                      <SelectItem value="Independensi">Independensi</SelectItem>
+                                      <SelectItem value="Kewajaran">Kewajaran</SelectItem>
+                                      <SelectItem value="Kepatuhan">Kepatuhan</SelectItem>
                                       {checklistItems && checklistItems.length > 0 ? 
                                         [...new Set(checklistItems.map(item => item.aspek).filter(Boolean))].map((aspek) => (
                                           <SelectItem key={aspek} value={aspek}>
@@ -1644,7 +1939,7 @@ const PengaturanBaru = () => {
                                   <Textarea
                                     value={item.deskripsi || ''}
                                     placeholder="Masukkan deskripsi dokumen GCG..."
-                                    className="min-h-[80px] resize-none border-2 focus:border-blue-500"
+                                    className="min-h-[80px] resize-none border-2 border-gray-200 hover:border-indigo-400 focus:border-indigo-500 transition-colors rounded-md"
                                     onChange={(e) => {
                                       setChecklistItems(prev => prev.map(i => 
                                         i.id === item.id ? { ...i, deskripsi: e.target.value } : i

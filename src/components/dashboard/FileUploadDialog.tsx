@@ -13,7 +13,7 @@ import { useFileUpload } from '@/contexts/FileUploadContext';
 import { useChecklist } from '@/contexts/ChecklistContext';
 import { useDocumentMetadata } from '@/contexts/DocumentMetadataContext';
 import { useYear } from '@/contexts/YearContext';
-import { useKlasifikasi } from '@/contexts/KlasifikasiContext';
+
 import { useStrukturPerusahaan } from '@/contexts/StrukturPerusahaanContext';
 import { useToast } from '@/hooks/use-toast';
 import { 
@@ -690,7 +690,10 @@ const FileUploadDialog: React.FC<FileUploadDialogProps> = ({
   const { checklist } = useChecklist();
   const { documents, addDocument } = useDocumentMetadata();
   const { toast } = useToast();
-  const { klasifikasiPrinsip: gcgPrinciples, klasifikasiJenis: documentTypes, klasifikasiKategori: documentCategories } = useKlasifikasi();
+  // Klasifikasi data removed - using hardcoded options instead
+  const gcgPrinciples = ['Transparansi', 'Akuntabilitas', 'Responsibilitas', 'Independensi', 'Kewajaran', 'Kepatuhan'];
+  const documentTypes = ['Dokumen Internal', 'Dokumen Eksternal', 'Laporan', 'SOP', 'Kebijakan', 'Prosedur'];
+  const documentCategories = ['GCG', 'Operasional', 'Keuangan', 'SDM', 'Teknologi', 'Lainnya'];
 
   // Form state - optimized with useReducer pattern
   const [formData, setFormData] = useState<UploadFormData>({

@@ -13,7 +13,7 @@ import { useFileUpload } from '@/contexts/FileUploadContext';
 import { useChecklist } from '@/contexts/ChecklistContext';
 import { useDirektorat } from '@/contexts/DireksiContext';
 import { useYear } from '@/contexts/YearContext';
-import { useKlasifikasi } from '@/contexts/KlasifikasiContext';
+
 import { useStrukturPerusahaan } from '@/contexts/StrukturPerusahaanContext';
 import { useToast } from '@/hooks/use-toast';
 import { 
@@ -60,7 +60,15 @@ const DocumentList: React.FC<DocumentListProps> = ({
   const { selectedYear } = useYear();
   const { checklist } = useChecklist();
   const { direktorat } = useDirektorat();
-  const { klasifikasiPrinsip, klasifikasiJenis, klasifikasiKategori, klasifikasiData } = useKlasifikasi();
+  // Klasifikasi data removed - using hardcoded options instead
+  const klasifikasiPrinsip = ['Transparansi', 'Akuntabilitas', 'Responsibilitas', 'Independensi', 'Kewajaran', 'Kepatuhan'];
+  const klasifikasiJenis = ['Dokumen Internal', 'Dokumen Eksternal', 'Laporan', 'SOP', 'Kebijakan', 'Prosedur'];
+  const klasifikasiKategori = ['GCG', 'Operasional', 'Keuangan', 'SDM', 'Teknologi', 'Lainnya'];
+  const klasifikasiData = [
+    ...klasifikasiPrinsip.map(nama => ({ nama, tipe: 'prinsip' as const, isActive: true })),
+    ...klasifikasiJenis.map(nama => ({ nama, tipe: 'jenis' as const, isActive: true })),
+    ...klasifikasiKategori.map(nama => ({ nama, tipe: 'kategori' as const, isActive: true }))
+  ];
   const { direktorat: direktorats, subdirektorat: subDirektorats } = useStrukturPerusahaan();
   const { toast } = useToast();
   
