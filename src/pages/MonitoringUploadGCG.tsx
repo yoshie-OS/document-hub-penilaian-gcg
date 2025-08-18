@@ -48,138 +48,9 @@ import {
 
 
 
-interface ChecklistAssignment {
-  id: number;
-  checklistId: number;
-  subdirektorat: string;
-  aspek: string;
-  deskripsi: string;
-  tahun: number;
-  assignedBy: string;
-  assignedAt: Date;
-  status: 'assigned' | 'in_progress' | 'completed';
-  notes?: string;
-}
+// ChecklistAssignment interface dan SUBDIREKTORAT_OPTIONS removed - fitur assign sudah ada di Pengaturan Baru
 
-// Data subdirektorat yang dioptimasi - dipindah ke luar komponen
-const SUBDIREKTORAT_OPTIONS = [
-  { value: "Sub Direktorat Government and Corporate Business", label: "Government & Corporate Business" },
-  { value: "Sub Direktorat Consumer Business", label: "Consumer Business" },
-  { value: "Sub Direktorat Enterprise Business", label: "Enterprise Business" },
-  { value: "Sub Direktorat Retail Business", label: "Retail Business" },
-  { value: "Sub Direktorat Wholesale and International Business", label: "Wholesale & International Business" },
-  { value: "Sub Direktorat Courier and Logistic Operation", label: "Courier & Logistic Operation" },
-  { value: "Sub Direktorat International Post Services", label: "International Post Services" },
-  { value: "Sub Direktorat Digital Services", label: "Digital Services" },
-  { value: "Sub Direktorat Frontino Management and Financial Transaction Services", label: "Frontino Management & Financial Transaction" },
-  { value: "Sub Direktorat Financial Operation and Business Partner", label: "Financial Operation & Business Partner" },
-  { value: "Sub Direktorat Financial Policy and Asset Management", label: "Financial Policy & Asset Management" },
-  { value: "Sub Direktorat Risk Management", label: "Risk Management" },
-  { value: "Sub Direktorat Human Capital Policy and Strategy", label: "Human Capital Policy & Strategy" },
-  { value: "Sub Direktorat Human Capital Service and Business Partner", label: "Human Capital Service & Business Partner" },
-  { value: "Sub Direktorat Strategic Planning and Business Development", label: "Strategic Planning & Business Development" },
-  { value: "Sub Direktorat Portfolio Management", label: "Portfolio Management" }
-];
-
-// Komponen Assignment Dropdown yang dioptimasi dengan button sederhana
-const AssignmentDropdown = memo(({ 
-  item, 
-  onAssign, 
-  isSuperAdmin,
-  currentAssignmentLabel
-}: { 
-  item: { id: number; aspek: string; deskripsi: string }; 
-  onAssign: (checklistId: number, subdirektorat: string, aspek: string, deskripsi: string) => void;
-  isSuperAdmin: boolean;
-  currentAssignmentLabel?: string | null;
-}) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  const handleAssign = useCallback(async (value: string) => {
-    setIsLoading(true);
-    try {
-      // Simulate async operation untuk menghindari lag
-      await new Promise(resolve => setTimeout(resolve, 10));
-      onAssign(item.id, value, item.aspek, item.deskripsi);
-      setIsOpen(false);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [item, onAssign]);
-
-  // Memoize dropdown options untuk performa
-  const dropdownOptions = useMemo(() => (
-    SUBDIREKTORAT_OPTIONS.map((option) => (
-      <button
-        key={option.value}
-        onClick={() => handleAssign(option.value)}
-        disabled={isLoading}
-        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {option.label}
-      </button>
-    ))
-  ), [handleAssign, isLoading]);
-
-  // Handle click outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isOpen]);
-
-  if (!isSuperAdmin) return null;
-
-  return (
-    <div className="relative" ref={dropdownRef}>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => setIsOpen(!isOpen)}
-        disabled={isLoading}
-        className={`w-56 justify-between disabled:opacity-50 ${currentAssignmentLabel ? 'border-blue-300 bg-blue-50 text-blue-700' : ''}`}
-      >
-        <span className="truncate text-left">
-          {isLoading 
-            ? 'Assigning...'
-            : currentAssignmentLabel 
-              ? `Assigned: ${currentAssignmentLabel}`
-              : 'Assign ke Subdirektorat'}
-        </span>
-        <svg
-          className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </Button>
-      
-      {isOpen && (
-        <div className="absolute z-50 mt-1 w-56 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
-          <div className="py-1">
-            {dropdownOptions}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-});
-
-AssignmentDropdown.displayName = 'AssignmentDropdown';
+// AssignmentDropdown component removed - fitur assign sudah ada di Pengaturan Baru
 
 
 
@@ -213,21 +84,7 @@ const MonitoringUploadGCG = () => {
     deskripsi: string;
   } | null>(null);
   
-  // State untuk assignment dokumen GCG
-  const [assignments, setAssignments] = useState<ChecklistAssignment[]>([]);
-
-  // Load assignments from localStorage on mount
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem('checklistAssignments');
-      if (stored) {
-        const parsed = JSON.parse(stored) as ChecklistAssignment[];
-        setAssignments(parsed);
-      }
-    } catch (err) {
-      console.error('Failed to load checklistAssignments from localStorage', err);
-    }
-  }, []);
+  // State untuk assignment dokumen GCG removed - fitur assign sudah ada di Pengaturan Baru
   
   // State untuk tab
   const [activeTab, setActiveTab] = useState<'rekap' | 'kelola-aspek' | 'kelola-dokumen'>('rekap');
@@ -306,25 +163,7 @@ const MonitoringUploadGCG = () => {
     return [...new Set(yearChecklist.map(item => item.aspek))];
   }, [checklist, selectedYear]);
 
-  // Ringkasan assignment per subdirektorat (Breakdown Penugasan)
-  const assignmentSummary = useMemo(() => {
-    const yearAssignments = assignments.filter(a => a.tahun === selectedYear);
-    if (yearAssignments.length === 0) return [] as Array<{ sub: string; display: string; total: number; completed: number; percent: number }>;
-    const bySub: Record<string, number[]> = {};
-    yearAssignments.forEach(a => {
-      if (!bySub[a.subdirektorat]) bySub[a.subdirektorat] = [];
-      bySub[a.subdirektorat].push(a.checklistId);
-    });
-    const yearFiles = getFilesByYear(selectedYear);
-    const isChecklistUploadedId = (checklistId: number) => yearFiles.some(f => f.checklistId === checklistId);
-    const clean = (name: string) => name.replace(/^\s*Sub\s*Direktorat\s*/i, '').trim();
-    return Object.entries(bySub).map(([sub, checklistIds]) => {
-      const total = checklistIds.length;
-      const completed = checklistIds.filter(id => isChecklistUploadedId(id)).length;
-      const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
-      return { sub, display: clean(sub), total, completed, percent };
-    }).sort((a, b) => a.display.localeCompare(b.display));
-  }, [assignments, selectedYear, getFilesByYear]);
+
 
   // Check if dokumen GCG item is uploaded - menggunakan data yang sama dengan DashboardStats
   const isChecklistUploaded = useCallback((checklistId: number) => {
@@ -522,39 +361,7 @@ const MonitoringUploadGCG = () => {
     setIsUploadDialogOpen(true);
   }, []);
 
-  // Handle assignment - dioptimasi dengan useCallback
-  const handleAssignment = useCallback((checklistId: number, subdirektorat: string, aspek: string, deskripsi: string) => {
-    const newAssignment: ChecklistAssignment = {
-      id: Date.now(),
-      checklistId,
-      subdirektorat,
-      aspek,
-      deskripsi,
-      tahun: selectedYear,
-      assignedBy: user?.name || 'Super Admin',
-      assignedAt: new Date(),
-      status: 'assigned'
-    };
-    // Update state and persist to localStorage so radar & panels dapat membaca
-    setAssignments(prev => {
-      // Replace existing assignment for this checklistId & year if any
-      const next = [...prev.filter(a => !(a.checklistId === checklistId && a.tahun === selectedYear)), newAssignment];
-      try {
-        localStorage.setItem('checklistAssignments', JSON.stringify(next));
-        // Notify other panels/components to refresh
-        try {
-          window.dispatchEvent(new Event('assignmentsUpdated'));
-        } catch {}
-      } catch (err) {
-        console.error('Failed to persist checklistAssignments', err);
-      }
-      return next;
-    });
-    toast({
-      title: "Assignment Berhasil",
-              description: `Dokumen GCG berhasil ditugaskan ke ${subdirektorat}`,
-    });
-  }, [selectedYear, user?.name, toast]);
+  // Handle assignment removed - fitur assign sudah ada di Pengaturan Baru
 
   // Fungsi untuk mengelola aspek
   const handleAddAspek = () => {
@@ -749,26 +556,9 @@ const MonitoringUploadGCG = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {assignmentSummary.length === 0 ? (
-                    <div className="text-sm text-gray-500">Belum ada penugasan untuk tahun ini.</div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {assignmentSummary.map((row, idx) => (
-                        <div key={idx} className="p-4 bg-gray-50 rounded-lg border border-gray-100">
-                          <div className="text-sm font-semibold text-gray-900 mb-1 text-center truncate">{row.display}</div>
-                          <div className="flex items-center justify-center space-x-2 mb-2">
-                            <span className="text-base font-bold text-blue-600">{row.completed}/{row.total}</span>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div 
-                              className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-700"
-                              style={{ width: `${row.percent}%` }}
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <div className="text-sm text-gray-500 text-center py-8">
+                    Fitur penugasan dokumen GCG telah dipindahkan ke menu "Pengaturan Baru" → "Kelola Dokumen"
+                  </div>
                 </CardContent>
               </Card>
 
@@ -1053,17 +843,7 @@ const MonitoringUploadGCG = () => {
                               >
                             <Upload className="w-4 h-4" />
                           </Button>
-                      <AssignmentDropdown 
-                        item={item}
-                        onAssign={handleAssignment}
-                        isSuperAdmin={user?.role === 'superadmin'}
-                        currentAssignmentLabel={(() => {
-                          const a = assignments.find(a => a.checklistId === item.id && a.tahun === selectedYear);
-                          if (!a) return null;
-                          const opt = SUBDIREKTORAT_OPTIONS.find(o => o.value === a.subdirektorat);
-                          return opt?.label || a.subdirektorat;
-                        })()}
-                      />
+                      {/* AssignmentDropdown removed - fitur assign sudah ada di Pengaturan Baru */}
                         </div>
                       </TableCell>
                     </TableRow>

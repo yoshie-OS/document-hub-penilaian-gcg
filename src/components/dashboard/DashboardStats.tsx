@@ -114,7 +114,7 @@ const DashboardStats = () => {
   const navigate = useNavigate();
   const { selectedYear } = useYear();
   const { getYearStats, getFilesByYear } = useFileUpload();
-  const { checklist } = useChecklist();
+  const { checklist, aspects, getAspectsByYear } = useChecklist();
 
   const { isSidebarOpen } = useSidebar();
   const [showAllAspects, setShowAllAspects] = useState(false);
@@ -139,23 +139,21 @@ const DashboardStats = () => {
     },
     updated(slider) {
       // Force recalculation on window resize or sidebar toggle
-      slider.update();
+      // Don't call slider.update() here to avoid infinite loop
     }
   }, [autoplayPlugin]);
 
   // Update slider when sidebar state changes
   useEffect(() => {
     if (instanceRef.current) {
-      // Longer delay to ensure DOM has fully updated
-      setTimeout(() => {
+      // Single update with delay to ensure DOM has fully updated
+      const timer = setTimeout(() => {
         instanceRef.current?.update();
-        // Force a second update after a short delay
-        setTimeout(() => {
-          instanceRef.current?.update();
-        }, 50);
       }, 150);
+      
+      return () => clearTimeout(timer);
     }
-  }, [isSidebarOpen, instanceRef]);
+  }, [isSidebarOpen]);
 
   // Update slider on window resize
   useEffect(() => {
@@ -214,28 +212,26 @@ const DashboardStats = () => {
       const yearFiles = getFilesByYear(selectedYear) || [];
       const yearChecklist = checklist?.filter(item => item.tahun === selectedYear) || [];
       
-      // Get unique aspek names from checklist
-      const aspekNames = [...new Set(yearChecklist.map(item => item.aspek))];
+      // Get aspects from context for the selected year
+      const yearAspects = getAspectsByYear(selectedYear);
       
-      return aspekNames.map(aspekName => {
-        if (!aspekName) return null;
-        
-        const aspectItems = yearChecklist.filter(item => item.aspek === aspekName);
-        const uploadedFiles = yearFiles.filter(file => file.aspect === aspekName);
+      return yearAspects.map(aspek => {
+        const aspectItems = yearChecklist.filter(item => item.aspek === aspek.nama);
+        const uploadedFiles = yearFiles.filter(file => file.aspect === aspek.nama);
         const totalItems = aspectItems.length;
         const uploadedCount = uploadedFiles.length;
         const pendingCount = totalItems - uploadedCount;
         const progress = totalItems > 0 ? Math.round((uploadedCount / totalItems) * 100) : 0;
 
         return {
-          aspek: aspekName,
+          aspek: aspek.nama,
           totalItems,
           uploadedCount,
           pendingCount,
           progress,
           files: uploadedFiles
         };
-      }).filter(Boolean); // Remove null values
+      });
     } catch (error) {
       console.error('Error calculating aspect stats:', error);
       return [];
@@ -257,28 +253,32 @@ const DashboardStats = () => {
 
   // Helper functions
   const getAspectIcon = (aspekName: string) => {
-    if (aspekName.includes('ASPEK I')) return BarChart3;
-    if (aspekName.includes('ASPEK II')) return CheckCircle;
-    if (aspekName.includes('ASPEK III')) return TrendingUp;
-    if (aspekName.includes('ASPEK IV')) return FileText;
-    if (aspekName.includes('ASPEK V')) return Upload;
-    // Aspek baru/default
-    return Plus;
+    // Use predefined icons for known aspects, fallback to Plus for new ones
+    const iconMap: Record<string, any> = {
+      'ASPEK I. Komitmen': BarChart3,
+      'ASPEK II. RUPS': CheckCircle,
+      'ASPEK III. Dewan Komisaris': TrendingUp,
+      'ASPEK IV. Direksi': FileText,
+      'ASPEK V. Pengungkapan': Upload,
+    };
+    
+    return iconMap[aspekName] || Plus;
   };
 
-  // Mapping warna unik untuk tiap aspek
-  const ASPECT_COLORS: Record<string, string> = {
-    'ASPEK I. Komitmen': '#2563eb', // biru
-    'ASPEK II. RUPS': '#059669',    // hijau
-    'ASPEK III. Dewan Komisaris': '#f59e42', // oranye
-    'ASPEK IV. Direksi': '#eab308', // kuning
-    'ASPEK V. Pengungkapan': '#d946ef', // ungu
-    // fallback
-    'default': '#ef4444', // merah
-  };
-
+  // Generate colors dynamically based on aspect index
   const getAspectColor = (aspekName: string, progress: number) => {
-    if (ASPECT_COLORS[aspekName]) return ASPECT_COLORS[aspekName];
+    // Predefined colors for known aspects
+    const predefinedColors: Record<string, string> = {
+      'ASPEK I. Komitmen': '#2563eb', // biru
+      'ASPEK II. RUPS': '#059669',    // hijau
+      'ASPEK III. Dewan Komisaris': '#f59e42', // oranye
+      'ASPEK IV. Direksi': '#eab308', // kuning
+      'ASPEK V. Pengungkapan': '#d946ef', // ungu
+    };
+    
+    if (predefinedColors[aspekName]) return predefinedColors[aspekName];
+    
+    // For new aspects, generate color based on progress
     if (progress >= 80) return '#059669'; // hijau
     if (progress >= 50) return '#eab308'; // kuning
     return '#ef4444'; // merah

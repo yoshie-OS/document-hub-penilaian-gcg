@@ -28,8 +28,7 @@ interface ChecklistAssignment {
 const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
   const { selectedYear } = useYear();
   const { documents, getDocumentsByYear } = useDocumentMetadata();
-  const { subdirektorat } = useDirektorat();
-  const { subdirektorat: subdirektoratByYear } = useStrukturPerusahaan();
+  const { subdirektorat: strukturSubdirektorat } = useStrukturPerusahaan();
 
   // Get assignments data for the selected year
   const assignments = useMemo(() => {
@@ -62,12 +61,18 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
     if (!selectedYear) return [];
     const yearDocuments = getDocumentsByYear(selectedYear);
 
-    // Gunakan daftar subdirektorat dari StrukturPerusahaanContext bila tersedia agar semua subdirektorat terlihat
-    const subdirs: string[] = (subdirektoratByYear && subdirektoratByYear.length > 0)
-      ? subdirektoratByYear
-      : subdirektorat.map(s => s.nama);
+    // Gunakan daftar subdirektorat dari StrukturPerusahaanContext untuk tahun terpilih
+    const subdirs: string[] = (strukturSubdirektorat || [])
+      .map((s) => s?.nama)
+      .filter((name): name is string => !!name && typeof name === 'string' && name.trim() !== '');
 
     return subdirs.map((subName) => {
+      // Pastikan subName adalah string yang valid
+      if (!subName || typeof subName !== 'string') {
+        console.warn('Invalid subName:', subName);
+        return null;
+      }
+      
       // Hilangkan awalan "Sub Direktorat " agar rapi
       const cleanName = subName.replace(/^\s*Sub\s*Direktorat\s*/i, '').trim();
       
@@ -99,8 +104,8 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
         target,
         divisions
       };
-    });
-  }, [selectedYear, documents, getDocumentsByYear, subdirektorat, subdirektoratByYear, assignments]);
+    }).filter(Boolean); // Filter out null values
+  }, [selectedYear, documents, getDocumentsByYear, strukturSubdirektorat, assignments]);
 
   if (!chartData.length) return (
     <Card className={`border-0 shadow-xl bg-white/80 backdrop-blur-sm ${className}`}>

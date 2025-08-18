@@ -22,25 +22,7 @@ import { seedUser } from '@/lib/seed/seedUser';
 import { seedChecklistGCG } from '@/lib/seed/seedChecklistGCG';
 import { ActionButton } from '@/components/panels';
 
-// Data subdirektorat untuk assignment
-const SUBDIREKTORAT_OPTIONS = [
-  { value: "Sub Direktorat Government and Corporate Business", label: "Government & Corporate Business" },
-  { value: "Sub Direktorat Consumer Business", label: "Consumer Business" },
-  { value: "Sub Direktorat Enterprise Business", label: "Enterprise Business" },
-  { value: "Sub Direktorat Retail Business", label: "Retail Business" },
-  { value: "Sub Direktorat Wholesale and International Business", label: "Wholesale & International Business" },
-  { value: "Sub Direktorat Courier and Logistic Operation", label: "Courier & Logistic Operation" },
-  { value: "Sub Direktorat International Post Services", label: "International Post Services" },
-  { value: "Sub Direktorat Digital Services", label: "Digital Services" },
-  { value: "Sub Direktorat Frontino Management and Financial Transaction Services", label: "Frontino Management & Financial Transaction" },
-  { value: "Sub Direktorat Financial Operation and Business Partner", label: "Financial Operation & Business Partner" },
-  { value: "Sub Direktorat Financial Policy and Asset Management", label: "Financial Policy & Asset Management" },
-  { value: "Sub Direktorat Risk Management", label: "Risk Management" },
-  { value: "Sub Direktorat Human Capital Policy and Strategy", label: "Human Capital Policy & Strategy" },
-  { value: "Sub Direktorat Human Capital Service and Business Partner", label: "Human Capital Service & Business Partner" },
-  { value: "Sub Direktorat Strategic Planning and Business Development", label: "Strategic Planning & Business Development" },
-  { value: "Sub Direktorat Portfolio Management", label: "Portfolio Management" }
-];
+// Pilihan subdirektorat sekarang diambil dari StrukturPerusahaanContext (berdasarkan tahun aktif)
 import { Toaster } from '@/components/ui/toaster';
 import { Calendar, Building2, Users, FileText, Settings, Plus, CheckCircle, Trash2, Edit, Copy, Eye, X, Briefcase, Building, UserCheck, FileCheck, ChevronRight, ArrowRight, Target } from 'lucide-react';
 import { PageHeaderPanel } from '@/components/panels';
@@ -60,6 +42,8 @@ const AssignmentDropdown = ({
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const { subdirektorat } = useStrukturPerusahaan();
+  const optionNames = (subdirektorat || []).map(s => s.nama).filter((n): n is string => !!n && n.trim() !== '');
 
   const handleAssign = async (value: string) => {
     setIsLoading(true);
@@ -121,16 +105,20 @@ const AssignmentDropdown = ({
       {isOpen && (
         <div className="absolute z-50 mt-1 w-56 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
           <div className="py-1">
-            {SUBDIREKTORAT_OPTIONS.map((option) => (
-              <button
-                key={option.value}
-                onClick={() => handleAssign(option.value)}
-                disabled={isLoading}
-                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {option.value}
-              </button>
-            ))}
+            {optionNames.length === 0 ? (
+              <div className="px-4 py-2 text-sm text-gray-500">Belum ada subdirektorat</div>
+            ) : (
+              optionNames.map((name) => (
+                <button
+                  key={name}
+                  onClick={() => handleAssign(name)}
+                  disabled={isLoading}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {name.replace(/^\s*Sub\s*Direktorat\s*/i, '')}
+                </button>
+              ))
+            )}
           </div>
         </div>
       )}
@@ -197,7 +185,18 @@ const PengaturanBaru = () => {
     useDefaultData
   } = useStrukturPerusahaan();
   const { user: currentUser } = useUser();
-  const { checklist, addChecklist, editChecklist, deleteChecklist, addAspek, editAspek, deleteAspek, initializeYearData } = useChecklist();
+  const { 
+    checklist, 
+    aspects,
+    addChecklist, 
+    editChecklist, 
+    deleteChecklist, 
+    addAspek, 
+    editAspek, 
+    deleteAspek, 
+    initializeYearData,
+    getAspectsByYear
+  } = useChecklist();
   const { toast } = useToast();
 
   // State untuk users
@@ -213,8 +212,8 @@ const PengaturanBaru = () => {
   
   // State untuk manajemen aspek
   const [showAspekManagementPanel, setShowAspekManagementPanel] = useState(false);
-  const [editingAspek, setEditingAspek] = useState<string | null>(null);
-  const [aspekForm, setAspekForm] = useState({ nama: '', deskripsi: '' });
+  const [editingAspek, setEditingAspek] = useState<{ id: number; nama: string } | null>(null);
+  const [aspekForm, setAspekForm] = useState({ nama: '' });
   
   // State untuk mengontrol visibility button data default
   const [showDefaultDataButton, setShowDefaultDataButton] = useState(false);
@@ -265,7 +264,8 @@ const PengaturanBaru = () => {
       const extendedChecklist: ChecklistItem[] = yearChecklist.map(item => ({
         ...item,
         status: 'pending',
-        catatan: ''
+        catatan: '',
+        tahun: item.tahun || selectedYear // Ensure tahun is always set
       }));
       setChecklistItems(extendedChecklist);
     }
@@ -355,10 +355,10 @@ const PengaturanBaru = () => {
   const handleTahunSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!tahunForm.tahun || !tahunForm.nama) {
+    if (!tahunForm.tahun) {
       toast({
         title: "Error",
-        description: "Tahun dan nama tahun buku wajib diisi!",
+        description: "Tahun buku wajib diisi!",
         variant: "destructive"
       });
       return;
@@ -505,8 +505,8 @@ const PengaturanBaru = () => {
       // Pastikan selalu ada super admin untuk tahun baru
       const hasSuperAdmin = usersFromYear.some(u => u.role === 'superadmin');
       
-      usersFromYear.forEach(user => {
-        const newUser = {
+      usersFromYear.forEach((user: User) => {
+        const newUser: User = {
           ...user,
           id: Date.now() + Math.random(), // Generate new ID
           tahun: toYear
@@ -533,7 +533,7 @@ const PengaturanBaru = () => {
       }
 
       // Persist ke localStorage
-      const allUsers = [...(users || []), ...usersFromYear.map(u => ({ ...u, id: Date.now() + Math.random(), tahun: toYear }))];
+      const allUsers: User[] = [...(users || []), ...usersFromYear.map((u: User) => ({ ...u, id: Date.now() + Math.random(), tahun: toYear }))];
       if (!hasSuperAdmin) {
         allUsers.push({
           id: Date.now() + 1000,
@@ -560,7 +560,7 @@ const PengaturanBaru = () => {
   const copyKelolaDokumen = async (fromYear: number, toYear: number) => {
     try {
       // Get checklist items from previous year
-      const checklistFromYear = checklistItems?.filter(c => c.tahun === fromYear) || [];
+      const checklistFromYear = checklist?.filter(c => c.tahun === fromYear) || [];
       
       // Copy checklist items dengan tahun baru
       const newChecklistItems = checklistFromYear.map(item => ({
@@ -572,9 +572,20 @@ const PengaturanBaru = () => {
       // Update checklist items state
       setChecklistItems(prev => [...prev, ...newChecklistItems]);
       
-      // Persist ke localStorage
+      // Persist ke localStorage dengan key yang sama dengan ChecklistContext
       const allChecklistItems = [...(checklistItems || []), ...newChecklistItems];
-      localStorage.setItem('checklistItems', JSON.stringify(allChecklistItems));
+      localStorage.setItem('checklistGCG', JSON.stringify(allChecklistItems));
+      
+      // Trigger update di ChecklistContext
+      window.dispatchEvent(new CustomEvent('checklistUpdated', {
+        detail: { type: 'checklistUpdated', data: allChecklistItems }
+      }));
+
+      // Copy aspects from previous year
+      const aspectsFromYear = getAspectsByYear(fromYear);
+      aspectsFromYear.forEach(aspek => {
+        addAspek(aspek.nama, toYear);
+      });
 
       // Copy assignments jika ada
       const assignmentsFromYear = assignments?.filter(a => a.tahun === fromYear) || [];
@@ -863,10 +874,11 @@ const PengaturanBaru = () => {
   const handleUseDefaultUsers = () => {
     try {
       // Copy default users dari seedUser dengan tahun yang dipilih
-      const defaultUsers = seedUser.map(user => ({
+      const defaultUsers: User[] = seedUser.map(user => ({
         ...user,
         id: Date.now() + Math.random(), // Generate unique ID
-        tahun: selectedYear || new Date().getFullYear()
+        tahun: selectedYear || new Date().getFullYear(),
+        role: user.role as UserRole // Ensure role is UserRole type
       }));
 
       // Pastikan selalu ada super admin untuk tahun ini
@@ -990,29 +1002,26 @@ const PengaturanBaru = () => {
       return;
     }
 
-    // Check if aspek already exists
-    const existingAspek = checklistItems.some(item => item.aspek === aspekForm.nama.trim());
+    // Check if aspek already exists for the selected year
+    const yearAspects = getAspectsByYear(selectedYear);
+    const existingAspek = yearAspects.find(aspek => 
+      aspek.nama.toLowerCase() === aspekForm.nama.trim().toLowerCase()
+    );
+    
     if (existingAspek) {
       toast({
         title: "Error",
-        description: "Aspek sudah ada!",
+        description: "Aspek sudah ada untuk tahun ini!",
         variant: "destructive"
       });
       return;
     }
 
-    // Add new aspek to checklist items
-    const newAspekItem: ChecklistItem = {
-      id: Date.now(),
-      aspek: aspekForm.nama.trim(),
-      deskripsi: aspekForm.deskripsi || '',
-      tahun: selectedYear || new Date().getFullYear()
-    };
-
-    setChecklistItems(prev => [...prev, newAspekItem]);
+    // Add new aspek using context
+    addAspek(aspekForm.nama.trim(), selectedYear);
     
     // Reset form
-    setAspekForm({ nama: '', deskripsi: '' });
+    setAspekForm({ nama: '' });
     
     toast({
       title: "Berhasil!",
@@ -1030,15 +1039,11 @@ const PengaturanBaru = () => {
       return;
     }
 
-    // Update aspek in checklist items
-    setChecklistItems(prev => prev.map(item => 
-      item.aspek === editingAspek 
-        ? { ...item, aspek: aspekForm.nama.trim() }
-        : item
-    ));
+    // Update aspek using context
+    editAspek(editingAspek.id, aspekForm.nama.trim(), selectedYear);
 
     // Reset form and close edit mode
-    setAspekForm({ nama: '', deskripsi: '' });
+    setAspekForm({ nama: '' });
     setEditingAspek(null);
     
     toast({
@@ -1047,9 +1052,9 @@ const PengaturanBaru = () => {
     });
   };
 
-  const handleDeleteAspek = (aspekName: string) => {
-    // Remove aspek from checklist items
-    setChecklistItems(prev => prev.filter(item => item.aspek !== aspekName));
+  const handleDeleteAspek = (aspekId: number) => {
+    // Delete aspek using context
+    deleteAspek(aspekId, selectedYear);
     
     toast({
       title: "Berhasil!",
@@ -1057,9 +1062,9 @@ const PengaturanBaru = () => {
     });
   };
 
-  const openEditAspek = (aspekName: string) => {
-    setEditingAspek(aspekName);
-    setAspekForm({ nama: aspekName, deskripsi: '' });
+  const openEditAspek = (aspekId: number, aspekName: string) => {
+    setEditingAspek({ id: aspekId, nama: aspekName });
+    setAspekForm({ nama: aspekName });
   };
 
   // Handle save changes
@@ -1069,8 +1074,13 @@ const PengaturanBaru = () => {
       setOriginalChecklistItems([...checklistItems]);
       setHasUnsavedChanges(false);
       
-      // Persist to localStorage
-      localStorage.setItem('checklistItems', JSON.stringify(checklistItems));
+      // Persist to localStorage dengan key yang sama dengan ChecklistContext
+      localStorage.setItem('checklistGCG', JSON.stringify(checklistItems));
+      
+      // Trigger update di ChecklistContext
+      window.dispatchEvent(new CustomEvent('checklistUpdated', {
+        detail: { type: 'checklistUpdated', data: checklistItems }
+      }));
       
       toast({
         title: "Berhasil!",
@@ -1128,8 +1138,13 @@ const PengaturanBaru = () => {
         return newSet;
       });
       
-      // Persist to localStorage
-      localStorage.setItem('checklistItems', JSON.stringify(checklistItems));
+      // Persist to localStorage dengan key yang sama dengan ChecklistContext
+      localStorage.setItem('checklistGCG', JSON.stringify(checklistItems));
+      
+      // Trigger update di ChecklistContext
+      window.dispatchEvent(new CustomEvent('checklistUpdated', {
+        detail: { type: 'checklistUpdated', data: checklistItems }
+      }));
       
       toast({
         title: "Berhasil!",
@@ -1919,19 +1934,11 @@ const PengaturanBaru = () => {
                                     </SelectTrigger>
                                     <SelectContent>
                                       <SelectItem value="none">Tidak Ada Aspek</SelectItem>
-                                      <SelectItem value="Transparansi">Transparansi</SelectItem>
-                                      <SelectItem value="Akuntabilitas">Akuntabilitas</SelectItem>
-                                      <SelectItem value="Responsibilitas">Responsibilitas</SelectItem>
-                                      <SelectItem value="Independensi">Independensi</SelectItem>
-                                      <SelectItem value="Kewajaran">Kewajaran</SelectItem>
-                                      <SelectItem value="Kepatuhan">Kepatuhan</SelectItem>
-                                      {checklistItems && checklistItems.length > 0 ? 
-                                        [...new Set(checklistItems.map(item => item.aspek).filter(Boolean))].map((aspek) => (
-                                          <SelectItem key={aspek} value={aspek}>
-                                            {aspek}
-                                          </SelectItem>
-                                        )) : []
-                                      }
+                                      {getAspectsByYear(selectedYear).map((aspek) => (
+                                        <SelectItem key={aspek.id} value={aspek.nama}>
+                                          {aspek.nama}
+                                        </SelectItem>
+                                      ))}
                                     </SelectContent>
                                   </Select>
                                 </TableCell>
@@ -1956,8 +1963,8 @@ const PengaturanBaru = () => {
                                     currentAssignmentLabel={(() => {
                                       const a = assignments.find(a => a.checklistId === item.id && a.tahun === selectedYear);
                                       if (!a) return null;
-                                      const opt = SUBDIREKTORAT_OPTIONS.find(o => o.value === a.subdirektorat);
-                                      return opt?.label || a.subdirektorat;
+                                      const s = subdirektorat?.find(o => o.nama === a.subdirektorat);
+                                      return s?.nama || a.subdirektorat;
                                     })()}
                                   />
                                 </TableCell>
@@ -2463,17 +2470,7 @@ const PengaturanBaru = () => {
                               />
                             </div>
                             
-                            <div>
-                              <Label htmlFor="aspek-deskripsi">Deskripsi (Opsional)</Label>
-                              <Textarea
-                                id="aspek-deskripsi"
-                                value={aspekForm.deskripsi}
-                                onChange={(e) => setAspekForm(prev => ({ ...prev, deskripsi: e.target.value }))}
-                                placeholder="Deskripsi aspek..."
-                                rows={3}
-                                className="mt-1"
-                              />
-                            </div>
+
 
                             <div className="flex gap-2">
                               {editingAspek ? (
@@ -2489,7 +2486,7 @@ const PengaturanBaru = () => {
                                     variant="outline"
                                     onClick={() => {
                                       setEditingAspek(null);
-                                      setAspekForm({ nama: '', deskripsi: '' });
+                                      setAspekForm({ nama: '' });
                                     }}
                                     className="flex-1"
                                   >
@@ -2516,22 +2513,22 @@ const PengaturanBaru = () => {
                           <h4 className="font-semibold text-gray-900 mb-3">Daftar Aspek Tersedia</h4>
                           
                           {(() => {
-                            const uniqueAspek = [...new Set(checklistItems.map(item => item.aspek).filter(Boolean))];
-                            return uniqueAspek.length > 0 ? (
+                            const yearAspects = getAspectsByYear(selectedYear);
+                            return yearAspects.length > 0 ? (
                               <div className="space-y-2">
-                                {uniqueAspek.map((aspekName) => (
-                                  <div key={aspekName} className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
+                                {yearAspects.map((aspek) => (
+                                  <div key={aspek.id} className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
                                     <div className="flex-1">
-                                      <div className="font-medium text-gray-900">{aspekName}</div>
+                                      <div className="font-medium text-gray-900">{aspek.nama}</div>
                                       <div className="text-sm text-gray-500">
-                                        {checklistItems.filter(item => item.aspek === aspekName).length} item checklist
+                                        {checklistItems.filter(item => item.aspek === aspek.nama).length} item checklist
                                       </div>
                                     </div>
                                     <div className="flex gap-2">
                                       <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => openEditAspek(aspekName)}
+                                        onClick={() => openEditAspek(aspek.id, aspek.nama)}
                                         className="text-blue-600 hover:text-blue-700 border-blue-200"
                                       >
                                         <Edit className="w-3 h-3" />
@@ -2539,7 +2536,7 @@ const PengaturanBaru = () => {
                                       <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => handleDeleteAspek(aspekName)}
+                                        onClick={() => handleDeleteAspek(aspek.id)}
                                         className="text-red-600 hover:text-red-700 border-red-200"
                                       >
                                         <Trash2 className="w-3 h-3" />

@@ -5,6 +5,7 @@ import { useDocumentMetadata } from '@/contexts/DocumentMetadataContext';
 import { useChecklist } from '@/contexts/ChecklistContext';
 import { useYear } from '@/contexts/YearContext';
 import { Target, Eye, Shield, Heart, Users, Building2, PieChart } from 'lucide-react';
+import { useStrukturPerusahaan } from '@/contexts/StrukturPerusahaanContext';
 
 interface SpiderChartProps {
   className?: string;
@@ -23,30 +24,13 @@ interface ChecklistAssignment {
   notes?: string;
 }
 
-// Data subdirektorat yang dioptimasi
-const SUBDIREKTORAT_OPTIONS = [
-  { value: "Sub Direktorat Government and Corporate Business", label: "Government & Corporate Business" },
-  { value: "Sub Direktorat Consumer Business", label: "Consumer Business" },
-  { value: "Sub Direktorat Enterprise Business", label: "Enterprise Business" },
-  { value: "Sub Direktorat Retail Business", label: "Retail Business" },
-  { value: "Sub Direktorat Wholesale and International Business", label: "Wholesale & International Business" },
-  { value: "Sub Direktorat Courier and Logistic Operation", label: "Courier & Logistic Operation" },
-  { value: "Sub Direktorat International Post Services", label: "International Post Services" },
-  { value: "Sub Direktorat Digital Services", label: "Digital Services" },
-  { value: "Sub Direktorat Frontino Management and Financial Transaction Services", label: "Frontino Management & Financial Transaction" },
-  { value: "Sub Direktorat Financial Operation and Business Partner", label: "Financial Operation & Business Partner" },
-  { value: "Sub Direktorat Financial Policy and Asset Management", label: "Financial Policy & Asset Management" },
-  { value: "Sub Direktorat Risk Management", label: "Risk Management" },
-  { value: "Sub Direktorat Human Capital Policy and Strategy", label: "Human Capital Policy & Strategy" },
-  { value: "Sub Direktorat Human Capital Service and Business Partner", label: "Human Capital Service & Business Partner" },
-  { value: "Sub Direktorat Strategic Planning and Business Development", label: "Strategic Planning & Business Development" },
-  { value: "Sub Direktorat Portfolio Management", label: "Portfolio Management" }
-];
+// Subdirektorat didapat dari StrukturPerusahaanContext untuk tahun aktif
 
 const SpiderChart: React.FC<SpiderChartProps> = ({ className }) => {
   const { selectedYear } = useYear();
   const { documents, getDocumentsByYear } = useDocumentMetadata();
-  const { checklist } = useChecklist();
+  const { checklist, aspects, getAspectsByYear } = useChecklist();
+  const { subdirektorat } = useStrukturPerusahaan();
   const [selectedSubDirektorat, setSelectedSubDirektorat] = useState<string | null>(null);
   const [currentSubDirektoratIndex, setCurrentSubDirektoratIndex] = useState(0);
   const [isAutoRotateEnabled, setIsAutoRotateEnabled] = useState(true);
@@ -69,8 +53,19 @@ const SpiderChart: React.FC<SpiderChartProps> = ({ className }) => {
       // Trigger recompute by toggling selectedSubDirektorat (no-op)
       setSelectedSubDirektorat((prev) => (prev ? `${prev}` : prev));
     };
+    
+    const onAspectsUpdate = () => {
+      // Trigger recompute when aspects are updated
+      setSelectedSubDirektorat((prev) => (prev ? `${prev}` : prev));
+    };
+    
     window.addEventListener('assignmentsUpdated', onUpdate);
-    return () => window.removeEventListener('assignmentsUpdated', onUpdate);
+    window.addEventListener('aspectsUpdated', onAspectsUpdate);
+    
+    return () => {
+      window.removeEventListener('assignmentsUpdated', onUpdate);
+      window.removeEventListener('aspectsUpdated', onAspectsUpdate);
+    };
   }, []);
 
   // Auto-rotate through sub-direktorat
@@ -79,14 +74,16 @@ const SpiderChart: React.FC<SpiderChartProps> = ({ className }) => {
 
     const interval = setInterval(() => {
       setCurrentSubDirektoratIndex((prev) => {
-        const nextIndex = (prev + 1) % SUBDIREKTORAT_OPTIONS.length;
-        setSelectedSubDirektorat(SUBDIREKTORAT_OPTIONS[nextIndex].value);
+        const options = (subdirektorat || []).map(s => s.nama).filter(Boolean);
+        if (options.length === 0) return 0;
+        const nextIndex = (prev + 1) % options.length;
+        setSelectedSubDirektorat(options[nextIndex] as string);
         return nextIndex;
       });
     }, 3000); // Change every 3 seconds
 
     return () => clearInterval(interval);
-  }, [isAutoRotateEnabled]);
+  }, [isAutoRotateEnabled, subdirektorat]);
 
   const normalizeAspek = (s: string) => s.replace(/\s+/g, ' ').trim();
 
@@ -98,15 +95,22 @@ const SpiderChart: React.FC<SpiderChartProps> = ({ className }) => {
     const assignments = getAssignmentData();
     const yearAssignments = assignments.filter(assignment => assignment.tahun === selectedYear);
 
-    // 6 Aspek Utama GCG
-    const aspects = [
-      { name: 'ASPEK I. Komitmen', icon: <Target className="w-4 h-4" />, color: 'text-blue-600' },
-      { name: 'ASPEK II. RUPS', icon: <Eye className="w-4 h-4" />, color: 'text-green-600' },
-      { name: 'ASPEK III. Dewan Komisaris', icon: <Shield className="w-4 h-4" />, color: 'text-purple-600' },
-      { name: 'ASPEK IV. Direksi', icon: <Heart className="w-4 h-4" />, color: 'text-orange-600' },
-      { name: 'ASPEK V. Pengungkapan', icon: <Users className="w-4 h-4" />, color: 'text-pink-600' },
-      { name: 'ASPEK VI. Tata Kelola', icon: <Building2 className="w-4 h-4" />, color: 'text-indigo-600' }
-    ];
+    // Get aspects from context for the selected year
+    const yearAspects = getAspectsByYear(selectedYear);
+    
+    // Map aspects to chart data with icons and colors
+    const aspects = yearAspects.map((aspek, index) => {
+      const icons = [Target, Eye, Shield, Heart, Users, Building2];
+      const colors = ['text-blue-600', 'text-green-600', 'text-purple-600', 'text-orange-600', 'text-pink-600', 'text-indigo-600'];
+      const IconComponent = icons[index % icons.length];
+      const color = colors[index % colors.length];
+      
+      return {
+        name: aspek.nama,
+        icon: <IconComponent className="w-4 h-4" />,
+        color: color
+      };
+    });
 
     const data = aspects.map(aspect => {
       // Get all checklist items for this aspect (total available items - Y)
@@ -123,9 +127,10 @@ const SpiderChart: React.FC<SpiderChartProps> = ({ className }) => {
       const totalAvailableItems = aspectChecklistItems.length;
 
       // Calculate distribution percentage for each sub-direktorat based on total available items
-      const subDirektoratDistribution = SUBDIREKTORAT_OPTIONS.map(subDir => {
+      const subOptions = (subdirektorat || []).map(s => s.nama).filter(Boolean) as string[];
+      const subDirektoratDistribution = subOptions.map(subName => {
         const subDirAssignments = aspectAssignments.filter(assignment => 
-          assignment.subdirektorat === subDir.value
+          assignment.subdirektorat === subName
         );
         
         // Calculate percentage based on total available items, not just assigned items
@@ -134,8 +139,8 @@ const SpiderChart: React.FC<SpiderChartProps> = ({ className }) => {
           : 0;
 
         return {
-          subDirektorat: subDir.value,
-          label: subDir.label,
+          subDirektorat: subName,
+          label: subName,
           count: subDirAssignments.length,
           percentage: Math.round(percentage * 100) / 100, // Round to 2 decimal places
           totalAvailable: totalAvailableItems
@@ -253,10 +258,9 @@ const SpiderChart: React.FC<SpiderChartProps> = ({ className }) => {
 
   const handleSubDirektoratClick = (subDirektorat: string) => {
     setSelectedSubDirektorat(subDirektorat);
-    const index = SUBDIREKTORAT_OPTIONS.findIndex(s => s.value === subDirektorat);
-    if (index !== -1) {
-      setCurrentSubDirektoratIndex(index);
-    }
+    const options = (subdirektorat || []).map(s => s.nama).filter(Boolean) as string[];
+    const index = options.findIndex(s => s === subDirektorat);
+    if (index !== -1) setCurrentSubDirektoratIndex(index);
     // Disable auto-rotate when user clicks manually
     setIsAutoRotateEnabled(false);
   };
@@ -290,6 +294,8 @@ const SpiderChart: React.FC<SpiderChartProps> = ({ className }) => {
 
   const assignmentStats = getAssignmentStats();
 
+  const subOptions = (subdirektorat || []).map(s => s.nama).filter(Boolean) as string[];
+
   return (
     <Card className={`border-0 shadow-xl bg-white/80 backdrop-blur-sm ${className}`}>
       <CardHeader>
@@ -306,7 +312,7 @@ const SpiderChart: React.FC<SpiderChartProps> = ({ className }) => {
         <div className="mb-4 flex items-center justify-start">
           <div className="px-4 py-2 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 font-semibold text-sm shadow-sm">
             {selectedSubDirektorat
-              ? SUBDIREKTORAT_OPTIONS.find(s => s.value === selectedSubDirektorat)?.label || selectedSubDirektorat
+              ? selectedSubDirektorat
               : 'Tidak ada sub-direktorat aktif'}
           </div>
         </div>
@@ -526,23 +532,26 @@ const SpiderChart: React.FC<SpiderChartProps> = ({ className }) => {
             </Badge>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-            {SUBDIREKTORAT_OPTIONS.map((subDirektorat, index) => (
+            {subOptions.length === 0 && (
+              <div className="text-xs text-gray-500 col-span-full">Belum ada subdirektorat untuk tahun ini</div>
+            )}
+            {subOptions.map((subName, index) => (
               <div
-                key={subDirektorat.value}
+                key={subName}
                 className={`
                   p-2 rounded-lg border cursor-pointer transition-all duration-200 text-xs
-                  ${selectedSubDirektorat === subDirektorat.value
+                  ${selectedSubDirektorat === subName
                     ? 'bg-blue-100 border-blue-300 text-blue-700 shadow-md'
                     : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
                   }
                   ${index === currentSubDirektoratIndex && isAutoRotateEnabled ? 'ring-2 ring-blue-400 ring-opacity-50' : ''}
                 `}
-                onClick={() => handleSubDirektoratClick(subDirektorat.value)}
+                onClick={() => handleSubDirektoratClick(subName)}
                 >
                 <div className="flex items-center space-x-1">
                   <Building2 className="w-3 h-3" />
                   {/* Hilangkan kata 'Sub Direktorat' dari label agar lebih rapi */}
-                  <span className="truncate">{subDirektorat.label.replace(/^\s*Sub\s*Direktorat\s*/i, '')}</span>
+                  <span className="truncate">{String(subName).replace(/^\s*Sub\s*Direktorat\s*/i, '')}</span>
                 </div>
               </div>
             ))}
