@@ -61,7 +61,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
       initializeDefaultData();
     }
   }, []);
-  
+
   // Helper function untuk initialize default data
   const initializeDefaultData = () => {
     const defaultData: ChecklistGCG[] = [];
@@ -71,8 +71,8 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
     const years = [2024, 2025]; // Default years
     
     years.forEach(year => {
-      const yearData = seedChecklistGCG.map(item => ({ ...item, tahun: year }));
-      defaultData.push(...yearData);
+        const yearData = seedChecklistGCG.map(item => ({ ...item, tahun: year }));
+        defaultData.push(...yearData);
       
       // Extract unique aspects from seed data
       const uniqueAspects = [...new Set(yearData.map(item => item.aspek))];
@@ -83,11 +83,11 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
           tahun: year
         });
       });
-    });
-    
-    localStorage.setItem("checklistGCG", JSON.stringify(defaultData));
+      });
+      
+      localStorage.setItem("checklistGCG", JSON.stringify(defaultData));
     localStorage.setItem("aspects", JSON.stringify(defaultAspects));
-    setChecklist(defaultData);
+      setChecklist(defaultData);
     setAspects(defaultAspects);
     console.log('ChecklistContext: Initialized with default data', { checklist: defaultData.length, aspects: defaultAspects.length });
   };
@@ -208,6 +208,11 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
       const updated = [...checklist, ...defaultData];
       setChecklist(updated);
       localStorage.setItem("checklistGCG", JSON.stringify(updated));
+      
+      // Trigger update event
+      window.dispatchEvent(new CustomEvent('checklistUpdated', {
+        detail: { type: 'checklistUpdated', data: updated }
+      }));
     }
     
     if (existingAspects.length === 0) {
@@ -221,6 +226,11 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
       const updatedAspects = [...aspects, ...newAspects];
       setAspects(updatedAspects);
       localStorage.setItem("aspects", JSON.stringify(updatedAspects));
+      
+      // Trigger update event
+      window.dispatchEvent(new CustomEvent('aspectsUpdated', {
+        detail: { type: 'aspectsUpdated', data: updatedAspects }
+      }));
     }
   };
 
@@ -229,18 +239,33 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
     const updated = [...checklist, newChecklist];
     setChecklist(updated);
     localStorage.setItem("checklistGCG", JSON.stringify(updated));
+    
+    // Trigger update event
+    window.dispatchEvent(new CustomEvent('checklistUpdated', {
+      detail: { type: 'checklistUpdated', data: updated }
+    }));
   };
 
   const editChecklist = (id: number, aspek: string, deskripsi: string, year: number) => {
     const updated = checklist.map((c) => (c.id === id ? { ...c, aspek, deskripsi, tahun: year } : c));
     setChecklist(updated);
     localStorage.setItem("checklistGCG", JSON.stringify(updated));
+    
+    // Trigger update event
+    window.dispatchEvent(new CustomEvent('checklistUpdated', {
+      detail: { type: 'checklistUpdated', data: updated }
+    }));
   };
 
   const deleteChecklist = (id: number, year: number) => {
     const updated = checklist.filter((c) => c.id !== id);
     setChecklist(updated);
     localStorage.setItem("checklistGCG", JSON.stringify(updated));
+    
+    // Trigger update event
+    window.dispatchEvent(new CustomEvent('checklistUpdated', {
+      detail: { type: 'checklistUpdated', data: updated }
+    }));
   };
 
   const addAspek = (nama: string, year: number) => {

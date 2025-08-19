@@ -83,6 +83,33 @@ const MonitoringUploadGCG = () => {
     ensureAllYearsHaveData();
   }, [ensureAllYearsHaveData]);
 
+  // Listen for real-time updates from PengaturanBaru
+  useEffect(() => {
+    const handleChecklistUpdate = (event: CustomEvent) => {
+      if (event.detail?.type === 'checklistUpdated') {
+        console.log('MonitoringUploadGCG: Received checklist update from PengaturanBaru', event.detail.data);
+        // Force re-render by updating a dummy state
+        setSearchTerm(prev => prev);
+      }
+    };
+
+    const handleAspectsUpdate = (event: CustomEvent) => {
+      if (event.detail?.type === 'aspectsUpdated') {
+        console.log('MonitoringUploadGCG: Received aspects update from PengaturanBaru', event.detail.data);
+        // Force re-render by updating a dummy state
+        setSearchTerm(prev => prev);
+      }
+    };
+
+    window.addEventListener('checklistUpdated', handleChecklistUpdate as EventListener);
+    window.addEventListener('aspectsUpdated', handleAspectsUpdate as EventListener);
+    
+    return () => {
+      window.removeEventListener('checklistUpdated', handleChecklistUpdate as EventListener);
+      window.removeEventListener('aspectsUpdated', handleAspectsUpdate as EventListener);
+    };
+  }, []);
+
   // Auto-set filters from URL parameters
   useEffect(() => {
     const yearParam = searchParams.get('year');
@@ -119,6 +146,31 @@ const MonitoringUploadGCG = () => {
 
     return () => clearTimeout(timer);
   }, [searchTerm]);
+
+  // Polling untuk memastikan data terupdate dari localStorage
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Check if localStorage has been updated
+      const storedData = localStorage.getItem("checklistGCG");
+      if (storedData) {
+        try {
+          const parsedData = JSON.parse(storedData);
+          if (Array.isArray(parsedData) && parsedData.length !== checklist.length) {
+            console.log('MonitoringUploadGCG: Detected localStorage change, updating...', {
+              stored: parsedData.length,
+              current: checklist.length
+            });
+            // Force re-render
+            setSearchTerm(prev => prev);
+          }
+        } catch (error) {
+          console.error('MonitoringUploadGCG: Error parsing localStorage data', error);
+        }
+      }
+    }, 2000); // Check every 2 seconds
+
+    return () => clearInterval(interval);
+  }, [checklist.length]);
 
   // Use years from global context
   const { availableYears } = useYear();
