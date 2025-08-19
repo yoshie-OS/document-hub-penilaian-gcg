@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Sidebar from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,8 +24,46 @@ import { ActionButton } from '@/components/panels';
 
 // Pilihan subdirektorat sekarang diambil dari StrukturPerusahaanContext (berdasarkan tahun aktif)
 import { Toaster } from '@/components/ui/toaster';
-import { Calendar, Building2, Users, FileText, Settings, Plus, CheckCircle, Trash2, Edit, Copy, Eye, X, Briefcase, Building, UserCheck, FileCheck, ChevronRight, ArrowRight, Target } from 'lucide-react';
+import { Calendar, Building2, Users, FileText, Settings, Plus, CheckCircle, Trash2, Edit, Copy, Eye, EyeOff, X, Briefcase, Building, UserCheck, FileCheck, ChevronRight, ArrowRight, Target, ChevronUp, RefreshCw } from 'lucide-react';
 import { PageHeaderPanel } from '@/components/panels';
+
+// Helper functions untuk password
+const generatePassword = () => {
+  const length = 12;
+  const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+  let password = "";
+  for (let i = 0; i < length; i++) {
+    password += charset.charAt(Math.floor(Math.random() * charset.length));
+  }
+  return password;
+};
+
+// Helper function untuk debounce
+const debounce = <T extends (...args: any[]) => any>(
+  func: T,
+  delay: number
+): ((...args: Parameters<T>) => void) => {
+  let timeoutId: NodeJS.Timeout;
+  return (...args: Parameters<T>) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => func(...args), delay);
+  };
+};
+
+const getPasswordStrength = (password: string): 'weak' | 'medium' | 'strong' => {
+  if (password.length < 6) return 'weak';
+  
+  let score = 0;
+  if (password.length >= 8) score++;
+  if (/[a-z]/.test(password)) score++;
+  if (/[A-Z]/.test(password)) score++;
+  if (/[0-9]/.test(password)) score++;
+  if (/[^A-Za-z0-9]/.test(password)) score++;
+  
+  if (score <= 2) return 'weak';
+  if (score <= 3) return 'medium';
+  return 'strong';
+};
 
 // Komponen Assignment Dropdown
 const AssignmentDropdown = ({ 
@@ -225,6 +263,42 @@ const PengaturanBaru = () => {
   // State untuk tracking individual item changes
   const [itemChanges, setItemChanges] = useState<Set<number>>(new Set());
   
+  // State untuk tracking item baru (untuk highlight)
+  const [newItems, setNewItems] = useState<Set<number>>(new Set());
+  
+  // Ref untuk tabel checklist
+  const checklistTableRef = useRef<HTMLDivElement>(null);
+  
+  // Ref untuk item baru yang ditambahkan
+  const newItemRef = useRef<HTMLTableRowElement>(null);
+  
+  // Floating actions visibility
+  const [showBackToTop, setShowBackToTop] = useState(false);
+  
+  // State untuk tracking tab yang aktif
+  const [activeTab, setActiveTab] = useState('tahun-buku');
+  
+  // State untuk copy options dialogs
+  const [showCopyOptionsDialog, setShowCopyOptionsDialog] = useState(false);
+  const [newYearToSetup, setNewYearToSetup] = useState<number | null>(null);
+  const [copyOptions, setCopyOptions] = useState({
+    strukturOrganisasi: false,
+    manajemenAkun: false,
+    kelolaDokumen: false
+  });
+  const [copySourceYear, setCopySourceYear] = useState<number | null>(null);
+  
+  // State untuk dialog tambah tahun
+  const [showTahunDialog, setShowTahunDialog] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => {
+      setShowBackToTop(window.scrollY > 300);
+    };
+    window.addEventListener('scroll', onScroll);
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
   // Effect untuk mengupdate progress struktur organisasi
   useEffect(() => {
     if (selectedYear && 
@@ -257,20 +331,111 @@ const PengaturanBaru = () => {
     }
   }, [selectedYear, users]);
 
-  // Effect untuk load checklist dari context
+  // Effect untuk load checklist dari context dan localStorage
   useEffect(() => {
-    if (selectedYear && checklist) {
-      const yearChecklist = checklist.filter(item => item.tahun === selectedYear);
+    if (selectedYear) {
+      console.log('PengaturanBaru: Loading checklist for year', selectedYear);
+      
+      // Coba load dari localStorage terlebih dahulu (data yang sudah disimpan user)
+      const storedChecklist = localStorage.getItem('checklistGCG');
+      let yearChecklist: ChecklistItem[] = [];
+      
+      if (storedChecklist) {
+        try {
+          const parsedChecklist = JSON.parse(storedChecklist);
+          yearChecklist = parsedChecklist.filter((item: any) => item.tahun === selectedYear);
+          console.log('PengaturanBaru: Loaded from localStorage', {
+            total: parsedChecklist.length,
+            yearData: yearChecklist.length
+          });
+        } catch (error) {
+          console.error('Error parsing stored checklist', error);
+        }
+      }
+      
+      // Jika tidak ada data di localStorage, gunakan data dari context
+      if (yearChecklist.length === 0 && checklist) {
+        const contextChecklist = checklist.filter(item => item.tahun === selectedYear);
+        yearChecklist = contextChecklist.map(item => ({
+          ...item,
+          status: 'pending' as const,
+          catatan: '',
+          tahun: item.tahun || selectedYear
+        }));
+        console.log('PengaturanBaru: Loaded from context', {
+          contextTotal: checklist.length,
+          yearData: yearChecklist.length
+        });
+      }
+      
+      // Extend checklist dengan status dan catatan default
       const extendedChecklist: ChecklistItem[] = yearChecklist.map(item => ({
         ...item,
-        status: 'pending',
-        catatan: '',
-        tahun: item.tahun || selectedYear // Ensure tahun is always set
+        status: item.status || 'pending',
+        catatan: item.catatan || '',
+        tahun: item.tahun || selectedYear
       }));
-      setChecklistItems(extendedChecklist);
+      
+      console.log('PengaturanBaru: Setting checklist items', {
+        count: extendedChecklist.length,
+        items: extendedChecklist
+      });
+      
+      // Gunakan functional update untuk mencegah re-render berlebihan
+      setChecklistItems(prev => {
+        // Hanya update jika data benar-benar berbeda
+        if (JSON.stringify(prev) !== JSON.stringify(extendedChecklist)) {
+          return extendedChecklist;
+        }
+        return prev;
+      });
+      
+      setOriginalChecklistItems(prev => {
+        // Hanya update jika data benar-benar berbeda
+        if (JSON.stringify(prev) !== JSON.stringify(extendedChecklist)) {
+          return extendedChecklist;
+        }
+        return prev;
+      });
     }
   }, [selectedYear, checklist]);
+  
+  // Effect untuk auto-save checklist items saat ada perubahan
+  // Gunakan useCallback untuk mencegah re-render berlebihan
+  const debouncedSave = useCallback(
+    debounce((items: ChecklistItem[]) => {
+      if (items.length > 0 && selectedYear) {
+        // Auto-save ke localStorage setiap kali ada perubahan
+        localStorage.setItem('checklistGCG', JSON.stringify(items));
+        
+        // Trigger update di ChecklistContext untuk konsistensi data
+        // Pastikan data dalam format yang benar untuk ChecklistContext
+        const contextData = items.map(item => ({
+          id: item.id,
+          aspek: item.aspek,
+          deskripsi: item.deskripsi,
+          tahun: item.tahun
+        }));
+        
+        window.dispatchEvent(new CustomEvent('checklistUpdated', {
+          detail: { type: 'checklistUpdated', data: contextData }
+        }));
+        
+        console.log('PengaturanBaru: Auto-saved checklist items', {
+          count: items.length,
+          year: selectedYear,
+          contextData: contextData
+        });
+      }
+    }, 500), // Delay 500ms untuk mencegah save berlebihan
+    [selectedYear]
+  );
 
+  // Effect untuk auto-save dengan debouncing
+  useEffect(() => {
+    debouncedSave(checklistItems);
+  }, [checklistItems, debouncedSave]);
+  
   // Effect untuk load assignments dari localStorage
   useEffect(() => {
     const storedAssignments = localStorage.getItem('checklistAssignments');
@@ -342,6 +507,7 @@ const PengaturanBaru = () => {
   const [showDivisiDialog, setShowDivisiDialog] = useState(false);
   const [showUserDialog, setShowUserDialog] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
   
   // State untuk tracking progress
   const [setupProgress, setSetupProgress] = useState({
@@ -350,6 +516,27 @@ const PengaturanBaru = () => {
     manajemenAkun: false,
     kelolaDokumen: false
   });
+
+  // Consolidate progress recomputation based on data presence per selected year
+  useEffect(() => {
+    if (!selectedYear) return;
+    const hasYear = availableYears?.includes(selectedYear) ?? false;
+    const hasStruktur = Boolean(
+      (direktorat?.some(d => d.tahun === selectedYear) ?? false) &&
+      (subdirektorat?.some(s => s.tahun === selectedYear) ?? false) &&
+      (anakPerusahaan?.some(a => a.tahun === selectedYear) ?? false) &&
+      (divisi?.some(v => v.tahun === selectedYear) ?? false)
+    );
+    const hasUsers = Boolean(users?.some(u => u.tahun === selectedYear));
+    const hasChecklist = Boolean(checklistItems?.some(ci => ci.tahun === selectedYear));
+
+    setSetupProgress({
+      tahunBuku: hasYear,
+      strukturOrganisasi: hasStruktur,
+      manajemenAkun: hasUsers,
+      kelolaDokumen: hasChecklist,
+    });
+  }, [selectedYear, availableYears, direktorat, subdirektorat, anakPerusahaan, divisi, users, checklistItems]);
 
   // Handler untuk submit tahun buku
   const handleTahunSubmit = (e: React.FormEvent) => {
@@ -381,16 +568,29 @@ const PengaturanBaru = () => {
       // Set as active year
       setSelectedYear(tahunForm.tahun);
       
-      // Auto-copy data dari tahun sebelumnya
-      copyDataFromPreviousYear(tahunForm.tahun);
+      // Find previous year for copy options
+      const previousYear = availableYears
+        .filter(year => year < tahunForm.tahun)
+        .sort((a, b) => b - a)[0];
       
-      // Update progress
-      setSetupProgress(prev => ({ ...prev, tahunBuku: true }));
-      
-      toast({
-        title: "Berhasil!",
-        description: `Tahun buku ${tahunForm.tahun} berhasil ditambahkan dengan data dari tahun sebelumnya`,
-      });
+      if (previousYear) {
+        // Show copy options dialog
+        setCopySourceYear(previousYear);
+        setNewYearToSetup(tahunForm.tahun);
+        setCopyOptions({
+          strukturOrganisasi: false,
+          manajemenAkun: false,
+          kelolaDokumen: false
+        });
+        setShowCopyOptionsDialog(true);
+      } else {
+        // No previous year, just update progress
+        setSetupProgress(prev => ({ ...prev, tahunBuku: true }));
+        toast({
+          title: "Berhasil!",
+          description: `Tahun buku ${tahunForm.tahun} berhasil ditambahkan`,
+        });
+      }
 
       // Reset form
       setTahunForm({
@@ -398,49 +598,88 @@ const PengaturanBaru = () => {
         nama: '',
         deskripsi: ''
       });
+      
+      // Close dialog
+      setShowTahunDialog(false);
 
     } catch (error) {
       toast({
         title: "Error",
-        description: "Gagal menambahkan tahun buku atau copy data",
+        description: "Gagal menambahkan tahun buku",
         variant: "destructive"
       });
     }
   };
 
   // Function untuk copy data dari tahun sebelumnya
-  const copyDataFromPreviousYear = async (newYear: number) => {
+  const copyDataFromPreviousYear = async (newYear: number, options: typeof copyOptions) => {
     try {
-      // Cari tahun sebelumnya (tahun terbesar yang lebih kecil dari tahun baru)
-      const previousYear = availableYears
-        .filter(year => year < newYear)
-        .sort((a, b) => b - a)[0];
+      if (!copySourceYear) return;
 
-      if (!previousYear) {
-        // Jika tidak ada tahun sebelumnya, gunakan data default
-        toast({
-          title: "Info",
-          description: "Tidak ada data tahun sebelumnya, menggunakan data default",
-        });
-        return;
+      // Copy data berdasarkan opsi yang dipilih
+      if (options.strukturOrganisasi) {
+        await copyStrukturOrganisasi(copySourceYear, newYear);
+      }
+      
+      if (options.manajemenAkun) {
+        await copyManajemenAkun(copySourceYear, newYear);
+      }
+      
+      if (options.kelolaDokumen) {
+        await copyKelolaDokumen(copySourceYear, newYear);
       }
 
-      // Copy Struktur Organisasi
-      await copyStrukturOrganisasi(previousYear, newYear);
+      // Update progress berdasarkan data yang di-copy
+      const newProgress = { ...setupProgress };
+      if (options.strukturOrganisasi) newProgress.strukturOrganisasi = true;
+      if (options.manajemenAkun) newProgress.manajemenAkun = true;
+      if (options.kelolaDokumen) newProgress.kelolaDokumen = true;
       
-      // Copy Manajemen Akun
-      await copyManajemenAkun(previousYear, newYear);
-      
-      // Copy Kelola Dokumen
-      await copyKelolaDokumen(previousYear, newYear);
+      setSetupProgress(newProgress);
 
       toast({
         title: "Berhasil!",
-        description: `Data dari tahun ${previousYear} berhasil di-copy ke tahun ${newYear}`,
+        description: `Data yang dipilih berhasil di-copy dari tahun ${copySourceYear} ke tahun ${newYear}`,
       });
     } catch (error) {
       console.error('Error copying data:', error);
-      throw new Error('Gagal copy data dari tahun sebelumnya');
+      toast({
+        title: "Error",
+        description: "Gagal copy data dari tahun sebelumnya",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Handler untuk memproses copy options
+  const handleCopyOptionsSubmit = async () => {
+    if (!newYearToSetup) return;
+    
+    try {
+      // Jika ada opsi yang dipilih, copy data
+      if (Object.values(copyOptions).some(Boolean)) {
+        await copyDataFromPreviousYear(newYearToSetup, copyOptions);
+      } else {
+        // Jika tidak ada yang dipilih, tetap update progress tahun buku
+        setSetupProgress(prev => ({ ...prev, tahunBuku: true }));
+        toast({
+          title: "Berhasil!",
+          description: `Tahun buku ${newYearToSetup} berhasil ditambahkan tanpa copy data`,
+        });
+      }
+      
+      // Close dialog
+      setShowCopyOptionsDialog(false);
+      setNewYearToSetup(null);
+      setCopySourceYear(null);
+      setCopyOptions({
+        strukturOrganisasi: false,
+        manajemenAkun: false,
+        kelolaDokumen: false
+      });
+      
+    } catch (error) {
+      console.error('Error processing copy options:', error);
     }
   };
 
@@ -871,6 +1110,12 @@ const PengaturanBaru = () => {
     }
   };
 
+  // Handler untuk generate password
+  const handleGeneratePassword = () => {
+    const newPassword = generatePassword();
+    setUserForm(prev => ({ ...prev, password: newPassword }));
+  };
+
   const handleUseDefaultUsers = () => {
     try {
       // Copy default users dari seedUser dengan tahun yang dipilih
@@ -941,7 +1186,35 @@ const PengaturanBaru = () => {
 
   const handleDeleteChecklist = (id: number) => {
     try {
-      setChecklistItems(prev => prev.filter(item => item.id !== id));
+      const updatedItems = checklistItems.filter(item => item.id !== id);
+      setChecklistItems(updatedItems);
+      
+      // Update original items
+      setOriginalChecklistItems(prev => prev.filter(item => item.id !== id));
+      
+      // Remove from item changes
+      setItemChanges(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(id);
+        return newSet;
+      });
+      
+      // Persist to localStorage
+      localStorage.setItem('checklistGCG', JSON.stringify(updatedItems));
+      
+      // Trigger update di ChecklistContext dengan format yang benar
+      const contextData = updatedItems.map(item => ({
+        id: item.id,
+        aspek: item.aspek,
+        deskripsi: item.deskripsi,
+        tahun: item.tahun
+      }));
+      
+      window.dispatchEvent(new CustomEvent('checklistUpdated', {
+        detail: { type: 'checklistUpdated', data: contextData }
+      }));
+      
+      // Delete from context
       deleteChecklist(id, selectedYear || new Date().getFullYear());
       
       toast({
@@ -1074,13 +1347,8 @@ const PengaturanBaru = () => {
       setOriginalChecklistItems([...checklistItems]);
       setHasUnsavedChanges(false);
       
-      // Persist to localStorage dengan key yang sama dengan ChecklistContext
-      localStorage.setItem('checklistGCG', JSON.stringify(checklistItems));
-      
-      // Trigger update di ChecklistContext
-      window.dispatchEvent(new CustomEvent('checklistUpdated', {
-        detail: { type: 'checklistUpdated', data: checklistItems }
-      }));
+      // Sync data dengan context menggunakan helper function
+      syncDataWithContext(checklistItems);
       
       toast({
         title: "Berhasil!",
@@ -1138,13 +1406,8 @@ const PengaturanBaru = () => {
         return newSet;
       });
       
-      // Persist to localStorage dengan key yang sama dengan ChecklistContext
-      localStorage.setItem('checklistGCG', JSON.stringify(checklistItems));
-      
-      // Trigger update di ChecklistContext
-      window.dispatchEvent(new CustomEvent('checklistUpdated', {
-        detail: { type: 'checklistUpdated', data: checklistItems }
-      }));
+      // Sync data dengan context menggunakan helper function
+      syncDataWithContext(checklistItems);
       
       toast({
         title: "Berhasil!",
@@ -1191,6 +1454,31 @@ const PengaturanBaru = () => {
   // Track item changes when editing
   const trackItemChange = (itemId: number) => {
     setItemChanges(prev => new Set(prev).add(itemId));
+  };
+  
+  // Helper function untuk sync data dengan ChecklistContext
+  const syncDataWithContext = (data: ChecklistItem[]) => {
+    // Simpan ke localStorage
+    localStorage.setItem('checklistGCG', JSON.stringify(data));
+    
+    // Format data untuk context
+    const contextData = data.map(item => ({
+      id: item.id,
+      aspek: item.aspek,
+      deskripsi: item.deskripsi,
+      tahun: item.tahun
+    }));
+    
+    // Dispatch event
+    window.dispatchEvent(new CustomEvent('checklistUpdated', {
+      detail: { type: 'checklistUpdated', data: contextData }
+    }));
+    
+    console.log('PengaturanBaru: Synced data with context', {
+      originalCount: data.length,
+      contextCount: contextData.length,
+      year: selectedYear
+    });
   };
 
   // Calculate overall progress
@@ -1284,7 +1572,11 @@ const PengaturanBaru = () => {
           </Card>
 
           {/* Setup Tabs */}
-          <Tabs defaultValue="tahun-buku" className="space-y-6">
+          <Tabs 
+            defaultValue="tahun-buku" 
+            className="space-y-6"
+            onValueChange={(value) => setActiveTab(value)}
+          >
             <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="tahun-buku" className="flex items-center space-x-2">
                 <Calendar className="w-4 h-4" />
@@ -1335,12 +1627,12 @@ const PengaturanBaru = () => {
                           {availableYears?.length || 0} tahun buku tersedia dalam sistem
                         </CardDescription>
                       </div>
-                      <Dialog>
+                      <Dialog open={showTahunDialog} onOpenChange={setShowTahunDialog}>
                         <DialogTrigger asChild>
                           <ActionButton
                             variant="default"
                             icon={<Plus className="w-4 h-4" />}
-                            onClick={() => {}}
+                            onClick={() => setShowTahunDialog(true)}
                           >
                             Tambah Tahun
                           </ActionButton>
@@ -1852,6 +2144,26 @@ const PengaturanBaru = () => {
                              tahun: selectedYear || new Date().getFullYear()
                            };
                            setChecklistItems(prev => [...prev, newItem]);
+                           setNewItems(prev => new Set(prev).add(newItem.id));
+                           
+                           // Auto-scroll ke item baru setelah state update
+                           setTimeout(() => {
+                             if (newItemRef.current) {
+                               newItemRef.current.scrollIntoView({ 
+                                 behavior: 'smooth', 
+                                 block: 'center' 
+                               });
+                             }
+                           }, 100);
+                           
+                           // Remove highlight after 5 seconds
+                           setTimeout(() => {
+                             setNewItems(prev => {
+                               const updated = new Set(prev);
+                               updated.delete(newItem.id);
+                               return updated;
+                             });
+                           }, 5000);
                          }}
                          className="bg-indigo-600 hover:bg-indigo-700"
                        >
@@ -1890,17 +2202,59 @@ const PengaturanBaru = () => {
                      </div>
 
                    {/* Data Overview */}
-                   <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                      <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
                        <div className="text-2xl font-bold text-indigo-600">{checklistItems && checklistItems.length || 0}</div>
                        <div className="text-sm text-indigo-600">Total Item</div>
                      </div>
+                     
+                     {/* Subdirektorat Assignment Overview */}
+                     <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                       <div className="text-2xl font-bold text-green-600">
+                         {(() => {
+                           const yearAssignments = assignments?.filter(a => a.tahun === selectedYear) || [];
+                           const uniqueSubdirektorat = [...new Set(yearAssignments.map(a => a.subdirektorat))];
+                           return uniqueSubdirektorat.length;
+                         })()}
+                       </div>
+                       <div className="text-sm text-green-600">Subdirektorat Aktif</div>
+                     </div>
                    </div>
+
+                   {/* Subdirektorat Assignment Breakdown */}
+                   {(() => {
+                     const yearAssignments = assignments?.filter(a => a.tahun === selectedYear) || [];
+                     const subdirektoratCounts = yearAssignments.reduce((acc, assignment) => {
+                       acc[assignment.subdirektorat] = (acc[assignment.subdirektorat] || 0) + 1;
+                       return acc;
+                     }, {} as Record<string, number>);
+                     
+                     const sortedSubdirektorat = Object.entries(subdirektoratCounts)
+                       .sort(([,a], [,b]) => b - a);
+                     
+                     return sortedSubdirektorat.length > 0 ? (
+                       <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                         <h4 className="font-semibold text-blue-800 mb-3">Breakdown Penugasan Subdirektorat</h4>
+                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                           {sortedSubdirektorat.map(([subdir, count]) => (
+                             <div key={subdir} className="flex items-center justify-between p-2 bg-white rounded border border-blue-200">
+                               <span className="text-sm font-medium text-blue-700 truncate" title={subdir}>
+                                 {subdir.replace(/^Sub\s*Direktorat\s*/i, '').trim()}
+                               </span>
+                               <Badge variant="secondary" className="bg-blue-100 text-blue-700 text-xs">
+                                 {count} tugas
+                               </Badge>
+                             </div>
+                           ))}
+                         </div>
+                       </div>
+                     ) : null;
+                   })()}
 
 
 
                                                            {/* Checklist Items Table with Enhanced Design */}
-                    <div>
+                    <div ref={checklistTableRef}>
                       <h3 className="text-lg font-semibold text-gray-900 mb-3">Dokumen GCG Checklist</h3>
                       <div className="overflow-hidden rounded-lg border border-indigo-100 shadow-lg">
                         <Table>
@@ -1915,16 +2269,32 @@ const PengaturanBaru = () => {
                           </TableHeader>
                           <TableBody>
                             {checklistItems && checklistItems.length > 0 ? checklistItems.map((item, index) => (
-                              <TableRow key={item.id} className="hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 transition-all duration-200 border-b border-gray-100">
+                              <TableRow 
+                                key={item.id} 
+                                ref={newItems.has(item.id) ? newItemRef : null}
+                                className={`transition-all duration-200 border-b border-gray-100 ${
+                                  newItems.has(item.id) 
+                                    ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200 shadow-md' 
+                                    : 'hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50'
+                                }`}
+                              >
                                 <TableCell className="font-bold text-gray-700 text-center bg-gray-50">
-                                  {index + 1}
+                                  <div className="flex items-center justify-center gap-2">
+                                    {index + 1}
+                                    {newItems.has(item.id) && (
+                                      <Badge variant="secondary" className="bg-green-100 text-green-700 text-xs px-2 py-0.5">
+                                        NEW
+                                      </Badge>
+                                    )}
+                                  </div>
                                 </TableCell>
                                 <TableCell>
                                   <Select
                                     value={item.aspek || 'none'}
                                     onValueChange={(value) => {
+                                      const newValue = value === 'none' ? '' : value;
                                       setChecklistItems(prev => prev.map(i => 
-                                        i.id === item.id ? { ...i, aspek: value === 'none' ? '' : value } : i
+                                        i.id === item.id ? { ...i, aspek: newValue } : i
                                       ));
                                       trackItemChange(item.id);
                                     }}
@@ -1948,10 +2318,17 @@ const PengaturanBaru = () => {
                                     placeholder="Masukkan deskripsi dokumen GCG..."
                                     className="min-h-[80px] resize-none border-2 border-gray-200 hover:border-indigo-400 focus:border-indigo-500 transition-colors rounded-md"
                                     onChange={(e) => {
+                                      const newValue = e.target.value;
                                       setChecklistItems(prev => prev.map(i => 
-                                        i.id === item.id ? { ...i, deskripsi: e.target.value } : i
+                                        i.id === item.id ? { ...i, deskripsi: newValue } : i
                                       ));
                                       trackItemChange(item.id);
+                                    }}
+                                    onBlur={() => {
+                                      // Hanya track changes saat user selesai mengetik
+                                      if (hasItemChanges(item.id)) {
+                                        console.log('PengaturanBaru: User finished typing for item', item.id);
+                                      }
                                     }}
                                   />
                                 </TableCell>
@@ -2022,12 +2399,178 @@ const PengaturanBaru = () => {
                     </div>
                  </CardContent>
                </Card>
-             </TabsContent>
-          </Tabs>
+                           </TabsContent>
+            </Tabs>
 
-          {/* Dialog untuk Struktur Organisasi */}
-          
-          {/* Dialog Direktorat */}
+            {/* Floating Actions - Only show on Kelola Dokumen tab */}
+            {activeTab === 'kelola-dokumen' && (
+              <div className="fixed bottom-6 right-6 flex flex-col gap-3 z-30">
+                {/* Tambah Item Baru floating - Icon only */}
+                <Button
+                  onClick={() => {
+                    const newItem: ChecklistItem = {
+                      id: Date.now(),
+                      aspek: '',
+                      deskripsi: '',
+                      status: 'pending',
+                      catatan: '',
+                      tahun: selectedYear || new Date().getFullYear()
+                    };
+                    setChecklistItems(prev => [...prev, newItem]);
+                    setNewItems(prev => new Set(prev).add(newItem.id));
+                    
+                    // Simpan ke localStorage dan update context
+                    const updatedItems = [...checklistItems, newItem];
+                    
+                    // Update original items untuk tracking changes
+                    setOriginalChecklistItems(prev => [...prev, newItem]);
+                    
+                    // Sync data dengan context menggunakan helper function
+                    syncDataWithContext(updatedItems);
+                    
+                    console.log('PengaturanBaru: Added new item', {
+                      newItem,
+                      totalItems: updatedItems.length,
+                      year: selectedYear
+                    });
+                    
+                    // Auto-scroll ke item baru setelah state update
+                    setTimeout(() => {
+                      if (newItemRef.current) {
+                        newItemRef.current.scrollIntoView({ 
+                          behavior: 'smooth', 
+                          block: 'center' 
+                        });
+                      }
+                    }, 100);
+                    
+                    // Remove highlight after 5 seconds
+                    setTimeout(() => {
+                      setNewItems(prev => {
+                        const updated = new Set(prev);
+                        updated.delete(newItem.id);
+                        return updated;
+                      });
+                    }, 5000);
+                  }}
+                  size="icon"
+                  className="bg-indigo-600 hover:bg-indigo-700 shadow-lg w-12 h-12 rounded-full"
+                  title="Tambah Item Baru"
+                >
+                  <Plus className="w-5 h-5" />
+                </Button>
+
+                {/* Back to Top - Icon only */}
+                {showBackToTop && (
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                    className="bg-white border-gray-300 shadow-md w-12 h-12 rounded-full"
+                    title="Kembali ke Atas"
+                  >
+                    <ChevronUp className="w-5 h-5" />
+                  </Button>
+                )}
+              </div>
+            )}
+
+                      {/* Dialog Copy Options */}
+            {showCopyOptionsDialog && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+                <div className="bg-white rounded-lg p-6 w-full max-w-md">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                    Pilih Data yang Ingin Di-copy
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Tahun {newYearToSetup} akan mengcopy data dari tahun {copySourceYear}. 
+                    Pilih data mana yang ingin di-copy:
+                  </p>
+                  
+                  <div className="space-y-4 mb-6">
+                    {/* Struktur Organisasi */}
+                    <div className="flex items-center space-x-3">
+                      <input
+                        type="checkbox"
+                        id="copy-struktur"
+                        checked={copyOptions.strukturOrganisasi}
+                        onChange={(e) => setCopyOptions(prev => ({ 
+                          ...prev, 
+                          strukturOrganisasi: e.target.checked 
+                        }))}
+                        className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                      />
+                      <label htmlFor="copy-struktur" className="text-sm font-medium text-gray-700">
+                        Struktur Organisasi
+                      </label>
+                    </div>
+                    
+                    {/* Manajemen Akun */}
+                    <div className="flex items-center space-x-3">
+                      <input
+                        type="checkbox"
+                        id="copy-manajemen"
+                        checked={copyOptions.manajemenAkun}
+                        onChange={(e) => setCopyOptions(prev => ({ 
+                          ...prev, 
+                          manajemenAkun: e.target.checked 
+                        }))}
+                        className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                      />
+                      <label htmlFor="copy-manajemen" className="text-sm font-medium text-gray-700">
+                        Manajemen Akun
+                      </label>
+                    </div>
+                    
+                    {/* Kelola Dokumen */}
+                    <div className="flex items-center space-x-3">
+                      <input
+                        type="checkbox"
+                        id="copy-dokumen"
+                        checked={copyOptions.kelolaDokumen}
+                        onChange={(e) => setCopyOptions(prev => ({ 
+                          ...prev, 
+                          kelolaDokumen: e.target.checked 
+                        }))}
+                        className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                      />
+                      <label htmlFor="copy-dokumen" className="text-sm font-medium text-gray-700">
+                        Kelola Dokumen
+                      </label>
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-3">
+                    <Button
+                      onClick={handleCopyOptionsSubmit}
+                      className="flex-1 bg-indigo-600 hover:bg-indigo-700"
+                    >
+                      {Object.values(copyOptions).some(Boolean) ? 'Copy Data' : 'Lanjut Tanpa Copy'}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowCopyOptionsDialog(false);
+                        setNewYearToSetup(null);
+                        setCopySourceYear(null);
+                        setCopyOptions({
+                          strukturOrganisasi: false,
+                          manajemenAkun: false,
+                          kelolaDokumen: false
+                        });
+                      }}
+                      className="flex-1"
+                    >
+                      Batal
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Dialog untuk Struktur Organisasi */}
+            
+            {/* Dialog Direktorat */}
           {showDirektoratDialog && (
             <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
               <div className="bg-white rounded-lg p-6 w-full max-w-md">
@@ -2324,14 +2867,66 @@ const PengaturanBaru = () => {
                     </div>
                     <div>
                       <Label htmlFor="user-password">Password *</Label>
-                      <Input
-                        id="user-password"
-                        type="password"
-                        value={userForm.password}
-                        onChange={(e) => setUserForm(prev => ({ ...prev, password: e.target.value }))}
-                        placeholder="Minimal 6 karakter"
-                        required
-                      />
+                      <div className="flex gap-2 items-center">
+                        <div className="relative flex-1">
+                          <Input
+                            id="user-password"
+                            type={showPassword ? 'text' : 'password'}
+                            value={userForm.password}
+                            onChange={(e) => setUserForm(prev => ({ ...prev, password: e.target.value }))}
+                            placeholder="Minimal 6 karakter"
+                            required
+                            className="pr-10"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(prev => !prev)}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                            aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}
+                          >
+                            {showPassword ? (
+                              <EyeOff className="w-4 h-4" />
+                            ) : (
+                              <Eye className="w-4 h-4" />
+                            )}
+                          </button>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={handleGeneratePassword}
+                          className="px-3"
+                          title="Generate password"
+                        >
+                          <RefreshCw className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      {/* Password Strength Indicator */}
+                      {userForm.password && (
+                        <div className="mt-2">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-sm text-gray-600">Kekuatan Password:</span>
+                            <span className={`text-sm font-medium ${
+                              getPasswordStrength(userForm.password) === 'weak' ? 'text-red-600' :
+                              getPasswordStrength(userForm.password) === 'medium' ? 'text-yellow-600' :
+                              'text-green-600'
+                            }`}>
+                              {getPasswordStrength(userForm.password) === 'weak' ? 'Lemah' :
+                               getPasswordStrength(userForm.password) === 'medium' ? 'Sedang' :
+                               'Kuat'}
+                            </span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div 
+                              className={`h-2 rounded-full transition-all duration-300 ${
+                                getPasswordStrength(userForm.password) === 'weak' ? 'bg-red-500 w-1/3' :
+                                getPasswordStrength(userForm.password) === 'medium' ? 'bg-yellow-500 w-2/3' :
+                                'bg-green-500 w-full'
+                              }`}
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="user-role">Role *</Label>
@@ -2345,7 +2940,6 @@ const PengaturanBaru = () => {
                         <SelectContent>
                           <SelectItem value="user">User</SelectItem>
                           <SelectItem value="admin">Admin</SelectItem>
-                          <SelectItem value="superadmin">Super Admin</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -2356,7 +2950,7 @@ const PengaturanBaru = () => {
                         onValueChange={(value) => setUserForm(prev => ({ ...prev, direktorat: value }))}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Pilih Direktorat (Opsional)" />
+                          <SelectValue placeholder="Pilih Direktorat" />
                         </SelectTrigger>
                         <SelectContent>
                           {direktorat && direktorat.length > 0 ? direktorat.map((item) => (
@@ -2374,7 +2968,7 @@ const PengaturanBaru = () => {
                         onValueChange={(value) => setUserForm(prev => ({ ...prev, subdirektorat: value }))}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Pilih Subdirektorat (Opsional)" />
+                          <SelectValue placeholder="Pilih Subdirektorat" />
                         </SelectTrigger>
                         <SelectContent>
                           {subdirektorat && subdirektorat.length > 0 ? subdirektorat.map((item) => (
@@ -2392,7 +2986,7 @@ const PengaturanBaru = () => {
                         onValueChange={(value) => setUserForm(prev => ({ ...prev, divisi: value }))}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Pilih Divisi (Opsional)" />
+                          <SelectValue placeholder="Pilih Divisi" />
                         </SelectTrigger>
                         <SelectContent>
                           {divisi && divisi.length > 0 ? divisi.map((item) => (

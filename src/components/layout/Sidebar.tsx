@@ -5,14 +5,12 @@ import { useSidebar } from '@/contexts/SidebarContext';
 import { 
   LayoutDashboard, 
   Shield,
-  UserCog,
   ListTodo,
   LogOut,
   BarChart3,
   PanelLeft,
   FileText,
   Settings,
-  Building2,
   Lock
 } from 'lucide-react';
 
@@ -65,25 +63,6 @@ const Sidebar = () => {
         name: 'Arsip Dokumen',
         icon: FileText,
         path: '/admin/arsip-dokumen',
-        badgeIcon: Lock
-      },
-      {
-        name: 'Manajemen User',
-        icon: UserCog,
-        path: '/admin/kelola-akun',
-        badgeIcon: Lock
-      },
-      {
-        name: 'Struktur Organisasi',
-        icon: Building2,
-        path: '/admin/struktur-perusahaan',
-        badgeIcon: Lock
-      },
-
-      {
-        name: 'Pengaturan Metadata',
-        icon: Settings,
-        path: '/admin/meta-data',
         badgeIcon: Lock
       },
       {

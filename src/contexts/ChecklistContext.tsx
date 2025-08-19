@@ -41,47 +41,71 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
     const aspectsData = localStorage.getItem("aspects");
     
     if (data && aspectsData) {
-      const parsedData = JSON.parse(data);
-      const parsedAspects = JSON.parse(aspectsData);
-      setChecklist(parsedData);
-      setAspects(parsedAspects);
+      try {
+        const parsedData = JSON.parse(data);
+        const parsedAspects = JSON.parse(aspectsData);
+        
+        // Pastikan data valid
+        if (Array.isArray(parsedData) && Array.isArray(parsedAspects)) {
+          setChecklist(parsedData);
+          setAspects(parsedAspects);
+          console.log('ChecklistContext: Initialized from localStorage', { checklist: parsedData.length, aspects: parsedAspects.length });
+        }
+      } catch (error) {
+        console.error('ChecklistContext: Error parsing localStorage data', error);
+        // Fallback to default data
+        initializeDefaultData();
+      }
     } else {
       // Initialize with default data
-      const defaultData: ChecklistGCG[] = [];
-      const defaultAspects: Aspek[] = [];
-      
-      // Get available years from localStorage or use current year
-      const years = [2024, 2025]; // Default years
-      
-      years.forEach(year => {
-        const yearData = seedChecklistGCG.map(item => ({ ...item, tahun: year }));
-        defaultData.push(...yearData);
-        
-        // Extract unique aspects from seed data
-        const uniqueAspects = [...new Set(yearData.map(item => item.aspek))];
-        uniqueAspects.forEach(aspek => {
-          defaultAspects.push({
-            id: Date.now() + Math.random(),
-            nama: aspek,
-            tahun: year
-          });
-        });
-      });
-      
-      localStorage.setItem("checklistGCG", JSON.stringify(defaultData));
-      localStorage.setItem("aspects", JSON.stringify(defaultAspects));
-      setChecklist(defaultData);
-      setAspects(defaultAspects);
+      initializeDefaultData();
     }
   }, []);
+  
+  // Helper function untuk initialize default data
+  const initializeDefaultData = () => {
+    const defaultData: ChecklistGCG[] = [];
+    const defaultAspects: Aspek[] = [];
+    
+    // Get available years from localStorage or use current year
+    const years = [2024, 2025]; // Default years
+    
+    years.forEach(year => {
+      const yearData = seedChecklistGCG.map(item => ({ ...item, tahun: year }));
+      defaultData.push(...yearData);
+      
+      // Extract unique aspects from seed data
+      const uniqueAspects = [...new Set(yearData.map(item => item.aspek))];
+      uniqueAspects.forEach(aspek => {
+        defaultAspects.push({
+          id: Date.now() + Math.random(),
+          nama: aspek,
+          tahun: year
+        });
+      });
+    });
+    
+    localStorage.setItem("checklistGCG", JSON.stringify(defaultData));
+    localStorage.setItem("aspects", JSON.stringify(defaultAspects));
+    setChecklist(defaultData);
+    setAspects(defaultAspects);
+    console.log('ChecklistContext: Initialized with default data', { checklist: defaultData.length, aspects: defaultAspects.length });
+  };
 
   // Listen for updates from PengaturanBaru
   useEffect(() => {
     const handleChecklistUpdate = (event: CustomEvent) => {
       if (event.detail?.type === 'checklistUpdated') {
         const updatedData = event.detail.data;
-        setChecklist(updatedData);
-        console.log('ChecklistContext: Data updated from PengaturanBaru', updatedData);
+        console.log('ChecklistContext: Received checklistUpdated event', updatedData);
+        
+        // Pastikan data valid sebelum update
+        if (Array.isArray(updatedData) && updatedData.length > 0) {
+          setChecklist(updatedData);
+          // Update localStorage juga untuk konsistensi
+          localStorage.setItem('checklistGCG', JSON.stringify(updatedData));
+          console.log('ChecklistContext: Data updated from PengaturanBaru', updatedData);
+        }
       }
     };
 
@@ -101,12 +125,76 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
       window.removeEventListener('aspectsUpdated', handleAspectsUpdate as EventListener);
     };
   }, []);
+  
+  // Effect untuk memantau perubahan di localStorage dan sync dengan state
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const storedData = localStorage.getItem("checklistGCG");
+      if (storedData) {
+        try {
+          const parsedData = JSON.parse(storedData);
+          if (Array.isArray(parsedData) && JSON.stringify(parsedData) !== JSON.stringify(checklist)) {
+            console.log('ChecklistContext: localStorage changed, updating state', {
+              stored: parsedData.length,
+              current: checklist.length
+            });
+            setChecklist(parsedData);
+          }
+        } catch (error) {
+          console.error('ChecklistContext: Error parsing localStorage change', error);
+        }
+      }
+    };
+
+    // Listen for storage events (from other tabs/windows)
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also check localStorage periodically for changes
+    const interval = setInterval(handleStorageChange, 1000);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
+  }, [checklist]);
 
   const getChecklistByYear = (year: number): ChecklistGCG[] => {
+    // Pastikan data di-load dari localStorage terlebih dahulu
+    const storedData = localStorage.getItem("checklistGCG");
+    if (storedData) {
+      try {
+        const parsedData = JSON.parse(storedData);
+        if (Array.isArray(parsedData)) {
+          // Update state jika ada data baru
+          if (JSON.stringify(parsedData) !== JSON.stringify(checklist)) {
+            setChecklist(parsedData);
+          }
+          return parsedData.filter(item => item.tahun === year);
+        }
+      } catch (error) {
+        console.error('ChecklistContext: Error parsing stored data in getChecklistByYear', error);
+      }
+    }
     return checklist.filter(item => item.tahun === year);
   };
 
   const getAspectsByYear = (year: number): Aspek[] => {
+    // Pastikan data di-load dari localStorage terlebih dahulu
+    const storedData = localStorage.getItem("aspects");
+    if (storedData) {
+      try {
+        const parsedData = JSON.parse(storedData);
+        if (Array.isArray(parsedData)) {
+          // Update state jika ada data baru
+          if (JSON.stringify(parsedData) !== JSON.stringify(aspects)) {
+            setAspects(parsedData);
+          }
+          return parsedData.filter(aspek => aspek.tahun === year);
+        }
+      } catch (error) {
+        console.error('ChecklistContext: Error parsing stored data in getAspectsByYear', error);
+      }
+    }
     return aspects.filter(aspek => aspek.tahun === year);
   };
 
