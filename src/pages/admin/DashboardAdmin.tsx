@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 import FileUploadDialog from '@/components/dashboard/FileUploadDialog';
 import YearStatisticsPanel from '@/components/dashboard/YearStatisticsPanel';
-import { setupTestData, clearTestData } from '@/lib/seed/testData';
+
 
 interface ChecklistAssignment {
   id: number;
@@ -733,28 +733,6 @@ const DashboardAdmin = () => {
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setupTestData();
-                      setForceUpdate(prev => prev + 1);
-                    }}
-                    className="border-orange-200 text-orange-600 hover:bg-orange-50"
-                  >
-                    Setup Test Data
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      clearTestData();
-                      setForceUpdate(prev => prev + 1);
-                    }}
-                    className="border-red-200 text-red-600 hover:bg-red-50"
-                  >
-                    Clear Test Data
-                  </Button>
                   <Button
                     variant="outline"
                     size="sm"

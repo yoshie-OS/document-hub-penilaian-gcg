@@ -87,11 +87,9 @@ const Topbar = () => {
           className="flex items-center space-x-3 cursor-pointer hover:opacity-80 transition-opacity duration-200"
           onClick={handleLogoClick}
         >
-          <img 
-            src="/logo.png" 
-            alt="POSIND Logo" 
-            className="h-8 w-auto"
-          />
+          <div className="h-8 w-8 bg-blue-600 rounded-lg flex items-center justify-center">
+            <span className="text-white font-bold text-sm">GCG</span>
+          </div>
           <div className="hidden md:block">
             <h1 className="text-xl font-bold text-gray-900">
               GCG Document Hub

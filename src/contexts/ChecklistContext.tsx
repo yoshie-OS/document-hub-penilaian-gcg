@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
-import { seedChecklistGCG } from "@/lib/seed/seedChecklistGCG";
 
 export interface ChecklistGCG {
   id: number;
@@ -62,34 +61,17 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  // Helper function untuk initialize default data
+    // Helper function untuk initialize default data - FRESH START
   const initializeDefaultData = () => {
+    // Start with completely empty data
     const defaultData: ChecklistGCG[] = [];
     const defaultAspects: Aspek[] = [];
     
-    // Get available years from localStorage or use current year
-    const years = [2024, 2025]; // Default years
-    
-    years.forEach(year => {
-        const yearData = seedChecklistGCG.map(item => ({ ...item, tahun: year }));
-        defaultData.push(...yearData);
-      
-      // Extract unique aspects from seed data
-      const uniqueAspects = [...new Set(yearData.map(item => item.aspek))];
-      uniqueAspects.forEach(aspek => {
-        defaultAspects.push({
-          id: Date.now() + Math.random(),
-          nama: aspek,
-          tahun: year
-        });
-      });
-      });
-      
-      localStorage.setItem("checklistGCG", JSON.stringify(defaultData));
+    localStorage.setItem("checklistGCG", JSON.stringify(defaultData));
     localStorage.setItem("aspects", JSON.stringify(defaultAspects));
-      setChecklist(defaultData);
+    setChecklist(defaultData);
     setAspects(defaultAspects);
-    console.log('ChecklistContext: Initialized with default data', { checklist: defaultData.length, aspects: defaultAspects.length });
+    console.log('ChecklistContext: Initialized with FRESH START - no default data');
   };
 
   // Listen for updates from PengaturanBaru
@@ -203,34 +185,15 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
     const existingAspects = aspects.filter(aspek => aspek.tahun === year);
     
     if (existingData.length === 0) {
-      // Initialize with default data for the new year
-      const defaultData = seedChecklistGCG.map(item => ({ ...item, tahun: year }));
-      const updated = [...checklist, ...defaultData];
-      setChecklist(updated);
-      localStorage.setItem("checklistGCG", JSON.stringify(updated));
-      
-      // Trigger update event
-      window.dispatchEvent(new CustomEvent('checklistUpdated', {
-        detail: { type: 'checklistUpdated', data: updated }
-      }));
+      // Initialize with empty data for the new year - FRESH START
+      console.log(`ChecklistContext: Year ${year} initialized with empty data`);
+      // No default data - user must add manually
     }
     
     if (existingAspects.length === 0) {
-      // Initialize aspects for the new year
-      const uniqueAspects = [...new Set(seedChecklistGCG.map(item => item.aspek))];
-      const newAspects = uniqueAspects.map(aspek => ({
-        id: Date.now() + Math.random(),
-        nama: aspek,
-        tahun: year
-      }));
-      const updatedAspects = [...aspects, ...newAspects];
-      setAspects(updatedAspects);
-      localStorage.setItem("aspects", JSON.stringify(updatedAspects));
-      
-      // Trigger update event
-      window.dispatchEvent(new CustomEvent('aspectsUpdated', {
-        detail: { type: 'aspectsUpdated', data: updatedAspects }
-      }));
+      // Initialize aspects for the new year - FRESH START
+      console.log(`ChecklistContext: Year ${year} aspects initialized with empty data`);
+      // No default aspects - user must add manually
     }
   };
 

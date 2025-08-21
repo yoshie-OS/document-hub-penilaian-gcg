@@ -18,8 +18,6 @@ import { useStrukturPerusahaan } from '@/contexts/StrukturPerusahaanContext';
 import { useUser, UserRole } from '@/contexts/UserContext';
 import { useChecklist, ChecklistGCG } from '@/contexts/ChecklistContext';
 import { useToast } from '@/hooks/use-toast';
-import { seedUser } from '@/lib/seed/seedUser';
-import { seedChecklistGCG } from '@/lib/seed/seedChecklistGCG';
 import { ActionButton } from '@/components/panels';
 
 // Pilihan subdirektorat sekarang diambil dari StrukturPerusahaanContext (berdasarkan tahun aktif)
@@ -1118,30 +1116,8 @@ const PengaturanBaru = () => {
 
   const handleUseDefaultUsers = () => {
     try {
-      // Copy default users dari seedUser dengan tahun yang dipilih
-      const defaultUsers: User[] = seedUser.map(user => ({
-        ...user,
-        id: Date.now() + Math.random(), // Generate unique ID
-        tahun: selectedYear || new Date().getFullYear(),
-        role: user.role as UserRole // Ensure role is UserRole type
-      }));
-
-      // Pastikan selalu ada super admin untuk tahun ini
-      const hasSuperAdmin = defaultUsers.some(user => user.role === 'superadmin');
-      if (!hasSuperAdmin) {
-        const superAdminUser = {
-          id: Date.now() + 1000, // ID yang lebih unik
-          tahun: selectedYear || new Date().getFullYear(),
-          email: 'superadmin@posindonesia.co.id',
-          password: 'superadmin123',
-          role: 'superadmin' as UserRole,
-          name: 'Super Administrator',
-          direktorat: 'Direksi',
-          subdirektorat: 'Direksi Utama',
-          divisi: 'Direksi'
-        };
-        defaultUsers.push(superAdminUser);
-      }
+      // Create empty user data - FRESH START
+      const defaultUsers: User[] = [];
 
       setUsers(prev => [...prev, ...defaultUsers]);
       localStorage.setItem('users', JSON.stringify([...users, ...defaultUsers]));
@@ -1150,12 +1126,12 @@ const PengaturanBaru = () => {
       
       toast({
         title: "Berhasil!",
-        description: "Data default user berhasil digunakan dengan Super Admin",
+        description: "User data initialized - FRESH START",
       });
     } catch (error) {
       toast({
         title: "Error",
-        description: "Gagal menggunakan data default user",
+        description: "Gagal menginisialisasi user data",
         variant: "destructive"
       });
     }

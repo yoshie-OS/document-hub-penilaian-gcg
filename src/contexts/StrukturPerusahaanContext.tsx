@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useYear } from './YearContext';
-import { seedAnakPerusahaan } from '@/lib/seed/seedAnakPerusahaan';
 
 // Interfaces
 export interface Direktorat {
@@ -229,16 +228,8 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
         { id: Date.now() + 3, nama: 'Subdirektorat Pelayanan', direktoratId: defaultDirektorat[1].id, deskripsi: 'Mengelola pelayanan', tahun: year, createdAt: new Date(), isActive: true }
       ];
 
-      // Default Anak Perusahaan dari seed
-      const defaultAnakPerusahaan: AnakPerusahaan[] = seedAnakPerusahaan.map((item, index) => ({
-        id: Date.now() + index,
-        nama: item.nama,
-        kategori: item.kategori,
-        deskripsi: item.deskripsi,
-        tahun: year,
-        createdAt: new Date(),
-        isActive: true
-      }));
+      // Default Anak Perusahaan - FRESH START
+      const defaultAnakPerusahaan: AnakPerusahaan[] = [];
 
       // Default Divisi
       const defaultDivisi: Divisi[] = [

@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { initializeDocumentMetadata } from '@/lib/seed/seedDocumentMetadata';
 
 export interface DocumentMetadata {
   id: string;
@@ -77,9 +76,8 @@ export const DocumentMetadataProvider: React.FC<{ children: ReactNode }> = ({ ch
         setDocuments([]);
       }
     } else {
-      // Initialize with seed data if no existing data
-      const seedData = initializeDocumentMetadata();
-      setDocuments(seedData);
+      // Initialize with empty data - FRESH START
+      setDocuments([]);
     }
   }, []);
 
