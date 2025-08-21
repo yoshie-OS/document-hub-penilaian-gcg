@@ -48,11 +48,8 @@ export const YearProvider: React.FC<YearProviderProps> = ({ children }) => {
       console.log('YearContext: Started fresh - no default years');
     }
 
-    // Set selected year to current year if not set
-    if (!selectedYear) {
-      const currentYear = new Date().getFullYear();
-      setSelectedYear(currentYear);
-    }
+    // Tidak set selected year otomatis - biarkan user pilih manual
+    // setSelectedYear hanya akan di-set saat user benar-benar memilih tahun
   }, []);
 
   // Save available years to localStorage whenever it changes

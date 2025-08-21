@@ -469,9 +469,13 @@ const OrganizationalSection = memo(({
           placeholder={direktoratSuggestions.length > 0 ? "Pilih direktorat" : "Belum ada data direktorat tahun ini"}
           disabled={direktoratSuggestions.length === 0 || userRole === 'admin'}
         >
-          {direktoratSuggestions.map(direktorat => (
-            <SelectItem key={direktorat} value={direktorat}>{direktorat}</SelectItem>
-          ))}
+          {direktoratSuggestions.length > 0 ? (
+            direktoratSuggestions.map(direktorat => (
+              <SelectItem key={direktorat} value={direktorat}>{direktorat}</SelectItem>
+            ))
+          ) : (
+            <SelectItem value="" disabled>Tidak ada data direktorat</SelectItem>
+          )}
         </OptimizedSelect>
       </div>
       
@@ -485,9 +489,13 @@ const OrganizationalSection = memo(({
           placeholder={subdirektoratSuggestions.length > 0 ? "Pilih subdirektorat" : "Belum ada data subdirektorat"}
           disabled={subdirektoratSuggestions.length === 0 || userRole === 'admin'}
         >
-          {subdirektoratSuggestions.map(subdirektorat => (
-            <SelectItem key={subdirektorat} value={subdirektorat}>{subdirektorat}</SelectItem>
-          ))}
+          {subdirektoratSuggestions.length > 0 ? (
+            subdirektoratSuggestions.map(subdirektorat => (
+              <SelectItem key={subdirektorat} value={subdirektorat}>{subdirektorat}</SelectItem>
+            ))
+          ) : (
+            <SelectItem value="" disabled>Tidak ada data subdirektorat</SelectItem>
+          )}
         </OptimizedSelect>
       </div>
       
@@ -502,9 +510,13 @@ const OrganizationalSection = memo(({
             placeholder={divisionSuggestions.length > 0 ? "Pilih divisi" : "Belum ada data divisi tahun ini"}
             disabled={userRole === 'admin'}
           >
-            {divisionSuggestions.map(division => (
-              <SelectItem key={division} value={division}>{division}</SelectItem>
-            ))}
+            {divisionSuggestions.length > 0 ? (
+              divisionSuggestions.map(division => (
+                <SelectItem key={division} value={division}>{division}</SelectItem>
+              ))
+            ) : (
+              <SelectItem value="" disabled>Tidak ada data divisi</SelectItem>
+            )}
           </OptimizedSelect>
           {userRole !== 'admin' && (
             <div className="space-y-2">
@@ -575,7 +587,8 @@ const ChecklistSection = memo(({
   onAspectFilterChange, 
   selectedAspectFilter, 
   getAvailableChecklistItems, 
-  getUniqueAspects 
+  getUniqueAspects,
+  isLoading = false
 }: {
   formData: UploadFormData;
   onChecklistSelection: (item: any, checked: boolean) => void;
@@ -583,6 +596,7 @@ const ChecklistSection = memo(({
   selectedAspectFilter: string;
   getAvailableChecklistItems: any[];
   getUniqueAspects: string[];
+  isLoading?: boolean;
 }) => (
   <div className="space-y-4">
     <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">
@@ -620,6 +634,36 @@ const ChecklistSection = memo(({
       
       <div className="max-h-60 overflow-y-auto border rounded-lg p-4 space-y-2">
         {(() => {
+          // Show loading state
+          if (isLoading) {
+            return (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-sm text-gray-600">Memuat checklist GCG...</p>
+              </div>
+            );
+          }
+          
+          // Check if checklist data is available
+          if (!getAvailableChecklistItems || getAvailableChecklistItems.length === 0) {
+            return (
+              <div className="text-center py-8">
+                <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <h4 className="text-lg font-medium text-gray-900 mb-2">
+                  Checklist GCG Belum Tersedia
+                </h4>
+                <p className="text-sm text-gray-600 mb-4">
+                  Checklist GCG untuk tahun {formData.year} belum tersedia atau belum dibuat.
+                </p>
+                <div className="space-y-2 text-xs text-gray-500">
+                  <p>• Pastikan tahun buku sudah dipilih dengan benar</p>
+                  <p>• Checklist GCG harus dibuat terlebih dahulu di menu "Pengaturan Baru" → "Kelola Dokumen"</p>
+                  <p>• Atau gunakan menu "Pengaturan Baru" → "Kelola Dokumen" untuk setup checklist</p>
+                </div>
+              </div>
+            );
+          }
+          
           const filteredItems = getAvailableChecklistItems.filter(item => !selectedAspectFilter || item.aspek === selectedAspectFilter);
           return filteredItems.length > 0 ? (
             filteredItems.slice(0, 50).map((item) => (
@@ -723,6 +767,7 @@ const FileUploadDialog: React.FC<FileUploadDialogProps> = ({
   const [customDivision, setCustomDivision] = useState('');
   const [isDragOver, setIsDragOver] = useState(false);
   const [selectedAspectFilter, setSelectedAspectFilter] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(false);
 
   // Memoized constants to prevent re-creation
   const confidentialityLevels = useMemo(() => [
@@ -762,7 +807,7 @@ const FileUploadDialog: React.FC<FileUploadDialogProps> = ({
         selectedChecklistId: null,
         year: selectedYear || new Date().getFullYear()
       });
-      
+    
       // Reset file state
       setSelectedFile(null);
       setCustomDivision('');
@@ -811,12 +856,28 @@ const FileUploadDialog: React.FC<FileUploadDialogProps> = ({
   useEffect(() => {
     if (selectedYear) {
       setFormData(prev => ({ ...prev, year: selectedYear }));
+      
+      // Set loading state when year changes
+      setIsLoading(true);
+      
+      // Simulate loading delay to ensure data is updated
+      const timer = setTimeout(() => {
+        setIsLoading(false);
+      }, 500);
+      
+      return () => clearTimeout(timer);
     }
   }, [selectedYear]);
 
   // Get available checklist items (not used in current year) with sorting - memoized
   const getAvailableChecklistItems = useMemo(() => {
     if (!selectedYear) return [];
+    
+    // Ensure checklist data exists
+    if (!checklist || checklist.length === 0) {
+      console.log('FileUploadDialog: No checklist data available');
+      return [];
+    }
     
     // Get used checklist IDs for current year
     const usedChecklistIds = new Set(
@@ -827,6 +888,13 @@ const FileUploadDialog: React.FC<FileUploadDialogProps> = ({
     
     // Filter available items
     const availableItems = checklist.filter(item => !usedChecklistIds.has(item.id));
+    
+    console.log('FileUploadDialog: Available checklist items', {
+      selectedYear,
+      totalChecklist: checklist.length,
+      usedItems: usedChecklistIds.size,
+      availableItems: availableItems.length
+    });
     
     // Sort by aspect using the same logic as getUniqueAspects
     const existingAspects = [
@@ -857,11 +925,25 @@ const FileUploadDialog: React.FC<FileUploadDialogProps> = ({
 
   // Ambil saran divisi dari localStorage sesuai tahun buku - memoized
   const getDivisionSuggestionsByYear = useMemo(() => {
-    const divisiData = localStorage.getItem('divisi');
-    if (!divisiData) return [];
-    const divisiList = JSON.parse(divisiData);
-    const filtered = divisiList.filter((d: any) => d.tahun === selectedYear);
-    return Array.from(new Set(filtered.map((d: any) => String(d.nama)))).sort() as string[];
+    if (!selectedYear) return [];
+    
+    try {
+      const divisiData = localStorage.getItem('divisi');
+      if (!divisiData) return [];
+      
+      const divisiList = JSON.parse(divisiData);
+      if (!Array.isArray(divisiList)) return [];
+      
+      const filtered = divisiList
+        .filter((d: any) => d && d.tahun === selectedYear && d.nama)
+        .map((d: any) => String(d.nama))
+        .filter(Boolean);
+      
+      return Array.from(new Set(filtered)).sort();
+    } catch (error) {
+      console.error('Error parsing divisi data:', error);
+      return [];
+    }
   }, [selectedYear]);
 
   // Get unique aspects for sorting - existing aspects first, new ones last
@@ -1189,13 +1271,56 @@ const FileUploadDialog: React.FC<FileUploadDialogProps> = ({
   }, []);
 
   // Get data from context
-  const { direktorat: direktoratSuggestions, subdirektorat: subdirektoratSuggestions, divisi: divisiCtx } = useStrukturPerusahaan();
+  const { direktorat: direktoratData, subdirektorat: subdirektoratData, divisi: divisiData } = useStrukturPerusahaan();
+  
+  // Transform object arrays to string arrays for suggestions
+  const direktoratSuggestions = useMemo(() => {
+    if (!direktoratData || !Array.isArray(direktoratData)) return [];
+    if (!selectedYear) return [];
+    
+    try {
+      return direktoratData
+        .filter(item => item && item.tahun === selectedYear && item.nama)
+        .map(item => String(item.nama))
+        .filter(Boolean);
+    } catch (error) {
+      console.error('Error processing direktorat data:', error);
+      return [];
+    }
+  }, [direktoratData, selectedYear]);
+  
+  const subdirektoratSuggestions = useMemo(() => {
+    if (!subdirektoratData || !Array.isArray(subdirektoratData)) return [];
+    if (!selectedYear) return [];
+    
+    try {
+      return subdirektoratData
+        .filter(item => item && item.tahun === selectedYear && item.nama)
+        .map(item => String(item.nama))
+        .filter(Boolean);
+    } catch (error) {
+      console.error('Error processing subdirektorat data:', error);
+      return [];
+    }
+  }, [subdirektoratData, selectedYear]);
+  
   // Ultra-optimized memoized values with lazy loading
   const divisionSuggestions = useMemo(() => {
-    const fromYear = getDivisionSuggestionsByYear;
-    const merged = Array.from(new Set([...(fromYear || []), ...(divisiCtx || [])]));
-    return merged;
-  }, [getDivisionSuggestionsByYear, divisiCtx]);
+    if (!selectedYear) return [];
+    
+    try {
+      const fromYear = getDivisionSuggestionsByYear;
+      const divisiNames = divisiData
+        ?.filter(item => item && item.tahun === selectedYear && item.nama)
+        .map(item => String(item.nama))
+        .filter(Boolean) || [];
+      const merged = Array.from(new Set([...(fromYear || []), ...divisiNames]));
+      return merged;
+    } catch (error) {
+      console.error('Error processing division data:', error);
+      return [];
+    }
+  }, [getDivisionSuggestionsByYear, divisiData, selectedYear]);
 
   // Lazy load heavy computations only when needed
   const memoizedChecklistItems = useMemo(() => {
@@ -1217,6 +1342,23 @@ const FileUploadDialog: React.FC<FileUploadDialogProps> = ({
           <DialogDescription>
             Lengkapi metadata dokumen untuk memastikan pengelolaan yang baik
           </DialogDescription>
+          
+          {/* Debug Info - hanya tampil di development */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="mt-2 p-2 bg-gray-100 border border-gray-300 rounded text-xs">
+              <div className="font-medium text-gray-700 mb-1">Debug Info:</div>
+              <div className="space-y-1 text-gray-600">
+                <div>Selected Year: {selectedYear || 'Not set'}</div>
+                <div>Checklist Count: {checklist?.length || 0}</div>
+                <div>Available Items: {getAvailableChecklistItems?.length || 0}</div>
+                <div>Documents Count: {documents?.length || 0}</div>
+                <div>Direktorat: {direktoratSuggestions?.length || 0} suggestions</div>
+                <div>Subdirektorat: {subdirektoratSuggestions?.length || 0} suggestions</div>
+                <div>Divisi: {divisionSuggestions?.length || 0} suggestions</div>
+              </div>
+            </div>
+          )}
+          
           {checklistId && checklistDescription && aspect && (
             <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg">
               <div className="flex items-center justify-between">
@@ -1307,6 +1449,7 @@ const FileUploadDialog: React.FC<FileUploadDialogProps> = ({
                 selectedAspectFilter={selectedAspectFilter}
                 getAvailableChecklistItems={getAvailableChecklistItems}
                 getUniqueAspects={getUniqueAspects}
+                isLoading={isLoading}
               />
             )}
 

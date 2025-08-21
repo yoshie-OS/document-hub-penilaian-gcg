@@ -299,14 +299,15 @@ const PengaturanBaru = () => {
 
   // Effect untuk mengupdate progress struktur organisasi
   useEffect(() => {
-    if (selectedYear && 
-        direktorat && direktorat.length > 0 && 
+    // Progress struktur organisasi tidak bergantung pada tahun tertentu
+    // Bisa diakses meskipun belum ada tahun yang dipilih
+    if (direktorat && direktorat.length > 0 && 
         subdirektorat && subdirektorat.length > 0 && 
         anakPerusahaan && anakPerusahaan.length > 0 && 
         divisi && divisi.length > 0) {
       setSetupProgress(prev => ({ ...prev, strukturOrganisasi: true }));
     }
-  }, [selectedYear, direktorat, subdirektorat, anakPerusahaan, divisi]);
+  }, [direktorat, subdirektorat, anakPerusahaan, divisi]);
 
   // Effect untuk load users dari localStorage
   useEffect(() => {
@@ -324,79 +325,76 @@ const PengaturanBaru = () => {
 
   // Effect untuk mengupdate progress manajemen akun
   useEffect(() => {
-    if (selectedYear && users && users.filter(u => u.tahun === selectedYear).length > 0) {
+    // Progress manajemen akun tidak bergantung pada tahun tertentu
+    // Bisa diakses meskipun belum ada tahun yang dipilih
+    if (users && users.length > 0) {
       setSetupProgress(prev => ({ ...prev, manajemenAkun: true }));
     }
-  }, [selectedYear, users]);
+  }, [users]);
 
   // Effect untuk load checklist dari context dan localStorage
   useEffect(() => {
-    if (selectedYear) {
-      console.log('PengaturanBaru: Loading checklist for year', selectedYear);
-      
-      // Coba load dari localStorage terlebih dahulu (data yang sudah disimpan user)
-      const storedChecklist = localStorage.getItem('checklistGCG');
-      let yearChecklist: ChecklistItem[] = [];
-      
-      if (storedChecklist) {
-        try {
-          const parsedChecklist = JSON.parse(storedChecklist);
-          yearChecklist = parsedChecklist.filter((item: any) => item.tahun === selectedYear);
-          console.log('PengaturanBaru: Loaded from localStorage', {
-            total: parsedChecklist.length,
-            yearData: yearChecklist.length
-          });
-        } catch (error) {
-          console.error('Error parsing stored checklist', error);
-        }
-      }
-      
-      // Jika tidak ada data di localStorage, gunakan data dari context
-      if (yearChecklist.length === 0 && checklist) {
-        const contextChecklist = checklist.filter(item => item.tahun === selectedYear);
-        yearChecklist = contextChecklist.map(item => ({
+    console.log('PengaturanBaru: Loading checklist data');
+    
+    // Coba load dari localStorage terlebih dahulu (data yang sudah disimpan user)
+    const storedChecklist = localStorage.getItem('checklistGCG');
+    let allChecklist: ChecklistItem[] = [];
+    
+    if (storedChecklist) {
+      try {
+        const parsedChecklist = JSON.parse(storedChecklist);
+        // Load semua data checklist, tidak hanya berdasarkan tahun tertentu
+        allChecklist = parsedChecklist.map((item: any) => ({
           ...item,
-          status: 'pending' as const,
-          catatan: '',
-          tahun: item.tahun || selectedYear
+          status: item.status || 'pending',
+          catatan: item.catatan || '',
+          tahun: item.tahun || (selectedYear || new Date().getFullYear())
         }));
-        console.log('PengaturanBaru: Loaded from context', {
-          contextTotal: checklist.length,
-          yearData: yearChecklist.length
+        console.log('PengaturanBaru: Loaded from localStorage', {
+          total: parsedChecklist.length,
+          processedData: allChecklist.length
         });
+      } catch (error) {
+        console.error('Error parsing stored checklist', error);
       }
-      
-      // Extend checklist dengan status dan catatan default
-      const extendedChecklist: ChecklistItem[] = yearChecklist.map(item => ({
+    }
+    
+    // Jika tidak ada data di localStorage, gunakan data dari context
+    if (allChecklist.length === 0 && checklist) {
+      allChecklist = checklist.map(item => ({
         ...item,
-        status: item.status || 'pending',
-        catatan: item.catatan || '',
-        tahun: item.tahun || selectedYear
+        status: 'pending' as const,
+        catatan: '',
+        tahun: item.tahun || (selectedYear || new Date().getFullYear())
       }));
-      
-      console.log('PengaturanBaru: Setting checklist items', {
-        count: extendedChecklist.length,
-        items: extendedChecklist
-      });
-      
-      // Gunakan functional update untuk mencegah re-render berlebihan
-      setChecklistItems(prev => {
-        // Hanya update jika data benar-benar berbeda
-        if (JSON.stringify(prev) !== JSON.stringify(extendedChecklist)) {
-          return extendedChecklist;
-        }
-        return prev;
-      });
-      
-      setOriginalChecklistItems(prev => {
-        // Hanya update jika data benar-benar berbeda
-        if (JSON.stringify(prev) !== JSON.stringify(extendedChecklist)) {
-          return extendedChecklist;
-        }
-        return prev;
+      console.log('PengaturanBaru: Loaded from context', {
+        contextTotal: checklist.length,
+        processedData: allChecklist.length
       });
     }
-  }, [selectedYear, checklist]);
+    
+    console.log('PengaturanBaru: Setting checklist items', {
+      count: allChecklist.length,
+      items: allChecklist
+    });
+    
+    // Gunakan functional update untuk mencegah re-render berlebihan
+    setChecklistItems(prev => {
+      // Hanya update jika data benar-benar berbeda
+      if (JSON.stringify(prev) !== JSON.stringify(allChecklist)) {
+        return allChecklist;
+      }
+      return prev;
+    });
+    
+    setOriginalChecklistItems(prev => {
+      // Hanya update jika data benar-benar berbeda
+      if (JSON.stringify(prev) !== JSON.stringify(allChecklist)) {
+        return prev;
+      }
+      return allChecklist;
+    });
+  }, [checklist, selectedYear]);
   
   // Effect untuk auto-save checklist items saat ada perubahan
   // Gunakan useCallback untuk mencegah re-render berlebihan
@@ -450,10 +448,12 @@ const PengaturanBaru = () => {
 
   // Effect untuk mengupdate progress kelola dokumen
   useEffect(() => {
-    if (selectedYear && checklistItems && checklistItems.length > 0) {
+    // Progress kelola dokumen tidak bergantung pada tahun tertentu
+    // Bisa diakses meskipun belum ada tahun yang dipilih
+    if (checklistItems && checklistItems.length > 0) {
       setSetupProgress(prev => ({ ...prev, kelolaDokumen: true }));
     }
-  }, [selectedYear, checklistItems]);
+  }, [checklistItems]);
 
   // Effect untuk tracking changes pada checklist items
   useEffect(() => {
@@ -472,7 +472,7 @@ const PengaturanBaru = () => {
   
   // State untuk form tahun buku
   const [tahunForm, setTahunForm] = useState({
-    tahun: new Date().getFullYear() + 1,
+    tahun: new Date().getFullYear(),
     nama: '',
     deskripsi: ''
   });
@@ -517,16 +517,22 @@ const PengaturanBaru = () => {
 
   // Consolidate progress recomputation based on data presence per selected year
   useEffect(() => {
-    if (!selectedYear) return;
-    const hasYear = availableYears?.includes(selectedYear) ?? false;
+    // Progress untuk tahun buku selalu berdasarkan availableYears
+    const hasYear = availableYears && availableYears.length > 0;
+    
+    // Progress untuk struktur organisasi - bisa diakses meskipun belum ada tahun
     const hasStruktur = Boolean(
-      (direktorat?.some(d => d.tahun === selectedYear) ?? false) &&
-      (subdirektorat?.some(s => s.tahun === selectedYear) ?? false) &&
-      (anakPerusahaan?.some(a => a.tahun === selectedYear) ?? false) &&
-      (divisi?.some(v => v.tahun === selectedYear) ?? false)
+      direktorat && direktorat.length > 0 && 
+      subdirektorat && subdirektorat.length > 0 && 
+      anakPerusahaan && anakPerusahaan.length > 0 && 
+      divisi && divisi.length > 0
     );
-    const hasUsers = Boolean(users?.some(u => u.tahun === selectedYear));
-    const hasChecklist = Boolean(checklistItems?.some(ci => ci.tahun === selectedYear));
+    
+    // Progress untuk manajemen akun - bisa diakses meskipun belum ada tahun
+    const hasUsers = Boolean(users && users.length > 0);
+    
+    // Progress untuk kelola dokumen - bisa diakses meskipun belum ada tahun
+    const hasChecklist = Boolean(checklistItems && checklistItems.length > 0);
 
     setSetupProgress({
       tahunBuku: hasYear,
@@ -534,7 +540,7 @@ const PengaturanBaru = () => {
       manajemenAkun: hasUsers,
       kelolaDokumen: hasChecklist,
     });
-  }, [selectedYear, availableYears, direktorat, subdirektorat, anakPerusahaan, divisi, users, checklistItems]);
+  }, [availableYears, direktorat, subdirektorat, anakPerusahaan, divisi, users, checklistItems]);
 
   // Handler untuk submit tahun buku
   const handleTahunSubmit = (e: React.FormEvent) => {
@@ -592,7 +598,7 @@ const PengaturanBaru = () => {
 
       // Reset form
       setTahunForm({
-        tahun: tahunForm.tahun + 1,
+        tahun: new Date().getFullYear(),
         nama: '',
         deskripsi: ''
       });
@@ -1588,6 +1594,20 @@ const PengaturanBaru = () => {
                   <p className="text-orange-700 text-sm mt-1">
                     Tambah atau hapus tahun buku untuk sistem GCG
                   </p>
+                  {selectedYear && (
+                    <div className="mt-2 p-2 bg-orange-100 rounded border border-orange-300">
+                      <span className="text-sm text-orange-800">
+                        <strong>Tahun Aktif:</strong> {selectedYear}
+                      </span>
+                    </div>
+                  )}
+                  {!selectedYear && (
+                    <div className="mt-2 p-2 bg-yellow-100 rounded border border-yellow-300">
+                      <span className="text-sm text-yellow-800">
+                        <strong>Status:</strong> Belum ada tahun yang dipilih
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Tahun Table */}
@@ -1603,45 +1623,61 @@ const PengaturanBaru = () => {
                           {availableYears?.length || 0} tahun buku tersedia dalam sistem
                         </CardDescription>
                       </div>
-                      <Dialog open={showTahunDialog} onOpenChange={setShowTahunDialog}>
-                        <DialogTrigger asChild>
-                          <ActionButton
-                            variant="default"
-                            icon={<Plus className="w-4 h-4" />}
-                            onClick={() => setShowTahunDialog(true)}
-                          >
-                            Tambah Tahun
-                          </ActionButton>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Tambah Tahun Buku Baru</DialogTitle>
-                            <DialogDescription>
-                              Masukkan tahun buku yang akan ditambahkan ke sistem
-                            </DialogDescription>
-                          </DialogHeader>
-                          <form onSubmit={handleTahunSubmit} className="space-y-4">
-                            <div>
-                              <Label htmlFor="year">Tahun Buku</Label>
-                              <Input
-                                id="year"
-                                type="number"
-                                min="2020"
-                                max="2030"
-                                value={tahunForm.tahun || ''}
-                                onChange={(e) => setTahunForm({ ...tahunForm, tahun: parseInt(e.target.value) })}
-                                placeholder="Contoh: 2025"
-                                required
-                              />
-                            </div>
-                            <div className="flex justify-end space-x-2">
-                              <Button type="submit" variant="default">
-                                Tambah Tahun
-                              </Button>
-                            </div>
-                          </form>
-                        </DialogContent>
-                      </Dialog>
+                      <div className="flex gap-2">
+                        {availableYears && availableYears.length > 0 && (
+                          <Select value={selectedYear?.toString() || ''} onValueChange={(value) => setSelectedYear(parseInt(value))}>
+                            <SelectTrigger className="w-48">
+                              <SelectValue placeholder="Pilih Tahun Aktif" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {availableYears.sort((a, b) => b - a).map((year) => (
+                                <SelectItem key={year} value={year.toString()}>
+                                  {year}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                        <Dialog open={showTahunDialog} onOpenChange={setShowTahunDialog}>
+                          <DialogTrigger asChild>
+                            <ActionButton
+                              variant="default"
+                              icon={<Plus className="w-4 h-4" />}
+                              onClick={() => setShowTahunDialog(true)}
+                            >
+                              Tambah Tahun
+                            </ActionButton>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Tambah Tahun Buku Baru</DialogTitle>
+                              <DialogDescription>
+                                Masukkan tahun buku yang akan ditambahkan ke sistem
+                              </DialogDescription>
+                            </DialogHeader>
+                            <form onSubmit={handleTahunSubmit} className="space-y-4">
+                              <div>
+                                <Label htmlFor="year">Tahun Buku</Label>
+                                <Input
+                                  id="year"
+                                  type="number"
+                                  min="2020"
+                                  max="2030"
+                                  value={tahunForm.tahun || ''}
+                                  onChange={(e) => setTahunForm({ ...tahunForm, tahun: parseInt(e.target.value) })}
+                                  placeholder="Contoh: 2025"
+                                  required
+                                />
+                              </div>
+                              <div className="flex justify-end space-x-2">
+                                <Button type="submit" variant="default">
+                                  Tambah Tahun
+                                </Button>
+                              </div>
+                            </form>
+                          </DialogContent>
+                        </Dialog>
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent>
@@ -1703,8 +1739,22 @@ const PengaturanBaru = () => {
                      <span>Setup Struktur Organisasi</span>
                    </CardTitle>
                    <CardDescription>
-                     Setup struktur organisasi untuk tahun buku baru
+                     Setup struktur organisasi untuk sistem GCG. Bisa diakses meskipun belum ada tahun buku yang dipilih.
                    </CardDescription>
+                   {selectedYear && (
+                     <div className="mt-2 p-2 bg-emerald-100 rounded border border-emerald-300">
+                       <span className="text-sm text-emerald-800">
+                         <strong>Tahun Aktif:</strong> {selectedYear}
+                       </span>
+                     </div>
+                   )}
+                   {!selectedYear && (
+                     <div className="mt-2 p-2 bg-yellow-100 rounded border border-yellow-300">
+                       <span className="text-sm text-yellow-800">
+                         <strong>Status:</strong> Belum ada tahun yang dipilih - data akan disimpan untuk tahun default
+                       </span>
+                     </div>
+                   )}
                  </CardHeader>
                  <CardContent className="space-y-6">
                    {/* Quick Actions */}
@@ -1978,8 +2028,22 @@ const PengaturanBaru = () => {
                      <span>Setup Manajemen Akun</span>
                    </CardTitle>
                    <CardDescription>
-                     Setup akun untuk tahun buku baru dengan role dan struktur organisasi
+                     Setup akun untuk sistem GCG dengan role dan struktur organisasi. Bisa diakses meskipun belum ada tahun buku yang dipilih.
                    </CardDescription>
+                   {selectedYear && (
+                     <div className="mt-2 p-2 bg-purple-100 rounded border border-purple-300">
+                       <span className="text-sm text-purple-800">
+                         <strong>Tahun Aktif:</strong> {selectedYear}
+                       </span>
+                     </div>
+                   )}
+                   {!selectedYear && (
+                     <div className="mt-2 p-2 bg-yellow-100 rounded border border-yellow-300">
+                       <span className="text-sm text-yellow-800">
+                         <strong>Status:</strong> Belum ada tahun yang dipilih - data akan disimpan untuk tahun default
+                       </span>
+                     </div>
+                   )}
                  </CardHeader>
                  <CardContent className="space-y-6">
                    {/* Quick Actions */}
@@ -2004,19 +2068,19 @@ const PengaturanBaru = () => {
                    {/* Data Overview */}
                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                      <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg">
-                       <div className="text-2xl font-bold text-purple-600">{users && users.filter(u => u.tahun === selectedYear).length || 0}</div>
+                       <div className="text-2xl font-bold text-purple-600">{users && users.length || 0}</div>
                        <div className="text-sm text-purple-600">Total Users</div>
                      </div>
                      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                       <div className="text-2xl font-bold text-blue-600">{users && users.filter(u => u.tahun === selectedYear && u.role === 'admin').length || 0}</div>
+                       <div className="text-2xl font-bold text-blue-600">{users && users.filter(u => u.role === 'admin').length || 0}</div>
                        <div className="text-sm text-blue-600">Admin</div>
                      </div>
                      <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                       <div className="text-2xl font-bold text-green-600">{users && users.filter(u => u.tahun === selectedYear && u.role === 'user').length || 0}</div>
+                       <div className="text-2xl font-bold text-green-600">{users && users.filter(u => u.role === 'user').length || 0}</div>
                        <div className="text-sm text-green-600">User</div>
                      </div>
                      <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
-                       <div className="text-2xl font-bold text-orange-600">{users && users.filter(u => u.tahun === selectedYear && u.role === 'superadmin').length || 0}</div>
+                       <div className="text-2xl font-bold text-orange-600">{users && users.filter(u => u.role === 'superadmin').length || 0}</div>
                        <div className="text-sm text-orange-600">Super Admin</div>
                      </div>
                    </div>
@@ -2038,7 +2102,7 @@ const PengaturanBaru = () => {
                          </TableRow>
                        </TableHeader>
                        <TableBody>
-                         {users && users.filter(u => u.tahun === selectedYear).length > 0 ? users.filter(u => u.tahun === selectedYear).map((item) => (
+                         {users && users.length > 0 ? users.map((item) => (
                            <TableRow key={item.id}>
                              <TableCell className="font-medium">{item.name}</TableCell>
                              <TableCell>{item.email}</TableCell>
@@ -2082,7 +2146,7 @@ const PengaturanBaru = () => {
                          )) : (
                            <TableRow>
                              <TableCell colSpan={8} className="text-center text-gray-500 py-8">
-                               Belum ada data user untuk tahun {selectedYear}
+                               Belum ada data user dalam sistem
                              </TableCell>
                            </TableRow>
                          )}
@@ -2104,6 +2168,20 @@ const PengaturanBaru = () => {
                    <CardDescription>
                      Setup dokumen GCG dan aspek untuk tahun buku baru dengan tabel inline editing
                    </CardDescription>
+                   {selectedYear && (
+                     <div className="mt-2 p-2 bg-orange-100 rounded border border-orange-300">
+                       <span className="text-sm text-orange-800">
+                         <strong>Tahun Aktif:</strong> {selectedYear}
+                       </span>
+                     </div>
+                   )}
+                   {!selectedYear && (
+                     <div className="mt-2 p-2 bg-yellow-100 rounded border border-yellow-300">
+                       <span className="text-sm text-yellow-800">
+                         <strong>Status:</strong> Belum ada tahun yang dipilih - data akan disimpan untuk tahun default
+                       </span>
+                     </div>
+                   )}
                  </CardHeader>
                  <CardContent className="space-y-6">
                                                            {/* Quick Actions */}

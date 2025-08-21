@@ -107,7 +107,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
       window.removeEventListener('aspectsUpdated', handleAspectsUpdate as EventListener);
     };
   }, []);
-  
+
   // Effect untuk memantau perubahan di localStorage dan sync dengan state
   useEffect(() => {
     const handleStorageChange = () => {

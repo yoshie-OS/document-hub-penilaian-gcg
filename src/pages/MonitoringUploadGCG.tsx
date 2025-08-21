@@ -4,12 +4,8 @@ import Sidebar from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-
 import { Input } from '@/components/ui/input';
-
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-
-
 
 import { useChecklist } from '@/contexts/ChecklistContext';
 import { useSidebar } from '@/contexts/SidebarContext';
@@ -36,14 +32,6 @@ import {
   Plus,
 } from 'lucide-react';
 
-
-
-// ChecklistAssignment interface dan SUBDIREKTORAT_OPTIONS removed - fitur assign sudah ada di Pengaturan Baru
-
-// AssignmentDropdown component removed - fitur assign sudah ada di Pengaturan Baru
-
-
-
 const MonitoringUploadGCG = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -67,16 +55,6 @@ const MonitoringUploadGCG = () => {
     aspek: string;
     deskripsi: string;
   } | null>(null);
-  
-  // State untuk assignment dokumen GCG removed - fitur assign sudah ada di Pengaturan Baru
-  
-
-  
-
-  
-
-
-
 
   // Ensure all years have dokumen GCG data when component mounts
   useEffect(() => {
@@ -178,26 +156,29 @@ const MonitoringUploadGCG = () => {
 
   // Get unique aspects for selected year
   const aspects = useMemo(() => {
+    if (!selectedYear) return [];
     const yearChecklist = checklist.filter(item => item.tahun === selectedYear);
     return [...new Set(yearChecklist.map(item => item.aspek))];
   }, [checklist, selectedYear]);
 
-
-
   // Check if dokumen GCG item is uploaded - menggunakan data yang sama dengan DashboardStats
   const isChecklistUploaded = useCallback((checklistId: number) => {
+    if (!selectedYear) return false;
     const yearFiles = getFilesByYear(selectedYear);
     return yearFiles.some(file => file.checklistId === checklistId);
   }, [getFilesByYear, selectedYear]);
 
   // Get uploaded document for dokumen GCG - menggunakan data yang sama dengan DashboardStats
   const getUploadedDocument = useCallback((checklistId: number) => {
+    if (!selectedYear) return null;
     const yearFiles = getFilesByYear(selectedYear);
     return yearFiles.find(file => file.checklistId === checklistId);
   }, [getFilesByYear, selectedYear]);
 
   // Filter dokumen GCG berdasarkan aspek dan status - menggunakan data yang sama dengan DashboardStats
   const filteredChecklist = useMemo(() => {
+    if (!selectedYear) return [];
+    
     const yearChecklist = checklist.filter(item => item.tahun === selectedYear);
     let filtered = yearChecklist.map(item => ({
       ...item,
@@ -221,12 +202,10 @@ const MonitoringUploadGCG = () => {
     return filtered;
   }, [checklist, selectedAspek, selectedStatus, selectedYear, debouncedSearchTerm, isChecklistUploaded]);
 
-
-
-
-
   // Navigate to dashboard with document highlight
   const handleViewDocument = useCallback((checklistId: number) => {
+    if (!selectedYear) return;
+    
     const uploadedFile = getUploadedDocument(checklistId);
     if (uploadedFile) {
       // Find the corresponding document in DocumentMetadata using fileName
@@ -356,23 +335,11 @@ const MonitoringUploadGCG = () => {
     }).sort((a, b) => b.progress - a.progress); // Sort by progress descending
   }, [selectedYear, checklist, getDocumentsByYear, isChecklistUploaded]);
 
-
-
-
-
-
-
   // Handle upload button click
   const handleUploadClick = useCallback((item: { id: number; aspek: string; deskripsi: string }) => {
     setSelectedChecklistItem(item);
     setIsUploadDialogOpen(true);
   }, []);
-
-  // Handle assignment removed - fitur assign sudah ada di Pengaturan Baru
-
-
-
-
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50">
@@ -387,8 +354,11 @@ const MonitoringUploadGCG = () => {
           {/* Enhanced Header */}
           <PageHeaderPanel
             title="Monitoring & Upload GCG"
-                          subtitle="Monitoring dan pengelolaan dokumen GCG berdasarkan tahun buku"
-            badge={{ text: selectedYear.toString(), variant: "default" }}
+            subtitle="Monitoring dan pengelolaan dokumen GCG berdasarkan tahun buku"
+            badge={{ 
+              text: selectedYear ? selectedYear.toString() : 'Belum dipilih', 
+              variant: selectedYear ? "default" : "secondary" 
+            }}
             actions={[
               {
                 label: "Upload Dokumen",
@@ -404,29 +374,49 @@ const MonitoringUploadGCG = () => {
             onYearChange={setSelectedYear}
             availableYears={years}
             title="Tahun Buku"
-                            description="Pilih tahun buku untuk melihat dokumen GCG"
+            description="Pilih tahun buku untuk melihat dokumen GCG"
           />
 
-
+          {/* Warning jika belum ada tahun yang dipilih */}
+          {!selectedYear && (
+            <Card className="border-0 shadow-lg bg-yellow-50 border-yellow-200 mb-6">
+              <CardContent className="p-6">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
+                    <Clock className="w-5 h-5 text-yellow-600" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-yellow-900 mb-1">
+                      Belum Ada Tahun Buku yang Dipilih
+                    </h3>
+                    <p className="text-yellow-700 text-sm">
+                      Silakan pilih tahun buku terlebih dahulu untuk melihat monitoring dan dokumen GCG. 
+                      Jika belum ada tahun buku, buat terlebih dahulu di menu "Pengaturan Baru" → "Tahun Buku".
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Konten Rekap */}
-                              {/* Statistik Tahun Buku */}
-                {selectedYear && (
-                  <YearStatisticsPanel 
-                    selectedYear={selectedYear}
-                    aspectStats={getAspectStats}
-                    overallProgress={getOverallProgress}
-                    getAspectIcon={getAspectIcon}
-                    getAspectColor={getAspectColor}
-                    onAspectClick={(aspectName) => setSelectedAspek(aspectName)}
-                    isSidebarOpen={isSidebarOpen}
-                    title="Statistik Tahun Buku"
-                    description={`Overview dokumen dan assessment dokumen GCG tahun ${selectedYear}`}
-                    maxCardsInSlider={4}
-                    showViewAllButton={true}
-                    showOverallProgress={true}
-                  />
-                )}
+          {selectedYear ? (
+            <>
+              {/* Statistik Tahun Buku */}
+              <YearStatisticsPanel 
+                selectedYear={selectedYear}
+                aspectStats={getAspectStats}
+                overallProgress={getOverallProgress}
+                getAspectIcon={getAspectIcon}
+                getAspectColor={getAspectColor}
+                onAspectClick={(aspectName) => setSelectedAspek(aspectName)}
+                isSidebarOpen={isSidebarOpen}
+                title="Statistik Tahun Buku"
+                description={`Overview dokumen dan assessment dokumen GCG tahun ${selectedYear}`}
+                maxCardsInSlider={4}
+                showViewAllButton={true}
+                showOverallProgress={true}
+              />
 
               {/* Breakdown Penugasan Subdirektorat */}
               <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm mb-6">
@@ -439,10 +429,11 @@ const MonitoringUploadGCG = () => {
                 <CardContent>
                   <div className="text-sm text-gray-500 text-center py-8">
                     Fitur penugasan dokumen GCG telah dipindahkan ke menu "Pengaturan Baru" → "Kelola Dokumen"
-                          </div>
+                  </div>
                 </CardContent>
               </Card>
 
+              {/* Daftar Dokumen GCG */}
               <Card className="border-0 shadow-lg bg-gradient-to-r from-white to-indigo-50">
                 <CardHeader>
                   <div className="flex items-center justify-between mb-4">
@@ -465,305 +456,329 @@ const MonitoringUploadGCG = () => {
                     </div>
                   </div>
 
-
-
-              {/* All Filters Integrated */}
-              <div className="space-y-4">
-                {/* Search Bar */}
-                <div>
-                  <label className="text-sm font-semibold text-gray-700 mb-2 block flex items-center">
-                    <Search className="w-4 h-4 mr-2 text-blue-600" />
-                    Pencarian Dokumen
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Search className="h-4 w-4 text-gray-400" />
-                    </div>
-                    <Input
-                      type="text"
-                      placeholder="Cari berdasarkan deskripsi dokumen GCG..."
-                      className="pl-10 pr-10"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                    {searchTerm && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setSearchTerm('')}
-                        className="absolute inset-y-0 right-0 px-3 text-gray-400 hover:text-gray-600"
-                      >
-                        <RotateCcw className="w-4 h-4" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Filter Row */}
-                <div className="flex flex-wrap items-center gap-4">
-                  {/* Aspek Filter */}
-                  <div className="flex-1 min-w-0">
-                    <label className="text-sm font-semibold text-gray-700 mb-2 block flex items-center">
-                      <Filter className="w-4 h-4 mr-2 text-orange-600" />
-                      Filter Aspek
-                    </label>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      variant={selectedAspek === 'all' ? "default" : "outline"}
-                      onClick={() => setSelectedAspek('all')}
-                      size="sm"
-                        className={selectedAspek === 'all' 
-                          ? 'bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700' 
-                          : 'border-orange-200 text-orange-600 hover:bg-orange-50'
-                        }
-                    >
-                      Semua Aspek
-                    </Button>
-                      {aspects.map(aspek => {
-                        const IconComponent = getAspectIcon(aspek);
-                        return (
-                      <Button
-                        key={aspek}
-                        variant={selectedAspek === aspek ? "default" : "outline"}
-                        onClick={() => setSelectedAspek(aspek)}
-                        size="sm"
-                            className={`text-xs flex items-center space-x-2 ${
-                              selectedAspek === aspek 
-                                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700' 
-                                : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                            }`}
-                          >
-                            <IconComponent className={`w-3 h-3 ${selectedAspek === aspek ? 'text-white' : 'text-gray-600'}`} />
-                            <span>{aspek.replace('ASPEK ', '').replace('. ', ' - ')}</span>
-                      </Button>
-                        );
-                      })}
-                  </div>
-                </div>
-
-                  {/* Status Filter */}
-                  <div className="flex-1 min-w-0">
-                    <label className="text-sm font-semibold text-gray-700 mb-2 block flex items-center">
-                      <TrendingUp className="w-4 h-4 mr-2 text-orange-600" />
-                      Filter Status
-                    </label>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      variant={selectedStatus === 'all' ? "default" : "outline"}
-                      onClick={() => setSelectedStatus('all')}
-                      size="sm"
-                        className={selectedStatus === 'all' 
-                          ? 'bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700' 
-                          : 'border-orange-200 text-orange-600 hover:bg-orange-50'
-                        }
-                    >
-                      Semua Status
-                    </Button>
-                    <Button
-                      variant={selectedStatus === 'uploaded' ? "default" : "outline"}
-                      onClick={() => setSelectedStatus('uploaded')}
-                      size="sm"
-                        className={selectedStatus === 'uploaded' 
-                          ? 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700' 
-                          : 'border-green-200 text-green-600 hover:bg-green-50'
-                        }
-                    >
-                        <CheckCircle className="w-3 h-3 mr-1" />
-                      Sudah Upload
-                    </Button>
-                    <Button
-                      variant={selectedStatus === 'not_uploaded' ? "default" : "outline"}
-                      onClick={() => setSelectedStatus('not_uploaded')}
-                      size="sm"
-                        className={selectedStatus === 'not_uploaded' 
-                          ? 'bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700' 
-                          : 'border-yellow-200 text-yellow-600 hover:bg-yellow-50'
-                        }
-                    >
-                        <Clock className="w-3 h-3 mr-1" />
-                      Belum Upload
-                    </Button>
-                  </div>
-                </div>
-
-                  {/* Reset Button */}
-                  <div className="flex items-end">
-                  <Button 
-                    variant="outline" 
-                    onClick={() => {
-                      setSelectedAspek('all');
-                      setSelectedStatus('all');
-                        setSearchTerm('');
-                    }}
-                      className="border-orange-200 text-orange-600 hover:bg-orange-50"
-                  >
-                      <RotateCcw className="w-4 h-4 mr-2" />
-                    Reset Filter
-                  </Button>
-                </div>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div id="checklist-table" className="overflow-hidden rounded-lg border border-indigo-100">
-              <Table>
-                <TableHeader>
-                    <TableRow className="bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-100">
-                      <TableHead className="text-indigo-900 font-semibold">No</TableHead>
-                      <TableHead className="text-indigo-900 font-semibold">Aspek</TableHead>
-                                                  <TableHead className="text-indigo-900 font-semibold">Deskripsi Dokumen GCG</TableHead>
-                      <TableHead className="text-indigo-900 font-semibold">Status</TableHead>
-                      <TableHead className="text-indigo-900 font-semibold">File</TableHead>
-                      <TableHead className="text-indigo-900 font-semibold">Aksi</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {filteredChecklist.map((item, index) => {
-                      const IconComponent = getAspectIcon(item.aspek);
-                      const uploadedDocument = getUploadedDocument(item.id);
-                      
-                      return (
-                        <TableRow key={item.id} className="hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 transition-colors duration-200">
-                          <TableCell className="font-medium text-gray-700">
-                            {index + 1}
-                          </TableCell>
-                          <TableCell className="max-w-xs">
-                            <div className="flex items-center space-x-2">
-                              <div className="p-1.5 rounded-md bg-gray-100">
-                                <IconComponent className="w-3 h-3 text-gray-600" />
-                              </div>
-                              <span className="text-xs text-gray-600 truncate">
-                                {item.aspek}
-                              </span>
-                            </div>
-                          </TableCell>
-                      <TableCell className="max-w-md">
-                            <div className="text-sm font-semibold text-gray-900 leading-relaxed" title={item.deskripsi}>
-                          {item.deskripsi}
+                  {/* All Filters Integrated */}
+                  <div className="space-y-4">
+                    {/* Search Bar */}
+                    <div>
+                      <label className="text-sm font-semibold text-gray-700 mb-2 block flex items-center">
+                        <Search className="w-4 h-4 mr-2 text-blue-600" />
+                        Pencarian Dokumen
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                          <Search className="h-4 w-4 text-gray-400" />
                         </div>
-                      </TableCell>
-                      <TableCell>
-                            {item.status === 'uploaded' ? (
-                              <span className="flex items-center text-green-600 text-sm font-medium">
-                                <CheckCircle className="w-4 h-4 mr-1" />
-                                Sudah Upload
-                              </span>
-                            ) : (
-                              <span className="flex items-center text-gray-400 text-sm">
-                                <Clock className="w-4 h-4 mr-1" />
-                                Belum Upload
-                              </span>
-                            )}
-                      </TableCell>
-                      <TableCell>
-                            {uploadedDocument ? (
-                              <div className="space-y-1">
+                        <Input
+                          type="text"
+                          placeholder="Cari berdasarkan deskripsi dokumen GCG..."
+                          className="pl-10 pr-10"
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                        {searchTerm && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setSearchTerm('')}
+                            className="absolute inset-y-0 right-0 px-3 text-gray-400 hover:text-gray-600"
+                          >
+                            <RotateCcw className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Filter Row */}
+                    <div className="flex flex-wrap items-center gap-4">
+                      {/* Aspek Filter */}
+                      <div className="flex-1 min-w-0">
+                        <label className="text-sm font-semibold text-gray-700 mb-2 block flex items-center">
+                          <Filter className="w-4 h-4 mr-2 text-orange-600" />
+                          Filter Aspek
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            variant={selectedAspek === 'all' ? "default" : "outline"}
+                            onClick={() => setSelectedAspek('all')}
+                            size="sm"
+                            className={selectedAspek === 'all' 
+                              ? 'bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700' 
+                              : 'border-orange-200 text-orange-600 hover:bg-orange-50'
+                            }
+                          >
+                            Semua Aspek
+                          </Button>
+                          {aspects.map(aspek => {
+                            const IconComponent = getAspectIcon(aspek);
+                            return (
+                              <Button
+                                key={aspek}
+                                variant={selectedAspek === aspek ? "default" : "outline"}
+                                onClick={() => setSelectedAspek(aspek)}
+                                size="sm"
+                                className={`text-xs flex items-center space-x-2 ${
+                                  selectedAspek === aspek 
+                                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700' 
+                                    : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                                }`}
+                              >
+                                <IconComponent className={`w-3 h-3 ${selectedAspek === aspek ? 'text-white' : 'text-gray-600'}`} />
+                                <span>{aspek.replace('ASPEK ', '').replace('. ', ' - ')}</span>
+                              </Button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Status Filter */}
+                      <div className="flex-1 min-w-0">
+                        <label className="text-sm font-semibold text-gray-700 mb-2 block flex items-center">
+                          <TrendingUp className="w-4 h-4 mr-2 text-orange-600" />
+                          Filter Status
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            variant={selectedStatus === 'all' ? "default" : "outline"}
+                            onClick={() => setSelectedStatus('all')}
+                            size="sm"
+                            className={selectedStatus === 'all' 
+                              ? 'bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700' 
+                              : 'border-orange-200 text-orange-600 hover:bg-orange-50'
+                            }
+                          >
+                            Semua Status
+                          </Button>
+                          <Button
+                            variant={selectedStatus === 'uploaded' ? "default" : "outline"}
+                            onClick={() => setSelectedStatus('uploaded')}
+                            size="sm"
+                            className={selectedStatus === 'uploaded' 
+                              ? 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700' 
+                              : 'border-green-200 text-green-600 hover:bg-green-50'
+                            }
+                          >
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                            Sudah Upload
+                          </Button>
+                          <Button
+                            variant={selectedStatus === 'not_uploaded' ? "default" : "outline"}
+                            onClick={() => setSelectedStatus('not_uploaded')}
+                            size="sm"
+                            className={selectedStatus === 'not_uploaded' 
+                              ? 'bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700' 
+                              : 'border-red-200 text-red-600 hover:bg-red-50'
+                            }
+                          >
+                            <Clock className="w-3 h-3 mr-1" />
+                            Belum Upload
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Reset Filter */}
+                      <div className="flex-shrink-0">
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setSelectedAspek('all');
+                            setSelectedStatus('all');
+                            setSearchTerm('');
+                          }}
+                          size="sm"
+                          className="border-gray-300 text-gray-600 hover:bg-gray-50"
+                        >
+                          <RotateCcw className="w-4 h-4 mr-1" />
+                          Reset Filter
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div id="checklist-table" className="overflow-hidden rounded-lg border border-indigo-100">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-100">
+                          <TableHead className="text-indigo-900 font-semibold">No</TableHead>
+                          <TableHead className="text-indigo-900 font-semibold">Aspek</TableHead>
+                          <TableHead className="text-indigo-900 font-semibold">Deskripsi Dokumen GCG</TableHead>
+                          <TableHead className="text-indigo-900 font-semibold">Status</TableHead>
+                          <TableHead className="text-indigo-900 font-semibold">File</TableHead>
+                          <TableHead className="text-indigo-900 font-semibold">Aksi</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredChecklist.map((item, index) => {
+                          const IconComponent = getAspectIcon(item.aspek);
+                          const uploadedDocument = getUploadedDocument(item.id);
+                          
+                          return (
+                            <TableRow key={item.id} className="hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 transition-colors duration-200">
+                              <TableCell className="font-medium text-gray-700">
+                                {index + 1}
+                              </TableCell>
+                              <TableCell className="max-w-xs">
                                 <div className="flex items-center space-x-2">
-                                  <FileText className="w-4 h-4 text-blue-600" />
-                                  <span className="text-sm font-medium text-gray-900 truncate" title={uploadedDocument.fileName}>
-                                    {uploadedDocument.fileName}
+                                  <div className="p-1.5 rounded-md bg-gray-100">
+                                    <IconComponent className="w-3 h-3 text-gray-600" />
+                                  </div>
+                                  <span className="text-xs text-gray-600 truncate">
+                                    {item.aspek}
                                   </span>
                                 </div>
-                                <div className="text-xs text-gray-500">
-                                  Nama File: {uploadedDocument.fileName}
+                              </TableCell>
+                              <TableCell className="max-w-md">
+                                <div className="text-sm font-semibold text-gray-900 leading-relaxed" title={item.deskripsi}>
+                                  {item.deskripsi}
                                 </div>
-                                <div className="text-xs text-gray-500">
-                                  Tanggal Upload: {new Date(uploadedDocument.uploadDate).toLocaleDateString('id-ID')}
+                              </TableCell>
+                              <TableCell>
+                                {item.status === 'uploaded' ? (
+                                  <span className="flex items-center text-green-600 text-sm font-medium">
+                                    <CheckCircle className="w-4 h-4 mr-1" />
+                                    Sudah Upload
+                                  </span>
+                                ) : (
+                                  <span className="flex items-center text-gray-400 text-sm">
+                                    <Clock className="w-4 h-4 mr-1" />
+                                    Belum Upload
+                                  </span>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {uploadedDocument ? (
+                                  <div className="space-y-1">
+                                    <div className="flex items-center space-x-2">
+                                      <FileText className="w-4 h-4 text-blue-600" />
+                                      <span className="text-sm font-medium text-gray-900 truncate" title={uploadedDocument.fileName}>
+                                        {uploadedDocument.fileName}
+                                      </span>
+                                    </div>
+                                    <div className="text-xs text-gray-500">
+                                      Nama File: {uploadedDocument.fileName}
+                                    </div>
+                                    <div className="text-xs text-gray-500">
+                                      Tanggal Upload: {new Date(uploadedDocument.uploadDate).toLocaleDateString('id-ID')}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="text-sm text-gray-400 italic">
+                                    Belum ada file
+                                  </div>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex space-x-2">
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={() => handleViewDocument(item.id)}
+                                    disabled={!isChecklistUploaded(item.id)}
+                                    className={`${
+                                      isChecklistUploaded(item.id)
+                                        ? 'border-blue-200 text-blue-600 hover:bg-blue-50'
+                                        : 'border-gray-200 text-gray-400 cursor-not-allowed'
+                                    }`}
+                                    title={
+                                      isChecklistUploaded(item.id)
+                                        ? 'Lihat dokumen di Dashboard'
+                                        : 'Dokumen belum diupload'
+                                    }
+                                  >
+                                    <Eye className="w-4 h-4" />
+                                  </Button>
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={() => handleDownloadDocument(item.id)}
+                                    disabled={!isChecklistUploaded(item.id)}
+                                    className={`${
+                                      isChecklistUploaded(item.id)
+                                        ? 'border-green-200 text-green-600 hover:bg-green-50'
+                                        : 'border-gray-200 text-gray-400 cursor-not-allowed'
+                                    }`}
+                                    title={
+                                      isChecklistUploaded(item.id)
+                                        ? 'Download dokumen'
+                                        : 'Dokumen belum diupload'
+                                    }
+                                  >
+                                    <Download className="w-4 h-4" />
+                                  </Button>
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={() => handleUploadClick(item)}
+                                    className="border-orange-200 text-orange-600 hover:bg-orange-50"
+                                    title="Upload dokumen baru"
+                                  >
+                                    <Upload className="w-4 h-4" />
+                                  </Button>
                                 </div>
-                              </div>
-                        ) : (
-                              <div className="text-sm text-gray-400 italic">
-                                Belum ada file
-                              </div>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex space-x-2">
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => handleViewDocument(item.id)}
-                                disabled={!isChecklistUploaded(item.id)}
-                                className={`${
-                                  isChecklistUploaded(item.id)
-                                    ? 'border-blue-200 text-blue-600 hover:bg-blue-50'
-                                    : 'border-gray-200 text-gray-400 cursor-not-allowed'
-                                }`}
-                                title={
-                                  isChecklistUploaded(item.id)
-                                    ? 'Lihat dokumen di Dashboard'
-                                    : 'Dokumen belum diupload'
-                                }
-                              >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => handleDownloadDocument(item.id)}
-                                disabled={!isChecklistUploaded(item.id)}
-                                className={`${
-                                  isChecklistUploaded(item.id)
-                                    ? 'border-green-200 text-green-600 hover:bg-green-50'
-                                    : 'border-gray-200 text-gray-400 cursor-not-allowed'
-                                }`}
-                                title={
-                                  isChecklistUploaded(item.id)
-                                    ? 'Download dokumen'
-                                    : 'Dokumen belum diupload'
-                                }
-                              >
-                                <Download className="w-4 h-4" />
-                              </Button>
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => handleUploadClick(item)}
-                                className="border-orange-200 text-orange-600 hover:bg-orange-50"
-                                title="Upload dokumen baru"
-                              >
-                            <Upload className="w-4 h-4" />
-                          </Button>
-                      {/* AssignmentDropdown removed - fitur assign sudah ada di Pengaturan Baru */}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                    
+                    {filteredChecklist.length === 0 && (
+                      <div className="text-center py-12 bg-gradient-to-br from-gray-50 to-blue-50">
+                        <div className="p-4 bg-white rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center shadow-lg">
+                          <FileText className="w-8 h-8 text-gray-400" />
                         </div>
-                      </TableCell>
-                    </TableRow>
-                      );
-                    })}
-                </TableBody>
-              </Table>
-              
-              {filteredChecklist.length === 0 && (
-                  <div className="text-center py-12 bg-gradient-to-br from-gray-50 to-blue-50">
-                    <div className="p-4 bg-white rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center shadow-lg">
-                      <FileText className="w-8 h-8 text-gray-400" />
+                        <h3 className="text-lg font-semibold text-gray-700 mb-2">
+                          Tidak ada item yang ditemukan
+                        </h3>
+                        <p className="text-gray-500">
+                          Coba ubah filter atau pilih tahun yang berbeda
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          ) : (
+            <Card className="border-0 shadow-lg bg-blue-50 border-blue-200 mb-6">
+              <CardContent className="p-6">
+                <div className="text-center">
+                  <FileText className="w-16 h-16 text-blue-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-blue-900 mb-2">
+                    Pilih Tahun Buku untuk Melihat Monitoring
+                  </h3>
+                  <p className="text-blue-700 text-sm mb-4">
+                    Setelah memilih tahun buku, Anda akan dapat melihat:
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-left max-w-2xl mx-auto">
+                    <div className="flex items-start space-x-2">
+                      <CheckCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <h4 className="font-medium text-blue-900">Statistik Dokumen</h4>
+                        <p className="text-sm text-blue-700">Progress upload per aspek GCG</p>
+                      </div>
                     </div>
-                    <h3 className="text-lg font-semibold text-gray-700 mb-2">
-                      Tidak ada item yang ditemukan
-                    </h3>
-                    <p className="text-gray-500">
-                      Coba ubah filter atau pilih tahun yang berbeda
-                    </p>
-                </div>
-              )}
+                    <div className="flex items-start space-x-2">
+                      <TrendingUp className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <h4 className="font-medium text-blue-900">Overview Progress</h4>
+                        <p className="text-sm text-blue-700">Ringkasan keseluruhan dokumen</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start space-x-2">
+                      <Upload className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <h4 className="font-medium text-blue-900">Upload Dokumen</h4>
+                        <p className="text-sm text-blue-700">Upload dan kelola file GCG</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
-
-
-
-
-
-
-
+          )}
         </div>
       </div>
-
-
-
-
-
-
 
       {/* File Upload Dialog */}
       <FileUploadDialog

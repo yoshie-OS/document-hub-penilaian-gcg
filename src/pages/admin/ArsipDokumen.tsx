@@ -31,7 +31,38 @@ const ArsipDokumen = () => {
   const { selectedYear, setSelectedYear, availableYears } = useYear();
   const { documents, getDocumentsByYear } = useDocumentMetadata();
   const { checklist } = useChecklist();
-  const { direktorat: direktorats, subdirektorat: subDirektorats } = useStrukturPerusahaan();
+  const { direktorat: direktoratData, subdirektorat: subDirektoratData } = useStrukturPerusahaan();
+  
+  // Transform object arrays to string arrays for display
+  const direktorats = useMemo(() => {
+    if (!direktoratData || !Array.isArray(direktoratData)) return [];
+    if (!selectedYear) return [];
+    
+    try {
+      return direktoratData
+        .filter(item => item && item.tahun === selectedYear && item.nama)
+        .map(item => String(item.nama))
+        .filter(Boolean);
+    } catch (error) {
+      console.error('Error processing direktorat data:', error);
+      return [];
+    }
+  }, [direktoratData, selectedYear]);
+  
+  const subDirektorats = useMemo(() => {
+    if (!subDirektoratData || !Array.isArray(subDirektoratData)) return [];
+    if (!selectedYear) return [];
+    
+    try {
+      return subDirektoratData
+        .filter(item => item && item.tahun === selectedYear && item.nama)
+        .map(item => String(item.nama))
+        .filter(Boolean);
+    } catch (error) {
+      console.error('Error processing subdirektorat data:', error);
+      return [];
+    }
+  }, [subDirektoratData, selectedYear]);
   const [downloadType, setDownloadType] = useState<'all' | 'aspect' | 'direktorat' | 'subdirektorat'>('all');
   const [selectedAspect, setSelectedAspect] = useState<string>('');
   const [selectedDirektorat, setSelectedDirektorat] = useState<string>('');
@@ -46,8 +77,17 @@ const ArsipDokumen = () => {
 
   // Get unique values for download options
   const aspects = useMemo(() => {
-    return Array.from(new Set(checklist.map(item => item.aspek).filter(Boolean)));
-  }, [checklist]);
+    if (!checklist || !Array.isArray(checklist)) return [];
+    if (!selectedYear) return [];
+    
+    try {
+      const yearChecklist = checklist.filter(item => item && item.tahun === selectedYear);
+      return Array.from(new Set(yearChecklist.map(item => item.aspek).filter(Boolean)));
+    } catch (error) {
+      console.error('Error processing checklist data:', error);
+      return [];
+    }
+  }, [checklist, selectedYear]);
 
   // Data direktorat dan subdirektorat sudah didapat dari context
 
@@ -210,6 +250,25 @@ const ArsipDokumen = () => {
               description="Pilih tahun buku untuk mengelola dokumen GCG"
             />
           </div>
+
+          {/* Warning when no year is selected */}
+          {!selectedYear && (
+            <div className="mb-6">
+              <Card className="border-0 shadow-lg bg-yellow-50 border-yellow-200">
+                <CardContent className="p-6">
+                  <div className="flex items-center space-x-3">
+                    <AlertCircle className="w-6 h-6 text-yellow-600" />
+                    <div>
+                      <h3 className="text-lg font-semibold text-yellow-800">Tahun Buku Belum Dipilih</h3>
+                      <p className="text-yellow-700">
+                        Silakan pilih tahun buku terlebih dahulu untuk mengakses fitur arsip dokumen.
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
 
           {/* Download Panel */}
           <div className="mb-6">
