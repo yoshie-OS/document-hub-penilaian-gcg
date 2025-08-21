@@ -27,20 +27,25 @@ export const YearProvider: React.FC<YearProviderProps> = ({ children }) => {
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [availableYears, setAvailableYears] = useState<number[]>([]);
 
-  // Initialize available years from localStorage or generate default
+  // Initialize available years from localStorage - FRESH START
   useEffect(() => {
     const storedYears = localStorage.getItem('availableYears');
     if (storedYears) {
-      setAvailableYears(JSON.parse(storedYears));
-    } else {
-      // Generate default years from 2014 to current year
-      const currentYear = new Date().getFullYear();
-      const defaultYears = [];
-      for (let year = currentYear; year >= 2014; year--) {
-        defaultYears.push(year);
+      try {
+        const parsedYears = JSON.parse(storedYears);
+        if (Array.isArray(parsedYears)) {
+          setAvailableYears(parsedYears);
+          console.log('YearContext: Loaded years from localStorage', parsedYears);
+        }
+      } catch (error) {
+        console.error('YearContext: Error parsing years from localStorage', error);
+        localStorage.removeItem('availableYears');
+        setAvailableYears([]);
       }
-      setAvailableYears(defaultYears);
-      localStorage.setItem('availableYears', JSON.stringify(defaultYears));
+    } else {
+      // Start completely fresh - no default years
+      setAvailableYears([]);
+      console.log('YearContext: Started fresh - no default years');
     }
 
     // Set selected year to current year if not set

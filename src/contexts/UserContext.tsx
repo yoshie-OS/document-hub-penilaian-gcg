@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { seedUser } from "@/lib/seed/seedUser";
 
 export type UserRole = "superadmin" | "admin" | "user";
 export interface User {
@@ -18,6 +17,10 @@ interface UserContextType {
   user: User | null;
   login: (email: string, password: string) => boolean;
   logout: () => void;
+  isSuperAdmin: () => boolean;
+  isAdmin: () => boolean;
+  isUser: () => boolean;
+  canModifySuperAdmin: (userId: number) => boolean;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -25,14 +28,40 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
 
-  // Inisialisasi user dari localStorage atau seed
+  // Inisialisasi user dari localStorage - FRESH START dengan Super Admin default
   useEffect(() => {
-    // Selalu update dengan data seed terbaru
-    localStorage.setItem("users", JSON.stringify(seedUser));
+    // Check if super admin exists, if not create one
+    const users: User[] = JSON.parse(localStorage.getItem("users") || "[]");
+    const superAdminExists = users.some(u => u.role === 'superadmin');
     
+    if (!superAdminExists) {
+      const defaultSuperAdmin: User = {
+        id: 1,
+        email: 'superadmin@posindonesia.co.id',
+        password: 'superadmin123',
+        role: 'superadmin',
+        name: 'Super Administrator',
+        direktorat: 'Direksi',
+        subdirektorat: 'Direksi Utama',
+        divisi: 'Direksi'
+      };
+      
+      const updatedUsers = [...users, defaultSuperAdmin];
+      localStorage.setItem("users", JSON.stringify(updatedUsers));
+      console.log('UserContext: Created default super admin account');
+    }
+    
+    // Load current user if exists
     const currentUser = localStorage.getItem("currentUser");
     if (currentUser) {
-      setUser(JSON.parse(currentUser));
+      try {
+        const parsed = JSON.parse(currentUser);
+        setUser(parsed);
+      } catch (error) {
+        console.error('UserContext: Error parsing currentUser', error);
+        localStorage.removeItem("currentUser");
+        setUser(null);
+      }
     }
   }, []);
 
@@ -60,8 +89,44 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     localStorage.removeItem("currentUser");
   };
 
+  // Helper functions untuk role checking
+  const isSuperAdmin = () => {
+    return user?.role === 'superadmin';
+  };
+
+  const isAdmin = () => {
+    return user?.role === 'admin';
+  };
+
+  const isUser = () => {
+    return user?.role === 'user';
+  };
+
+  // Check if user can modify super admin (only super admin can modify super admin)
+  const canModifySuperAdmin = (userId: number) => {
+    if (!user) return false;
+    if (user.role === 'superadmin') return true;
+    
+    // Get target user
+    const users: User[] = JSON.parse(localStorage.getItem("users") || "[]");
+    const targetUser = users.find(u => u.id === userId);
+    
+    // Non-super admin cannot modify super admin
+    if (targetUser?.role === 'superadmin') return false;
+    
+    return true;
+  };
+
   return (
-    <UserContext.Provider value={{ user, login, logout }}>
+    <UserContext.Provider value={{ 
+      user, 
+      login, 
+      logout, 
+      isSuperAdmin, 
+      isAdmin, 
+      isUser, 
+      canModifySuperAdmin 
+    }}>
       {children}
     </UserContext.Provider>
   );
