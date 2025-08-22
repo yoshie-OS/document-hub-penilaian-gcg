@@ -13,7 +13,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useSidebar } from '@/contexts/SidebarContext';
 import { useUser } from '@/contexts/UserContext';
 import { useChecklist } from '@/contexts/ChecklistContext';
-import { GCGChartWrapper } from '@/components/dashboard/GCGChartWrapper';
+import CSVPoweredDashboard from '@/components/dashboard/CSVPoweredDashboard';
 import { 
   FileText, 
   Upload, 
@@ -763,82 +763,72 @@ const PenilaianGCG = () => {
   // Load data when year changes
   const handleYearChange = async (year: number) => {
     try {
-      console.log(`🔧 DEBUG: Year changed to ${year}, loading indicator data...`);
+      console.log(`🔧 DEBUG: Year changed to ${year}, loading data...`);
+      
+      // Ensure ChecklistContext has data for this year
+      const checklistData = getChecklistByYear(year);
+      console.log(`📋 ChecklistContext for year ${year}:`, checklistData.length, 'items');
+      if (checklistData.length > 0) {
+        console.log(`📋 Sample checklist item:`, checklistData[0]);
+      }
       
       setSelectedYear(year);
       
-      // Load aspek data (always for summary table)
-      const aspekResponse = await fetch('/api/aspek-data');
-      const aspekResult = await aspekResponse.json();
+      // Try to load existing data for this year from output.xlsx
+      const response = await fetch(`/api/load/${year}`);
+      const result = await response.json();
       
-      // Load indicator data (for detailed table if exists)
-      const indicatorResponse = await fetch('/api/indicator-data');
-      const indicatorResult = await indicatorResponse.json();
+      console.log(`🔧 DEBUG: Load response for year ${year}:`, result);
       
-      console.log(`🔧 DEBUG: Aspek response:`, aspekResult);
-      console.log(`🔧 DEBUG: Indicator response:`, indicatorResult);
-      
-      if (aspekResult.success && aspekResult.data.length > 0) {
-        // Filter aspek data for the selected year
-        const yearAspekData = aspekResult.data.filter((item: any) => item.tahun === year);
-        console.log(`✅ Found ${yearAspekData.length} aspek records for year ${year}`);
+      if (result.success && result.data.length > 0) {
+        // Found existing data for this year
+        console.log(`✅ Loaded data for year ${year}:`, result);
         
-        if (yearAspekData.length > 0) {
-          // Load aspek data to summary table
-          setAspectSummaryData(yearAspekData);
-          setSaveMessage(`📂 Loaded ${yearAspekData.length} aspek records for year ${year}`);
-          
-          // Check if we have indicator data for this year
-          if (indicatorResult.success && indicatorResult.data.length > 0) {
-            const yearIndicators = indicatorResult.data.filter((item: any) => item.tahun === year);
-            if (yearIndicators.length > 0) {
-              // We have indicator data - use detailed mode
-              setIsDetailedMode(true);
-              loadDataWithDetection(yearIndicators);
-              console.log(`✅ Found ${yearIndicators.length} indicators - using detailed mode`);
-            } else {
-              // No indicators for this year - use brief mode
-              setIsDetailedMode(false);
-              setAspectSummaryData([]); // Clear aspect summary table
-              setTableData(yearAspekData);
-              console.log(`📝 No indicators for year ${year} - using brief mode`);
-            }
-          } else {
-            // No indicator data at all - use brief mode
-            setIsDetailedMode(false);
-            setAspectSummaryData([]); // Clear aspect summary table
-            setTableData(yearAspekData);
-            console.log(`📝 No indicator data available - using brief mode`);
-          }
-        } else {
-          // No aspek data for this year - load predetermined rows
-          console.log(`📝 No aspek data found for year ${year}, loading predetermined rows`);
-          
-          const predeterminedRows = generatePredeterminedRows(year, isDetailedMode);
-          loadDataWithDetection(predeterminedRows);
-          setSaveMessage(`📋 No data for year ${year} - loaded ${predeterminedRows.length} placeholder rows`);
-          
-          setIsDetailedMode(true);
-          setAspectSummaryData(getAspectSummaryRows());
+        // Set the correct mode based on detected format
+        const isDetailed = result.is_detailed || false;
+        setIsDetailedMode(isDetailed);
+        
+        // Load main indicator data
+        loadDataWithDetection(result.data);
+        
+        // Load aspek summary data if it exists (DETAILED mode)
+        if (isDetailed && result.aspek_summary_data && result.aspek_summary_data.length > 0) {
+          setAspectSummaryData(result.aspek_summary_data);
+          console.log(`📊 Loaded ${result.aspek_summary_data.length} aspect summaries for DETAILED mode`);
         }
         
+        setAuditor(result.auditor || 'Unknown');
+        setJenisAsesmen(result.jenis_asesmen || 'Internal');
+        setSaveMessage(`📂 Data tahun ${year} berhasil dimuat - ${result.format_type} (${result.data.length} indikator${isDetailed ? ` + ${result.aspek_summary_data?.length || 0} aspek` : ''})`);
         setTimeout(() => setSaveMessage(null), 3000);
       } else {
-        console.log(`📝 No aspek data available, loading predetermined rows`);
+        // No data for this year - load predetermined rows from Kelola Aspek
+        console.log(`📝 No saved data found for year ${year}, loading predetermined rows from Kelola Aspek`);
         
         const predeterminedRows = generatePredeterminedRows(year, isDetailedMode);
-        loadDataWithDetection(predeterminedRows);
-        setSaveMessage(`📋 No data available - loaded ${predeterminedRows.length} placeholder rows`);
+        
+        if (predeterminedRows.length > 0) {
+          loadDataWithDetection(predeterminedRows);
+          setSaveMessage(`📋 Tahun ${year} dipilih - ${predeterminedRows.length} baris dari Kelola Aspek dimuat`);
+        } else {
+          // Fallback to empty if no checklist data
+          loadDataWithDetection([]);
+          setSaveMessage(`📋 Tahun ${year} dipilih - tidak ada data Kelola Aspek, tabel kosong`);
+        }
+        
+        // Load aspect summary rows for DETAILED mode
+        if (isDetailedMode) {
+          setAspectSummaryData(getAspectSummaryRows());
+        }
         
         setTimeout(() => setSaveMessage(null), 3000);
       }
       
     } catch (error) {
-      console.error('❌ Error loading indicator data:', error);
-      // Fallback to predetermined rows
-      const predeterminedRows = generatePredeterminedRows(year, isDetailedMode);
-      loadDataWithDetection(predeterminedRows);
-      setSaveMessage(`❌ Error loading data - using ${predeterminedRows.length} placeholder rows`);
+      console.error('❌ Error loading year data:', error);
+      // If there's an error, just clear the table
+      loadDataWithDetection([]);
+      setSaveMessage(`❌ Gagal memuat data tahun ${year}: ${error}`);
       setTimeout(() => setSaveMessage(null), 5000);
     }
   };
@@ -961,16 +951,66 @@ const PenilaianGCG = () => {
             </Button>
           )}
 
+          {/* Input Otomatis - Only for Superadmin */}
+          {isSuperAdmin() && (
+            <Button 
+              onClick={() => {
+                setSelectedMethod('otomatis');
+                setCurrentStep('upload');
+              }}
+              className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 text-sm"
+            >
+              <Upload className="w-4 h-4 mr-2" />
+              Input Otomatis
+            </Button>
+          )}
+
+          {/* Lihat Tabel - Available to All Users */}
+          <Button 
+            onClick={() => {
+              setSelectedMethod(null);
+              setCurrentStep('view');
+            }}
+            variant="outline"
+            className="border-gray-400 text-gray-700 hover:bg-gray-100 px-4 py-2 text-sm"
+          >
+            <FileText className="w-4 h-4 mr-2" />
+            Lihat Tabel
+          </Button>
 
         </div>
       </div>
 
-      {/* Dashboard Section - Always visible frontpage */}
-      <div className="space-y-6">
-        <h2 className="text-xl font-semibold text-gray-800 text-left">Dashboard Visualisasi</h2>
-        
-        <GCGChartWrapper selectedYear={selectedYear} tableData={tableData} auditor={auditor} jenisAsesmen={jenisAsesmen} />
-      </div>
+      {/* Dashboard Section - Conditional rendering for DETAILED mode */}
+      {isAspectSummaryFilled() && (
+        <div className="space-y-6">
+          <h2 className="text-xl font-semibold text-gray-800 text-left">Dashboard Visualisasi</h2>
+          
+          <GCGChartWrapper selectedYear={selectedYear} tableData={tableData} auditor={auditor} jenisAsesmen={jenisAsesmen} />
+        </div>
+      )}
+      
+      {/* Conditional message for DETAILED mode when aspect summary is empty */}
+      {isDetailedMode && !isAspectSummaryFilled() && (
+        <div className="space-y-6">
+          <h2 className="text-xl font-semibold text-gray-800 text-left">Dashboard Visualisasi</h2>
+          
+          <div className="text-center py-12 bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg border border-purple-200">
+            <div className="p-4 bg-white rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center shadow-lg">
+              <BarChart3 className="w-8 h-8 text-purple-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-purple-700 mb-2">
+              Dashboard Menunggu Data Summary
+            </h3>
+            <p className="text-purple-600 mb-4">
+              Isi tabel Summary Aspek GCG di mode DETAILED terlebih dahulu untuk melihat visualisasi dashboard
+            </p>
+            <div className="text-sm text-purple-500">
+              💡 Tambahkan data ke aspek (I, II, III...), deskripsi, bobot, atau skor untuk mengaktifkan dashboard
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -1931,23 +1971,17 @@ const PenilaianGCG = () => {
                       </TableCell>
                     )}
                     
-                    {/* Deskripsi - read-only for loaded indicators, editable for manual input */}
-                    <TableCell className="min-w-64">
-                      {row.deskripsi ? (
-                        <div className="text-sm text-gray-900 py-2 px-1">
-                          {row.deskripsi}
-                        </div>
-                      ) : (
-                        <DeskripsiAutocomplete
-                          id={`main-${row.id}-deskripsi`}
-                          value={row.deskripsi}
-                          onChange={(value) => updateCell(row.id, 'deskripsi', value)}
-                          onKeyDown={(e) => handleKeyDown(e, row.id, 'deskripsi', 'main')}
-                          className="border-0 bg-transparent focus:bg-white focus:border focus:border-blue-300"
-                          placeholder="Deskripsi penilaian..."
-                          filterType={isDetailedMode ? "indicator" : "header"}
-                        />
-                      )}
+                    {/* Deskripsi */}
+                    <TableCell className="min-w-64 relative overflow-visible" style={{ position: 'relative', zIndex: 10 }}>
+                      <DeskripsiAutocomplete
+                        id={`main-${row.id}-deskripsi`}
+                        value={row.deskripsi}
+                        onChange={(value) => updateCell(row.id, 'deskripsi', value)}
+                        onKeyDown={(e) => handleKeyDown(e, row.id, 'deskripsi', 'main')}
+                        className="border-0 bg-transparent focus:bg-white focus:border focus:border-blue-300"
+                        placeholder="Deskripsi penilaian..."
+                        filterType={isDetailedMode ? "indicator" : "header"}
+                      />
                     </TableCell>
                     
                     {/* Jumlah Parameter (DETAILED mode only) */}
@@ -2250,7 +2284,9 @@ const PenilaianGCG = () => {
       `}>
         <div className="p-6">
           {currentStep === 'method' && renderMethodSelection()}
+          {currentStep === 'upload' && renderFileUpload()}
           {currentStep === 'table' && renderTable()}
+          {currentStep === 'view' && renderViewTable()}
         </div>
       </div>
     </div>

@@ -1,0 +1,1776 @@
+{
+  "assessments": [
+    {
+      "id": "2022_Self Assessment_fd230887",
+      "year": 2022,
+      "auditor": "Self Assessment",
+      "method": "otomatis",
+      "table_data": [
+        {
+          "id": "1",
+          "aspek": "I",
+          "deskripsi": "Perusahaan memiliki Pedoman Tata Kelola Perusahaan yang Baik (GCG Code) dan pedoman perilaku (code of conduct ).",
+          "jumlah_parameter": 2,
+          "bobot": 1.218,
+          "skor": 1.218,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "2",
+          "aspek": "I",
+          "deskripsi": "Perusahaan melaksanakan Pedoman Tata Kelola Perusahaan yang Baik dan Pedoman Perilaku secara konsisten.",
+          "jumlah_parameter": 2,
+          "bobot": 1.217,
+          "skor": 1.002,
+          "capaian": 82.33360723089564,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "3",
+          "aspek": "I",
+          "deskripsi": "Perusahaan melakukan pengukuran terhadap penerapan Tata Kelola Perusahaan yang Baik.",
+          "jumlah_parameter": 2,
+          "bobot": 0.608,
+          "skor": 0.57,
+          "capaian": 93.74999999999999,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "4",
+          "aspek": "I",
+          "deskripsi": "Perusahaan melakukan koordinasi pengelolaan dan administrasi Laporan Harta Kekayaan Penyelenggara Negara (LHKPN).",
+          "jumlah_parameter": 3,
+          "bobot": 1.37,
+          "skor": 1.332,
+          "capaian": 97.22627737226277,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "5",
+          "aspek": "I",
+          "deskripsi": "Perusahaan melaksanakan program pengendalian gratifikasi sesuai ketentuan yang berlaku.",
+          "jumlah_parameter": 3,
+          "bobot": 1.37,
+          "skor": 1.142,
+          "capaian": 83.35766423357663,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "6",
+          "aspek": "I",
+          "deskripsi": "Perusahaan melaksanakan kebijakan atas sistem pelaporan atas dugaan penyimpangan pada perusahaan yang bersangkutan (whistle blowing system).",
+          "jumlah_parameter": 3,
+          "bobot": 1.217,
+          "skor": 1.103,
+          "capaian": 90.63270336894,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "7",
+          "aspek": "II",
+          "deskripsi": "RUPS/Pemilik Modal melakukan pengangkatan dan pemberhentian Direksi .",
+          "jumlah_parameter": 6,
+          "bobot": 2.423,
+          "skor": 2.423,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "8",
+          "aspek": "II",
+          "deskripsi": "RUPS/Pemilik Modal melakukan pengangkatan dan pemberhentian Dewan Komisaris/Dewan Pengawas.",
+          "jumlah_parameter": 5,
+          "bobot": 1.731,
+          "skor": 1.493,
+          "capaian": 86.25072212593876,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "9",
+          "aspek": "II",
+          "deskripsi": "RUPS/Pemilik Modal memberikan keputusan yang diperlukan untuk menjaga kepentingan usaha perusahaan dalam jangka panjang dan jangka pendek sesuai dengan dengan peraturan perundang-undangan dan/atau anggaran dasar.",
+          "jumlah_parameter": 3,
+          "bobot": 1.385,
+          "skor": 1.01,
+          "capaian": 72.92418772563177,
+          "penjelasan": "Cukup Baik"
+        },
+        {
+          "id": "10",
+          "aspek": "II",
+          "deskripsi": "RUPS/Pemilik Modal memberikan persetujuan laporan tahunan termasuk pengesahan laporan keuangan serta tugas pengawasan Dewan Komisaris/Dewan Pengawas sesuai peraturan perundang-undangan dan/atau anggaran dasar.",
+          "jumlah_parameter": 6,
+          "bobot": 2.077,
+          "skor": 1.991,
+          "capaian": 95.85941261434763,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "11",
+          "aspek": "II",
+          "deskripsi": "RUPS/Pemilik Modal mengambil keputusan melalui proses yang terbuka dan adil serta dapat dipertanggungjawabkan.",
+          "jumlah_parameter": 2,
+          "bobot": 0.519,
+          "skor": 0.519,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "12",
+          "aspek": "II",
+          "deskripsi": "Pemegang Saham/Pemilik Modal melaksanakan Tata Kelola Perusahaan yang Baik sesuai dengan wewenang dan tanggung jawabnya.",
+          "jumlah_parameter": 3,
+          "bobot": 0.865,
+          "skor": 0.807,
+          "capaian": 93.29479768786128,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "13",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas melaksanakan program pelatihan/pembelajaran secara berkelanjutan.",
+          "jumlah_parameter": 2,
+          "bobot": 1.348,
+          "skor": 1.348,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "14",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas melakukan pembagian tugas dan menetapkan faktor-faktor yang dibutuhkan untuk mendukung pelaksanaan tugas Dewan Komisaris/Dewan Pengawas.",
+          "jumlah_parameter": 4,
+          "bobot": 2.127,
+          "skor": 2.02,
+          "capaian": 94.96944052656325,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "15",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas memberikan persetujuan atas rancangan RJPP dan RKAP yang disampaikan oleh Direksi.",
+          "jumlah_parameter": 2,
+          "bobot": 2.904,
+          "skor": 2.904,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "16",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas memberikan arahan terhadap Direksi atas implementasi rencana dan kebijakan perusahaan.",
+          "jumlah_parameter": 9,
+          "bobot": 9.593,
+          "skor": 8.713,
+          "capaian": 90.8266444282289,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "17",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas melaksanakan pengawasan terhadap Direksi atas implementasi rencana dan kebijakan perusahaan.",
+          "jumlah_parameter": 6,
+          "bobot": 6.479,
+          "skor": 6.009,
+          "capaian": 92.7457941040284,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "18",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas melakukan pengawasan terhadap pelaksanaan kebijakan pengelolaan anak perusahaan/perusahaan patungan.",
+          "jumlah_parameter": 2,
+          "bobot": 1.504,
+          "skor": 1.418,
+          "capaian": 94.28191489361701,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "19",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas berperan dalam pencalonan anggota Direksi, menilai kinerja Direksi (individu dan kolegial) dan mengusulkan tantiem/ insentif kinerja sesuai ketentuan yang berlaku dan mempertimbangkan kinerja Direksi.",
+          "jumlah_parameter": 3,
+          "bobot": 2.437,
+          "skor": 2.256,
+          "capaian": 92.57283545342634,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "20",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas melakukan tindakan terhadap potensi benturan kepentingan yang menyangkut dirinya.",
+          "jumlah_parameter": 1,
+          "bobot": 0.571,
+          "skor": 0.571,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "21",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas memantau dan memastikan bahwa prinsip prinsip Tata Kelola Perusahaan yang Baik telah diterapkan secara efektif dan berkelanjutan.",
+          "jumlah_parameter": 2,
+          "bobot": 1.659,
+          "skor": 1.659,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "22",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas menyelenggarakan rapat Dewan Komisaris/Dewan Pengawas yang efektif dan menghadiri rapat tersebut sesuai dengan ketentuan perundang-undangan.",
+          "jumlah_parameter": 3,
+          "bobot": 1.348,
+          "skor": 1.098,
+          "capaian": 81.4540059347181,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "23",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas memiliki Sekretaris Dewan Komisaris/Dewan Pengawas untuk mendukung tugas kesekretariatan Dewan Komisaris/Dewan Pengawas.",
+          "jumlah_parameter": 4,
+          "bobot": 2.593,
+          "skor": 2.171,
+          "capaian": 83.72541457770922,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "24",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas memiliki Komite Dewan Komisaris/Dewan Pengawas yang efektif.",
+          "jumlah_parameter": 5,
+          "bobot": 2.437,
+          "skor": 2.396,
+          "capaian": 98.31760361099712,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "25",
+          "aspek": "IV",
+          "deskripsi": "Direksi melaksanakan program pelatihan/pembelajaran secara berkelanjutan.",
+          "jumlah_parameter": 2,
+          "bobot": 1.089,
+          "skor": 0.908,
+          "capaian": 83.37924701561066,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "26",
+          "aspek": "IV",
+          "deskripsi": "Direksi melakukan pembagian tugas/fungsi, wewenang dan tanggung jawab secara jelas.",
+          "jumlah_parameter": 3,
+          "bobot": 1.867,
+          "skor": 1.634,
+          "capaian": 87.52008569898231,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "27",
+          "aspek": "IV",
+          "deskripsi": "Direksi menyusun perencanaan perusahaan.",
+          "jumlah_parameter": 5,
+          "bobot": 4.044,
+          "skor": 3.772,
+          "capaian": 93.27398615232444,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "28",
+          "aspek": "IV",
+          "deskripsi": "Direksi berperan dalam pemenuhan target kinerja perusahaan.",
+          "jumlah_parameter": 11,
+          "bobot": 8.089,
+          "skor": 7.204,
+          "capaian": 89.05921621955741,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "29",
+          "aspek": "IV",
+          "deskripsi": "Direksi melaksanakan pengendalian operasional dan keuangan terhadap implementasi rencana dan kebijakan perusahaan.",
+          "jumlah_parameter": 4,
+          "bobot": 3.266,
+          "skor": 2.916,
+          "capaian": 89.28352725045927,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "30",
+          "aspek": "IV",
+          "deskripsi": "Direksi melaksanakan pengurusan perusahaan sesuai dengan peraturan perundang-undangan yang berlaku dan anggaran dasar.",
+          "jumlah_parameter": 2,
+          "bobot": 0.778,
+          "skor": 0.778,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "31",
+          "aspek": "IV",
+          "deskripsi": "Direksi melakukan hubungan yang bernilai tambah bagi perusahaan dan stakeholders.",
+          "jumlah_parameter": 8,
+          "bobot": 6.689,
+          "skor": 6.038,
+          "capaian": 90.2676035281806,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "32",
+          "aspek": "IV",
+          "deskripsi": "Direksi memonitor dan mengelola potensi benturan kepentingan anggota Direksi dan manajemen di bawah Direksi.",
+          "jumlah_parameter": 2,
+          "bobot": 1.089,
+          "skor": 1.05,
+          "capaian": 96.41873278236915,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "33",
+          "aspek": "IV",
+          "deskripsi": "Direksi memastikan perusahaan melaksanakan keterbukaan informasi dan komunikasi sesuai peraturan perundang-undangan yang berlaku dan penyampaian informasi kepada Dewan Komisaris/Dewan Pengawas dan Pemegang Saham tepat waktu.",
+          "jumlah_parameter": 2,
+          "bobot": 1.089,
+          "skor": 0.91,
+          "capaian": 83.56290174471994,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "34",
+          "aspek": "IV",
+          "deskripsi": "Direksi menyelenggarakan rapat Direksi dan menghadiri Rapat Dewan Komisaris/Dewan Pengawas sesuai dengan ketentuan perundang-undangan.",
+          "jumlah_parameter": 5,
+          "bobot": 1.556,
+          "skor": 1.439,
+          "capaian": 92.48071979434448,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "35",
+          "aspek": "IV",
+          "deskripsi": "Direksi menyelenggarakan pengawasan intern yang berkualitas dan efektif.",
+          "jumlah_parameter": 3,
+          "bobot": 1.711,
+          "skor": 1.505,
+          "capaian": 87.96025715955581,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "36",
+          "aspek": "IV",
+          "deskripsi": "Direksi menyelenggarakan fungsi sekretaris perusahaan yang berkualitas dan efektif.",
+          "jumlah_parameter": 3,
+          "bobot": 1.711,
+          "skor": 1.283,
+          "capaian": 74.98538866160139,
+          "penjelasan": "Cukup Baik"
+        },
+        {
+          "id": "37",
+          "aspek": "IV",
+          "deskripsi": "Direksi menyelenggarakan RUPS Tahunan dan RUPS lainnya sesuai peraturan perundang-undangan.",
+          "jumlah_parameter": 2,
+          "bobot": 2.022,
+          "skor": 1.439,
+          "capaian": 71.16716122650841,
+          "penjelasan": "Cukup Baik"
+        },
+        {
+          "id": "38",
+          "aspek": "V",
+          "deskripsi": "Perusahaan menyediakan informasi perusahaan kepada stakeholders.",
+          "jumlah_parameter": 2,
+          "bobot": 0.435,
+          "skor": 0.435,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "39",
+          "aspek": "V",
+          "deskripsi": "Perusahaan menyediakan bagi stakeholder akses atas informasi perusahaan yang relevan, memadai, dan dapat diandalkan secara tepat waktu dan berkala.",
+          "jumlah_parameter": 5,
+          "bobot": 2.32,
+          "skor": 2.222,
+          "capaian": 95.77586206896552,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "40",
+          "aspek": "V",
+          "deskripsi": "Perusahaan mengungkapkan informasi penting dalam Laporan Tahunan dan Laporan Keuangan sesuai dengan peraturan perundang-undangan.",
+          "jumlah_parameter": 7,
+          "bobot": 3.341,
+          "skor": 3.078,
+          "capaian": 92.12810535767734,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "41",
+          "aspek": "V",
+          "deskripsi": "Perusahaan memperolah penghargaan atau award dalam bidang GCG dan bidang-bidang lainnya.",
+          "jumlah_parameter": 2,
+          "bobot": 2.904,
+          "skor": 1.452,
+          "capaian": 50,
+          "penjelasan": "Sangat Kurang"
+        },
+        {
+          "id": "42",
+          "aspek": "VI",
+          "deskripsi": "Praktik Tata Kelola Perusahaan menjadi contoh atau benchmark bagi perusahaan perusahaan lainnya di Indonesia;",
+          "jumlah_parameter": 1,
+          "bobot": 5,
+          "skor": 0,
+          "capaian": 0,
+          "penjelasan": "Sangat Kurang"
+        },
+        {
+          "id": "43",
+          "aspek": "VI",
+          "deskripsi": "Praktik Tata Kelola Perusahaan menyimpang dari prinsip-prinsip Tata Kelola Perusahaan yang Baik sesuai Pedoman Penerapan Tata Kelola Perusahaan yang Baik (Good Corporate Governance ) pada Badan Usaha Milik Negara, , Pedoman Umum Good Corporate Governance Indonesia, dan standar-standar praktik dan ketentuan lainnya.",
+          "jumlah_parameter": 1,
+          "bobot": -5,
+          "skor": 0,
+          "capaian": 0,
+          "penjelasan": "Sangat Baik"
+        }
+      ],
+      "saved_at": "2025-08-07T10:20:21.774678",
+      "metadata": {
+        "total_indicators": 0,
+        "user_agent": "Mozilla/5.0 (X11; Linux x86_64; rv:141.0) Gecko/20100101 Firefox/141.0"
+      }
+    },
+    {
+      "id": "2022_Self Assessment_2be583d0",
+      "year": 2022,
+      "auditor": "Self Assessment",
+      "method": "otomatis",
+      "table_data": [
+        {
+          "id": "1",
+          "aspek": "I",
+          "deskripsi": "Perusahaan memiliki Pedoman Tata Kelola Perusahaan yang Baik (GCG Code) dan pedoman perilaku (code of conduct ).",
+          "jumlah_parameter": 2,
+          "bobot": 1.218,
+          "skor": 1.218,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "2",
+          "aspek": "I",
+          "deskripsi": "Perusahaan melaksanakan Pedoman Tata Kelola Perusahaan yang Baik dan Pedoman Perilaku secara konsisten.",
+          "jumlah_parameter": 2,
+          "bobot": 1.217,
+          "skor": 1.002,
+          "capaian": 82.33360723089564,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "3",
+          "aspek": "I",
+          "deskripsi": "Perusahaan melakukan pengukuran terhadap penerapan Tata Kelola Perusahaan yang Baik.",
+          "jumlah_parameter": 2,
+          "bobot": 0.608,
+          "skor": 0.57,
+          "capaian": 93.74999999999999,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "4",
+          "aspek": "I",
+          "deskripsi": "Perusahaan melakukan koordinasi pengelolaan dan administrasi Laporan Harta Kekayaan Penyelenggara Negara (LHKPN).",
+          "jumlah_parameter": 3,
+          "bobot": 1.37,
+          "skor": 1.332,
+          "capaian": 97.22627737226277,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "5",
+          "aspek": "I",
+          "deskripsi": "Perusahaan melaksanakan program pengendalian gratifikasi sesuai ketentuan yang berlaku.",
+          "jumlah_parameter": 3,
+          "bobot": 1.37,
+          "skor": 1.142,
+          "capaian": 83.35766423357663,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "6",
+          "aspek": "I",
+          "deskripsi": "Perusahaan melaksanakan kebijakan atas sistem pelaporan atas dugaan penyimpangan pada perusahaan yang bersangkutan (whistle blowing system).",
+          "jumlah_parameter": 3,
+          "bobot": 1.217,
+          "skor": 1.103,
+          "capaian": 90.63270336894,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "7",
+          "aspek": "II",
+          "deskripsi": "RUPS/Pemilik Modal melakukan pengangkatan dan pemberhentian Direksi .",
+          "jumlah_parameter": 6,
+          "bobot": 2.423,
+          "skor": 2.423,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "8",
+          "aspek": "II",
+          "deskripsi": "RUPS/Pemilik Modal melakukan pengangkatan dan pemberhentian Dewan Komisaris/Dewan Pengawas.",
+          "jumlah_parameter": 5,
+          "bobot": 1.731,
+          "skor": 1.493,
+          "capaian": 86.25072212593876,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "9",
+          "aspek": "II",
+          "deskripsi": "RUPS/Pemilik Modal memberikan keputusan yang diperlukan untuk menjaga kepentingan usaha perusahaan dalam jangka panjang dan jangka pendek sesuai dengan dengan peraturan perundang-undangan dan/atau anggaran dasar.",
+          "jumlah_parameter": 3,
+          "bobot": 1.385,
+          "skor": 1.01,
+          "capaian": 72.92418772563177,
+          "penjelasan": "Cukup Baik"
+        },
+        {
+          "id": "10",
+          "aspek": "II",
+          "deskripsi": "RUPS/Pemilik Modal memberikan persetujuan laporan tahunan termasuk pengesahan laporan keuangan serta tugas pengawasan Dewan Komisaris/Dewan Pengawas sesuai peraturan perundang-undangan dan/atau anggaran dasar.",
+          "jumlah_parameter": 6,
+          "bobot": 2.077,
+          "skor": 1.991,
+          "capaian": 95.85941261434763,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "11",
+          "aspek": "II",
+          "deskripsi": "RUPS/Pemilik Modal mengambil keputusan melalui proses yang terbuka dan adil serta dapat dipertanggungjawabkan.",
+          "jumlah_parameter": 2,
+          "bobot": 0.519,
+          "skor": 0.519,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "12",
+          "aspek": "II",
+          "deskripsi": "Pemegang Saham/Pemilik Modal melaksanakan Tata Kelola Perusahaan yang Baik sesuai dengan wewenang dan tanggung jawabnya.",
+          "jumlah_parameter": 3,
+          "bobot": 0.865,
+          "skor": 0.807,
+          "capaian": 93.29479768786128,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "13",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas melaksanakan program pelatihan/pembelajaran secara berkelanjutan.",
+          "jumlah_parameter": 2,
+          "bobot": 1.348,
+          "skor": 1.348,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "14",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas melakukan pembagian tugas dan menetapkan faktor-faktor yang dibutuhkan untuk mendukung pelaksanaan tugas Dewan Komisaris/Dewan Pengawas.",
+          "jumlah_parameter": 4,
+          "bobot": 2.127,
+          "skor": 2.02,
+          "capaian": 94.96944052656325,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "15",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas memberikan persetujuan atas rancangan RJPP dan RKAP yang disampaikan oleh Direksi.",
+          "jumlah_parameter": 2,
+          "bobot": 2.904,
+          "skor": 2.904,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "16",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas memberikan arahan terhadap Direksi atas implementasi rencana dan kebijakan perusahaan.",
+          "jumlah_parameter": 9,
+          "bobot": 9.593,
+          "skor": 8.713,
+          "capaian": 90.8266444282289,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "17",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas melaksanakan pengawasan terhadap Direksi atas implementasi rencana dan kebijakan perusahaan.",
+          "jumlah_parameter": 6,
+          "bobot": 6.479,
+          "skor": 6.009,
+          "capaian": 92.7457941040284,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "18",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas melakukan pengawasan terhadap pelaksanaan kebijakan pengelolaan anak perusahaan/perusahaan patungan.",
+          "jumlah_parameter": 2,
+          "bobot": 1.504,
+          "skor": 1.418,
+          "capaian": 94.28191489361701,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "19",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas berperan dalam pencalonan anggota Direksi, menilai kinerja Direksi (individu dan kolegial) dan mengusulkan tantiem/ insentif kinerja sesuai ketentuan yang berlaku dan mempertimbangkan kinerja Direksi.",
+          "jumlah_parameter": 3,
+          "bobot": 2.437,
+          "skor": 2.256,
+          "capaian": 92.57283545342634,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "20",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas melakukan tindakan terhadap potensi benturan kepentingan yang menyangkut dirinya.",
+          "jumlah_parameter": 1,
+          "bobot": 0.571,
+          "skor": 0.571,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "21",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas memantau dan memastikan bahwa prinsip prinsip Tata Kelola Perusahaan yang Baik telah diterapkan secara efektif dan berkelanjutan.",
+          "jumlah_parameter": 2,
+          "bobot": 1.659,
+          "skor": 1.659,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "22",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas menyelenggarakan rapat Dewan Komisaris/Dewan Pengawas yang efektif dan menghadiri rapat tersebut sesuai dengan ketentuan perundang-undangan.",
+          "jumlah_parameter": 3,
+          "bobot": 1.348,
+          "skor": 1.098,
+          "capaian": 81.4540059347181,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "23",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas memiliki Sekretaris Dewan Komisaris/Dewan Pengawas untuk mendukung tugas kesekretariatan Dewan Komisaris/Dewan Pengawas.",
+          "jumlah_parameter": 4,
+          "bobot": 2.593,
+          "skor": 2.171,
+          "capaian": 83.72541457770922,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "24",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas memiliki Komite Dewan Komisaris/Dewan Pengawas yang efektif.",
+          "jumlah_parameter": 5,
+          "bobot": 2.437,
+          "skor": 2.396,
+          "capaian": 98.31760361099712,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "25",
+          "aspek": "IV",
+          "deskripsi": "Direksi melaksanakan program pelatihan/pembelajaran secara berkelanjutan.",
+          "jumlah_parameter": 2,
+          "bobot": 1.089,
+          "skor": 0.908,
+          "capaian": 83.37924701561066,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "26",
+          "aspek": "IV",
+          "deskripsi": "Direksi melakukan pembagian tugas/fungsi, wewenang dan tanggung jawab secara jelas.",
+          "jumlah_parameter": 3,
+          "bobot": 1.867,
+          "skor": 1.634,
+          "capaian": 87.52008569898231,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "27",
+          "aspek": "IV",
+          "deskripsi": "Direksi menyusun perencanaan perusahaan.",
+          "jumlah_parameter": 5,
+          "bobot": 4.044,
+          "skor": 3.772,
+          "capaian": 93.27398615232444,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "28",
+          "aspek": "IV",
+          "deskripsi": "Direksi berperan dalam pemenuhan target kinerja perusahaan.",
+          "jumlah_parameter": 11,
+          "bobot": 8.089,
+          "skor": 7.204,
+          "capaian": 89.05921621955741,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "29",
+          "aspek": "IV",
+          "deskripsi": "Direksi melaksanakan pengendalian operasional dan keuangan terhadap implementasi rencana dan kebijakan perusahaan.",
+          "jumlah_parameter": 4,
+          "bobot": 3.266,
+          "skor": 2.916,
+          "capaian": 89.28352725045927,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "30",
+          "aspek": "IV",
+          "deskripsi": "Direksi melaksanakan pengurusan perusahaan sesuai dengan peraturan perundang-undangan yang berlaku dan anggaran dasar.",
+          "jumlah_parameter": 2,
+          "bobot": 0.778,
+          "skor": 0.778,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "31",
+          "aspek": "IV",
+          "deskripsi": "Direksi melakukan hubungan yang bernilai tambah bagi perusahaan dan stakeholders.",
+          "jumlah_parameter": 8,
+          "bobot": 6.689,
+          "skor": 6.038,
+          "capaian": 90.2676035281806,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "32",
+          "aspek": "IV",
+          "deskripsi": "Direksi memonitor dan mengelola potensi benturan kepentingan anggota Direksi dan manajemen di bawah Direksi.",
+          "jumlah_parameter": 2,
+          "bobot": 1.089,
+          "skor": 1.05,
+          "capaian": 96.41873278236915,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "33",
+          "aspek": "IV",
+          "deskripsi": "Direksi memastikan perusahaan melaksanakan keterbukaan informasi dan komunikasi sesuai peraturan perundang-undangan yang berlaku dan penyampaian informasi kepada Dewan Komisaris/Dewan Pengawas dan Pemegang Saham tepat waktu.",
+          "jumlah_parameter": 2,
+          "bobot": 1.089,
+          "skor": 0.91,
+          "capaian": 83.56290174471994,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "34",
+          "aspek": "IV",
+          "deskripsi": "Direksi menyelenggarakan rapat Direksi dan menghadiri Rapat Dewan Komisaris/Dewan Pengawas sesuai dengan ketentuan perundang-undangan.",
+          "jumlah_parameter": 5,
+          "bobot": 1.556,
+          "skor": 1.439,
+          "capaian": 92.48071979434448,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "35",
+          "aspek": "IV",
+          "deskripsi": "Direksi menyelenggarakan pengawasan intern yang berkualitas dan efektif.",
+          "jumlah_parameter": 3,
+          "bobot": 1.711,
+          "skor": 1.505,
+          "capaian": 87.96025715955581,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "36",
+          "aspek": "IV",
+          "deskripsi": "Direksi menyelenggarakan fungsi sekretaris perusahaan yang berkualitas dan efektif.",
+          "jumlah_parameter": 3,
+          "bobot": 1.711,
+          "skor": 1.283,
+          "capaian": 74.98538866160139,
+          "penjelasan": "Cukup Baik"
+        },
+        {
+          "id": "37",
+          "aspek": "IV",
+          "deskripsi": "Direksi menyelenggarakan RUPS Tahunan dan RUPS lainnya sesuai peraturan perundang-undangan.",
+          "jumlah_parameter": 2,
+          "bobot": 2.022,
+          "skor": 1.439,
+          "capaian": 71.16716122650841,
+          "penjelasan": "Cukup Baik"
+        },
+        {
+          "id": "38",
+          "aspek": "V",
+          "deskripsi": "Perusahaan menyediakan informasi perusahaan kepada stakeholders.",
+          "jumlah_parameter": 2,
+          "bobot": 0.435,
+          "skor": 0.435,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "39",
+          "aspek": "V",
+          "deskripsi": "Perusahaan menyediakan bagi stakeholder akses atas informasi perusahaan yang relevan, memadai, dan dapat diandalkan secara tepat waktu dan berkala.",
+          "jumlah_parameter": 5,
+          "bobot": 2.32,
+          "skor": 2.222,
+          "capaian": 95.77586206896552,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "40",
+          "aspek": "V",
+          "deskripsi": "Perusahaan mengungkapkan informasi penting dalam Laporan Tahunan dan Laporan Keuangan sesuai dengan peraturan perundang-undangan.",
+          "jumlah_parameter": 7,
+          "bobot": 3.341,
+          "skor": 3.078,
+          "capaian": 92.12810535767734,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "41",
+          "aspek": "V",
+          "deskripsi": "Perusahaan memperolah penghargaan atau award dalam bidang GCG dan bidang-bidang lainnya.",
+          "jumlah_parameter": 2,
+          "bobot": 2.904,
+          "skor": 1.452,
+          "capaian": 50,
+          "penjelasan": "Sangat Kurang"
+        },
+        {
+          "id": "42",
+          "aspek": "VI",
+          "deskripsi": "Praktik Tata Kelola Perusahaan menjadi contoh atau benchmark bagi perusahaan perusahaan lainnya di Indonesia;",
+          "jumlah_parameter": 1,
+          "bobot": 5,
+          "skor": 0,
+          "capaian": 0,
+          "penjelasan": "Sangat Kurang"
+        },
+        {
+          "id": "43",
+          "aspek": "VI",
+          "deskripsi": "Praktik Tata Kelola Perusahaan menyimpang dari prinsip-prinsip Tata Kelola Perusahaan yang Baik sesuai Pedoman Penerapan Tata Kelola Perusahaan yang Baik (Good Corporate Governance ) pada Badan Usaha Milik Negara, , Pedoman Umum Good Corporate Governance Indonesia, dan standar-standar praktik dan ketentuan lainnya.",
+          "jumlah_parameter": 1,
+          "bobot": -5,
+          "skor": 0,
+          "capaian": 0,
+          "penjelasan": "Sangat Baik"
+        }
+      ],
+      "saved_at": "2025-08-07T10:23:25.378688",
+      "metadata": {
+        "total_indicators": 0,
+        "user_agent": "Mozilla/5.0 (X11; Linux x86_64; rv:141.0) Gecko/20100101 Firefox/141.0"
+      }
+    },
+    {
+      "id": "2020_Self Assessment_3c1c4cb5",
+      "year": 2020,
+      "auditor": "Self Assessment",
+      "method": "otomatis",
+      "table_data": [
+        {
+          "id": "1",
+          "aspek": "I",
+          "deskripsi": "Perusahaan memiliki Pedoman Tata Kelola Perusahaan yang Baik (GCG Code) dan pedoman perilaku (code of conduct ).",
+          "jumlah_parameter": 2,
+          "bobot": 1.218,
+          "skor": 0.99,
+          "capaian": 81.2807881773399,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "2",
+          "aspek": "I",
+          "deskripsi": "Perusahaan melaksanakan Pedoman Tata Kelola Perusahaan yang Baik dan Pedoman Perilaku secara konsisten.",
+          "jumlah_parameter": 2,
+          "bobot": 1.217,
+          "skor": 1.154,
+          "capaian": 94.82333607230893,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "3",
+          "aspek": "I",
+          "deskripsi": "Perusahaan melakukan pengukuran terhadap penerapan Tata Kelola Perusahaan yang Baik.",
+          "jumlah_parameter": 2,
+          "bobot": 0.608,
+          "skor": 0.532,
+          "capaian": 87.50000000000001,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "4",
+          "aspek": "I",
+          "deskripsi": "Perusahaan melakukan koordinasi pengelolaan dan administrasi Laporan Harta Kekayaan Penyelenggara Negara (LHKPN).",
+          "jumlah_parameter": 3,
+          "bobot": 1.37,
+          "skor": 1.294,
+          "capaian": 94.45255474452554,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "5",
+          "aspek": "I",
+          "deskripsi": "Perusahaan melaksanakan program pengendalian gratifikasi sesuai ketentuan yang berlaku.",
+          "jumlah_parameter": 3,
+          "bobot": 1.37,
+          "skor": 1.18,
+          "capaian": 86.13138686131386,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "6",
+          "aspek": "I",
+          "deskripsi": "Perusahaan melaksanakan kebijakan atas sistem pelaporan atas dugaan penyimpangan pada perusahaan yang bersangkutan (whistle blowing system).",
+          "jumlah_parameter": 3,
+          "bobot": 1.217,
+          "skor": 1.179,
+          "capaian": 96.87756778964666,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "7",
+          "aspek": "II",
+          "deskripsi": "RUPS/Pemilik Modal melakukan pengangkatan dan pemberhentian Direksi .",
+          "jumlah_parameter": 6,
+          "bobot": 2.423,
+          "skor": 2.423,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "8",
+          "aspek": "II",
+          "deskripsi": "RUPS/Pemilik Modal melakukan pengangkatan dan pemberhentian Dewan Komisaris/Dewan Pengawas.",
+          "jumlah_parameter": 5,
+          "bobot": 1.731,
+          "skor": 1.731,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "9",
+          "aspek": "II",
+          "deskripsi": "RUPS/Pemilik Modal memberikan keputusan yang diperlukan untuk menjaga kepentingan usaha perusahaan dalam jangka panjang dan jangka pendek sesuai dengan dengan peraturan perundang-undangan dan/atau anggaran dasar.",
+          "jumlah_parameter": 3,
+          "bobot": 1.385,
+          "skor": 1.01,
+          "capaian": 72.92418772563177,
+          "penjelasan": "Cukup Baik"
+        },
+        {
+          "id": "10",
+          "aspek": "II",
+          "deskripsi": "RUPS/Pemilik Modal memberikan persetujuan laporan tahunan termasuk pengesahan laporan keuangan serta tugas pengawasan Dewan Komisaris/Dewan Pengawas sesuai peraturan perundang-undangan dan/atau anggaran dasar.",
+          "jumlah_parameter": 6,
+          "bobot": 2.077,
+          "skor": 1.904,
+          "capaian": 91.67067886374578,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "11",
+          "aspek": "II",
+          "deskripsi": "RUPS/Pemilik Modal mengambil keputusan melalui proses yang terbuka dan adil serta dapat dipertanggungjawabkan.",
+          "jumlah_parameter": 2,
+          "bobot": 0.519,
+          "skor": 0.519,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "12",
+          "aspek": "II",
+          "deskripsi": "Pemegang Saham/Pemilik Modal melaksanakan Tata Kelola Perusahaan yang Baik sesuai dengan wewenang dan tanggung jawabnya.",
+          "jumlah_parameter": 3,
+          "bobot": 0.865,
+          "skor": 0.836,
+          "capaian": 96.64739884393063,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "13",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas melaksanakan program pelatihan/pembelajaran secara berkelanjutan.",
+          "jumlah_parameter": 2,
+          "bobot": 1.348,
+          "skor": 1.123,
+          "capaian": 83.30860534124629,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "14",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas melakukan pembagian tugas dan menetapkan faktor-faktor yang dibutuhkan untuk mendukung pelaksanaan tugas Dewan Komisaris/Dewan Pengawas.",
+          "jumlah_parameter": 4,
+          "bobot": 2.127,
+          "skor": 2.004,
+          "capaian": 94.21720733427364,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "15",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas memberikan persetujuan atas rancangan RJPP dan RKAP yang disampaikan oleh Direksi.",
+          "jumlah_parameter": 2,
+          "bobot": 2.904,
+          "skor": 2.904,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "16",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas memberikan arahan terhadap Direksi atas implementasi rencana dan kebijakan perusahaan.",
+          "jumlah_parameter": 9,
+          "bobot": 9.593,
+          "skor": 8.933,
+          "capaian": 93.11998332117169,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "17",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas melaksanakan pengawasan terhadap Direksi atas implementasi rencana dan kebijakan perusahaan.",
+          "jumlah_parameter": 6,
+          "bobot": 6.479,
+          "skor": 6.11,
+          "capaian": 94.30467664763081,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "18",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas melakukan pengawasan terhadap pelaksanaan kebijakan pengelolaan anak perusahaan/perusahaan patungan.",
+          "jumlah_parameter": 2,
+          "bobot": 1.504,
+          "skor": 1.504,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "19",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas berperan dalam pencalonan anggota Direksi, menilai kinerja Direksi (individu dan kolegial) dan mengusulkan tantiem/ insentif kinerja sesuai ketentuan yang berlaku dan mempertimbangkan kinerja Direksi.",
+          "jumlah_parameter": 3,
+          "bobot": 2.437,
+          "skor": 2.437,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "20",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas melakukan tindakan terhadap potensi benturan kepentingan yang menyangkut dirinya.",
+          "jumlah_parameter": 1,
+          "bobot": 0.571,
+          "skor": 0.571,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "21",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas memantau dan memastikan bahwa prinsip prinsip Tata Kelola Perusahaan yang Baik telah diterapkan secara efektif dan berkelanjutan.",
+          "jumlah_parameter": 2,
+          "bobot": 1.659,
+          "skor": 1.659,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "22",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas menyelenggarakan rapat Dewan Komisaris/Dewan Pengawas yang efektif dan menghadiri rapat tersebut sesuai dengan ketentuan perundang-undangan.",
+          "jumlah_parameter": 3,
+          "bobot": 1.348,
+          "skor": 1.348,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "23",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas memiliki Sekretaris Dewan Komisaris/Dewan Pengawas untuk mendukung tugas kesekretariatan Dewan Komisaris/Dewan Pengawas.",
+          "jumlah_parameter": 4,
+          "bobot": 2.593,
+          "skor": 2.593,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "24",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas memiliki Komite Dewan Komisaris/Dewan Pengawas yang efektif.",
+          "jumlah_parameter": 5,
+          "bobot": 2.437,
+          "skor": 2.235,
+          "capaian": 91.71112022979074,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "25",
+          "aspek": "IV",
+          "deskripsi": "Direksi melaksanakan program pelatihan/pembelajaran secara berkelanjutan.",
+          "jumlah_parameter": 2,
+          "bobot": 1.089,
+          "skor": 0.597,
+          "capaian": 54.82093663911846,
+          "penjelasan": "Sangat Kurang"
+        },
+        {
+          "id": "26",
+          "aspek": "IV",
+          "deskripsi": "Direksi melakukan pembagian tugas/fungsi, wewenang dan tanggung jawab secara jelas.",
+          "jumlah_parameter": 3,
+          "bobot": 1.867,
+          "skor": 1.517,
+          "capaian": 81.25334761649705,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "27",
+          "aspek": "IV",
+          "deskripsi": "Direksi menyusun perencanaan perusahaan.",
+          "jumlah_parameter": 5,
+          "bobot": 4.044,
+          "skor": 3.468,
+          "capaian": 85.75667655786351,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "28",
+          "aspek": "IV",
+          "deskripsi": "Direksi berperan dalam pemenuhan target kinerja perusahaan.",
+          "jumlah_parameter": 11,
+          "bobot": 8.089,
+          "skor": 6.84,
+          "capaian": 84.55927803189516,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "29",
+          "aspek": "IV",
+          "deskripsi": "Direksi melaksanakan pengendalian operasional dan keuangan terhadap implementasi rencana dan kebijakan perusahaan.",
+          "jumlah_parameter": 4,
+          "bobot": 3.266,
+          "skor": 2.76,
+          "capaian": 84.50704225352112,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "30",
+          "aspek": "IV",
+          "deskripsi": "Direksi melaksanakan pengurusan perusahaan sesuai dengan peraturan perundang-undangan yang berlaku dan anggaran dasar.",
+          "jumlah_parameter": 2,
+          "bobot": 0.778,
+          "skor": 0.778,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "31",
+          "aspek": "IV",
+          "deskripsi": "Direksi melakukan hubungan yang bernilai tambah bagi perusahaan dan stakeholders.",
+          "jumlah_parameter": 8,
+          "bobot": 6.689,
+          "skor": 6.524,
+          "capaian": 97.53326356705038,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "32",
+          "aspek": "IV",
+          "deskripsi": "Direksi memonitor dan mengelola potensi benturan kepentingan anggota Direksi dan manajemen di bawah Direksi.",
+          "jumlah_parameter": 2,
+          "bobot": 1.089,
+          "skor": 0.895,
+          "capaian": 82.18549127640037,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "33",
+          "aspek": "IV",
+          "deskripsi": "Direksi memastikan perusahaan melaksanakan keterbukaan informasi dan komunikasi sesuai peraturan perundang-undangan yang berlaku dan penyampaian informasi kepada Dewan Komisaris/Dewan Pengawas dan Pemegang Saham tepat waktu.",
+          "jumlah_parameter": 2,
+          "bobot": 1.089,
+          "skor": 0.937,
+          "capaian": 86.04224058769515,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "34",
+          "aspek": "IV",
+          "deskripsi": "Direksi menyelenggarakan rapat Direksi dan menghadiri Rapat Dewan Komisaris/Dewan Pengawas sesuai dengan ketentuan perundang-undangan.",
+          "jumlah_parameter": 5,
+          "bobot": 1.556,
+          "skor": 1.556,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "35",
+          "aspek": "IV",
+          "deskripsi": "Direksi menyelenggarakan pengawasan intern yang berkualitas dan efektif.",
+          "jumlah_parameter": 3,
+          "bobot": 1.711,
+          "skor": 1.344,
+          "capaian": 78.55055523085915,
+          "penjelasan": "Cukup Baik"
+        },
+        {
+          "id": "36",
+          "aspek": "IV",
+          "deskripsi": "Direksi menyelenggarakan fungsi sekretaris perusahaan yang berkualitas dan efektif.",
+          "jumlah_parameter": 3,
+          "bobot": 1.711,
+          "skor": 1.12,
+          "capaian": 65.45879602571596,
+          "penjelasan": "Kurang Baik"
+        },
+        {
+          "id": "37",
+          "aspek": "IV",
+          "deskripsi": "Direksi menyelenggarakan RUPS Tahunan dan RUPS lainnya sesuai peraturan perundang-undangan.",
+          "jumlah_parameter": 2,
+          "bobot": 2.022,
+          "skor": 1.341,
+          "capaian": 66.32047477744808,
+          "penjelasan": "Kurang Baik"
+        },
+        {
+          "id": "38",
+          "aspek": "V",
+          "deskripsi": "Perusahaan menyediakan informasi perusahaan kepada stakeholders.",
+          "jumlah_parameter": 2,
+          "bobot": 0.435,
+          "skor": 0.363,
+          "capaian": 83.44827586206897,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "39",
+          "aspek": "V",
+          "deskripsi": "Perusahaan menyediakan bagi stakeholder akses atas informasi perusahaan yang relevan, memadai, dan dapat diandalkan secara tepat waktu dan berkala.",
+          "jumlah_parameter": 5,
+          "bobot": 2.32,
+          "skor": 1.302,
+          "capaian": 56.12068965517242,
+          "penjelasan": "Sangat Kurang"
+        },
+        {
+          "id": "40",
+          "aspek": "V",
+          "deskripsi": "Perusahaan mengungkapkan informasi penting dalam Laporan Tahunan dan Laporan Keuangan sesuai dengan peraturan perundang-undangan.",
+          "jumlah_parameter": 7,
+          "bobot": 3.341,
+          "skor": 3.043,
+          "capaian": 91.08051481592338,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "41",
+          "aspek": "V",
+          "deskripsi": "Perusahaan memperolah penghargaan atau award dalam bidang GCG dan bidang-bidang lainnya.",
+          "jumlah_parameter": 2,
+          "bobot": 2.904,
+          "skor": 2.904,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "42",
+          "aspek": "VI",
+          "deskripsi": "Praktik Tata Kelola Perusahaan menjadi contoh atau benchmark bagi perusahaan perusahaan lainnya di Indonesia;",
+          "jumlah_parameter": 1,
+          "bobot": 5,
+          "skor": 0,
+          "capaian": 0,
+          "penjelasan": "Sangat Kurang"
+        },
+        {
+          "id": "43",
+          "aspek": "VI",
+          "deskripsi": "Praktik Tata Kelola Perusahaan menyimpang dari prinsip-prinsip Tata Kelola Perusahaan yang Baik sesuai Pedoman Penerapan Tata Kelola Perusahaan yang Baik (Good Corporate Governance ) pada Badan Usaha Milik Negara, , Pedoman Umum Good Corporate Governance Indonesia, dan standar-standar praktik dan ketentuan lainnya.",
+          "jumlah_parameter": 1,
+          "bobot": -5,
+          "skor": 0,
+          "capaian": 0,
+          "penjelasan": "Sangat Baik"
+        }
+      ],
+      "saved_at": "2025-08-07T10:45:02.461145",
+      "metadata": {
+        "total_indicators": 0,
+        "user_agent": "Mozilla/5.0 (X11; Linux x86_64; rv:141.0) Gecko/20100101 Firefox/141.0"
+      }
+    },
+    {
+      "id": "2022_Self Assessment_eef437ee",
+      "year": 2022,
+      "auditor": "Self Assessment",
+      "method": "otomatis",
+      "table_data": [
+        {
+          "id": "1",
+          "aspek": "I",
+          "deskripsi": "Perusahaan memiliki Pedoman Tata Kelola Perusahaan yang Baik (GCG Code) dan pedoman perilaku (code of conduct ).",
+          "jumlah_parameter": 2,
+          "bobot": 1.218,
+          "skor": 1.218,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "2",
+          "aspek": "I",
+          "deskripsi": "Perusahaan melaksanakan Pedoman Tata Kelola Perusahaan yang Baik dan Pedoman Perilaku secara konsisten.",
+          "jumlah_parameter": 2,
+          "bobot": 1.217,
+          "skor": 1.002,
+          "capaian": 82.33360723089564,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "3",
+          "aspek": "I",
+          "deskripsi": "Perusahaan melakukan pengukuran terhadap penerapan Tata Kelola Perusahaan yang Baik.",
+          "jumlah_parameter": 2,
+          "bobot": 0.608,
+          "skor": 0.57,
+          "capaian": 93.74999999999999,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "4",
+          "aspek": "I",
+          "deskripsi": "Perusahaan melakukan koordinasi pengelolaan dan administrasi Laporan Harta Kekayaan Penyelenggara Negara (LHKPN).",
+          "jumlah_parameter": 3,
+          "bobot": 1.37,
+          "skor": 1.332,
+          "capaian": 97.22627737226277,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "5",
+          "aspek": "I",
+          "deskripsi": "Perusahaan melaksanakan program pengendalian gratifikasi sesuai ketentuan yang berlaku.",
+          "jumlah_parameter": 3,
+          "bobot": 1.37,
+          "skor": 1.142,
+          "capaian": 83.35766423357663,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "6",
+          "aspek": "I",
+          "deskripsi": "Perusahaan melaksanakan kebijakan atas sistem pelaporan atas dugaan penyimpangan pada perusahaan yang bersangkutan (whistle blowing system).",
+          "jumlah_parameter": 3,
+          "bobot": 1.217,
+          "skor": 1.103,
+          "capaian": 90.63270336894,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "7",
+          "aspek": "II",
+          "deskripsi": "RUPS/Pemilik Modal melakukan pengangkatan dan pemberhentian Direksi .",
+          "jumlah_parameter": 6,
+          "bobot": 2.423,
+          "skor": 2.423,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "8",
+          "aspek": "II",
+          "deskripsi": "RUPS/Pemilik Modal melakukan pengangkatan dan pemberhentian Dewan Komisaris/Dewan Pengawas.",
+          "jumlah_parameter": 5,
+          "bobot": 1.731,
+          "skor": 1.493,
+          "capaian": 86.25072212593876,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "9",
+          "aspek": "II",
+          "deskripsi": "RUPS/Pemilik Modal memberikan keputusan yang diperlukan untuk menjaga kepentingan usaha perusahaan dalam jangka panjang dan jangka pendek sesuai dengan dengan peraturan perundang-undangan dan/atau anggaran dasar.",
+          "jumlah_parameter": 3,
+          "bobot": 1.385,
+          "skor": 1.01,
+          "capaian": 72.92418772563177,
+          "penjelasan": "Cukup Baik"
+        },
+        {
+          "id": "10",
+          "aspek": "II",
+          "deskripsi": "RUPS/Pemilik Modal memberikan persetujuan laporan tahunan termasuk pengesahan laporan keuangan serta tugas pengawasan Dewan Komisaris/Dewan Pengawas sesuai peraturan perundang-undangan dan/atau anggaran dasar.",
+          "jumlah_parameter": 6,
+          "bobot": 2.077,
+          "skor": 1.991,
+          "capaian": 95.85941261434763,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "11",
+          "aspek": "II",
+          "deskripsi": "RUPS/Pemilik Modal mengambil keputusan melalui proses yang terbuka dan adil serta dapat dipertanggungjawabkan.",
+          "jumlah_parameter": 2,
+          "bobot": 0.519,
+          "skor": 0.519,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "12",
+          "aspek": "II",
+          "deskripsi": "Pemegang Saham/Pemilik Modal melaksanakan Tata Kelola Perusahaan yang Baik sesuai dengan wewenang dan tanggung jawabnya.",
+          "jumlah_parameter": 3,
+          "bobot": 0.865,
+          "skor": 0.807,
+          "capaian": 93.29479768786128,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "13",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas melaksanakan program pelatihan/pembelajaran secara berkelanjutan.",
+          "jumlah_parameter": 2,
+          "bobot": 1.348,
+          "skor": 1.348,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "14",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas melakukan pembagian tugas dan menetapkan faktor-faktor yang dibutuhkan untuk mendukung pelaksanaan tugas Dewan Komisaris/Dewan Pengawas.",
+          "jumlah_parameter": 4,
+          "bobot": 2.127,
+          "skor": 2.02,
+          "capaian": 94.96944052656325,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "15",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas memberikan persetujuan atas rancangan RJPP dan RKAP yang disampaikan oleh Direksi.",
+          "jumlah_parameter": 2,
+          "bobot": 2.904,
+          "skor": 2.904,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "16",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas memberikan arahan terhadap Direksi atas implementasi rencana dan kebijakan perusahaan.",
+          "jumlah_parameter": 9,
+          "bobot": 9.593,
+          "skor": 8.713,
+          "capaian": 90.8266444282289,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "17",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas melaksanakan pengawasan terhadap Direksi atas implementasi rencana dan kebijakan perusahaan.",
+          "jumlah_parameter": 6,
+          "bobot": 6.479,
+          "skor": 6.009,
+          "capaian": 92.7457941040284,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "18",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas melakukan pengawasan terhadap pelaksanaan kebijakan pengelolaan anak perusahaan/perusahaan patungan.",
+          "jumlah_parameter": 2,
+          "bobot": 1.504,
+          "skor": 1.418,
+          "capaian": 94.28191489361701,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "19",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas berperan dalam pencalonan anggota Direksi, menilai kinerja Direksi (individu dan kolegial) dan mengusulkan tantiem/ insentif kinerja sesuai ketentuan yang berlaku dan mempertimbangkan kinerja Direksi.",
+          "jumlah_parameter": 3,
+          "bobot": 2.437,
+          "skor": 2.256,
+          "capaian": 92.57283545342634,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "20",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas melakukan tindakan terhadap potensi benturan kepentingan yang menyangkut dirinya.",
+          "jumlah_parameter": 1,
+          "bobot": 0.571,
+          "skor": 0.571,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "21",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas memantau dan memastikan bahwa prinsip prinsip Tata Kelola Perusahaan yang Baik telah diterapkan secara efektif dan berkelanjutan.",
+          "jumlah_parameter": 2,
+          "bobot": 1.659,
+          "skor": 1.659,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "22",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas menyelenggarakan rapat Dewan Komisaris/Dewan Pengawas yang efektif dan menghadiri rapat tersebut sesuai dengan ketentuan perundang-undangan.",
+          "jumlah_parameter": 3,
+          "bobot": 1.348,
+          "skor": 1.098,
+          "capaian": 81.4540059347181,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "23",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas memiliki Sekretaris Dewan Komisaris/Dewan Pengawas untuk mendukung tugas kesekretariatan Dewan Komisaris/Dewan Pengawas.",
+          "jumlah_parameter": 4,
+          "bobot": 2.593,
+          "skor": 2.171,
+          "capaian": 83.72541457770922,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "24",
+          "aspek": "III",
+          "deskripsi": "Dewan Komisaris/Dewan Pengawas memiliki Komite Dewan Komisaris/Dewan Pengawas yang efektif.",
+          "jumlah_parameter": 5,
+          "bobot": 2.437,
+          "skor": 2.396,
+          "capaian": 98.31760361099712,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "25",
+          "aspek": "IV",
+          "deskripsi": "Direksi melaksanakan program pelatihan/pembelajaran secara berkelanjutan.",
+          "jumlah_parameter": 2,
+          "bobot": 1.089,
+          "skor": 0.908,
+          "capaian": 83.37924701561066,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "26",
+          "aspek": "IV",
+          "deskripsi": "Direksi melakukan pembagian tugas/fungsi, wewenang dan tanggung jawab secara jelas.",
+          "jumlah_parameter": 3,
+          "bobot": 1.867,
+          "skor": 1.634,
+          "capaian": 87.52008569898231,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "27",
+          "aspek": "IV",
+          "deskripsi": "Direksi menyusun perencanaan perusahaan.",
+          "jumlah_parameter": 5,
+          "bobot": 4.044,
+          "skor": 3.772,
+          "capaian": 93.27398615232444,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "28",
+          "aspek": "IV",
+          "deskripsi": "Direksi berperan dalam pemenuhan target kinerja perusahaan.",
+          "jumlah_parameter": 11,
+          "bobot": 8.089,
+          "skor": 7.204,
+          "capaian": 89.05921621955741,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "29",
+          "aspek": "IV",
+          "deskripsi": "Direksi melaksanakan pengendalian operasional dan keuangan terhadap implementasi rencana dan kebijakan perusahaan.",
+          "jumlah_parameter": 4,
+          "bobot": 3.266,
+          "skor": 2.916,
+          "capaian": 89.28352725045927,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "30",
+          "aspek": "IV",
+          "deskripsi": "Direksi melaksanakan pengurusan perusahaan sesuai dengan peraturan perundang-undangan yang berlaku dan anggaran dasar.",
+          "jumlah_parameter": 2,
+          "bobot": 0.778,
+          "skor": 0.778,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "31",
+          "aspek": "IV",
+          "deskripsi": "Direksi melakukan hubungan yang bernilai tambah bagi perusahaan dan stakeholders.",
+          "jumlah_parameter": 8,
+          "bobot": 6.689,
+          "skor": 6.038,
+          "capaian": 90.2676035281806,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "32",
+          "aspek": "IV",
+          "deskripsi": "Direksi memonitor dan mengelola potensi benturan kepentingan anggota Direksi dan manajemen di bawah Direksi.",
+          "jumlah_parameter": 2,
+          "bobot": 1.089,
+          "skor": 1.05,
+          "capaian": 96.41873278236915,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "33",
+          "aspek": "IV",
+          "deskripsi": "Direksi memastikan perusahaan melaksanakan keterbukaan informasi dan komunikasi sesuai peraturan perundang-undangan yang berlaku dan penyampaian informasi kepada Dewan Komisaris/Dewan Pengawas dan Pemegang Saham tepat waktu.",
+          "jumlah_parameter": 2,
+          "bobot": 1.089,
+          "skor": 0.91,
+          "capaian": 83.56290174471994,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "34",
+          "aspek": "IV",
+          "deskripsi": "Direksi menyelenggarakan rapat Direksi dan menghadiri Rapat Dewan Komisaris/Dewan Pengawas sesuai dengan ketentuan perundang-undangan.",
+          "jumlah_parameter": 5,
+          "bobot": 1.556,
+          "skor": 1.439,
+          "capaian": 92.48071979434448,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "35",
+          "aspek": "IV",
+          "deskripsi": "Direksi menyelenggarakan pengawasan intern yang berkualitas dan efektif.",
+          "jumlah_parameter": 3,
+          "bobot": 1.711,
+          "skor": 1.505,
+          "capaian": 87.96025715955581,
+          "penjelasan": "Baik"
+        },
+        {
+          "id": "36",
+          "aspek": "IV",
+          "deskripsi": "Direksi menyelenggarakan fungsi sekretaris perusahaan yang berkualitas dan efektif.",
+          "jumlah_parameter": 3,
+          "bobot": 1.711,
+          "skor": 1.283,
+          "capaian": 74.98538866160139,
+          "penjelasan": "Cukup Baik"
+        },
+        {
+          "id": "37",
+          "aspek": "IV",
+          "deskripsi": "Direksi menyelenggarakan RUPS Tahunan dan RUPS lainnya sesuai peraturan perundang-undangan.",
+          "jumlah_parameter": 2,
+          "bobot": 2.022,
+          "skor": 1.439,
+          "capaian": 71.16716122650841,
+          "penjelasan": "Cukup Baik"
+        },
+        {
+          "id": "38",
+          "aspek": "V",
+          "deskripsi": "Perusahaan menyediakan informasi perusahaan kepada stakeholders.",
+          "jumlah_parameter": 2,
+          "bobot": 0.435,
+          "skor": 0.435,
+          "capaian": 100,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "39",
+          "aspek": "V",
+          "deskripsi": "Perusahaan menyediakan bagi stakeholder akses atas informasi perusahaan yang relevan, memadai, dan dapat diandalkan secara tepat waktu dan berkala.",
+          "jumlah_parameter": 5,
+          "bobot": 2.32,
+          "skor": 2.222,
+          "capaian": 95.77586206896552,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "40",
+          "aspek": "V",
+          "deskripsi": "Perusahaan mengungkapkan informasi penting dalam Laporan Tahunan dan Laporan Keuangan sesuai dengan peraturan perundang-undangan.",
+          "jumlah_parameter": 7,
+          "bobot": 3.341,
+          "skor": 3.078,
+          "capaian": 92.12810535767734,
+          "penjelasan": "Sangat Baik"
+        },
+        {
+          "id": "41",
+          "aspek": "V",
+          "deskripsi": "Perusahaan memperolah penghargaan atau award dalam bidang GCG dan bidang-bidang lainnya.",
+          "jumlah_parameter": 2,
+          "bobot": 2.904,
+          "skor": 1.452,
+          "capaian": 50,
+          "penjelasan": "Sangat Kurang"
+        },
+        {
+          "id": "42",
+          "aspek": "VI",
+          "deskripsi": "Praktik Tata Kelola Perusahaan menjadi contoh atau benchmark bagi perusahaan perusahaan lainnya di Indonesia;",
+          "jumlah_parameter": 1,
+          "bobot": 5,
+          "skor": 0,
+          "capaian": 0,
+          "penjelasan": "Sangat Kurang"
+        },
+        {
+          "id": "43",
+          "aspek": "VI",
+          "deskripsi": "Praktik Tata Kelola Perusahaan menyimpang dari prinsip-prinsip Tata Kelola Perusahaan yang Baik sesuai Pedoman Penerapan Tata Kelola Perusahaan yang Baik (Good Corporate Governance ) pada Badan Usaha Milik Negara, , Pedoman Umum Good Corporate Governance Indonesia, dan standar-standar praktik dan ketentuan lainnya.",
+          "jumlah_parameter": 1,
+          "bobot": -5,
+          "skor": 0,
+          "capaian": 0,
+          "penjelasan": "Sangat Baik"
+        }
+      ],
+      "saved_at": "2025-08-07T14:05:32.355168",
+      "metadata": {
+        "total_indicators": 0,
+        "user_agent": "Mozilla/5.0 (X11; Linux x86_64; rv:141.0) Gecko/20100101 Firefox/141.0"
+      }
+    }
+  ]
+}

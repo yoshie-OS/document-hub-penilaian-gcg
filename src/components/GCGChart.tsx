@@ -355,7 +355,7 @@ const YearlyScoreChart: React.FC<YearlyScoreChartProps> = ({ data, allYears, yea
   );
 };
 
-export const GCGChart: React.FC<GCGChartProps> = ({ data, onBarClick, barWidth, barGap, chartMode = 'aspek', setChartMode }) => {
+export const GCGChart: React.FC<GCGChartProps> = ({ data, onBarClick, barWidth: propBarWidth, barGap: propBarGap, chartMode = 'aspek', setChartMode }) => {
   const [hovered, setHovered] = React.useState<{year:number, section:string}|null>(null);
   const [hoveredBar, setHoveredBar] = React.useState<number|null>(null);
   const [selectedYear, setSelectedYear] = React.useState<number|null>(null);
@@ -389,9 +389,23 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, onBarClick, barWidth, 
     window.addEventListener('gcgBackToAspek', handleBack);
     return () => window.removeEventListener('gcgBackToAspek', handleBack);
   }, []);
-  // Default bar width & gap
-  const defaultBarWidth = 18;
-  const defaultBarGap = 4;
+  
+  // Default bar width & gap, can be overridden by props
+  let barWidth = propBarWidth ?? 18;
+  let barGap = propBarGap ?? 4;
+
+  // Jika rentang tahun 1-5, buat bar lebih lebar
+  const numberOfYears = yearFilter ? yearFilter.end - yearFilter.start + 1 : 0;
+  if (chartMode === 'aspek' && numberOfYears > 0 && numberOfYears <= 5) {
+    // Semakin sedikit tahun, semakin lebar barnya
+    if (numberOfYears <= 2) {
+      barWidth = 40;
+      barGap = 10;
+    } else { // 3 to 5 years
+      barWidth = 30;
+      barGap = 8;
+    }
+  }
 
   if (!data || data.length === 0) {
     return (
@@ -585,22 +599,27 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, onBarClick, barWidth, 
 
                         {/* Chart content */}
                         <div className="flex flex-col items-center w-full">
-                          <div className="flex flex-row items-end justify-start h-[320px] gap-5" style={{ marginLeft: '-100px' }}>
-                            {row.map((yearData) => (
+                          <div className="flex flex-row items-baseline justify-start gap-5" style={{ marginLeft: '-100px', minHeight: '320px' }}>
+                            {row.map((yearData) => {
+                              const yearWidth = barWidth * yearData.sections.length + barGap * (yearData.sections.length - 1);
+                              const hoverBoxWidth = yearWidth + 26;
+                              const hoverBoxLeft = -13;
+
+                              return (
                               <div
                                 key={yearData.year}
                                 className="flex flex-col items-center h-full cursor-pointer group"
-                                style={{ minWidth: `${(barWidth ?? defaultBarWidth) * yearData.sections.length + (barGap ?? defaultBarGap) * (yearData.sections.length - 1)}px`, position: 'relative' }}
+                                style={{ minWidth: `${yearWidth}px`, position: 'relative' }}
                                 onClick={(e) => handleBarClick(e, yearData)}
                               >
                                 <div
                                   className="rounded-lg"
                                   style={{
                                     position: 'absolute',
-                                    left: -13,
+                                    left: hoverBoxLeft,
                                     top: -25,
-                                    width: '120%',
-                                    height: '344px',
+                                    width: `${hoverBoxWidth}px`,
+                                    height: 'calc(100% + 30px)',
                                     background: 'transparent',
                                     border: hoveredBar === yearData.year ? '2px solid #ffffffff' : '2px solid transparent',
                                     boxSizing: 'border-box',
@@ -612,7 +631,7 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, onBarClick, barWidth, 
                                 />
                                 <div
                                   className="relative w-full h-[240px] transition group-hover:scale-[1.03]"
-                                  style={{ gap: `${barGap ?? defaultBarGap}px`, zIndex: 2, top: CHART_VERTICAL_PADDING }}
+                                  style={{ gap: `${barGap}px`, zIndex: 2, top: CHART_VERTICAL_PADDING }}
                                   onMouseEnter={() => setHoveredBar(yearData.year)}
                                   onMouseLeave={() => setHoveredBar(null)}
                                 >
@@ -626,7 +645,7 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, onBarClick, barWidth, 
                                     const barY = capaian >= 0 ? barTopY : zeroY;
 
                                     const capaianLabel = String(Math.round(section.capaian));
-                                    const barX = (yearData.sections.length - 1 - sectionIdx) * ((barWidth ?? defaultBarWidth) + (barGap ?? defaultBarGap));
+                                    const barX = (yearData.sections.length - 1 - sectionIdx) * (barWidth + barGap);
                                     
                                     return (
                                       <div
@@ -634,7 +653,7 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, onBarClick, barWidth, 
                                         style={{
                                           position: 'absolute',
                                           left: barX,
-                                          width: `${barWidth ?? defaultBarWidth}px`,
+                                          width: `${barWidth}px`,
                                           height: `${chartHeight}px`,
                                           cursor: 'pointer',
                                           transition: 'transform 0.2s ease-out',
@@ -691,11 +710,11 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, onBarClick, barWidth, 
                                   onMouseLeave={() => setHoveredBar(null)}
                                 >
                                   <span className="block text-xs font-medium text-center group-hover:underline group-hover:text-blue-700 transition">{yearData.year}</span>
-                                  <div className="flex flex-col items-center text-[11px] text-muted-foreground w-full" style={{ height: '45px' }}>
+                                  <div className="flex flex-col items-center text-[11px] text-muted-foreground w-full" style={{ paddingBottom: '5px' }}>
                                     <span
                                       style={{
                                         display: 'block',
-                                        maxWidth: `${(barWidth ?? defaultBarWidth) * yearData.sections.length + (barGap ?? defaultBarGap) * (yearData.sections.length - 1)}px`,
+                                        maxWidth: `${yearWidth}px`,
                                         width: '100%',
                                         wordBreak: 'break-word',
                                         whiteSpace: 'pre-line',
@@ -712,7 +731,8 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, onBarClick, barWidth, 
                                   </div>
                                 </div>
                               </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         </div>
                       </div>
@@ -724,7 +744,7 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, onBarClick, barWidth, 
           </div>
 
           {/* Area deskripsi aspek split 3 kolom: kiri, tengah, kanan (tabel kosong) */}
-          <div className="mt-7 pl-11 pr-11 w-full rounded-lg pt-3">
+          <div className="mt-7 pl-11 pr-11 w-full rounded-lg pt-2">
             <div className="flex flex-row w-full gap-0">
               {/* Kiri: semua DonutChart aspek I-VI, 2/5 width */}
               <div className="basis-[40%] flex flex-col gap-2 items-end pr-0 bg-blue-50/10">

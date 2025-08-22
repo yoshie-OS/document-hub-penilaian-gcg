@@ -479,7 +479,7 @@ def save_assessment():
         assessment_id = f"{data.get('year', 'unknown')}_{data.get('auditor', 'unknown')}_{str(uuid.uuid4())[:8]}"
         saved_at = datetime.now().isoformat()
         
-        output_xlsx_path = Path(project_root) / 'data' / 'output' / 'web-output' / 'output.xlsx'
+        output_xlsx_path = Path(__file__).parent.parent / 'web-output' / 'output.xlsx'
         
         # Load existing XLSX data and COMPLETELY REPLACE year's data (including deletions)
         all_rows = []
@@ -660,7 +660,7 @@ def load_assessment_by_year(year):
     Load assessment data for a specific year from output.xlsx
     """
     try:
-        output_xlsx_path = Path(project_root) / 'data' / 'output' / 'web-output' / 'output.xlsx'
+        output_xlsx_path = Path(__file__).parent.parent / 'web-output' / 'output.xlsx'
         
         if not output_xlsx_path.exists():
             return jsonify({
@@ -779,7 +779,7 @@ def get_dashboard_data():
     Get all assessment data from output.xlsx for dashboard visualization
     """
     try:
-        output_xlsx_path = Path(project_root) / 'data' / 'output' / 'web-output' / 'output.xlsx'
+        output_xlsx_path = Path(__file__).parent.parent / 'web-output' / 'output.xlsx'
         
         if not output_xlsx_path.exists():
             return jsonify({
@@ -859,6 +859,120 @@ def get_dashboard_data():
         }), 500
 
 
+@app.route('/api/aspek-data', methods=['GET'])
+def get_aspek_data():
+    """
+    Get hybrid data (subtotal + header) for aspek summary table
+    """
+    try:
+        output_xlsx_path = Path(__file__).parent.parent / 'web-output' / 'output.xlsx'
+        
+        if not output_xlsx_path.exists():
+            return jsonify({
+                'success': False,
+                'data': [],
+                'message': 'No data available'
+            })
+        
+        # Read XLSX data
+        df = pd.read_excel(output_xlsx_path)
+        
+        # Create hybrid data: subtotal numeric data + header descriptions
+        subtotal_rows = df[df['Type'] == 'subtotal']
+        header_rows = df[df['Type'] == 'header']
+        
+        # Convert to frontend format by combining subtotal + header data
+        indicators = []
+        for _, subtotal_row in subtotal_rows.iterrows():
+            # Find matching header row by Section and Year
+            matching_header = header_rows[
+                (header_rows['Section'] == subtotal_row['Section']) & 
+                (header_rows['Tahun'] == subtotal_row['Tahun'])
+            ]
+            
+            # Use header description if found, otherwise subtotal description
+            deskripsi = subtotal_row['Deskripsi']  # fallback
+            if not matching_header.empty:
+                deskripsi = matching_header.iloc[0]['Deskripsi']
+            indicators.append({
+                'id': str(subtotal_row.get('No', '')),
+                'aspek': str(subtotal_row.get('Section', '')),
+                'deskripsi': deskripsi,  # Use header description
+                'jumlah_parameter': int(subtotal_row.get('Jumlah_Parameter', 0)) if pd.notna(subtotal_row.get('Jumlah_Parameter')) else 0,
+                'bobot': float(subtotal_row.get('Bobot', 0)) if pd.notna(subtotal_row.get('Bobot')) else 0,
+                'skor': float(subtotal_row.get('Skor', 0)) if pd.notna(subtotal_row.get('Skor')) else 0,
+                'capaian': float(subtotal_row.get('Capaian', 0)) if pd.notna(subtotal_row.get('Capaian')) else 0,
+                'penjelasan': str(subtotal_row.get('Penjelasan', 'Tidak Baik')),
+                'tahun': int(subtotal_row.get('Tahun', 0)) if pd.notna(subtotal_row.get('Tahun')) else 0
+            })
+        
+        return jsonify({
+            'success': True,
+            'data': indicators,
+            'total': len(indicators),
+            'message': f'Loaded {len(indicators)} aspek records'
+        })
+        
+    except Exception as e:
+        print(f"❌ Error loading aspek data: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'data': []
+        }), 500
+
+
+@app.route('/api/indicator-data', methods=['GET'])
+def get_indicator_data():
+    """
+    Get pure indicator data for detailed bottom table
+    """
+    try:
+        output_xlsx_path = Path(__file__).parent.parent / 'web-output' / 'output.xlsx'
+        
+        if not output_xlsx_path.exists():
+            return jsonify({
+                'success': False,
+                'data': [],
+                'message': 'No data available'
+            })
+        
+        # Read XLSX data
+        df = pd.read_excel(output_xlsx_path)
+        
+        # Filter only indicator rows
+        indicator_rows = df[df['Type'] == 'indicator']
+        
+        # Convert to frontend format
+        indicators = []
+        for _, row in indicator_rows.iterrows():
+            indicators.append({
+                'id': str(row.get('No', '')),
+                'aspek': str(row.get('Section', '')),
+                'deskripsi': str(row.get('Deskripsi', '')),
+                'jumlah_parameter': int(row.get('Jumlah_Parameter', 0)) if pd.notna(row.get('Jumlah_Parameter')) else 0,
+                'bobot': float(row.get('Bobot', 0)) if pd.notna(row.get('Bobot')) else 0,
+                'skor': float(row.get('Skor', 0)) if pd.notna(row.get('Skor')) else 0,
+                'capaian': float(row.get('Capaian', 0)) if pd.notna(row.get('Capaian')) else 0,
+                'penjelasan': str(row.get('Penjelasan', 'Tidak Baik')),
+                'tahun': int(row.get('Tahun', 0)) if pd.notna(row.get('Tahun')) else 0
+            })
+        
+        return jsonify({
+            'success': True,
+            'data': indicators,
+            'total': len(indicators),
+            'message': f'Loaded {len(indicators)} indicator records'
+        })
+        
+    except Exception as e:
+        print(f"❌ Error loading indicator data: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'data': []
+        }), 500
+
 @app.route('/api/gcg-chart-data', methods=['GET'])
 def get_gcg_chart_data():
     """
@@ -866,7 +980,7 @@ def get_gcg_chart_data():
     Returns data with Level hierarchy as expected by processGCGData function
     """
     try:
-        output_xlsx_path = Path(project_root) / 'data' / 'output' / 'web-output' / 'output.xlsx'
+        output_xlsx_path = Path(__file__).parent.parent / 'web-output' / 'output.xlsx'
         
         if not output_xlsx_path.exists():
             return jsonify({
@@ -943,7 +1057,7 @@ def get_gcg_mapping():
     """
     try:
         # Path to GCG mapping CSV file
-        gcg_mapping_path = Path(project_root) / 'GCG_MAPPING.csv'
+        gcg_mapping_path = Path(__file__).parent.parent / 'GCG_MAPPING.csv'
         
         if not gcg_mapping_path.exists():
             print(f"⚠️ GCG_MAPPING.csv not found at: {gcg_mapping_path}")
