@@ -46,8 +46,8 @@ const DashboardAdmin = () => {
   const { selectedYear, setSelectedYear, availableYears } = useYear();
   const { user } = useUser();
   const { checklist } = useChecklist();
-  const { getFilesByYear } = useFileUpload();
-  const { documents, getDocumentsByYear: getDocumentsByYearFromContext } = useDocumentMetadata();
+  const { getFilesByYear, refreshFiles } = useFileUpload();
+  const { documents, getDocumentsByYear: getDocumentsByYearFromContext, refreshDocuments } = useDocumentMetadata();
   const [searchParams] = useSearchParams();
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [selectedChecklist, setSelectedChecklist] = useState<any>(null);
@@ -77,7 +77,7 @@ const DashboardAdmin = () => {
   }, [filterYear, selectedYear, setSelectedYear]);
 
   // Get assigned checklists for this user's subdirektorat
-  const getAssignedChecklists = () => {
+  const getAssignedChecklists = useCallback(() => {
     try {
       const assignments = localStorage.getItem('checklistAssignments');
       if (!assignments) {
@@ -95,25 +95,82 @@ const DashboardAdmin = () => {
       );
       
       console.log('Filtered assignments for', userSubDirektorat, 'year', selectedYear, ':', filtered);
+      
+      // If no assignments found, create default assignments based on checklist data
+      if (filtered.length === 0 && selectedYear) {
+        const yearChecklist = checklist.filter(item => item.tahun === selectedYear);
+        const defaultAssignments = yearChecklist.map(item => ({
+          id: Date.now() + Math.random(),
+          checklistId: item.id,
+          subdirektorat: userSubDirektorat,
+          aspek: item.aspek,
+          deskripsi: item.deskripsi,
+          tahun: selectedYear,
+          assignedBy: 'System',
+          assignedAt: new Date(),
+          status: 'assigned' as const
+        }));
+        
+        console.log('Created default assignments:', defaultAssignments);
+        return defaultAssignments;
+      }
+      
       return filtered;
     } catch (error) {
       console.error('Error getting assigned checklists:', error);
       return [];
     }
-  };
+  }, [selectedYear, userSubDirektorat, checklist]);
 
   // Get user documents for selected year and sub-direktorat
-  const getUserDocuments = () => {
+  const getUserDocuments = useCallback(() => {
     try {
-      const documents = localStorage.getItem('documents');
-      if (!documents) {
-        console.log('No documents found in localStorage');
-        return [];
-      }
-      const documentsList = JSON.parse(documents);
-      console.log('All documents:', documentsList);
+      // Get documents from both localStorage and FileUploadContext
+      const documents = localStorage.getItem('documentMetadata'); // Fixed: use correct key
+      const uploadedFiles = localStorage.getItem('uploadedFiles');
       
-      const filtered = documentsList.filter((doc: any) => 
+      let allDocuments: any[] = [];
+      
+      // Add documents from localStorage (DocumentMetadataContext)
+      if (documents) {
+        const documentsList = JSON.parse(documents);
+        const mappedDocuments = documentsList
+          .filter((doc: any) => doc.year === selectedYear)
+          .map((doc: any) => ({
+            id: doc.id,
+            namaFile: doc.fileName,
+            aspek: doc.aspect || doc.documentCategory || 'GCG',
+            subdirektorat: doc.subdirektorat,
+            tahun: doc.year,
+            uploadDate: doc.uploadDate,
+            checklistId: doc.checklistId,
+            status: 'uploaded'
+          }));
+        allDocuments = [...allDocuments, ...mappedDocuments];
+      }
+      
+      // Add uploaded files from FileUploadContext
+      if (uploadedFiles) {
+        const filesList = JSON.parse(uploadedFiles);
+        const fileDocuments = filesList
+          .filter((file: any) => file.year === selectedYear)
+          .map((file: any) => ({
+            id: file.id,
+            namaFile: file.fileName,
+            aspek: file.aspect || 'GCG',
+            subdirektorat: userSubDirektorat, // Admin documents are for their subdirektorat
+            tahun: file.year,
+            uploadDate: file.uploadDate,
+            checklistId: file.checklistId,
+            status: 'uploaded'
+          }));
+        allDocuments = [...allDocuments, ...fileDocuments];
+      }
+      
+      console.log('All documents (documentMetadata + uploadedFiles):', allDocuments);
+      
+      // Filter by year and subdirektorat
+      const filtered = allDocuments.filter((doc: any) => 
         doc.tahun === selectedYear && doc.subdirektorat === userSubDirektorat
       );
       
@@ -123,26 +180,26 @@ const DashboardAdmin = () => {
       console.error('Error getting user documents:', error);
       return [];
     }
-  };
+  }, [selectedYear, userSubDirektorat]);
 
   // Get all documents for a specific year (for previous years view)
-  const getAllDocumentsForYear = (year: number) => {
+  const getAllDocumentsForYear = useCallback((year: number) => {
     try {
-      const documents = localStorage.getItem('documents');
+      const documents = localStorage.getItem('documentMetadata'); // Fixed: use correct key
       if (!documents) {
         console.log('No documents found in localStorage');
         return [];
       }
       const documentsList = JSON.parse(documents);
       
-      const filtered = documentsList.filter((doc: any) => doc.tahun === year);
+      const filtered = documentsList.filter((doc: any) => doc.year === year);
       console.log('All documents for year', year, ':', filtered);
       return filtered;
     } catch (error) {
       console.error('Error getting all documents for year:', error);
       return [];
     }
-  };
+  }, []);
 
   // Check if selected year is the current/latest year
   const isCurrentYear = selectedYear === Math.max(...availableYears);
@@ -187,24 +244,59 @@ const DashboardAdmin = () => {
     );
   };
 
+  // Get user documents with memoization and force update (moved up)
+  const userDocuments = useMemo(() => {
+    const docs = getUserDocuments();
+    console.log('UserDocuments updated:', docs.length, 'documents for', userSubDirektorat, 'year', selectedYear);
+    return docs;
+  }, [selectedYear, userSubDirektorat, forceUpdate]);
+
+  // Get assigned checklists for table display (moved up)
+  const getAssignedChecklistsForTable = useMemo(() => {
+    if (!selectedYear) return [];
+
+    const assigned = getAssignedChecklists();
+    console.log('Assigned checklists for table:', assigned);
+
+    return assigned.map(assignment => {
+      const checklistItem = checklist.find(c => c.id === assignment.checklistId);
+      const hasDocument = userDocuments.some(doc => 
+        doc.checklistId === assignment.checklistId
+      );
+      const uploadedDocument = userDocuments.find(doc => 
+        doc.checklistId === assignment.checklistId
+      );
+
+      const result = {
+        ...assignment,
+        checklistItem,
+        status: hasDocument ? 'uploaded' : 'not_uploaded' as 'uploaded' | 'not_uploaded',
+        uploadedDocument
+      };
+      
+      console.log('Mapped checklist item:', result);
+      return result;
+    });
+  }, [selectedYear, checklist, userDocuments, userSubDirektorat, forceUpdate]);
+
   // Get filtered and sorted documents for current year
-  const getFilteredUserDocuments = () => {
+  const getFilteredUserDocuments = useCallback(() => {
     const filtered = filterData(userDocuments, searchQuery, ['namaFile', 'aspek', 'subdirektorat']);
     return sortData(filtered, sortField, sortDirection);
-  };
+  }, [userDocuments, searchQuery, sortField, sortDirection]);
 
   // Get filtered and sorted documents for previous years
-  const getFilteredAllDocuments = () => {
+  const getFilteredAllDocuments = useCallback(() => {
     const allDocs = getAllDocumentsForYear(selectedYear);
     const filtered = filterData(allDocs, searchQuery, ['namaFile', 'aspek', 'subdirektorat']);
     return sortData(filtered, sortField, sortDirection);
-  };
+  }, [getAllDocumentsForYear, selectedYear, searchQuery, sortField, sortDirection]);
 
   // Get filtered and sorted checklist items
-  const getFilteredChecklistItems = () => {
+  const getFilteredChecklistItems = useCallback(() => {
     const filtered = filterData(getAssignedChecklistsForTable, checklistSearchQuery, ['aspek', 'deskripsi']);
     return sortData(filtered, checklistSortField, checklistSortDirection);
-  };
+  }, [getAssignedChecklistsForTable, checklistSearchQuery, checklistSortField, checklistSortDirection]);
 
   // Mock data for testing
   const generateMockData = () => {
@@ -373,20 +465,53 @@ const DashboardAdmin = () => {
     setForceUpdate(prev => prev + 1);
   };
 
-  // Get user documents with memoization and force update
-  const userDocuments = useMemo(() => {
-    return getUserDocuments();
-  }, [selectedYear, userSubDirektorat, forceUpdate]);
+  // userDocuments sudah dipindah ke atas untuk menghindari error initialization
 
   // Manual refresh function for statistics
-  const refreshStatistics = useCallback(() => {
+  const refreshStatistics = useCallback(async () => {
     console.log('Manual refresh triggered');
+    
+    // Show loading state
     setForceUpdate(prev => prev + 1);
-  }, []);
+    
+    // Refresh context data first
+    try {
+      await Promise.all([
+        refreshFiles(),
+        refreshDocuments()
+      ]);
+      console.log('Manual refresh: Context data refreshed successfully');
+    } catch (error) {
+      console.error('Manual refresh: Error refreshing context data:', error);
+    }
+    
+    // Force multiple updates to ensure all data is processed
+    setForceUpdate(prev => prev + 1);
+    
+    setTimeout(() => {
+      setForceUpdate(prev => prev + 1);
+    }, 200);
+    
+    setTimeout(() => {
+      setForceUpdate(prev => prev + 1);
+    }, 500);
+  }, [refreshFiles, refreshDocuments]);
 
   // Enhanced data update handler
-  const handleDataUpdate = useCallback(() => {
+  const handleDataUpdate = useCallback(async () => {
     console.log('Enhanced data update triggered');
+    
+    // Refresh data from contexts first
+    try {
+      await Promise.all([
+        refreshFiles(),
+        refreshDocuments()
+      ]);
+      console.log('Context data refreshed successfully in handleDataUpdate');
+    } catch (error) {
+      console.error('Error refreshing context data in handleDataUpdate:', error);
+    }
+    
     // Force immediate re-render
     setForceUpdate(prev => prev + 1);
     
@@ -394,11 +519,28 @@ const DashboardAdmin = () => {
     setTimeout(() => {
       setForceUpdate(prev => prev + 1);
     }, 100);
-  }, []);
+    
+    // Additional update after 500ms to ensure all data is loaded
+    setTimeout(() => {
+      setForceUpdate(prev => prev + 1);
+    }, 500);
+  }, [refreshFiles, refreshDocuments]);
 
   // Specific handler for file uploads
-  const handleFileUploadSuccess = useCallback(() => {
+  const handleFileUploadSuccess = useCallback(async () => {
     console.log('File upload success detected, updating statistics');
+    
+    // Refresh data from contexts first
+    try {
+      await Promise.all([
+        refreshFiles(),
+        refreshDocuments()
+      ]);
+      console.log('Context data refreshed successfully');
+    } catch (error) {
+      console.error('Error refreshing context data:', error);
+    }
+    
     // Force immediate update
     setForceUpdate(prev => prev + 1);
     
@@ -410,7 +552,12 @@ const DashboardAdmin = () => {
     setTimeout(() => {
       setForceUpdate(prev => prev + 1);
     }, 500);
-  }, []);
+    
+    // Final update after 1 second to ensure all data is loaded
+    setTimeout(() => {
+      setForceUpdate(prev => prev + 1);
+    }, 1000);
+  }, [refreshFiles, refreshDocuments]);
 
   // Listen for data updates
   useEffect(() => {
@@ -435,10 +582,14 @@ const DashboardAdmin = () => {
     window.addEventListener('fileUploaded', handleFileUpload);
     window.addEventListener('checklistUpdated', handleDataUpdateEvent);
     window.addEventListener('userDataUpdated', handleDataUpdateEvent);
+    
+    // Listen to additional events for better synchronization
+    window.addEventListener('uploadedFilesChanged', handleDataUpdateEvent);
+    window.addEventListener('checklistAssignmentsChanged', handleDataUpdateEvent);
 
     // Also listen to storage changes for real-time updates
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'checklistAssignments' || e.key === 'documents' || e.key === 'checklist') {
+      if (e.key === 'checklistAssignments' || e.key === 'documentMetadata' || e.key === 'checklist' || e.key === 'uploadedFiles') {
         console.log('Storage change detected:', e.key, 'forcing re-render');
         handleDataUpdate();
       }
@@ -452,6 +603,8 @@ const DashboardAdmin = () => {
       window.removeEventListener('fileUploaded', handleFileUpload);
       window.removeEventListener('checklistUpdated', handleDataUpdateEvent);
       window.removeEventListener('userDataUpdated', handleDataUpdateEvent);
+      window.removeEventListener('uploadedFilesChanged', handleDataUpdateEvent);
+      window.removeEventListener('checklistAssignmentsChanged', handleDataUpdateEvent);
       window.removeEventListener('storage', handleStorageChange);
     };
   }, [handleDataUpdate, handleFileUploadSuccess]);
@@ -472,28 +625,44 @@ const DashboardAdmin = () => {
     }
   }, [selectedYear]);
 
-  // Periodic refresh for real-time updates (every 5 seconds)
+  // Periodic refresh for real-time updates (every 3 seconds for better responsiveness)
   useEffect(() => {
-    const interval = setInterval(() => {
+    const interval = setInterval(async () => {
       // Check if there are any changes in localStorage
       const currentAssignments = localStorage.getItem('checklistAssignments');
-      const currentDocuments = localStorage.getItem('documents');
+      const currentDocuments = localStorage.getItem('documentMetadata'); // Fixed: use correct key
+      const currentFiles = localStorage.getItem('uploadedFiles');
       
       // Compare with previous values and update if changed
       if (currentAssignments !== localStorage.getItem('checklistAssignments_prev') ||
-          currentDocuments !== localStorage.getItem('documents_prev')) {
+          currentDocuments !== localStorage.getItem('documentMetadata_prev') ||
+          currentFiles !== localStorage.getItem('uploadedFiles_prev')) {
         
         console.log('Periodic check detected changes, updating statistics');
+        
+        // Refresh context data first
+        try {
+          await Promise.all([
+            refreshFiles(),
+            refreshDocuments()
+          ]);
+          console.log('Periodic refresh: Context data refreshed successfully');
+        } catch (error) {
+          console.error('Periodic refresh: Error refreshing context data:', error);
+        }
+        
+        // Force update
         setForceUpdate(prev => prev + 1);
         
         // Store current values for next comparison
         localStorage.setItem('checklistAssignments_prev', currentAssignments || '');
-        localStorage.setItem('documents_prev', currentDocuments || '');
+        localStorage.setItem('documentMetadata_prev', currentDocuments || '');
+        localStorage.setItem('uploadedFiles_prev', currentFiles || '');
       }
-    }, 5000); // Check every 5 seconds
+    }, 3000); // Check every 3 seconds for better responsiveness
 
     return () => clearInterval(interval);
-  }, []);
+  }, [refreshFiles, refreshDocuments]);
 
   // Debug: Log data for troubleshooting
   useEffect(() => {
@@ -504,7 +673,7 @@ const DashboardAdmin = () => {
         assignments: getAssignedChecklists(),
         documents: getUserDocuments(),
         allAssignments: localStorage.getItem('checklistAssignments'),
-        allDocuments: localStorage.getItem('documents'),
+        allDocuments: localStorage.getItem('documentMetadata'), // Fixed: use correct key
         checklist: checklist.filter(item => item.tahun === selectedYear),
         forceUpdate
       });
@@ -566,7 +735,14 @@ const DashboardAdmin = () => {
     const uploadedCount = userDocuments.length;
     const progress = totalItems > 0 ? Math.round((uploadedCount / totalItems) * 100) : 0;
 
-    console.log('Overall progress:', { totalItems, uploadedCount, progress });
+    console.log('Overall progress calculation:', { 
+      totalItems, 
+      uploadedCount, 
+      progress, 
+      userSubDirektorat, 
+      selectedYear,
+      forceUpdate 
+    });
 
     return {
       aspek: 'KESELURUHAN',
@@ -607,49 +783,20 @@ const DashboardAdmin = () => {
         userDocuments.some(doc => doc.checklistId === assignment.checklistId)
       ).length;
       const progress = totalItems > 0 ? Math.round((uploadedCount / totalItems) * 100) : 0;
-
+      
+      console.log(`Aspect ${aspek} progress:`, { totalItems, uploadedCount, progress });
+      
       return {
         aspek,
         totalItems,
         uploadedCount,
         progress,
-        isAssigned: assignments.length > 0
+        isAssigned: totalItems > 0
       };
-    }).sort((a, b) => {
-      // Sort by assigned first, then by progress
-      if (a.isAssigned && !b.isAssigned) return -1;
-      if (!a.isAssigned && b.isAssigned) return 1;
-      return b.progress - a.progress;
     });
   }, [selectedYear, checklist, userDocuments, forceUpdate, userSubDirektorat]);
 
-  // Get assigned checklists for table display
-  const getAssignedChecklistsForTable = useMemo(() => {
-    if (!selectedYear) return [];
-
-    const assigned = getAssignedChecklists();
-    console.log('Assigned checklists for table:', assigned);
-
-    return assigned.map(assignment => {
-      const checklistItem = checklist.find(c => c.id === assignment.checklistId);
-      const hasDocument = userDocuments.some(doc => 
-        doc.checklistId === assignment.checklistId
-      );
-      const uploadedDocument = userDocuments.find(doc => 
-        doc.checklistId === assignment.checklistId
-      );
-
-      const result = {
-        ...assignment,
-        checklistItem,
-        status: hasDocument ? 'uploaded' : 'not_uploaded' as 'uploaded' | 'not_uploaded',
-        uploadedDocument
-      };
-      
-      console.log('Mapped checklist item:', result);
-      return result;
-    });
-  }, [selectedYear, checklist, userDocuments, userSubDirektorat, forceUpdate]);
+  // getAssignedChecklistsForTable sudah dipindah ke atas untuk menghindari error initialization
 
   // Get aspect colors - Sinkronkan dengan super admin
   const getAspectColor = (aspect: string, progress: number = 0) => {
@@ -834,8 +981,6 @@ const DashboardAdmin = () => {
                       isSidebarOpen={isSidebarOpen}
                       title=""
                       description=""
-                      maxCardsInSlider={4}
-                      showViewAllButton={true}
                       showOverallProgress={true}
                     />
                   </div>

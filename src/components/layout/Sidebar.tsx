@@ -33,26 +33,23 @@ const Sidebar = () => {
 
   // No longer need auto-expand logic since there are no submenus
 
-  const menuItems: MenuItem[] = [
-    { 
-      name: 'Dashboard', 
-      icon: LayoutDashboard, 
-      path: '/dashboard',
-      badge: null
-    },
+  const menuItems: MenuItem[] = [];
 
-    { 
-      name: 'Performa GCG', 
-      icon: BarChart3, 
-      path: '/performa-gcg',
-      badge: null,
-      badgeIcon: Lock
-    }
-  ];
-
-  // Tambahkan menu Super Admin hanya untuk Super Admin
+  // Tambahkan menu Super Admin dengan urutan yang diminta
   if (user?.role === 'superadmin') {
     menuItems.push(
+      {
+        name: 'Pengaturan Baru',
+        icon: Settings,
+        path: '/admin/pengaturan-baru',
+        badgeIcon: Lock
+      },
+      { 
+        name: 'Dashboard', 
+        icon: LayoutDashboard, 
+        path: '/dashboard',
+        badge: null
+      },
       {
         name: 'Monitoring & Upload GCG',
         icon: PanelLeft,
@@ -65,11 +62,22 @@ const Sidebar = () => {
         path: '/admin/arsip-dokumen',
         badgeIcon: Lock
       },
-      {
-        name: 'Pengaturan Baru',
-        icon: Settings,
-        path: '/admin/pengaturan-baru',
+      { 
+        name: 'Performa GCG', 
+        icon: BarChart3, 
+        path: '/performa-gcg',
+        badge: null,
         badgeIcon: Lock
+      }
+    );
+  } else {
+    // Untuk user non-superadmin, hanya dashboard
+    menuItems.push(
+      { 
+        name: 'Dashboard', 
+        icon: LayoutDashboard, 
+        path: '/dashboard',
+        badge: null
       }
     );
   }
@@ -125,15 +133,7 @@ const Sidebar = () => {
         {/* Menu Items */}
         <nav className="mt-6 pb-20">
           <div className="px-4 space-y-1">
-            {menuItems
-              .filter(item => {
-                      // Hide Performa GCG menu if user is not superadmin
-      if (item.name === 'Performa GCG' && user?.role !== 'superadmin') {
-                  return false;
-                }
-                return true;
-              })
-              .map((item) => {
+            {menuItems.map((item) => {
               const Icon = item.icon;
               const active = isActive(item.path);
               

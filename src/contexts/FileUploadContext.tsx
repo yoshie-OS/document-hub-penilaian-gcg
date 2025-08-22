@@ -50,6 +50,23 @@ export const FileUploadProvider: React.FC<{ children: ReactNode }> = ({ children
     localStorage.setItem('uploadedFiles', JSON.stringify(uploadedFiles));
   }, [uploadedFiles]);
 
+  // Listen for year data cleanup events
+  useEffect(() => {
+    const handleYearDataCleaned = (event: CustomEvent) => {
+      if (event.detail?.type === 'yearRemoved') {
+        const removedYear = event.detail.year;
+        console.log(`FileUploadContext: Year ${removedYear} data cleaned up, refreshing files`);
+        refreshFiles();
+      }
+    };
+
+    window.addEventListener('yearDataCleaned', handleYearDataCleaned as EventListener);
+    
+    return () => {
+      window.removeEventListener('yearDataCleaned', handleYearDataCleaned as EventListener);
+    };
+  }, []);
+
   const uploadFile = (file: File, year: number, checklistId?: number, checklistDescription?: string, aspect?: string) => {
     const newFile: UploadedFile = {
       id: Date.now().toString() + Math.random().toString(36).substr(2, 9),

@@ -99,12 +99,43 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
       }
     };
 
+    // Listen for year data cleanup events
+    const handleYearDataCleaned = (event: CustomEvent) => {
+      if (event.detail?.type === 'yearRemoved') {
+        const removedYear = event.detail.year;
+        console.log(`ChecklistContext: Year ${removedYear} data cleaned up, refreshing local state`);
+        
+        // Refresh data from localStorage to ensure consistency
+        const storedChecklist = localStorage.getItem('checklistGCG');
+        if (storedChecklist) {
+          try {
+            const parsed = JSON.parse(storedChecklist);
+            setChecklist(parsed);
+          } catch (error) {
+            console.error('ChecklistContext: Error refreshing checklist after year cleanup', error);
+          }
+        }
+        
+        const storedAspects = localStorage.getItem('aspects');
+        if (storedAspects) {
+          try {
+            const parsed = JSON.parse(storedAspects);
+            setAspects(parsed);
+          } catch (error) {
+            console.error('ChecklistContext: Error refreshing aspects after year cleanup', error);
+          }
+        }
+      }
+    };
+
     window.addEventListener('checklistUpdated', handleChecklistUpdate as EventListener);
     window.addEventListener('aspectsUpdated', handleAspectsUpdate as EventListener);
+    window.addEventListener('yearDataCleaned', handleYearDataCleaned as EventListener);
     
     return () => {
       window.removeEventListener('checklistUpdated', handleChecklistUpdate as EventListener);
       window.removeEventListener('aspectsUpdated', handleAspectsUpdate as EventListener);
+      window.removeEventListener('yearDataCleaned', handleYearDataCleaned as EventListener);
     };
   }, []);
 

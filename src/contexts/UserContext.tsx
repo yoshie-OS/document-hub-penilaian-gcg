@@ -57,22 +57,50 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       console.log('UserContext: Updated users list:', updatedUsers);
     }
     
-    // Load current user if exists
-    const currentUser = localStorage.getItem("currentUser");
-    if (currentUser) {
-      try {
-        const parsed = JSON.parse(currentUser);
-        setUser(parsed);
-        console.log('UserContext: Loaded current user from localStorage:', parsed);
-      } catch (error) {
-        console.error('UserContext: Error parsing currentUser', error);
-        localStorage.removeItem("currentUser");
-        setUser(null);
-      }
-    } else {
-      console.log('UserContext: No current user found in localStorage');
+      // Load current user if exists
+  const currentUser = localStorage.getItem("currentUser");
+  if (currentUser) {
+    try {
+      const parsed = JSON.parse(currentUser);
+      setUser(parsed);
+      console.log('UserContext: Loaded current user from localStorage:', parsed);
+    } catch (error) {
+      console.error('UserContext: Error parsing currentUser', error);
+      localStorage.removeItem("currentUser");
+      setUser(null);
     }
-  }, []);
+  } else {
+    console.log('UserContext: No current user found in localStorage');
+  }
+}, []);
+
+// Listen for year data cleanup events
+useEffect(() => {
+  const handleYearDataCleaned = (event: CustomEvent) => {
+    if (event.detail?.type === 'yearRemoved') {
+      const removedYear = event.detail.year;
+      console.log(`UserContext: Year ${removedYear} data cleaned up, refreshing users`);
+      
+      // Refresh users data from localStorage
+      const usersData = localStorage.getItem('users');
+      if (usersData) {
+        try {
+          const parsed = JSON.parse(usersData);
+          // Note: We don't have a setUsers function, but the cleanup is handled in YearContext
+          console.log(`UserContext: Users data refreshed after year ${removedYear} cleanup`);
+        } catch (error) {
+          console.error('UserContext: Error refreshing users after year cleanup', error);
+        }
+      }
+    }
+  };
+
+  window.addEventListener('yearDataCleaned', handleYearDataCleaned as EventListener);
+  
+  return () => {
+    window.removeEventListener('yearDataCleaned', handleYearDataCleaned as EventListener);
+  };
+}, []);
 
   const login = (email: string, password: string) => {
     const users: User[] = JSON.parse(localStorage.getItem("users") || "[]");

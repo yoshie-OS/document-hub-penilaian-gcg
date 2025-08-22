@@ -86,6 +86,23 @@ export const DocumentMetadataProvider: React.FC<{ children: ReactNode }> = ({ ch
     localStorage.setItem('documentMetadata', JSON.stringify(documents));
   }, [documents]);
 
+  // Listen for year data cleanup events
+  useEffect(() => {
+    const handleYearDataCleaned = (event: CustomEvent) => {
+      if (event.detail?.type === 'yearRemoved') {
+        const removedYear = event.detail.year;
+        console.log(`DocumentMetadataContext: Year ${removedYear} data cleaned up, refreshing documents`);
+        refreshDocuments();
+      }
+    };
+
+    window.addEventListener('yearDataCleaned', handleYearDataCleaned as EventListener);
+    
+    return () => {
+      window.removeEventListener('yearDataCleaned', handleYearDataCleaned as EventListener);
+    };
+  }, []);
+
   const addDocument = (metadata: Omit<DocumentMetadata, 'id' | 'uploadDate'>) => {
     const newDocument: DocumentMetadata = {
       ...metadata,

@@ -290,8 +290,22 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
       }
     };
 
+    // Listen for year data cleanup events
+    const handleYearDataCleaned = (e: CustomEvent) => {
+      if (e.detail?.type === 'yearRemoved') {
+        const removedYear = e.detail.year;
+        console.log(`StrukturPerusahaanContext: Year ${removedYear} data cleaned up, refreshing data`);
+        refreshData();
+      }
+    };
+
     window.addEventListener('strukturPerusahaanUpdate', handleCustomEvent as EventListener);
-    return () => window.removeEventListener('strukturPerusahaanUpdate', handleCustomEvent as EventListener);
+    window.addEventListener('yearDataCleaned', handleYearDataCleaned as EventListener);
+    
+    return () => {
+      window.removeEventListener('strukturPerusahaanUpdate', handleCustomEvent as EventListener);
+      window.removeEventListener('yearDataCleaned', handleYearDataCleaned as EventListener);
+    };
   }, []);
 
   // Force refresh when selectedYear changes

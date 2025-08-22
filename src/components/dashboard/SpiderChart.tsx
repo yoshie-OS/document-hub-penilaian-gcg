@@ -380,8 +380,6 @@ const SpiderChart: React.FC<SpiderChartProps> = ({ className }) => {
                     cy={point.y}
                     r="4"
                     fill="rgb(59, 130, 246)"
-                    className="animate-bounce"
-                    style={{ animationDelay: `${index * 100}ms` }}
                   />
                 );
               })}
@@ -451,7 +449,7 @@ const SpiderChart: React.FC<SpiderChartProps> = ({ className }) => {
                     {aspect.name}
                   </span>
                   <Badge variant="outline" className="text-xs">
-                    Total Tersedia: {aspect.totalAssignments} item
+                    {aspect.totalAssignments} item tersedia
                   </Badge>
                 </div>
                 
@@ -468,7 +466,7 @@ const SpiderChart: React.FC<SpiderChartProps> = ({ className }) => {
                           <div className="flex items-center space-x-2">
                             <span className="text-gray-500">{subDir.count} item</span>
                             <Badge variant="secondary" className="text-xs">
-                              {subDir.percentage}% dari {subDir.totalAvailable}
+                              {subDir.percentage}% dari {subDir.totalAvailable} item
                             </Badge>
                           </div>
                         </div>
@@ -488,7 +486,7 @@ const SpiderChart: React.FC<SpiderChartProps> = ({ className }) => {
                           <div className="flex items-center space-x-2">
                             <span className="text-gray-500">{subDir.count} item</span>
                             <Badge variant="secondary" className="text-xs">
-                              {subDir.percentage}% dari {subDir.totalAvailable}
+                              {subDir.percentage}% dari {subDir.totalAvailable} item
                             </Badge>
                           </div>
                         </div>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -60,6 +60,38 @@ const DocumentList: React.FC<DocumentListProps> = ({
   const { checklist } = useChecklist();
   const { direktorat } = useDirektorat();
   const { direktorat: direktoratsCtx, subdirektorat: subdirektoratsCtx } = useStrukturPerusahaan();
+  
+  // Transform object arrays to string arrays for display
+  const direktorats = useMemo(() => {
+    if (!direktoratsCtx || !Array.isArray(direktoratsCtx)) return [];
+    if (!selectedYear) return [];
+    
+    try {
+      return direktoratsCtx
+        .filter(item => item && item.tahun === selectedYear && item.nama)
+        .map(item => String(item.nama))
+        .filter(Boolean);
+    } catch (error) {
+      console.error('Error processing direktorat data:', error);
+      return [];
+    }
+  }, [direktoratsCtx, selectedYear]);
+  
+  const subDirektorats = useMemo(() => {
+    if (!subdirektoratsCtx || !Array.isArray(subdirektoratsCtx)) return [];
+    if (!selectedYear) return [];
+    
+    try {
+      return subdirektoratsCtx
+        .filter(item => item && item.tahun === selectedYear && item.nama)
+        .map(item => String(item.nama))
+        .filter(Boolean);
+    } catch (error) {
+      console.error('Error processing subdirektorat data:', error);
+      return [];
+    }
+  }, [subdirektoratsCtx, selectedYear]);
+  
   // Klasifikasi data removed - using hardcoded options instead
   const klasifikasiPrinsip = ['Transparansi', 'Akuntabilitas', 'Responsibilitas', 'Independensi', 'Kewajaran', 'Kepatuhan'];
   const klasifikasiJenis = ['Dokumen Internal', 'Dokumen Eksternal', 'Laporan', 'SOP', 'Kebijakan', 'Prosedur'];
@@ -69,8 +101,6 @@ const DocumentList: React.FC<DocumentListProps> = ({
     ...klasifikasiJenis.map(nama => ({ nama, tipe: 'jenis' as const, isActive: true })),
     ...klasifikasiKategori.map(nama => ({ nama, tipe: 'kategori' as const, isActive: true }))
   ];
-  const direktorats = direktoratsCtx;
-  const subDirektorats = subdirektoratsCtx;
   const { toast } = useToast();
   
   // Filter state

@@ -334,7 +334,7 @@ const PengaturanBaru = () => {
 
   // Effect untuk load checklist dari context dan localStorage
   useEffect(() => {
-    console.log('PengaturanBaru: Loading checklist data');
+    console.log('PengaturanBaru: Loading checklist data for year', selectedYear);
     
     // Coba load dari localStorage terlebih dahulu (data yang sudah disimpan user)
     const storedChecklist = localStorage.getItem('checklistGCG');
@@ -343,33 +343,41 @@ const PengaturanBaru = () => {
     if (storedChecklist) {
       try {
         const parsedChecklist = JSON.parse(storedChecklist);
-        // Load semua data checklist, tidak hanya berdasarkan tahun tertentu
-        allChecklist = parsedChecklist.map((item: any) => ({
+        // Filter berdasarkan tahun yang dipilih - HANYA tampilkan data untuk tahun aktif
+        const yearFiltered = selectedYear ? 
+          parsedChecklist.filter((item: any) => item.tahun === selectedYear) :
+          []; // Jika tidak ada tahun dipilih, jangan tampilkan data apapun
+          
+        allChecklist = yearFiltered.map((item: any) => ({
           ...item,
           status: item.status || 'pending',
           catatan: item.catatan || '',
-          tahun: item.tahun || (selectedYear || new Date().getFullYear())
+          tahun: item.tahun || selectedYear
         }));
         console.log('PengaturanBaru: Loaded from localStorage', {
           total: parsedChecklist.length,
-          processedData: allChecklist.length
+          selectedYear: selectedYear,
+          filteredForYear: allChecklist.length
         });
       } catch (error) {
         console.error('Error parsing stored checklist', error);
       }
     }
     
-    // Jika tidak ada data di localStorage, gunakan data dari context
-    if (allChecklist.length === 0 && checklist) {
-      allChecklist = checklist.map(item => ({
+    // Jika tidak ada data di localStorage, gunakan data dari context (hanya untuk tahun aktif)
+    if (allChecklist.length === 0 && checklist && selectedYear) {
+      // Filter data context berdasarkan tahun yang dipilih
+      const contextFiltered = checklist.filter(item => item.tahun === selectedYear);
+      allChecklist = contextFiltered.map(item => ({
         ...item,
         status: 'pending' as const,
         catatan: '',
-        tahun: item.tahun || (selectedYear || new Date().getFullYear())
+        tahun: item.tahun || selectedYear
       }));
       console.log('PengaturanBaru: Loaded from context', {
         contextTotal: checklist.length,
-        processedData: allChecklist.length
+        selectedYear: selectedYear,
+        filteredForYear: allChecklist.length
       });
     }
     
@@ -469,6 +477,47 @@ const PengaturanBaru = () => {
       setOriginalChecklistItems([...checklistItems]);
     }
   }, [checklistItems, originalChecklistItems]);
+  
+  // Effect untuk mendengarkan event fresh year creation
+  useEffect(() => {
+    const handleYearCreatedFresh = (event: CustomEvent) => {
+      const { year } = event.detail;
+      console.log('PengaturanBaru: Handling fresh year creation for year', year);
+      
+      // Force reload checklist data untuk tahun baru yang fresh
+      if (selectedYear === year) {
+        setChecklistItems([]);
+        setOriginalChecklistItems([]);
+        setItemChanges(new Set());
+        setHasUnsavedChanges(false);
+        
+        console.log('PengaturanBaru: Cleared all checklist data for fresh year', year);
+      }
+    };
+
+    const handleYearRemoved = (event: CustomEvent) => {
+      const { year } = event.detail;
+      console.log('PengaturanBaru: Handling year removal for year', year);
+      
+      // Clear data jika tahun yang dihapus adalah tahun aktif
+      if (selectedYear === year) {
+        setChecklistItems([]);
+        setOriginalChecklistItems([]);
+        setItemChanges(new Set());
+        setHasUnsavedChanges(false);
+        
+        console.log('PengaturanBaru: Cleared all checklist data for removed year', year);
+      }
+    };
+
+    window.addEventListener('yearCreatedFresh', handleYearCreatedFresh as EventListener);
+    window.addEventListener('yearRemoved', handleYearRemoved as EventListener);
+    
+    return () => {
+      window.removeEventListener('yearCreatedFresh', handleYearCreatedFresh as EventListener);
+      window.removeEventListener('yearRemoved', handleYearRemoved as EventListener);
+    };
+  }, [selectedYear]);
   
   // State untuk form tahun buku
   const [tahunForm, setTahunForm] = useState({
@@ -664,11 +713,20 @@ const PengaturanBaru = () => {
       if (Object.values(copyOptions).some(Boolean)) {
         await copyDataFromPreviousYear(newYearToSetup, copyOptions);
       } else {
-        // Jika tidak ada yang dipilih, tetap update progress tahun buku
-        setSetupProgress(prev => ({ ...prev, tahunBuku: true }));
+        // Jika tidak ada yang dipilih, pastikan data benar-benar fresh
+        await ensureFreshYearData(newYearToSetup);
+        
+        // Reset progress untuk tahun baru (fresh start)
+        setSetupProgress({
+          tahunBuku: true,
+          strukturOrganisasi: false,
+          manajemenAkun: false,
+          kelolaDokumen: false
+        });
+        
         toast({
           title: "Berhasil!",
-          description: `Tahun buku ${newYearToSetup} berhasil ditambahkan tanpa copy data`,
+          description: `Tahun buku ${newYearToSetup} berhasil ditambahkan dengan data fresh`,
         });
       }
       
@@ -846,6 +904,44 @@ const PengaturanBaru = () => {
     } catch (error) {
       console.error('Error copying kelola dokumen:', error);
       throw error;
+    }
+  };
+
+  // Function untuk memastikan tahun baru benar-benar fresh (tanpa data dari tahun sebelumnya)
+  const ensureFreshYearData = async (year: number) => {
+    try {
+      console.log(`PengaturanBaru: Ensuring fresh data for year ${year}`);
+      
+      // Pastikan tidak ada data yang tersisa dari tahun sebelumnya
+      // Ini akan memastikan bahwa ketika user tidak memilih copy, data benar-benar kosong
+      
+      // Reset semua data untuk tahun baru
+      setChecklistItems(prev => prev.filter(item => item.tahun !== year));
+      setAssignments(prev => prev.filter(assignment => assignment.tahun !== year));
+      
+      // Reset localStorage untuk tahun baru (hapus data yang mungkin tersisa)
+      const checklistData = localStorage.getItem('checklistGCG');
+      if (checklistData) {
+        const parsed = JSON.parse(checklistData);
+        const filtered = parsed.filter((item: any) => item.tahun !== year);
+        localStorage.setItem('checklistGCG', JSON.stringify(filtered));
+      }
+      
+      const assignmentsData = localStorage.getItem('checklistAssignments');
+      if (assignmentsData) {
+        const parsed = JSON.parse(assignmentsData);
+        const filtered = parsed.filter((item: any) => item.tahun !== year);
+        localStorage.setItem('checklistAssignments', JSON.stringify(filtered));
+      }
+      
+      // Dispatch event untuk memberitahu context lain bahwa tahun baru dibuat tanpa copy
+      window.dispatchEvent(new CustomEvent('yearCreatedFresh', { 
+        detail: { year, type: 'yearCreatedFresh' } 
+      }));
+      
+      console.log(`PengaturanBaru: Fresh year ${year} data ensured`);
+    } catch (error) {
+      console.error(`PengaturanBaru: Error ensuring fresh data for year ${year}:`, error);
     }
   };
 
@@ -1559,26 +1655,58 @@ const PengaturanBaru = () => {
             className="space-y-6"
             onValueChange={(value) => setActiveTab(value)}
           >
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="tahun-buku" className="flex items-center space-x-2">
+            <TabsList className="grid w-full grid-cols-4 gap-2 p-1 bg-gradient-to-r from-gray-50 to-gray-100 border border-gray-200 rounded-xl shadow-sm">
+              <TabsTrigger 
+                value="tahun-buku" 
+                className="flex items-center justify-center space-x-2 px-4 py-3 rounded-lg font-medium transition-all duration-300 
+                          data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-500 data-[state=active]:to-orange-600 
+                          data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:scale-105
+                          hover:bg-gradient-to-r hover:from-orange-100 hover:to-orange-200 hover:text-orange-700 hover:shadow-md hover:scale-102 cursor-pointer
+                          bg-gradient-to-r from-orange-50 to-orange-100 text-orange-600 border border-orange-200
+                          data-[state=active]:border-orange-300"
+              >
                 <Calendar className="w-4 h-4" />
-                <span>Tahun Buku</span>
-                {setupProgress.tahunBuku && <CheckCircle className="w-4 h-4 text-green-600" />}
+                <span className="font-semibold">Tahun Buku</span>
+                {setupProgress.tahunBuku && <CheckCircle className="w-4 h-4 text-green-500" />}
               </TabsTrigger>
-              <TabsTrigger value="struktur-organisasi" className="flex items-center space-x-2">
+              <TabsTrigger 
+                value="struktur-organisasi" 
+                className="flex items-center justify-center space-x-2 px-4 py-3 rounded-lg font-medium transition-all duration-300
+                          data-[state=active]:bg-gradient-to-r data-[state=active]:from-emerald-500 data-[state=active]:to-emerald-600 
+                          data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:scale-105
+                          hover:bg-gradient-to-r hover:from-emerald-100 hover:to-emerald-200 hover:text-emerald-700 hover:shadow-md hover:scale-102 cursor-pointer
+                          bg-gradient-to-r from-emerald-50 to-emerald-100 text-emerald-600 border border-emerald-200
+                          data-[state=active]:border-emerald-300"
+              >
                 <Building2 className="w-4 h-4" />
-                <span>Struktur Organisasi</span>
-                {setupProgress.strukturOrganisasi && <CheckCircle className="w-4 h-4 text-green-600" />}
+                <span className="font-semibold">Struktur Organisasi</span>
+                {setupProgress.strukturOrganisasi && <CheckCircle className="w-4 h-4 text-green-500" />}
               </TabsTrigger>
-              <TabsTrigger value="manajemen-akun" className="flex items-center space-x-2">
+              <TabsTrigger 
+                value="manajemen-akun" 
+                className="flex items-center justify-center space-x-2 px-4 py-3 rounded-lg font-medium transition-all duration-300
+                          data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-blue-600 
+                          data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:scale-105
+                          hover:bg-gradient-to-r hover:from-blue-100 hover:to-blue-200 hover:text-blue-700 hover:shadow-md hover:scale-102 cursor-pointer
+                          bg-gradient-to-r from-blue-50 to-blue-100 text-blue-600 border border-blue-200
+                          data-[state=active]:border-blue-300"
+              >
                 <Users className="w-4 h-4" />
-                <span>Manajemen Akun</span>
-                {setupProgress.manajemenAkun && <CheckCircle className="w-4 h-4 text-green-600" />}
+                <span className="font-semibold">Manajemen Akun</span>
+                {setupProgress.manajemenAkun && <CheckCircle className="w-4 h-4 text-green-500" />}
               </TabsTrigger>
-              <TabsTrigger value="kelola-dokumen" className="flex items-center space-x-2">
+              <TabsTrigger 
+                value="kelola-dokumen" 
+                className="flex items-center justify-center space-x-2 px-4 py-3 rounded-lg font-medium transition-all duration-300
+                          data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-purple-600 
+                          data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:scale-105
+                          hover:bg-gradient-to-r hover:from-purple-100 hover:to-purple-200 hover:text-purple-700 hover:shadow-md hover:scale-102 cursor-pointer
+                          bg-gradient-to-r from-purple-50 to-purple-100 text-purple-600 border border-purple-200
+                          data-[state=active]:border-purple-300"
+              >
                 <FileText className="w-4 h-4" />
-                <span>Kelola Dokumen</span>
-                {setupProgress.kelolaDokumen && <CheckCircle className="w-4 h-4 text-green-600" />}
+                <span className="font-semibold">Kelola Dokumen</span>
+                {setupProgress.kelolaDokumen && <CheckCircle className="w-4 h-4 text-green-500" />}
               </TabsTrigger>
             </TabsList>
 
@@ -1586,44 +1714,53 @@ const PengaturanBaru = () => {
             <TabsContent value="tahun-buku">
               <div className="space-y-6">
                 {/* Header */}
-                <div className="mb-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
-                  <div className="flex items-center space-x-2">
-                    <Calendar className="w-5 h-5 text-orange-600" />
-                    <span className="font-semibold text-orange-900">Kelola Tahun Buku</span>
+                <div className="mb-6 p-6 bg-gradient-to-r from-orange-50 via-orange-25 to-amber-50 border border-orange-200 rounded-xl shadow-sm">
+                  <div className="flex items-center space-x-3 mb-3">
+                    <div className="p-2 bg-gradient-to-r from-orange-500 to-orange-600 rounded-lg shadow-sm">
+                      <Calendar className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-orange-900">Kelola Tahun Buku</h2>
+                      <p className="text-orange-700 text-sm">
+                        Tambah atau hapus tahun buku untuk sistem GCG
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-orange-700 text-sm mt-1">
-                    Tambah atau hapus tahun buku untuk sistem GCG
-                  </p>
+                  
                   {selectedYear && (
-                    <div className="mt-2 p-2 bg-orange-100 rounded border border-orange-300">
-                      <span className="text-sm text-orange-800">
-                        <strong>Tahun Aktif:</strong> {selectedYear}
+                    <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-orange-100 to-orange-200 rounded-full border border-orange-300 shadow-sm">
+                      <div className="w-2 h-2 bg-orange-500 rounded-full mr-2 animate-pulse"></div>
+                      <span className="text-sm font-semibold text-orange-800">
+                        Tahun Aktif: {selectedYear}
                       </span>
                     </div>
                   )}
                   {!selectedYear && (
-                    <div className="mt-2 p-2 bg-yellow-100 rounded border border-yellow-300">
-                      <span className="text-sm text-yellow-800">
-                        <strong>Status:</strong> Belum ada tahun yang dipilih
+                    <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-yellow-100 to-yellow-200 rounded-full border border-yellow-300 shadow-sm">
+                      <div className="w-2 h-2 bg-yellow-500 rounded-full mr-2 animate-pulse"></div>
+                      <span className="text-sm font-semibold text-yellow-800">
+                        Status: Belum ada tahun yang dipilih
                       </span>
                     </div>
                   )}
                 </div>
 
                 {/* Tahun Table */}
-                <Card className="border-0 shadow-lg">
-                  <CardHeader>
+                <Card className="border-0 shadow-xl bg-white/95 backdrop-blur-sm">
+                  <CardHeader className="pb-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <CardTitle className="flex items-center space-x-2">
-                          <Calendar className="w-5 h-5 text-orange-600" />
-                          <span>Daftar Tahun Buku</span>
+                        <CardTitle className="flex items-center space-x-3 text-xl">
+                          <div className="p-2 bg-gradient-to-r from-orange-100 to-orange-200 rounded-lg">
+                            <Calendar className="w-5 h-5 text-orange-600" />
+                          </div>
+                          <span className="text-gray-800">Daftar Tahun Buku</span>
                         </CardTitle>
-                        <CardDescription>
-                          {availableYears?.length || 0} tahun buku tersedia dalam sistem
+                        <CardDescription className="text-base mt-2 text-gray-600">
+                          <span className="font-semibold text-orange-600">{availableYears?.length || 0}</span> tahun buku tersedia dalam sistem
                         </CardDescription>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex gap-3">
                         {availableYears && availableYears.length > 0 && (
                           <Select value={selectedYear?.toString() || ''} onValueChange={(value) => setSelectedYear(parseInt(value))}>
                             <SelectTrigger className="w-48">
@@ -1644,6 +1781,9 @@ const PengaturanBaru = () => {
                               variant="default"
                               icon={<Plus className="w-4 h-4" />}
                               onClick={() => setShowTahunDialog(true)}
+                              className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 
+                                       text-white shadow-lg hover:shadow-xl transition-all duration-200 border-0
+                                       px-6 py-2.5 rounded-lg font-semibold"
                             >
                               Tambah Tahun
                             </ActionButton>
@@ -1732,26 +1872,33 @@ const PengaturanBaru = () => {
 
                          {/* Struktur Organisasi Tab */}
              <TabsContent value="struktur-organisasi">
-               <Card className="border-0 shadow-lg">
-                 <CardHeader>
-                   <CardTitle className="flex items-center space-x-2">
-                     <Building2 className="w-5 h-5 text-emerald-600" />
-                     <span>Setup Struktur Organisasi</span>
-                   </CardTitle>
-                   <CardDescription>
-                     Setup struktur organisasi untuk sistem GCG. Bisa diakses meskipun belum ada tahun buku yang dipilih.
-                   </CardDescription>
+               <Card className="border-0 shadow-xl bg-white/95 backdrop-blur-sm">
+                 <CardHeader className="pb-4">
+                   <div className="flex items-center space-x-3 mb-4">
+                     <div className="p-3 bg-gradient-to-r from-emerald-100 to-green-100 rounded-xl shadow-sm">
+                       <Building2 className="w-7 h-7 text-emerald-600" />
+                     </div>
+                     <div>
+                       <CardTitle className="text-2xl font-bold text-emerald-900">Setup Struktur Organisasi</CardTitle>
+                       <CardDescription className="text-base text-emerald-700">
+                         Setup struktur organisasi untuk sistem GCG. Bisa diakses meskipun belum ada tahun buku yang dipilih.
+                       </CardDescription>
+                     </div>
+                   </div>
+                   
                    {selectedYear && (
-                     <div className="mt-2 p-2 bg-emerald-100 rounded border border-emerald-300">
-                       <span className="text-sm text-emerald-800">
-                         <strong>Tahun Aktif:</strong> {selectedYear}
+                     <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-emerald-100 to-emerald-200 rounded-full border border-emerald-300 shadow-sm">
+                       <div className="w-2 h-2 bg-emerald-500 rounded-full mr-2 animate-pulse"></div>
+                       <span className="text-sm font-semibold text-emerald-800">
+                         Tahun Aktif: {selectedYear}
                        </span>
                      </div>
                    )}
                    {!selectedYear && (
-                     <div className="mt-2 p-2 bg-yellow-100 rounded border border-yellow-300">
-                       <span className="text-sm text-yellow-800">
-                         <strong>Status:</strong> Belum ada tahun yang dipilih - data akan disimpan untuk tahun default
+                     <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-yellow-100 to-yellow-200 rounded-full border border-yellow-300 shadow-sm">
+                       <div className="w-2 h-2 bg-yellow-500 rounded-full mr-2 animate-pulse"></div>
+                       <span className="text-sm font-semibold text-yellow-800">
+                         Status: Belum ada tahun yang dipilih - data akan disimpan untuk tahun default
                        </span>
                      </div>
                    )}
@@ -2021,26 +2168,33 @@ const PengaturanBaru = () => {
 
                          {/* Manajemen Akun Tab */}
              <TabsContent value="manajemen-akun">
-               <Card className="border-0 shadow-lg">
-                 <CardHeader>
-                   <CardTitle className="flex items-center space-x-2">
-                     <Users className="w-5 h-5 text-purple-600" />
-                     <span>Setup Manajemen Akun</span>
-                   </CardTitle>
-                   <CardDescription>
-                     Setup akun untuk sistem GCG dengan role dan struktur organisasi. Bisa diakses meskipun belum ada tahun buku yang dipilih.
-                   </CardDescription>
+               <Card className="border-0 shadow-xl bg-white/95 backdrop-blur-sm">
+                 <CardHeader className="pb-4">
+                   <div className="flex items-center space-x-3 mb-4">
+                     <div className="p-3 bg-gradient-to-r from-blue-100 to-indigo-100 rounded-xl shadow-sm">
+                       <Users className="w-7 h-7 text-blue-600" />
+                     </div>
+                     <div>
+                       <CardTitle className="text-2xl font-bold text-blue-900">Setup Manajemen Akun</CardTitle>
+                       <CardDescription className="text-base text-blue-700">
+                         Setup akun untuk sistem GCG dengan role dan struktur organisasi. Bisa diakses meskipun belum ada tahun buku yang dipilih.
+                       </CardDescription>
+                     </div>
+                   </div>
+                   
                    {selectedYear && (
-                     <div className="mt-2 p-2 bg-purple-100 rounded border border-purple-300">
-                       <span className="text-sm text-purple-800">
-                         <strong>Tahun Aktif:</strong> {selectedYear}
+                     <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-100 to-blue-200 rounded-full border border-blue-300 shadow-sm">
+                       <div className="w-2 h-2 bg-blue-500 rounded-full mr-2 animate-pulse"></div>
+                       <span className="text-sm font-semibold text-blue-800">
+                         Tahun Aktif: {selectedYear}
                        </span>
                      </div>
                    )}
                    {!selectedYear && (
-                     <div className="mt-2 p-2 bg-yellow-100 rounded border border-yellow-300">
-                       <span className="text-sm text-yellow-800">
-                         <strong>Status:</strong> Belum ada tahun yang dipilih - data akan disimpan untuk tahun default
+                     <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-yellow-100 to-yellow-200 rounded-full border border-yellow-300 shadow-sm">
+                       <div className="w-2 h-2 bg-yellow-500 rounded-full mr-2 animate-pulse"></div>
+                       <span className="text-sm font-semibold text-yellow-800">
+                         Status: Belum ada tahun yang dipilih - data akan disimpan untuk tahun default
                        </span>
                      </div>
                    )}
@@ -2159,26 +2313,33 @@ const PengaturanBaru = () => {
 
                          {/* Kelola Dokumen Tab */}
              <TabsContent value="kelola-dokumen">
-               <Card className="border-0 shadow-lg">
-                 <CardHeader>
-                   <CardTitle className="flex items-center space-x-2">
-                     <FileText className="w-5 h-5 text-orange-600" />
-                     <span>Setup Kelola Dokumen GCG</span>
-                   </CardTitle>
-                   <CardDescription>
-                     Setup dokumen GCG dan aspek untuk tahun buku baru dengan tabel inline editing
-                   </CardDescription>
+               <Card className="border-0 shadow-xl bg-white/95 backdrop-blur-sm">
+                 <CardHeader className="pb-4">
+                   <div className="flex items-center space-x-3 mb-4">
+                     <div className="p-3 bg-gradient-to-r from-purple-100 to-violet-100 rounded-xl shadow-sm">
+                       <FileText className="w-7 h-7 text-purple-600" />
+                     </div>
+                     <div>
+                       <CardTitle className="text-2xl font-bold text-purple-900">Setup Kelola Dokumen GCG</CardTitle>
+                       <CardDescription className="text-base text-purple-700">
+                         Setup dokumen GCG dan aspek untuk tahun buku baru dengan tabel inline editing
+                       </CardDescription>
+                     </div>
+                   </div>
+                   
                    {selectedYear && (
-                     <div className="mt-2 p-2 bg-orange-100 rounded border border-orange-300">
-                       <span className="text-sm text-orange-800">
-                         <strong>Tahun Aktif:</strong> {selectedYear}
+                     <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-purple-100 to-purple-200 rounded-full border border-purple-300 shadow-sm">
+                       <div className="w-2 h-2 bg-purple-500 rounded-full mr-2 animate-pulse"></div>
+                       <span className="text-sm font-semibold text-purple-800">
+                         Tahun Aktif: {selectedYear}
                        </span>
                      </div>
                    )}
                    {!selectedYear && (
-                     <div className="mt-2 p-2 bg-yellow-100 rounded border border-yellow-300">
-                       <span className="text-sm text-yellow-800">
-                         <strong>Status:</strong> Belum ada tahun yang dipilih - data akan disimpan untuk tahun default
+                     <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-yellow-100 to-yellow-200 rounded-full border border-yellow-300 shadow-sm">
+                       <div className="w-2 h-2 bg-yellow-500 rounded-full mr-2 animate-pulse"></div>
+                       <span className="text-sm font-semibold text-yellow-800">
+                         Status: Belum ada tahun yang dipilih - data akan disimpan untuk tahun default
                        </span>
                      </div>
                    )}
