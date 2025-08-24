@@ -10,8 +10,7 @@ import {
   BarChart3,
   PanelLeft,
   FileText,
-  Settings,
-  Lock
+  Settings
 } from 'lucide-react';
 
 interface MenuItem {
@@ -41,33 +40,27 @@ const Sidebar = () => {
       {
         name: 'Pengaturan Baru',
         icon: Settings,
-        path: '/admin/pengaturan-baru',
-        badgeIcon: Lock
+        path: '/admin/pengaturan-baru'
       },
       { 
         name: 'Dashboard', 
         icon: LayoutDashboard, 
-        path: '/dashboard',
-        badge: null
+        path: '/dashboard'
       },
       {
         name: 'Monitoring & Upload GCG',
         icon: PanelLeft,
-        path: '/list-gcg',
-        badgeIcon: Lock
+        path: '/list-gcg'
       },
       {
         name: 'Arsip Dokumen',
         icon: FileText,
-        path: '/admin/arsip-dokumen',
-        badgeIcon: Lock
+        path: '/admin/arsip-dokumen'
       },
       { 
         name: 'Performa GCG', 
         icon: BarChart3, 
-        path: '/performa-gcg',
-        badge: null,
-        badgeIcon: Lock
+        path: '/performa-gcg'
       }
     );
   } else {
@@ -76,8 +69,7 @@ const Sidebar = () => {
       { 
         name: 'Dashboard', 
         icon: LayoutDashboard, 
-        path: '/dashboard',
-        badge: null
+        path: '/dashboard'
       }
     );
   }
@@ -116,24 +108,14 @@ const Sidebar = () => {
       
       {/* Sidebar */}
       <div className={`
-        fixed top-0 left-0 h-full bg-gray-900 z-40 transition-all duration-300 ease-in-out
+        fixed top-16 left-0 h-[calc(100vh-4rem)] bg-gray-900 z-40 transition-all duration-300 ease-in-out
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
         w-64 shadow-xl overflow-y-auto
       `}>
-        {/* Logo */}
-        <div className="p-6 border-b border-gray-800">
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">GCG</span>
-            </div>
-            <span className="text-white font-semibold text-lg">Document Hub</span>
-          </div>
-        </div>
-
         {/* Menu Items */}
-        <nav className="mt-6 pb-20">
+        <nav className="pt-6 pb-20">
           <div className="px-4 space-y-1">
-            {menuItems.map((item) => {
+            {menuItems.map((item, index) => {
               const Icon = item.icon;
               const active = isActive(item.path);
               
@@ -166,6 +148,13 @@ const Sidebar = () => {
                       </div>
                     </Link>
                   </div>
+                  
+                  {/* Add separator after Pengaturan Baru */}
+                  {item.name === 'Pengaturan Baru' && (
+                    <div className="my-3 px-4">
+                      <div className="h-px bg-gray-700"></div>
+                    </div>
+                  )}
                 </div>
               );
             })}

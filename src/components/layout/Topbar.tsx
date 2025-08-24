@@ -87,8 +87,12 @@ const Topbar = () => {
           className="flex items-center space-x-3 cursor-pointer hover:opacity-80 transition-opacity duration-200"
           onClick={handleLogoClick}
         >
-          <div className="h-8 w-8 bg-blue-600 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-sm">GCG</span>
+          <div className="h-8 w-8 flex items-center justify-center">
+            <img 
+              src="/aset/POSIND_2023_(with_wordmark).svg.png" 
+              alt="POSIND Logo" 
+              className="w-full h-full object-contain"
+            />
           </div>
           <div className="hidden md:block">
             <h1 className="text-xl font-bold text-gray-900">
@@ -121,22 +125,6 @@ const Topbar = () => {
 
       {/* Right side */}
       <div className="flex items-center space-x-4">
-        {/* Notifications */}
-        <Button variant="ghost" size="sm" className="relative">
-          <Bell className="w-5 h-5 text-gray-600" />
-          <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></span>
-        </Button>
-
-        {/* Messages */}
-        <Button variant="ghost" size="sm">
-          <Mail className="w-5 h-5 text-gray-600" />
-        </Button>
-
-        {/* Help */}
-        <Button variant="ghost" size="sm">
-          <HelpCircle className="w-5 h-5 text-gray-600" />
-        </Button>
-
         {/* User Avatar - Hidden for Admin */}
         {user?.role !== 'admin' && (
           <div className="flex items-center space-x-3">

@@ -97,8 +97,12 @@ const Register = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
-              <div className="h-10 w-10 bg-blue-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold">GCG</span>
+              <div className="h-10 w-10 flex items-center justify-center">
+                <img 
+                  src="/aset/POSIND_2023_(with_wordmark).svg.png" 
+                  alt="POSIND Logo" 
+                  className="w-full h-full object-contain"
+                />
               </div>
               <div className="hidden md:block">
                 <h1 className="text-xl font-bold text-blue-900">GCG Document Hub</h1>
@@ -212,8 +216,12 @@ const Register = () => {
           <div className="w-full max-w-md">
             {/* Mobile Logo */}
             <div className="lg:hidden text-center mb-8">
-              <div className="h-12 w-12 bg-blue-600 rounded-lg flex items-center justify-center mx-auto mb-4">
-                <span className="text-white font-bold text-lg">GCG</span>
+              <div className="h-12 w-12 flex items-center justify-center mx-auto mb-4">
+                <img 
+                  src="/aset/POSIND_2023_(with_wordmark).svg.png" 
+                  alt="POSIND Logo" 
+                  className="w-full h-full object-contain"
+                />
               </div>
               <h2 className="text-2xl font-bold text-blue-900 mb-2">GCG Document Hub</h2>
               <p className="text-blue-600">Sistem Manajemen Dokumen GCG</p>

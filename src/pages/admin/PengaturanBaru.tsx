@@ -180,6 +180,7 @@ interface User {
   direktorat?: string;
   subdirektorat?: string;
   divisi?: string;
+  whatsapp?: string;
   tahun: number;
 }
 
@@ -530,7 +531,7 @@ const PengaturanBaru = () => {
   const [strukturForm, setStrukturForm] = useState({
     direktorat: { nama: '', deskripsi: '' },
     subdirektorat: { nama: '', direktoratId: '', deskripsi: '' },
-    anakPerusahaan: { nama: '', kategori: '', deskripsi: '' },
+    anakPerusahaan: { nama: '', deskripsi: '' },
     divisi: { nama: '', subdirektoratId: '', deskripsi: '' }
   });
 
@@ -539,10 +540,11 @@ const PengaturanBaru = () => {
     name: '',
     email: '',
     password: '',
-            role: 'admin' as UserRole,
+    role: 'admin' as UserRole,
     direktorat: '',
     subdirektorat: '',
-    divisi: ''
+    divisi: '',
+    whatsapp: ''
   });
 
 
@@ -774,7 +776,6 @@ const PengaturanBaru = () => {
       anakPerusahaanFromYear.forEach(a => {
         addAnakPerusahaan({
           nama: a.nama,
-          kategori: a.kategori,
           deskripsi: a.deskripsi,
           tahun: toYear
         });
@@ -1022,10 +1023,10 @@ const PengaturanBaru = () => {
   const handleAnakPerusahaanSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!strukturForm.anakPerusahaan.nama || !strukturForm.anakPerusahaan.kategori) {
+    if (!strukturForm.anakPerusahaan.nama) {
       toast({
         title: "Error",
-        description: "Nama dan kategori wajib diisi!",
+        description: "Nama wajib diisi!",
         variant: "destructive"
       });
       return;
@@ -1034,12 +1035,11 @@ const PengaturanBaru = () => {
     try {
       addAnakPerusahaan({
         nama: strukturForm.anakPerusahaan.nama,
-        kategori: strukturForm.anakPerusahaan.kategori,
         deskripsi: strukturForm.anakPerusahaan.deskripsi,
         tahun: selectedYear || new Date().getFullYear()
       });
       
-      setStrukturForm(prev => ({ ...prev, anakPerusahaan: { nama: '', kategori: '', deskripsi: '' } }));
+      setStrukturForm(prev => ({ ...prev, anakPerusahaan: { nama: '', deskripsi: '' } }));
       setShowAnakPerusahaanDialog(false);
       
       toast({
@@ -1134,6 +1134,7 @@ const PengaturanBaru = () => {
         direktorat: userForm.direktorat || undefined,
         subdirektorat: userForm.subdirektorat || undefined,
         divisi: userForm.divisi || undefined,
+        whatsapp: userForm.whatsapp || undefined,
         tahun: selectedYear || new Date().getFullYear()
       };
 
@@ -1164,7 +1165,8 @@ const PengaturanBaru = () => {
         role: 'admin',
         direktorat: '',
         subdirektorat: '',
-        divisi: ''
+        divisi: '',
+        whatsapp: ''
       });
       setEditingUser(null);
       setShowUserDialog(false);
@@ -1187,7 +1189,8 @@ const PengaturanBaru = () => {
       role: user.role,
       direktorat: user.direktorat || '',
       subdirektorat: user.subdirektorat || '',
-      divisi: user.divisi || ''
+      divisi: user.divisi || '',
+      whatsapp: user.whatsapp || ''
     });
     setShowUserDialog(true);
   };
@@ -1577,73 +1580,96 @@ const PengaturanBaru = () => {
             subtitle="Setup awal untuk tahun buku baru - Setup tahun, struktur organisasi, akun, dan dokumen GCG"
           />
 
-          {/* Progress Overview */}
+          {/* Progress Stepper */}
           <Card className="mb-6 border-0 shadow-lg">
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <Settings className="w-5 h-5 text-blue-600" />
-                <span>Progress Setup</span>
+                <span>Setup Progress</span>
               </CardTitle>
               <CardDescription>
                 {overallProgress} dari {totalSteps} tahap telah selesai
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className={`p-4 rounded-lg border-2 text-center ${
-                  setupProgress.tahunBuku 
-                    ? 'border-green-500 bg-green-50 text-green-700' 
-                    : 'border-gray-200 bg-gray-50 text-gray-500'
-                }`}>
-                  <Calendar className={`w-8 h-8 mx-auto mb-2 ${
-                    setupProgress.tahunBuku ? 'text-green-600' : 'text-gray-400'
-                  }`} />
-                  <div className="font-medium">Tahun Buku</div>
-                  <div className="text-sm">
-                    {setupProgress.tahunBuku ? 'Selesai' : 'Belum'}
+              <div className="flex items-center justify-between">
+                {/* Step 1: Tahun Buku */}
+                <div className="flex flex-col items-center">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 ${
+                    setupProgress.tahunBuku 
+                      ? 'bg-green-500 text-white' 
+                      : 'bg-gray-200 text-gray-500'
+                  }`}>
+                    {setupProgress.tahunBuku ? (
+                      <CheckCircle className="w-5 h-5" />
+                    ) : (
+                      <span className="text-sm font-medium">1</span>
+                    )}
                   </div>
+                  <span className="text-xs text-center text-gray-600">Tahun Buku</span>
                 </div>
 
-                <div className={`p-4 rounded-lg border-2 text-center ${
-                  setupProgress.strukturOrganisasi 
-                    ? 'border-green-500 bg-green-50 text-green-700' 
-                    : 'border-gray-200 bg-gray-50 text-gray-500'
-                }`}>
-                  <Building2 className={`w-8 h-8 mx-auto mb-2 ${
-                    setupProgress.strukturOrganisasi ? 'text-green-600' : 'text-gray-400'
-                  }`} />
-                  <div className="font-medium">Struktur Organisasi</div>
-                  <div className="text-sm">
-                    {setupProgress.strukturOrganisasi ? 'Selesai' : 'Belum'}
+                {/* Line 1 */}
+                <div className={`flex-1 h-0.5 mx-2 ${
+                  setupProgress.tahunBuku ? 'bg-green-500' : 'bg-gray-200'
+                }`}></div>
+
+                {/* Step 2: Struktur Organisasi */}
+                <div className="flex flex-col items-center">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 ${
+                    setupProgress.strukturOrganisasi 
+                      ? 'bg-green-500 text-white' 
+                      : 'bg-gray-200 text-gray-500'
+                  }`}>
+                    {setupProgress.strukturOrganisasi ? (
+                      <CheckCircle className="w-5 h-5" />
+                    ) : (
+                      <span className="text-sm font-medium">2</span>
+                    )}
                   </div>
+                  <span className="text-xs text-center text-gray-600">Struktur</span>
                 </div>
 
-                <div className={`p-4 rounded-lg border-2 text-center ${
-                  setupProgress.manajemenAkun 
-                    ? 'border-green-500 bg-green-50 text-green-700' 
-                    : 'border-gray-200 bg-gray-50 text-gray-500'
-                }`}>
-                  <Users className={`w-8 h-8 mx-auto mb-2 ${
-                    setupProgress.manajemenAkun ? 'text-green-600' : 'text-gray-400'
-                  }`} />
-                  <div className="font-medium">Manajemen Akun</div>
-                  <div className="text-sm">
-                    {setupProgress.manajemenAkun ? 'Selesai' : 'Belum'}
+                {/* Line 2 */}
+                <div className={`flex-1 h-0.5 mx-2 ${
+                  setupProgress.strukturOrganisasi ? 'bg-green-500' : 'bg-gray-200'
+                }`}></div>
+
+                {/* Step 3: Manajemen Akun */}
+                <div className="flex flex-col items-center">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 ${
+                    setupProgress.manajemenAkun 
+                      ? 'bg-green-500 text-white' 
+                      : 'bg-gray-200 text-gray-500'
+                  }`}>
+                    {setupProgress.manajemenAkun ? (
+                      <CheckCircle className="w-5 h-5" />
+                    ) : (
+                      <span className="text-sm font-medium">3</span>
+                    )}
                   </div>
+                  <span className="text-xs text-center text-gray-600">Akun</span>
                 </div>
 
-                <div className={`p-4 rounded-lg border-2 text-center ${
-                  setupProgress.kelolaDokumen 
-                    ? 'border-green-500 bg-green-50 text-green-700' 
-                    : 'border-gray-200 bg-gray-50 text-gray-500'
-                }`}>
-                  <FileText className={`w-8 h-8 mx-auto mb-2 ${
-                    setupProgress.kelolaDokumen ? 'text-green-600' : 'text-gray-400'
-                  }`} />
-                  <div className="font-medium">Kelola Dokumen</div>
-                  <div className="text-sm">
-                    {setupProgress.kelolaDokumen ? 'Selesai' : 'Belum'}
+                {/* Line 3 */}
+                <div className={`flex-1 h-0.5 mx-2 ${
+                  setupProgress.kelolaDokumen ? 'bg-green-500' : 'bg-gray-200'
+                }`}></div>
+
+                {/* Step 4: Kelola Dokumen */}
+                <div className="flex flex-col items-center">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 ${
+                    setupProgress.kelolaDokumen 
+                      ? 'bg-green-500 text-white' 
+                      : 'bg-gray-200 text-gray-500'
+                  }`}>
+                    {setupProgress.kelolaDokumen ? (
+                      <CheckCircle className="w-5 h-5" />
+                    ) : (
+                      <span className="text-sm font-medium">4</span>
+                    )}
                   </div>
+                  <span className="text-xs text-center text-gray-600">Dokumen</span>
                 </div>
               </div>
             </CardContent>
@@ -1964,204 +1990,207 @@ const PengaturanBaru = () => {
                       </div>
                     </div>
 
-                   {/* Direktorat Table */}
-                   <div>
-                     <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
-                       <Briefcase className="w-5 h-5 text-emerald-600 mr-2" />
-                       Direktorat
-                     </h3>
-                     <Table>
-                       <TableHeader>
-                         <TableRow>
-                           <TableHead>Nama</TableHead>
-                           <TableHead>Deskripsi</TableHead>
-                           <TableHead>Tahun</TableHead>
-                           <TableHead>Aksi</TableHead>
-                         </TableRow>
-                       </TableHeader>
-                       <TableBody>
-                         {direktorat && direktorat.length > 0 ? direktorat.map((item) => (
-                           <TableRow key={item.id}>
-                             <TableCell className="font-medium">{item.nama}</TableCell>
-                             <TableCell>{item.deskripsi}</TableCell>
-                             <TableCell>{item.tahun}</TableCell>
-                             <TableCell>
-                               <Button
-                                 variant="ghost"
-                                 size="sm"
-                                 onClick={() => deleteDirektorat(item.id)}
-                                 className="text-red-600 hover:text-red-700"
-                               >
-                                 <Trash2 className="w-4 h-4" />
-                               </Button>
-                             </TableCell>
+                   {/* Direktorat Section */}
+                   <Card className="border border-emerald-200 bg-emerald-50/30">
+                     <CardHeader className="pb-3">
+                       <CardTitle className="text-lg font-semibold text-emerald-900 flex items-center">
+                         <Briefcase className="w-5 h-5 text-emerald-600 mr-2" />
+                         Direktorat
+                       </CardTitle>
+                     </CardHeader>
+                     <CardContent>
+                       <Table>
+                         <TableHeader>
+                           <TableRow className="bg-emerald-100/50">
+                             <TableHead className="text-emerald-900">Nama</TableHead>
+                             <TableHead className="text-emerald-900">Deskripsi</TableHead>
+                             <TableHead className="text-emerald-900">Tahun</TableHead>
+                             <TableHead className="text-emerald-900">Aksi</TableHead>
                            </TableRow>
-                         )) : (
-                           <TableRow>
-                             <TableCell colSpan={4} className="text-center text-gray-500 py-8">
-                               Belum ada data direktorat untuk tahun {selectedYear}
-                             </TableCell>
+                         </TableHeader>
+                         <TableBody>
+                           {direktorat && direktorat.length > 0 ? direktorat.map((item) => (
+                             <TableRow key={item.id} className="hover:bg-emerald-50/50 py-4">
+                               <TableCell className="font-medium py-4">{item.nama}</TableCell>
+                               <TableCell className="py-4">{item.deskripsi}</TableCell>
+                               <TableCell className="py-4">{item.tahun}</TableCell>
+                               <TableCell className="py-4">
+                                 <Button
+                                   variant="ghost"
+                                   size="sm"
+                                   onClick={() => deleteDirektorat(item.id)}
+                                   className="text-red-600 hover:text-red-700"
+                                 >
+                                   <Trash2 className="w-4 h-4" />
+                                 </Button>
+                               </TableCell>
+                             </TableRow>
+                           )) : (
+                             <TableRow>
+                               <TableCell colSpan={4} className="text-center text-gray-500 py-8">
+                                 Belum ada data direktorat untuk tahun {selectedYear}
+                               </TableCell>
+                             </TableRow>
+                           )}
+                         </TableBody>
+                       </Table>
+                     </CardContent>
+                   </Card>
+
+                   {/* Subdirektorat Section */}
+                   <Card className="border border-blue-200 bg-blue-50/30">
+                     <CardHeader className="pb-3">
+                       <CardTitle className="text-lg font-semibold text-blue-900 flex items-center">
+                         <Users className="w-5 h-5 text-blue-600 mr-2" />
+                         Subdirektorat
+                       </CardTitle>
+                     </CardHeader>
+                     <CardContent>
+                       <Table>
+                         <TableHeader>
+                                                    <TableRow className="bg-blue-100/50">
+                           <TableHead className="text-blue-900">Nama</TableHead>
+                           <TableHead className="text-blue-900">Direktorat</TableHead>
+                           <TableHead className="text-blue-900">Deskripsi</TableHead>
+                           <TableHead className="text-blue-900">Tahun</TableHead>
+                           <TableHead className="text-blue-900">Aksi</TableHead>
+                         </TableRow>
+                         </TableHeader>
+                         <TableBody>
+                           {subdirektorat && subdirektorat.length > 0 ? subdirektorat.map((item) => {
+                             const parentDirektorat = direktorat && direktorat.find(d => d.id === item.direktoratId);
+                             return (
+                               <TableRow key={item.id} className="hover:bg-blue-50/50 py-4">
+                                 <TableCell className="font-medium py-4">{item.nama}</TableCell>
+                                 <TableCell className="py-4">
+                                   <Badge variant="outline">{parentDirektorat ? parentDirektorat.nama : 'N/A'}</Badge>
+                                 </TableCell>
+                                 <TableCell className="py-4">{item.deskripsi}</TableCell>
+                                 <TableCell className="py-4">{item.tahun}</TableCell>
+                                 <TableCell className="py-4">
+                                   <Button
+                                     variant="ghost"
+                                     size="sm"
+                                     onClick={() => deleteSubdirektorat(item.id)}
+                                     className="text-red-600 hover:text-red-700"
+                                   >
+                                     <Trash2 className="w-4 h-4" />
+                                   </Button>
+                                 </TableCell>
+                               </TableRow>
+                             );
+                           }) : (
+                             <TableRow>
+                               <TableCell colSpan={5} className="text-center text-gray-500 py-8">
+                                 Belum ada data subdirektorat untuk tahun {selectedYear}
+                               </TableCell>
+                             </TableRow>
+                           )}
+                         </TableBody>
+                       </Table>
+                     </CardContent>
+                   </Card>
+
+                   {/* Anak Perusahaan Section */}
+                   <Card className="border border-purple-200 bg-purple-50/30">
+                     <CardHeader className="pb-3">
+                       <CardTitle className="text-lg font-semibold text-purple-900 flex items-center">
+                         <Building className="w-5 h-5 text-purple-600 mr-2" />
+                         Anak Perusahaan & Badan Afiliasi
+                       </CardTitle>
+                     </CardHeader>
+                     <CardContent>
+                       <Table>
+                         <TableHeader>
+                           <TableRow className="bg-purple-100/50">
+                             <TableHead className="text-purple-900">Nama</TableHead>
+                             <TableHead className="text-purple-900">Deskripsi</TableHead>
+                             <TableHead className="text-purple-900">Tahun</TableHead>
+                             <TableHead className="text-purple-900">Aksi</TableHead>
                            </TableRow>
-                         )}
-                       </TableBody>
-                     </Table>
-                   </div>
+                         </TableHeader>
+                         <TableBody>
+                           {anakPerusahaan && anakPerusahaan.length > 0 ? anakPerusahaan.map((item) => (
+                             <TableRow key={item.id} className="hover:bg-purple-50/50 py-4">
+                               <TableCell className="font-medium py-4">{item.nama}</TableCell>
+                               <TableCell className="py-4">{item.deskripsi}</TableCell>
+                               <TableCell className="py-4">{item.tahun}</TableCell>
+                               <TableCell className="py-4">
+                                 <Button
+                                   variant="ghost"
+                                   size="sm"
+                                   onClick={() => deleteAnakPerusahaan(item.id)}
+                                   className="text-red-600 hover:text-red-700"
+                                 >
+                                   <Trash2 className="w-4 h-4" />
+                                 </Button>
+                               </TableCell>
+                             </TableRow>
+                           )) : (
+                             <TableRow>
+                               <TableCell colSpan={4} className="text-center text-gray-500 py-8">
+                                 Belum ada data anak perusahaan untuk tahun {selectedYear}
+                               </TableCell>
+                             </TableRow>
+                           )}
+                         </TableBody>
+                       </Table>
+                     </CardContent>
+                   </Card>
 
-                   {/* Separator */}
-                   <Separator className="my-8" />
-
-                   {/* Subdirektorat Table */}
-                   <div>
-                     <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
-                       <Users className="w-5 h-5 text-blue-600 mr-2" />
-                       Subdirektorat
-                     </h3>
-                     <Table>
-                       <TableHeader>
-                         <TableRow>
-                           <TableHead>Nama</TableHead>
-                           <TableHead>Direktorat</TableHead>
-                           <TableHead>Deskripsi</TableHead>
-                           <TableHead>Tahun</TableHead>
-                           <TableHead>Aksi</TableHead>
-                         </TableRow>
-                       </TableHeader>
-                                               <TableBody>
-                          {subdirektorat && subdirektorat.length > 0 ? subdirektorat.map((item) => {
-                            const parentDirektorat = direktorat && direktorat.find(d => d.id === item.direktoratId);
-                            return (
-                              <TableRow key={item.id}>
-                                <TableCell className="font-medium">{item.nama}</TableCell>
-                                <TableCell>
-                                  <Badge variant="outline">{parentDirektorat ? parentDirektorat.nama : 'N/A'}</Badge>
-                                </TableCell>
-                                <TableCell>{item.deskripsi}</TableCell>
-                                <TableCell>{item.tahun}</TableCell>
-                                <TableCell>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => deleteSubdirektorat(item.id)}
-                                    className="text-red-600 hover:text-red-700"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
-                            );
-                          }) : (
-                            <TableRow>
-                              <TableCell colSpan={5} className="text-center text-gray-500 py-8">
-                                Belum ada data subdirektorat untuk tahun {selectedYear}
-                              </TableCell>
-                            </TableRow>
-                          )}
-                        </TableBody>
-                     </Table>
-                   </div>
-
-                   {/* Separator */}
-                   <Separator className="my-8" />
-
-                   {/* Anak Perusahaan Table */}
-                   <div>
-                     <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
-                       <Building className="w-5 h-5 text-purple-600 mr-2" />
-                       Anak Perusahaan & Badan Afiliasi
-                     </h3>
-                     <Table>
-                       <TableHeader>
-                         <TableRow>
-                           <TableHead>Nama</TableHead>
-                           <TableHead>Kategori</TableHead>
-                           <TableHead>Deskripsi</TableHead>
-                           <TableHead>Tahun</TableHead>
-                           <TableHead>Aksi</TableHead>
-                         </TableRow>
-                       </TableHeader>
-                                               <TableBody>
-                          {anakPerusahaan && anakPerusahaan.length > 0 ? anakPerusahaan.map((item) => (
-                            <TableRow key={item.id}>
-                              <TableCell className="font-medium">{item.nama}</TableCell>
-                              <TableCell>
-                                <Badge variant="outline">{item.kategori}</Badge>
-                              </TableCell>
-                              <TableCell>{item.deskripsi}</TableCell>
-                              <TableCell>{item.tahun}</TableCell>
-                              <TableCell>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => deleteAnakPerusahaan(item.id)}
-                                  className="text-red-600 hover:text-red-700"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          )) : (
-                            <TableRow>
-                              <TableCell colSpan={5} className="text-center text-gray-500 py-8">
-                                Belum ada data anak perusahaan untuk tahun {selectedYear}
-                              </TableCell>
-                            </TableRow>
-                          )}
-                        </TableBody>
-                     </Table>
-                   </div>
-
-                   {/* Separator */}
-                   <Separator className="my-8" />
-
-                   {/* Divisi Table */}
-                   <div>
-                     <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
-                       <Building2 className="w-5 h-5 text-orange-600 mr-2" />
-                       Divisi
-                     </h3>
-                     <Table>
-                       <TableHeader>
-                         <TableRow>
-                           <TableHead>Nama</TableHead>
-                           <TableHead>Subdirektorat</TableHead>
-                           <TableHead>Deskripsi</TableHead>
-                           <TableCell>Tahun</TableCell>
-                           <TableHead>Aksi</TableHead>
-                         </TableRow>
-                       </TableHeader>
-                                               <TableBody>
-                          {divisi && divisi.length > 0 ? divisi.map((item) => {
-                            const parentSubdirektorat = subdirektorat && subdirektorat.find(s => s.id === item.subdirektoratId);
-                            return (
-                              <TableRow key={item.id}>
-                                <TableCell className="font-medium">{item.nama}</TableCell>
-                                <TableCell>
-                                  <Badge variant="outline">{parentSubdirektorat ? parentSubdirektorat.nama : 'N/A'}</Badge>
-                                </TableCell>
-                                <TableCell>{item.deskripsi}</TableCell>
-                                <TableCell>{item.tahun}</TableCell>
-                                <TableCell>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => deleteDivisi(item.id)}
-                                    className="text-red-600 hover:text-red-700"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
-                            );
-                          }) : (
-                            <TableRow>
-                              <TableCell colSpan={5} className="text-center text-gray-500 py-8">
-                                Belum ada data divisi untuk tahun {selectedYear}
-                              </TableCell>
-                            </TableRow>
-                          )}
-                        </TableBody>
-                     </Table>
-                   </div>
+                   {/* Divisi Section */}
+                   <Card className="border border-orange-200 bg-orange-50/30">
+                     <CardHeader className="pb-3">
+                       <CardTitle className="text-lg font-semibold text-orange-900 flex items-center">
+                         <Building2 className="w-5 h-5 text-orange-600 mr-2" />
+                         Divisi
+                       </CardTitle>
+                     </CardHeader>
+                     <CardContent>
+                       <Table>
+                         <TableHeader>
+                           <TableRow className="bg-orange-100/50">
+                             <TableHead className="text-orange-900">Nama</TableHead>
+                             <TableHead className="text-orange-900">Subdirektorat</TableHead>
+                             <TableHead className="text-orange-900">Deskripsi</TableHead>
+                             <TableHead className="text-orange-900">Tahun</TableHead>
+                             <TableHead className="text-orange-900">Aksi</TableHead>
+                           </TableRow>
+                         </TableHeader>
+                         <TableBody>
+                           {divisi && divisi.length > 0 ? divisi.map((item) => {
+                             const parentSubdirektorat = subdirektorat && subdirektorat.find(s => s.id === item.subdirektoratId);
+                             return (
+                               <TableRow key={item.id} className="hover:bg-orange-50/50 py-4">
+                                 <TableCell className="font-medium py-4">{item.nama}</TableCell>
+                                 <TableCell className="py-4">
+                                   <Badge variant="outline">{parentSubdirektorat ? parentSubdirektorat.nama : 'N/A'}</Badge>
+                                 </TableCell>
+                                 <TableCell className="py-4">{item.deskripsi}</TableCell>
+                                 <TableCell className="py-4">{item.tahun}</TableCell>
+                                 <TableCell className="py-4">
+                                   <Button
+                                     variant="ghost"
+                                     size="sm"
+                                     onClick={() => deleteDivisi(item.id)}
+                                     className="text-red-600 hover:text-red-700"
+                                   >
+                                     <Trash2 className="w-4 h-4" />
+                                   </Button>
+                                 </TableCell>
+                               </TableRow>
+                             );
+                           }) : (
+                             <TableRow>
+                               <TableCell colSpan={5} className="text-center text-gray-500 py-8">
+                                 Belum ada data divisi untuk tahun {selectedYear}
+                               </TableCell>
+                             </TableRow>
+                           )}
+                         </TableBody>
+                       </Table>
+                     </CardContent>
+                   </Card>
                  </CardContent>
                </Card>
              </TabsContent>
@@ -2248,6 +2277,7 @@ const PengaturanBaru = () => {
                            <TableHead>Direktorat</TableHead>
                            <TableHead>Subdirektorat</TableHead>
                            <TableHead>Divisi</TableHead>
+                           <TableHead>WhatsApp</TableHead>
                            <TableHead>Tahun</TableHead>
                            <TableHead>Aksi</TableHead>
                          </TableRow>
@@ -2271,6 +2301,7 @@ const PengaturanBaru = () => {
                              <TableCell>{item.direktorat || 'N/A'}</TableCell>
                              <TableCell>{item.subdirektorat || 'N/A'}</TableCell>
                              <TableCell>{item.divisi || 'N/A'}</TableCell>
+                             <TableCell>{item.whatsapp || 'N/A'}</TableCell>
                              <TableCell>{item.tahun}</TableCell>
                              <TableCell>
                                <div className="flex gap-2">
@@ -2295,7 +2326,7 @@ const PengaturanBaru = () => {
                            </TableRow>
                          )) : (
                            <TableRow>
-                             <TableCell colSpan={8} className="text-center text-gray-500 py-8">
+                             <TableCell colSpan={9} className="text-center text-gray-500 py-8">
                                Belum ada data user dalam sistem
                              </TableCell>
                            </TableRow>
@@ -2923,26 +2954,7 @@ const PengaturanBaru = () => {
                       required
                     />
                   </div>
-                  <div>
-                    <Label htmlFor="anakperusahaan-kategori">Kategori *</Label>
-                    <Select
-                      value={strukturForm.anakPerusahaan.kategori}
-                      onValueChange={(value) => setStrukturForm(prev => ({ 
-                        ...prev, 
-                        anakPerusahaan: { ...prev.anakPerusahaan, kategori: value } 
-                      }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Pilih Kategori" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Anak Perusahaan">Anak Perusahaan</SelectItem>
-                        <SelectItem value="Badan Afiliasi">Badan Afiliasi</SelectItem>
-                        <SelectItem value="Joint Venture">Joint Venture</SelectItem>
-                        <SelectItem value="Unit Bisnis">Unit Bisnis</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+
                   <div>
                     <Label htmlFor="anakperusahaan-deskripsi">Deskripsi</Label>
                     <Textarea
@@ -3194,6 +3206,32 @@ const PengaturanBaru = () => {
                         </SelectContent>
                       </Select>
                     </div>
+                    <div>
+                      <Label htmlFor="user-whatsapp">Nomor WhatsApp (Opsional)</Label>
+                      <Input
+                        id="user-whatsapp"
+                        type="tel"
+                        value={userForm.whatsapp}
+                        onChange={(e) => {
+                          let value = e.target.value;
+                          // Hapus semua karakter non-digit
+                          value = value.replace(/\D/g, '');
+                          // Jika dimulai dengan 0, ganti dengan 62
+                          if (value.startsWith('0')) {
+                            value = '62' + value.substring(1);
+                          }
+                          // Jika belum ada kode negara, tambahkan 62
+                          if (value.length > 0 && !value.startsWith('62')) {
+                            value = '62' + value;
+                          }
+                          setUserForm(prev => ({ ...prev, whatsapp: value }));
+                        }}
+                        placeholder="Contoh: 08123456789 (akan otomatis menjadi 628123456789)"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Format: 08xxx akan otomatis menjadi 628xxx (format internasional)
+                      </p>
+                    </div>
                     <div className="flex gap-3">
                       <Button type="submit" className="flex-1 bg-purple-600 hover:bg-purple-700">
                         <Plus className="w-4 h-4 mr-2" />
@@ -3212,7 +3250,8 @@ const PengaturanBaru = () => {
                             role: 'admin',
                             direktorat: '',
                             subdirektorat: '',
-                            divisi: ''
+                            divisi: '',
+                            whatsapp: ''
                           });
                         }}
                         className="flex-1"

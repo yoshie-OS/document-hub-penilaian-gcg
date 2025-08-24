@@ -24,7 +24,6 @@ export interface Subdirektorat {
 export interface AnakPerusahaan {
   id: number;
   nama: string;
-  kategori: string;
   deskripsi: string;
   tahun: number;
   createdAt: Date;
