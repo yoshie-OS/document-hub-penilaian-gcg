@@ -54,11 +54,6 @@ interface UploadFormData {
   documentDate: string;
   description: string;
   
-  // GCG Classification
-  gcgPrinciple: string;
-  documentType: string;
-  documentCategory: string;
-  
   // Organizational Information
   direktorat: string;
   subdirektorat: string;
@@ -326,7 +321,7 @@ const BasicInfoSection = memo(({
 }: {
   formData: UploadFormData;
   onInputChange: (field: keyof UploadFormData, value: string) => void;
-  userRole?: string;
+  userRole?: 'superadmin' | 'admin';
 }) => (
   <div className="space-y-4">
     <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">
@@ -374,78 +369,7 @@ const BasicInfoSection = memo(({
   </div>
 ));
 
-const GCGClassificationSection = memo(({ 
-  formData, 
-  onSelectChange, 
-  gcgPrinciples, 
-  documentTypes, 
-  documentCategories,
-  userRole
-}: {
-  formData: UploadFormData;
-  onSelectChange: (field: keyof UploadFormData, value: string) => void;
-  gcgPrinciples: string[];
-  documentTypes: string[];
-  documentCategories: string[];
-  userRole?: string;
-}) => (
-  <div className="space-y-4">
-    <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">
-      Klasifikasi GCG
-    </h3>
-    
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <div className="space-y-2">
-        <Label htmlFor="gcgPrinciple">
-          Prinsip GCG {userRole !== 'admin' && <span className="text-red-500">*</span>}
-        </Label>
-        <OptimizedSelect 
-          value={formData.gcgPrinciple} 
-          onValueChange={(value) => onSelectChange('gcgPrinciple', value)}
-          placeholder="Pilih prinsip GCG"
-        >
-          {gcgPrinciples.map(principle => (
-            <SelectItem key={principle} value={principle}>{principle}</SelectItem>
-          ))}
-        </OptimizedSelect>
-        {userRole === 'admin' && (
-          <p className="text-xs text-gray-500">Field ini opsional untuk Admin</p>
-        )}
-      </div>
-      
-      <div className="space-y-2">
-        <Label htmlFor="documentType">
-          Jenis Dokumen {userRole !== 'admin' && <span className="text-red-500">*</span>}
-        </Label>
-        <OptimizedSelect 
-          value={formData.documentType} 
-          onValueChange={(value) => onSelectChange('documentType', value)}
-          placeholder="Pilih jenis dokumen"
-        >
-          {documentTypes.map(type => (
-            <SelectItem key={type} value={type}>{type}</SelectItem>
-          ))}
-        </OptimizedSelect>
-        {userRole === 'admin' && (
-          <p className="text-xs text-gray-500">Field ini opsional untuk Admin</p>
-        )}
-      </div>
-      
-      <div className="space-y-2">
-        <Label htmlFor="documentCategory">Kategori Dokumen</Label>
-        <OptimizedSelect 
-          value={formData.documentCategory} 
-          onValueChange={(value) => onSelectChange('documentCategory', value)}
-          placeholder="Pilih kategori"
-        >
-          {documentCategories.map(category => (
-            <SelectItem key={category} value={category}>{category}</SelectItem>
-          ))}
-        </OptimizedSelect>
-      </div>
-    </div>
-  </div>
-));
+
 
 const OrganizationalSection = memo(({ 
   formData, 
@@ -466,7 +390,7 @@ const OrganizationalSection = memo(({
   direktoratSuggestions: string[];
   subdirektoratSuggestions: string[];
   divisionSuggestions: string[];
-  userRole?: string;
+  userRole?: 'superadmin' | 'admin';
 }) => (
   <div className="space-y-4">
     <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">
@@ -758,10 +682,7 @@ const FileUploadDialog: React.FC<FileUploadDialogProps> = ({
   const { checklist } = useChecklist();
   const { documents, addDocument } = useDocumentMetadata();
   const { toast } = useToast();
-  // Klasifikasi data removed - using hardcoded options instead
-  const gcgPrinciples = ['Transparansi', 'Akuntabilitas', 'Responsibilitas', 'Independensi', 'Kewajaran', 'Kepatuhan'];
-  const documentTypes = ['Dokumen Internal', 'Dokumen Eksternal', 'Laporan', 'SOP', 'Kebijakan', 'Prosedur'];
-  const documentCategories = ['GCG', 'Operasional', 'Keuangan', 'SDM', 'Teknologi', 'Lainnya'];
+
 
   // Form state - optimized with useReducer pattern
   const [formData, setFormData] = useState<UploadFormData>({
@@ -821,9 +742,6 @@ const FileUploadDialog: React.FC<FileUploadDialogProps> = ({
           documentNumber: '',
           documentDate: '',
           description: '',
-          gcgPrinciple: '',
-          documentType: '',
-          documentCategory: '',
           direktorat: '',
           subdirektorat: '',
           division: '',
@@ -849,8 +767,6 @@ const FileUploadDialog: React.FC<FileUploadDialogProps> = ({
           ...prev,
           title: checklistDescription,
           description: checklistDescription,
-          gcgPrinciple: getPrincipleFromAspect(aspect),
-          documentCategory: getCategoryFromAspect(aspect),
           selectedChecklistId: checklistId,
           year: selectedYear || new Date().getFullYear()
         }));
@@ -1009,24 +925,7 @@ const FileUploadDialog: React.FC<FileUploadDialogProps> = ({
     return [...sortedExisting, ...sortedNew];
   }, [checklist]);
 
-  // Helper functions - memoized to prevent re-creation
-  const getPrincipleFromAspect = useCallback((aspect: string): string => {
-    if (aspect.includes('Komitmen')) return 'Transparansi';
-    if (aspect.includes('RUPS')) return 'Akuntabilitas';
-    if (aspect.includes('Dewan Komisaris')) return 'Independensi';
-    if (aspect.includes('Direktorat')) return 'Responsibilitas';
-    if (aspect.includes('Pengungkapan')) return 'Kesetaraan';
-    return 'Transparansi';
-  }, []);
 
-  const getCategoryFromAspect = useCallback((aspect: string): string => {
-    if (aspect.includes('Komitmen')) return 'Code of Conduct';
-    if (aspect.includes('RUPS')) return 'Risalah Rapat';
-    if (aspect.includes('Dewan Komisaris')) return 'Risalah Rapat Komisaris';
-    if (aspect.includes('Direktorat')) return 'Laporan Manajemen';
-    if (aspect.includes('Pengungkapan')) return 'Laporan Tahunan';
-    return 'Lainnya';
-  }, []);
 
   // Optimized event handlers with useCallback
   const handleInputChange = useCallback((field: keyof UploadFormData, value: string) => {
@@ -1090,9 +989,7 @@ const FileUploadDialog: React.FC<FileUploadDialogProps> = ({
         ...prev,
         selectedChecklistId: item.id,
         title: prev.title || item.deskripsi,
-        description: prev.description || item.deskripsi,
-        gcgPrinciple: getPrincipleFromAspect(item.aspek),
-        documentCategory: getCategoryFromAspect(item.aspek)
+        description: prev.description || item.deskripsi
       }));
     } else {
       setFormData(prev => ({
@@ -1100,7 +997,7 @@ const FileUploadDialog: React.FC<FileUploadDialogProps> = ({
         selectedChecklistId: null
       }));
     }
-  }, [getPrincipleFromAspect, getCategoryFromAspect]);
+  }, []);
 
   const handleCustomDivisionChange = useCallback((value: string) => {
     setCustomDivision(value);
@@ -1185,23 +1082,7 @@ const FileUploadDialog: React.FC<FileUploadDialogProps> = ({
         return;
       }
 
-      if (!formData.gcgPrinciple) {
-        toast({
-          title: "Data tidak lengkap",
-          description: "Prinsip GCG wajib diisi",
-          variant: "destructive"
-        });
-        return;
-      }
 
-      if (!formData.documentType) {
-        toast({
-          title: "Data tidak lengkap",
-          description: "Jenis dokumen wajib diisi",
-          variant: "destructive"
-        });
-        return;
-      }
 
       if (user?.role === 'superadmin' && (!formData.direktorat || !formData.division)) {
         toast({
@@ -1221,46 +1102,45 @@ const FileUploadDialog: React.FC<FileUploadDialogProps> = ({
         ? checklist.find(item => item.id === formData.selectedChecklistId)
         : null;
       
-      // Upload file using context
-      uploadFile(
-        selectedFile,
-        selectedYear,
-        formData.selectedChecklistId || 0,
-        selectedChecklist?.deskripsi || '',
-        selectedChecklist?.aspek || ''
-      );
-
-      // Document metadata will be added via context below
-
-      toast({
-        title: "Upload berhasil",
-        description: "Dokumen berhasil diupload dan metadata telah disimpan",
+      // Ensure we have the correct subdirektorat value (moved to top level)
+      const userSubdirektorat = formData.subdirektorat || user?.subdirektorat || user?.subDirektorat || '';
+      console.log('🔵 FileUploadDialog: User subdirektorat resolved:', {
+        formDataSubdirektorat: formData.subdirektorat,
+        userSubdirektorat: user?.subdirektorat,
+        userSubDirektorat: user?.subDirektorat,
+        finalSubdirektorat: userSubdirektorat
       });
-
-      // Use context uploadFile first to ensure data consistency
+      
+      // Upload file using context ONCE with correct data
       if (uploadFile && selectedFile) {
+        console.log('🔵 FileUploadDialog: Calling uploadFile with:', {
+          fileName: selectedFile.name,
+          fileSize: selectedFile.size,
+          year: formData.year,
+          checklistId: formData.selectedChecklistId,
+          description: formData.description || selectedChecklist?.deskripsi || '',
+          aspect: formData.documentCategory || selectedChecklist?.aspek || ''
+        });
+        
         uploadFile(
           selectedFile,
           formData.year,
           formData.selectedChecklistId || undefined,
-          formData.description,
-          formData.documentCategory
+          formData.description || selectedChecklist?.deskripsi || '',
+          formData.documentCategory || selectedChecklist?.aspek || ''
         );
       }
       
       // Add document metadata to DocumentMetadataContext
       if (addDocument) {
-        addDocument({
+        const documentData = {
           fileName: selectedFile.name,
           title: formData.title || selectedChecklist?.deskripsi || 'Dokumen GCG',
           documentNumber: formData.documentNumber || '',
           documentDate: formData.documentDate || new Date().toISOString().split('T')[0],
           description: formData.description || selectedChecklist?.deskripsi || '',
-          gcgPrinciple: formData.gcgPrinciple || 'Aspek GCG',
-          documentType: formData.documentType || 'Dokumen GCG',
-          documentCategory: formData.documentCategory || 'GCG',
-          direktorat: formData.subdirektorat || user?.direktorat || '', // Use subdirektorat for admin
-          subdirektorat: formData.subdirektorat || user?.subDirektorat || user?.subDirektorat || '',
+          direktorat: userSubdirektorat || user?.direktorat || '',
+          subdirektorat: userSubdirektorat, // Use resolved subdirektorat
           division: formData.division || user?.divisi || '',
           status: formData.status || 'draft',
           confidentiality: formData.confidentiality || 'public',
@@ -1269,9 +1149,18 @@ const FileUploadDialog: React.FC<FileUploadDialogProps> = ({
           uploadedBy: user?.name || 'Unknown',
           checklistId: formData.selectedChecklistId,
           checklistDescription: formData.description,
-          aspect: formData.documentCategory
-        });
+          aspect: selectedChecklist?.aspek || 'GCG'
+        };
+        
+        console.log('🔵 FileUploadDialog: Calling addDocument with:', documentData);
+        addDocument(documentData);
       }
+      
+      // Show success message after all context updates
+      toast({
+        title: "Upload berhasil",
+        description: "Dokumen berhasil diupload dan metadata telah disimpan",
+      });
       
       // Dispatch events to notify other components
       window.dispatchEvent(new CustomEvent('fileUploaded'));
@@ -1285,16 +1174,22 @@ const FileUploadDialog: React.FC<FileUploadDialogProps> = ({
       // Force localStorage update to trigger storage event (backup)
       const currentFiles = localStorage.getItem('uploadedFiles');
       const filesList = currentFiles ? JSON.parse(currentFiles) : [];
-      filesList.push({
+      const fileData = {
         id: Date.now(),
-        fileName: formData.fileName,
-        fileSize: formData.fileSize,
+        fileName: selectedFile.name, // Use selectedFile.name instead of formData.fileName
+        fileSize: selectedFile.size, // Use selectedFile.size instead of formData.fileSize
         year: formData.year,
         checklistId: formData.selectedChecklistId,
-        aspect: formData.documentCategory,
+        aspect: formData.documentCategory || selectedChecklist?.aspek || 'GCG',
+        subdirektorat: userSubdirektorat, // Use resolved subdirektorat
         uploadDate: new Date().toISOString()
-      });
+      };
+      
+      filesList.push(fileData);
       localStorage.setItem('uploadedFiles', JSON.stringify(filesList));
+      
+      console.log('🔵 FileUploadDialog: Updated localStorage uploadedFiles with:', fileData);
+      console.log('🔵 FileUploadDialog: Total files in localStorage:', filesList.length);
 
       // Reset form
       setFormData({
@@ -1302,9 +1197,6 @@ const FileUploadDialog: React.FC<FileUploadDialogProps> = ({
         documentNumber: '',
         documentDate: '',
         description: '',
-        gcgPrinciple: '',
-        documentType: '',
-        documentCategory: '',
         direktorat: '',
         subdirektorat: '',
         division: '',
@@ -1491,15 +1383,7 @@ const FileUploadDialog: React.FC<FileUploadDialogProps> = ({
               userRole={user?.role}
             />
 
-            {/* GCG Classification */}
-            <GCGClassificationSection
-              formData={formData}
-              onSelectChange={handleSelectChange}
-              gcgPrinciples={gcgPrinciples}
-              documentTypes={documentTypes}
-              documentCategories={documentCategories}
-              userRole={user?.role}
-            />
+
 
             {/* Organizational Information */}
             <OrganizationalSection

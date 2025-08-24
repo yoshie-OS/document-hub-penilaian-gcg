@@ -92,21 +92,11 @@ const DocumentList: React.FC<DocumentListProps> = ({
     }
   }, [subdirektoratsCtx, selectedYear]);
   
-  // Klasifikasi data removed - using hardcoded options instead
-  const klasifikasiPrinsip = ['Transparansi', 'Akuntabilitas', 'Responsibilitas', 'Independensi', 'Kewajaran', 'Kepatuhan'];
-  const klasifikasiJenis = ['Dokumen Internal', 'Dokumen Eksternal', 'Laporan', 'SOP', 'Kebijakan', 'Prosedur'];
-  const klasifikasiKategori = ['GCG', 'Operasional', 'Keuangan', 'SDM', 'Teknologi', 'Lainnya'];
-  const klasifikasiData = [
-    ...klasifikasiPrinsip.map(nama => ({ nama, tipe: 'prinsip' as const, isActive: true })),
-    ...klasifikasiJenis.map(nama => ({ nama, tipe: 'jenis' as const, isActive: true })),
-    ...klasifikasiKategori.map(nama => ({ nama, tipe: 'kategori' as const, isActive: true }))
-  ];
+
   const { toast } = useToast();
   
   // Filter state
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedPrinciple, setSelectedPrinciple] = useState('all');
-  const [selectedType, setSelectedType] = useState('all');
   const [selectedDirektorat, setSelectedDirektorat] = useState('all');
   const [selectedSubDirektorat, setSelectedSubDirektorat] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
@@ -179,13 +169,7 @@ const DocumentList: React.FC<DocumentListProps> = ({
       );
     }
 
-    if (selectedPrinciple !== 'all') {
-      filtered = filtered.filter(doc => doc.gcgPrinciple === selectedPrinciple);
-    }
 
-    if (selectedType !== 'all') {
-      filtered = filtered.filter(doc => doc.documentType === selectedType);
-    }
 
     if (selectedDirektorat !== 'all') {
       filtered = filtered.filter(doc => doc.direktorat === selectedDirektorat);

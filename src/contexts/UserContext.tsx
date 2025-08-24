@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 
-export type UserRole = "superadmin" | "admin" | "user";
+export type UserRole = "superadmin" | "admin";
 export interface User {
   id: number;
   email: string;
@@ -19,7 +19,6 @@ interface UserContextType {
   logout: () => void;
   isSuperAdmin: () => boolean;
   isAdmin: () => boolean;
-  isUser: () => boolean;
   canModifySuperAdmin: (userId: number) => boolean;
 }
 
@@ -141,9 +140,7 @@ useEffect(() => {
     return user?.role === 'admin';
   };
 
-  const isUser = () => {
-    return user?.role === 'user';
-  };
+
 
   // Check if user can modify super admin (only super admin can modify super admin)
   const canModifySuperAdmin = (userId: number) => {
@@ -167,7 +164,6 @@ useEffect(() => {
       logout, 
       isSuperAdmin, 
       isAdmin, 
-      isUser, 
       canModifySuperAdmin 
     }}>
       {children}

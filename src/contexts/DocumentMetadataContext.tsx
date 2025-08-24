@@ -9,10 +9,7 @@ export interface DocumentMetadata {
   documentDate: string;
   description: string;
   
-  // GCG Classification
-  gcgPrinciple: string;
-  documentType: string;
-  documentCategory: string;
+
   
   // Organizational Information
   direktorat: string;
@@ -47,13 +44,11 @@ interface DocumentMetadataContextType {
   getDocumentsByYear: (year: number) => DocumentMetadata[];
   getDocumentsByAspect: (aspect: string) => DocumentMetadata[];
   getDocumentsByDirektorat: (direktorat: string) => DocumentMetadata[];
-  getDocumentsByPrinciple: (principle: string) => DocumentMetadata[];
+
   getDocumentById: (id: string) => DocumentMetadata | undefined;
   getYearStats: (year: number) => {
     totalDocuments: number;
     totalSize: number;
-    byPrinciple: { [key: string]: number };
-    byType: { [key: string]: number };
     byDirektorat: { [key: string]: number };
   };
   refreshDocuments: () => void;
@@ -134,9 +129,7 @@ export const DocumentMetadataProvider: React.FC<{ children: ReactNode }> = ({ ch
     return documents.filter(doc => doc.direktorat === direktorat);
   };
 
-  const getDocumentsByPrinciple = (principle: string) => {
-    return documents.filter(doc => doc.gcgPrinciple === principle);
-  };
+
 
   const getDocumentById = (id: string) => {
     return documents.find(doc => doc.id === id);
@@ -146,21 +139,15 @@ export const DocumentMetadataProvider: React.FC<{ children: ReactNode }> = ({ ch
     const yearDocuments = getDocumentsByYear(year);
     const totalSize = yearDocuments.reduce((sum, doc) => sum + doc.fileSize, 0);
     
-    const byPrinciple: { [key: string]: number } = {};
-    const byType: { [key: string]: number } = {};
     const byDirektorat: { [key: string]: number } = {};
 
     yearDocuments.forEach(doc => {
-      byPrinciple[doc.gcgPrinciple] = (byPrinciple[doc.gcgPrinciple] || 0) + 1;
-      byType[doc.documentType] = (byType[doc.documentType] || 0) + 1;
       byDirektorat[doc.direktorat] = (byDirektorat[doc.direktorat] || 0) + 1;
     });
 
     return {
       totalDocuments: yearDocuments.length,
       totalSize,
-      byPrinciple,
-      byType,
       byDirektorat
     };
   };
@@ -187,7 +174,6 @@ export const DocumentMetadataProvider: React.FC<{ children: ReactNode }> = ({ ch
       getDocumentsByYear,
       getDocumentsByAspect,
       getDocumentsByDirektorat,
-      getDocumentsByPrinciple,
       getDocumentById,
       getYearStats,
       refreshDocuments

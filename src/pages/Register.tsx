@@ -72,7 +72,7 @@ const Register = () => {
           email,
           password,
           name,
-          role: 'user' as const,
+          role: 'admin' as const,
           createdAt: new Date().toISOString()
         };
 

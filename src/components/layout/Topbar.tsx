@@ -148,7 +148,7 @@ const Topbar = () => {
             </Avatar>
             <div className="hidden md:block">
               <p className="text-sm font-medium text-gray-900">{user?.name || 'User'}</p>
-              <p className="text-xs text-gray-500 capitalize">{user?.role || 'user'}</p>
+              <p className="text-xs text-gray-500 capitalize">{user?.role || 'admin'}</p>
             </div>
           </div>
         )}

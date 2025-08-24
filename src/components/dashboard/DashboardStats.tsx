@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { useFileUpload } from '@/contexts/FileUploadContext';
 import { useChecklist } from '@/contexts/ChecklistContext';
+import { useDocumentMetadata } from '@/contexts/DocumentMetadataContext';
 import { useYear } from '@/contexts/YearContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -31,8 +32,10 @@ const DashboardStats = () => {
   const navigate = useNavigate();
   const { isSidebarOpen } = useSidebar();
   const { selectedYear } = useYear();
-  const { uploadedFiles, getFilesByYear } = useFileUpload();
+  const { uploadedFiles, getFilesByYear, refreshFiles } = useFileUpload();
   const { checklist, getAspectsByYear } = useChecklist();
+  const { refreshDocuments } = useDocumentMetadata();
+  const [forceUpdate, setForceUpdate] = useState(0);
 
   // Get statistics
   const getStats = () => {
@@ -53,7 +56,7 @@ const DashboardStats = () => {
       const totalChecklist = yearChecklist.length;
       const uploadedFiles = yearFiles.length;
       const pendingFiles = totalChecklist - uploadedFiles;
-              const totalSize = yearFiles.reduce((total, file) => total + (file.fileSize || 0), 0);
+      const totalSize = yearFiles.reduce((total, file) => total + (file.fileSize || 0), 0);
       const progress = totalChecklist > 0 ? Math.round((uploadedFiles / totalChecklist) * 100) : 0;
 
       return {
@@ -133,9 +136,66 @@ const DashboardStats = () => {
     }
   };
 
-  const stats = getStats();
-  const aspectStats = getAspectStats();
-  const overallProgress = getOverallProgress();
+  // Event handling for real-time updates
+  useEffect(() => {
+    const handleDataUpdate = async () => {
+      console.log('🔔 DashboardStats: Data update event received, refreshing data');
+      try {
+        await Promise.all([refreshFiles(), refreshDocuments()]);
+        setForceUpdate(prev => prev + 1);
+      } catch (error) {
+        console.error('❌ DashboardStats: Error refreshing data:', error);
+      }
+    };
+
+    const handleFileUpload = async () => {
+      console.log('🔔 DashboardStats: File upload event received, refreshing data');
+      try {
+        await Promise.all([refreshFiles(), refreshDocuments()]);
+        setForceUpdate(prev => prev + 1);
+      } catch (error) {
+        console.error('❌ DashboardStats: Error refreshing data:', error);
+      }
+    };
+
+    // Listen to all relevant events for real-time updates
+    window.addEventListener('fileUploaded', handleFileUpload);
+    window.addEventListener('documentsUpdated', handleDataUpdate);
+    window.addEventListener('assignmentsUpdated', handleDataUpdate);
+    window.addEventListener('uploadedFilesChanged', handleDataUpdate);
+    window.addEventListener('checklistAssignmentsChanged', handleDataUpdate);
+
+    // Also listen to storage changes for real-time updates
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'checklistAssignments' || e.key === 'documentMetadata' || e.key === 'checklist' || e.key === 'uploadedFiles') {
+        console.log('🔔 DashboardStats: Storage change detected:', e.key, 'refreshing data');
+        handleDataUpdate();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('fileUploaded', handleFileUpload);
+      window.removeEventListener('documentsUpdated', handleDataUpdate);
+      window.removeEventListener('assignmentsUpdated', handleDataUpdate);
+      window.removeEventListener('uploadedFilesChanged', handleDataUpdate);
+      window.removeEventListener('checklistAssignmentsChanged', handleDataUpdate);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [refreshFiles]);
+
+  // Force refresh when year changes
+  useEffect(() => {
+    if (selectedYear) {
+      console.log('🔔 DashboardStats: Year changed to', selectedYear, 'refreshing data');
+      setForceUpdate(prev => prev + 1);
+    }
+  }, [selectedYear]);
+
+  const stats = useMemo(() => getStats(), [selectedYear, checklist, uploadedFiles, forceUpdate]);
+  const aspectStats = useMemo(() => getAspectStats(), [selectedYear, checklist, uploadedFiles, forceUpdate]);
+  const overallProgress = useMemo(() => getOverallProgress(), [selectedYear, checklist, uploadedFiles, forceUpdate]);
 
   // Helper functions
   const getAspectIcon = (aspekName: string) => {
@@ -155,13 +215,13 @@ const DashboardStats = () => {
   const getAspectColor = (aspekName: string, progress: number) => {
     // Predefined colors for known aspects
     const predefinedColors: Record<string, string> = {
-      'ASPEK I. Komitmen': '#2563eb', // biru
-      'ASPEK II. RUPS': '#059669',    // hijau
-      'ASPEK III. Dewan Komisaris': '#f59e42', // oranye
-      'ASPEK IV. Direksi': '#eab308', // kuning
-      'ASPEK V. Pengungkapan': '#d946ef', // ungu
-    };
-    
+    'ASPEK I. Komitmen': '#2563eb', // biru
+    'ASPEK II. RUPS': '#059669',    // hijau
+    'ASPEK III. Dewan Komisaris': '#f59e42', // oranye
+    'ASPEK IV. Direksi': '#eab308', // kuning
+    'ASPEK V. Pengungkapan': '#d946ef', // ungu
+  };
+
     if (predefinedColors[aspekName]) return predefinedColors[aspekName];
     
     // For new aspects, generate color based on progress
@@ -200,7 +260,7 @@ const DashboardStats = () => {
   }
 
   return (
-    <div className="mb-6">
+      <div className="mb-6">
       {/* Use YearStatisticsPanel for consistent UI */}
       <YearStatisticsPanel 
         selectedYear={selectedYear}

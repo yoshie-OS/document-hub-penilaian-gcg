@@ -539,7 +539,7 @@ const PengaturanBaru = () => {
     name: '',
     email: '',
     password: '',
-    role: 'user' as UserRole,
+            role: 'admin' as UserRole,
     direktorat: '',
     subdirektorat: '',
     divisi: ''
@@ -1161,7 +1161,7 @@ const PengaturanBaru = () => {
         name: '',
         email: '',
         password: '',
-        role: 'user',
+        role: 'admin',
         direktorat: '',
         subdirektorat: '',
         divisi: ''
@@ -2207,7 +2207,7 @@ const PengaturanBaru = () => {
                        className="bg-purple-600 hover:bg-purple-700"
                      >
                        <Plus className="w-4 h-4 mr-2" />
-                       Tambah User Baru
+                       Tambah PIC Baru
                      </Button>
                      <Button 
                        onClick={handleUseDefaultUsers}
@@ -2229,10 +2229,7 @@ const PengaturanBaru = () => {
                        <div className="text-2xl font-bold text-blue-600">{users && users.filter(u => u.role === 'admin').length || 0}</div>
                        <div className="text-sm text-blue-600">Admin</div>
                      </div>
-                     <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                       <div className="text-2xl font-bold text-green-600">{users && users.filter(u => u.role === 'user').length || 0}</div>
-                       <div className="text-sm text-green-600">User</div>
-                     </div>
+
                      <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
                        <div className="text-2xl font-bold text-orange-600">{users && users.filter(u => u.role === 'superadmin').length || 0}</div>
                        <div className="text-sm text-orange-600">Super Admin</div>
@@ -2268,8 +2265,7 @@ const PengaturanBaru = () => {
                                            item.role === 'admin' ? 'bg-blue-100 text-blue-800' :
                                            'bg-gray-100 text-gray-800'}
                                >
-                                 {item.role === 'superadmin' ? 'Super Admin' :
-                                  item.role === 'admin' ? 'Admin' : 'User'}
+                                 {item.role === 'superadmin' ? 'Super Admin' : 'Admin'}
                                </Badge>
                              </TableCell>
                              <TableCell>{item.direktorat || 'N/A'}</TableCell>
@@ -3056,7 +3052,7 @@ const PengaturanBaru = () => {
               <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
                 <div className="bg-white rounded-lg p-6 w-full max-w-md">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                    {editingUser ? 'Edit User' : 'Tambah User Baru'}
+                    {editingUser ? 'Edit PIC' : 'Tambah PIC Baru'}
                   </h3>
                   <form onSubmit={handleUserSubmit} className="space-y-4">
                     <div>
@@ -3143,21 +3139,7 @@ const PengaturanBaru = () => {
                         </div>
                       )}
                     </div>
-                    <div>
-                      <Label htmlFor="user-role">Role *</Label>
-                      <Select
-                        value={userForm.role}
-                        onValueChange={(value: UserRole) => setUserForm(prev => ({ ...prev, role: value }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Pilih Role" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="user">User</SelectItem>
-                          <SelectItem value="admin">Admin</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+
                     <div>
                       <Label htmlFor="user-direktorat">Direktorat</Label>
                       <Select
@@ -3215,7 +3197,7 @@ const PengaturanBaru = () => {
                     <div className="flex gap-3">
                       <Button type="submit" className="flex-1 bg-purple-600 hover:bg-purple-700">
                         <Plus className="w-4 h-4 mr-2" />
-                        {editingUser ? 'Update' : 'Tambah'}
+                        {editingUser ? 'Update' : 'Tambah PIC'}
                       </Button>
                       <Button 
                         type="button" 
@@ -3227,7 +3209,7 @@ const PengaturanBaru = () => {
                             name: '',
                             email: '',
                             password: '',
-                            role: 'user',
+                            role: 'admin',
                             direktorat: '',
                             subdirektorat: '',
                             divisi: ''
