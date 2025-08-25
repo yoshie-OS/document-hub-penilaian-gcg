@@ -1109,6 +1109,6 @@ if __name__ == '__main__':
     print(f"📁 Output folder: {OUTPUT_FOLDER}")
     print("🔗 CORS enabled for React frontend")
     print("✅ Production system integrated")
-    print("🌐 Server starting on http://localhost:5001")
+    print("🌐 Server starting on http://localhost:5000")
     
-    app.run(debug=True, host='0.0.0.0', port=5001)
+    app.run(debug=True, host='0.0.0.0', port=5000)
