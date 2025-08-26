@@ -1941,21 +1941,21 @@ const PengaturanBaru = () => {
                      </Button>
                      <Button 
                        onClick={() => setShowSubdirektoratDialog(true)}
-                       className="bg-blue-600 hover:bg-blue-700"
+                       className="bg-emerald-600 hover:bg-emerald-700"
                      >
                        <Plus className="w-4 h-4 mr-2" />
                        Tambah Subdirektorat
                      </Button>
                      <Button 
                        onClick={() => setShowAnakPerusahaanDialog(true)}
-                       className="bg-purple-600 hover:bg-purple-700"
+                       className="bg-emerald-600 hover:bg-emerald-700"
                      >
                        <Plus className="w-4 h-4 mr-2" />
                        Tambah Anak Perusahaan
                      </Button>
                      <Button 
                        onClick={() => setShowDivisiDialog(true)}
-                       className="bg-orange-600 hover:bg-orange-700"
+                       className="bg-emerald-600 hover:bg-emerald-700"
                      >
                        <Plus className="w-4 h-4 mr-2" />
                        Tambah Divisi
@@ -1963,7 +1963,7 @@ const PengaturanBaru = () => {
                      <Button 
                        onClick={handleUseDefaultStruktur}
                        variant="outline"
-                       className="border-green-600 text-green-600 hover:bg-green-50"
+                       className="border-emerald-600 text-emerald-600 hover:bg-emerald-50"
                      >
                        <Copy className="w-4 h-4 mr-2" />
                        Gunakan Data Default
@@ -1976,17 +1976,17 @@ const PengaturanBaru = () => {
                         <div className="text-2xl font-bold text-emerald-600">{direktorat && direktorat.length || 0}</div>
                         <div className="text-sm text-emerald-600">Direktorat</div>
                       </div>
-                      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                        <div className="text-2xl font-bold text-blue-600">{subdirektorat && subdirektorat.length || 0}</div>
-                        <div className="text-sm text-blue-600">Subdirektorat</div>
+                      <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
+                        <div className="text-2xl font-bold text-emerald-600">{subdirektorat && subdirektorat.length || 0}</div>
+                        <div className="text-sm text-emerald-600">Subdirektorat</div>
                       </div>
-                      <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg">
-                        <div className="text-2xl font-bold text-purple-600">{anakPerusahaan && anakPerusahaan.length || 0}</div>
-                        <div className="text-sm text-purple-600">Anak Perusahaan</div>
+                      <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
+                        <div className="text-2xl font-bold text-emerald-600">{anakPerusahaan && anakPerusahaan.length || 0}</div>
+                        <div className="text-sm text-emerald-600">Anak Perusahaan</div>
                       </div>
-                      <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
-                        <div className="text-2xl font-bold text-orange-600">{divisi && divisi.length || 0}</div>
-                        <div className="text-sm text-orange-600">Divisi</div>
+                      <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
+                        <div className="text-2xl font-bold text-emerald-600">{divisi && divisi.length || 0}</div>
+                        <div className="text-sm text-emerald-600">Divisi</div>
                       </div>
                     </div>
 
@@ -2038,32 +2038,32 @@ const PengaturanBaru = () => {
                    </Card>
 
                    {/* Subdirektorat Section */}
-                   <Card className="border border-blue-200 bg-blue-50/30">
+                   <Card className="border border-emerald-200 bg-emerald-50/30">
                      <CardHeader className="pb-3">
-                       <CardTitle className="text-lg font-semibold text-blue-900 flex items-center">
-                         <Users className="w-5 h-5 text-blue-600 mr-2" />
+                       <CardTitle className="text-lg font-semibold text-emerald-900 flex items-center">
+                         <Users className="w-5 h-5 text-emerald-600 mr-2" />
                          Subdirektorat
                        </CardTitle>
                      </CardHeader>
                      <CardContent>
                        <Table>
                          <TableHeader>
-                                                    <TableRow className="bg-blue-100/50">
-                           <TableHead className="text-blue-900">Nama</TableHead>
-                           <TableHead className="text-blue-900">Direktorat</TableHead>
-                           <TableHead className="text-blue-900">Deskripsi</TableHead>
-                           <TableHead className="text-blue-900">Tahun</TableHead>
-                           <TableHead className="text-blue-900">Aksi</TableHead>
-                         </TableRow>
+                           <TableRow className="bg-emerald-100/50">
+                             <TableHead className="text-emerald-900">Nama</TableHead>
+                             <TableHead className="text-emerald-900">Direktorat</TableHead>
+                             <TableHead className="text-emerald-900">Deskripsi</TableHead>
+                             <TableHead className="text-emerald-900">Tahun</TableHead>
+                             <TableHead className="text-emerald-900">Aksi</TableHead>
+                           </TableRow>
                          </TableHeader>
                          <TableBody>
                            {subdirektorat && subdirektorat.length > 0 ? subdirektorat.map((item) => {
                              const parentDirektorat = direktorat && direktorat.find(d => d.id === item.direktoratId);
                              return (
-                               <TableRow key={item.id} className="hover:bg-blue-50/50 py-4">
+                               <TableRow key={item.id} className="hover:bg-emerald-50/50 py-4">
                                  <TableCell className="font-medium py-4">{item.nama}</TableCell>
                                  <TableCell className="py-4">
-                                   <Badge variant="outline">{parentDirektorat ? parentDirektorat.nama : 'N/A'}</Badge>
+                                   <Badge variant="outline" className="border-emerald-200 text-emerald-700 bg-emerald-50">{parentDirektorat ? parentDirektorat.nama : 'N/A'}</Badge>
                                  </TableCell>
                                  <TableCell className="py-4">{item.deskripsi}</TableCell>
                                  <TableCell className="py-4">{item.tahun}</TableCell>
@@ -2092,30 +2092,30 @@ const PengaturanBaru = () => {
                    </Card>
 
                    {/* Anak Perusahaan Section */}
-                   <Card className="border border-purple-200 bg-purple-50/30">
+                   <Card className="border border-emerald-200 bg-emerald-50/30">
                      <CardHeader className="pb-3">
-                       <CardTitle className="text-lg font-semibold text-purple-900 flex items-center">
-                         <Building className="w-5 h-5 text-purple-600 mr-2" />
+                       <CardTitle className="text-lg font-semibold text-emerald-900 flex items-center">
+                         <Building className="w-5 h-5 text-emerald-600 mr-2" />
                          Anak Perusahaan & Badan Afiliasi
                        </CardTitle>
                      </CardHeader>
                      <CardContent>
                        <Table>
                          <TableHeader>
-                           <TableRow className="bg-purple-100/50">
-                             <TableHead className="text-purple-900">Nama</TableHead>
-                             <TableHead className="text-purple-900">Deskripsi</TableHead>
-                             <TableHead className="text-purple-900">Tahun</TableHead>
-                             <TableHead className="text-purple-900">Aksi</TableHead>
+                           <TableRow className="bg-emerald-100/50">
+                             <TableHead className="text-emerald-900">Nama</TableHead>
+                             <TableHead className="text-emerald-900">Deskripsi</TableHead>
+                             <TableHead className="text-emerald-900">Tahun</TableHead>
+                             <TableHead className="text-emerald-900">Aksi</TableHead>
                            </TableRow>
                          </TableHeader>
                          <TableBody>
                            {anakPerusahaan && anakPerusahaan.length > 0 ? anakPerusahaan.map((item) => (
-                             <TableRow key={item.id} className="hover:bg-purple-50/50 py-4">
+                             <TableRow key={item.id} className="hover:bg-emerald-50/50 py-4">
                                <TableCell className="font-medium py-4">{item.nama}</TableCell>
                                <TableCell className="py-4">{item.deskripsi}</TableCell>
                                <TableCell className="py-4">{item.tahun}</TableCell>
-                               <TableCell className="py-4">
+                                                                <TableCell className="py-4">
                                  <Button
                                    variant="ghost"
                                    size="sm"
@@ -2139,32 +2139,32 @@ const PengaturanBaru = () => {
                    </Card>
 
                    {/* Divisi Section */}
-                   <Card className="border border-orange-200 bg-orange-50/30">
+                   <Card className="border border-emerald-200 bg-emerald-50/30">
                      <CardHeader className="pb-3">
-                       <CardTitle className="text-lg font-semibold text-orange-900 flex items-center">
-                         <Building2 className="w-5 h-5 text-orange-600 mr-2" />
+                       <CardTitle className="text-lg font-semibold text-emerald-900 flex items-center">
+                         <Building2 className="w-5 h-5 text-emerald-600 mr-2" />
                          Divisi
                        </CardTitle>
                      </CardHeader>
                      <CardContent>
                        <Table>
                          <TableHeader>
-                           <TableRow className="bg-orange-100/50">
-                             <TableHead className="text-orange-900">Nama</TableHead>
-                             <TableHead className="text-orange-900">Subdirektorat</TableHead>
-                             <TableHead className="text-orange-900">Deskripsi</TableHead>
-                             <TableHead className="text-orange-900">Tahun</TableHead>
-                             <TableHead className="text-orange-900">Aksi</TableHead>
+                           <TableRow className="bg-emerald-100/50">
+                             <TableHead className="text-emerald-900">Nama</TableHead>
+                             <TableHead className="text-emerald-900">Subdirektorat</TableHead>
+                             <TableHead className="text-emerald-900">Deskripsi</TableHead>
+                             <TableHead className="text-emerald-900">Tahun</TableHead>
+                             <TableHead className="text-emerald-900">Aksi</TableHead>
                            </TableRow>
                          </TableHeader>
                          <TableBody>
                            {divisi && divisi.length > 0 ? divisi.map((item) => {
                              const parentSubdirektorat = subdirektorat && subdirektorat.find(s => s.id === item.subdirektoratId);
                              return (
-                               <TableRow key={item.id} className="hover:bg-orange-50/50 py-4">
+                               <TableRow key={item.id} className="hover:bg-emerald-50/50 py-4">
                                  <TableCell className="font-medium py-4">{item.nama}</TableCell>
                                  <TableCell className="py-4">
-                                   <Badge variant="outline">{parentSubdirektorat ? parentSubdirektorat.nama : 'N/A'}</Badge>
+                                   <Badge variant="outline" className="border-emerald-200 text-emerald-700 bg-emerald-50">{parentSubdirektorat ? parentSubdirektorat.nama : 'N/A'}</Badge>
                                  </TableCell>
                                  <TableCell className="py-4">{item.deskripsi}</TableCell>
                                  <TableCell className="py-4">{item.tahun}</TableCell>
@@ -2233,7 +2233,7 @@ const PengaturanBaru = () => {
                    <div className="flex flex-wrap gap-3">
                      <Button 
                        onClick={() => setShowUserDialog(true)}
-                       className="bg-purple-600 hover:bg-purple-700"
+                       className="bg-blue-600 hover:bg-blue-700"
                      >
                        <Plus className="w-4 h-4 mr-2" />
                        Tambah PIC Baru
@@ -2241,7 +2241,7 @@ const PengaturanBaru = () => {
                      <Button 
                        onClick={handleUseDefaultUsers}
                        variant="outline"
-                       className="border-green-600 text-green-600 hover:bg-green-50"
+                       className="border-blue-600 text-blue-600 hover:bg-blue-50"
                      >
                        <Copy className="w-4 h-4 mr-2" />
                        Gunakan Data Default
@@ -2250,18 +2250,18 @@ const PengaturanBaru = () => {
 
                    {/* Data Overview */}
                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                     <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg">
-                       <div className="text-2xl font-bold text-purple-600">{users && users.length || 0}</div>
-                       <div className="text-sm text-purple-600">Total Users</div>
+                     <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                       <div className="text-2xl font-bold text-blue-600">{users && users.length || 0}</div>
+                       <div className="text-sm text-blue-600">Total Users</div>
                      </div>
                      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                        <div className="text-2xl font-bold text-blue-600">{users && users.filter(u => u.role === 'admin').length || 0}</div>
                        <div className="text-sm text-blue-600">Admin</div>
                      </div>
 
-                     <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
-                       <div className="text-2xl font-bold text-orange-600">{users && users.filter(u => u.role === 'superadmin').length || 0}</div>
-                       <div className="text-sm text-orange-600">Super Admin</div>
+                     <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                       <div className="text-2xl font-bold text-blue-600">{users && users.filter(u => u.role === 'superadmin').length || 0}</div>
+                       <div className="text-sm text-blue-600">Super Admin</div>
                      </div>
                    </div>
 
@@ -2407,14 +2407,14 @@ const PengaturanBaru = () => {
                              });
                            }, 5000);
                          }}
-                         className="bg-indigo-600 hover:bg-indigo-700"
+                         className="bg-purple-600 hover:bg-purple-700"
                        >
                          <Plus className="w-4 h-4 mr-2" />
                          Tambah Item Baru
                        </Button>
                                                <Button 
                           onClick={() => setShowAspekManagementPanel(true)}
-                          className="bg-orange-600 hover:bg-orange-700"
+                          className="bg-purple-600 hover:bg-purple-700"
                         >
                           <Settings className="w-4 h-4 mr-2" />
                           Kelola Aspek
@@ -2423,7 +2423,7 @@ const PengaturanBaru = () => {
                          <Button 
                            onClick={() => setShowDefaultDataButton(true)}
                            variant="outline"
-                           className="border-green-600 text-green-600 hover:bg-green-50"
+                           className="border-purple-600 text-purple-600 hover:bg-purple-50"
                          >
                            <Eye className="w-4 h-4 mr-2" />
                            Tampilkan Data Default
@@ -2432,7 +2432,7 @@ const PengaturanBaru = () => {
                          <Button 
                            onClick={handleUseDefaultChecklist}
                            variant="outline"
-                           className="border-green-600 text-green-600 hover:bg-green-50"
+                           className="border-purple-600 text-purple-600 hover:bg-purple-50"
                          >
                            <Copy className="w-4 h-4 mr-2" />
                            Gunakan Data Default
@@ -2501,7 +2501,7 @@ const PengaturanBaru = () => {
                       <div className="overflow-hidden rounded-lg border border-indigo-100 shadow-lg">
                         <Table>
                           <TableHeader>
-                            <TableRow className="bg-gradient-to-r from-indigo-600 to-purple-600 border-indigo-200">
+                            <TableRow className="bg-gradient-to-r from-purple-600 to-purple-700 border-purple-200">
                               <TableHead className="text-white font-bold w-16 text-center">No</TableHead>
                               <TableHead className="text-white font-bold w-48 text-center">Aspek (Opsional)</TableHead>
                               <TableHead className="text-white font-bold w-96 text-center">Deskripsi</TableHead>
@@ -2516,15 +2516,15 @@ const PengaturanBaru = () => {
                                 ref={newItems.has(item.id) ? newItemRef : null}
                                 className={`transition-all duration-200 border-b border-gray-100 ${
                                   newItems.has(item.id) 
-                                    ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200 shadow-md' 
-                                    : 'hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50'
+                                    ? 'bg-gradient-to-r from-purple-50 to-purple-100 border-purple-200 shadow-md' 
+                                    : 'hover:bg-gradient-to-r hover:from-purple-50 hover:to-purple-100'
                                 }`}
                               >
                                 <TableCell className="font-bold text-gray-700 text-center bg-gray-50">
                                   <div className="flex items-center justify-center gap-2">
                                     {index + 1}
                                     {newItems.has(item.id) && (
-                                      <Badge variant="secondary" className="bg-green-100 text-green-700 text-xs px-2 py-0.5">
+                                      <Badge variant="secondary" className="bg-purple-100 text-purple-700 text-xs px-2 py-0.5">
                                         NEW
                                       </Badge>
                                     )}
@@ -2541,7 +2541,7 @@ const PengaturanBaru = () => {
                                       trackItemChange(item.id);
                                     }}
                                   >
-                                    <SelectTrigger className="w-44 border-2 border-gray-200 hover:border-indigo-400 focus:border-indigo-500 transition-colors">
+                                    <SelectTrigger className="w-44 border-2 border-gray-200 hover:border-purple-400 focus:border-purple-500 transition-colors">
                                       <SelectValue placeholder="Pilih Aspek (Opsional)" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -2558,7 +2558,7 @@ const PengaturanBaru = () => {
                                   <Textarea
                                     value={item.deskripsi || ''}
                                     placeholder="Masukkan deskripsi dokumen GCG..."
-                                    className="min-h-[80px] resize-none border-2 border-gray-200 hover:border-indigo-400 focus:border-indigo-500 transition-colors rounded-md"
+                                    className="min-h-[80px] resize-none border-2 border-gray-200 hover:border-purple-400 focus:border-purple-500 transition-colors rounded-md"
                                     onChange={(e) => {
                                       const newValue = e.target.value;
                                       setChecklistItems(prev => prev.map(i => 

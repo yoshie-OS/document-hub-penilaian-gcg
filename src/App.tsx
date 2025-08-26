@@ -18,7 +18,7 @@ import DashboardMain from './pages/dashboard/DashboardMain';
 import MonitoringUploadGCG from './pages/MonitoringUploadGCG';
 
 import ArsipDokumen from './pages/admin/ArsipDokumen';
-
+import DashboardAdmin from './pages/admin/DashboardAdmin';
 import PengaturanBaru from './pages/admin/PengaturanBaru';
 import NotFound from './pages/NotFound';
 import { useUser } from './contexts/UserContext';
@@ -73,22 +73,22 @@ const AppRoutes = () => {
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         
-        {/* Dashboard - All users go to DashboardMain for now */}
+        {/* Dashboard - Super Admin goes to DashboardMain, Admin goes to DashboardAdmin */}
         <Route 
           path="/dashboard" 
           element={
             <ProtectedRoute>
-              <DashboardMain />
+              {user?.role === 'admin' ? <Navigate to="/admin/dashboard" replace /> : <DashboardMain />}
             </ProtectedRoute>
           } 
         />
 
-        {/* Admin Dashboard Route - Redirect to main dashboard */}
+        {/* Admin Dashboard Route */}
         <Route 
           path="/admin/dashboard" 
           element={
             <AdminRoute>
-              <Navigate to="/dashboard" replace />
+              <DashboardAdmin />
             </AdminRoute>
           } 
         />

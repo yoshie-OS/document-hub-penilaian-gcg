@@ -12,7 +12,6 @@ import { useChecklist } from '@/contexts/ChecklistContext';
 import { useStrukturPerusahaan } from '@/contexts/StrukturPerusahaanContext';
 import { YearSelectorPanel } from '@/components/panels';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import DocumentList from '@/components/dashboard/DocumentList';
 import { 
   FileText, 
   Download,
@@ -23,7 +22,10 @@ import {
   AlertCircle,
   Calendar,
   FolderOpen,
-  Clock
+  Clock,
+  Eye,
+  Edit,
+  Trash2
 } from 'lucide-react';
 
 const ArsipDokumen = () => {
@@ -33,33 +35,41 @@ const ArsipDokumen = () => {
   const { checklist } = useChecklist();
   const { direktorat: direktoratData, subdirektorat: subDirektoratData } = useStrukturPerusahaan();
   
-  // Transform object arrays to string arrays for display
+  // State untuk error handling
+  const [hasError, setHasError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  
+  // Transform object arrays to string arrays for display dengan error handling
   const direktorats = useMemo(() => {
-    if (!direktoratData || !Array.isArray(direktoratData)) return [];
-    if (!selectedYear) return [];
-    
     try {
+      if (!direktoratData || !Array.isArray(direktoratData)) return [];
+      if (!selectedYear) return [];
+      
       return direktoratData
         .filter(item => item && item.tahun === selectedYear && item.nama)
         .map(item => String(item.nama))
         .filter(Boolean);
     } catch (error) {
       console.error('Error processing direktorat data:', error);
+      setHasError(true);
+      setErrorMessage('Error memproses data direktorat');
       return [];
     }
   }, [direktoratData, selectedYear]);
   
   const subDirektorats = useMemo(() => {
-    if (!subDirektoratData || !Array.isArray(subDirektoratData)) return [];
-    if (!selectedYear) return [];
-    
     try {
+      if (!subDirektoratData || !Array.isArray(subDirektoratData)) return [];
+      if (!selectedYear) return [];
+      
       return subDirektoratData
         .filter(item => item && item.tahun === selectedYear && item.nama)
         .map(item => String(item.nama))
         .filter(Boolean);
     } catch (error) {
       console.error('Error processing subdirektorat data:', error);
+      setHasError(true);
+      setErrorMessage('Error memproses data subdirektorat');
       return [];
     }
   }, [subDirektoratData, selectedYear]);
@@ -71,55 +81,74 @@ const ArsipDokumen = () => {
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
 
-  // Get documents for selected year
+  // Get documents for selected year dengan error handling
   const yearDocuments = useMemo(() => {
-    return documents.filter(doc => doc.year === selectedYear);
+    try {
+      if (!documents || !Array.isArray(documents)) return [];
+      if (!selectedYear) return [];
+      
+      return documents.filter(doc => doc.year === selectedYear);
+    } catch (error) {
+      console.error('Error processing documents:', error);
+      setHasError(true);
+      setErrorMessage('Error memproses dokumen');
+      return [];
+    }
   }, [documents, selectedYear]);
 
-  // Get unique values for download options
+  // Get unique values for download options dengan error handling
   const aspects = useMemo(() => {
-    if (!checklist || !Array.isArray(checklist)) return [];
-    if (!selectedYear) return [];
-    
     try {
+      if (!checklist || !Array.isArray(checklist)) return [];
+      if (!selectedYear) return [];
+      
       const yearChecklist = checklist.filter(item => item && item.tahun === selectedYear);
       return Array.from(new Set(yearChecklist.map(item => item.aspek).filter(Boolean)));
     } catch (error) {
       console.error('Error processing checklist data:', error);
+      setHasError(true);
+      setErrorMessage('Error memproses data checklist');
       return [];
     }
   }, [checklist, selectedYear]);
 
   // Filter documents based on download type and selection
   const getFilteredDocumentsForDownload = () => {
-    let filtered = yearDocuments;
+    try {
+      let filtered = yearDocuments;
 
-    switch (downloadType) {
-      case 'aspect':
-        if (selectedAspect) {
-          filtered = filtered.filter(doc => {
-            if (!doc.checklistId) return false;
-            const checklistItem = checklist.find(item => item.id === doc.checklistId);
-            return checklistItem && checklistItem.aspek === selectedAspect;
-          });
-        }
-        break;
-      case 'direktorat':
-        if (selectedDirektorat) {
-          filtered = filtered.filter(doc => doc.direktorat === selectedDirektorat);
-        }
-        break;
-      case 'subdirektorat':
-        if (selectedSubDirektorat) {
-          filtered = filtered.filter(doc => doc.subdirektorat === selectedSubDirektorat);
-        }
-        break;
-      default:
-        // 'all' - no filtering needed
-        break;
+      switch (downloadType) {
+        case 'aspect':
+          if (selectedAspect) {
+            filtered = filtered.filter(doc => {
+              if (!doc.checklistId) return false;
+              const checklistItem = checklist.find(item => item.id === doc.checklistId);
+              return checklistItem && checklistItem.aspek === selectedAspect;
+            });
+          }
+          break;
+        case 'direktorat':
+          if (selectedDirektorat) {
+            filtered = filtered.filter(doc => doc.direktorat === selectedDirektorat);
+          }
+          break;
+        case 'subdirektorat':
+          if (selectedSubDirektorat) {
+            filtered = filtered.filter(doc => doc.subdirektorat === selectedSubDirektorat);
+          }
+          break;
+        default:
+          // 'all' - no filtering needed
+          break;
+      }
+
+      return filtered;
+    } catch (error) {
+      console.error('Error filtering documents:', error);
+      setHasError(true);
+      setErrorMessage('Error memfilter dokumen');
+      return [];
     }
-
-    return filtered;
   };
 
   const filteredDocuments = getFilteredDocumentsForDownload();
@@ -133,7 +162,12 @@ const ArsipDokumen = () => {
   };
 
   const getTotalSize = (docs: any[]) => {
-    return docs.reduce((total, doc) => total + (doc.fileSize || 0), 0);
+    try {
+      return docs.reduce((total, doc) => total + (doc.fileSize || 0), 0);
+    } catch (error) {
+      console.error('Error calculating total size:', error);
+      return 0;
+    }
   };
 
   const handleDownload = async () => {
@@ -181,6 +215,7 @@ const ArsipDokumen = () => {
       const totalSize = getTotalSize(filteredDocuments);
       alert(`Download berhasil!\n\nFile: ${filename}\nDokumen: ${filteredDocuments.length} file\nUkuran: ${formatFileSize(totalSize)}`);
     } catch (error) {
+      console.error('Download error:', error);
       alert('Terjadi kesalahan saat mengunduh file.');
     } finally {
       setIsDownloading(false);
@@ -218,10 +253,54 @@ const ArsipDokumen = () => {
           icon: <Users className="w-5 h-5" />,
           color: 'bg-pink-500'
         };
+      default:
+        return {
+          title: 'Unduh Dokumen',
+          description: 'Pilih tipe download',
+          icon: <Download className="w-5 h-5" />,
+          color: 'bg-gray-500'
+        };
     }
   };
 
   const downloadInfo = getDownloadTypeInfo();
+
+  // Error boundary - tampilkan error jika ada
+  if (hasError) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+        <Sidebar />
+        <Topbar />
+        <div className={`
+          transition-all duration-300 ease-in-out pt-16
+          ${isSidebarOpen ? 'lg:ml-64' : 'ml-0'}
+        `}>
+          <div className="p-6">
+            <Card className="border-0 shadow-lg bg-red-50 border-red-200">
+              <CardContent className="p-6">
+                <div className="flex items-center space-x-3">
+                  <AlertCircle className="w-6 h-6 text-red-600" />
+                  <div>
+                    <h3 className="text-lg font-semibold text-red-800">Terjadi Kesalahan</h3>
+                    <p className="text-red-700">{errorMessage}</p>
+                    <Button 
+                      onClick={() => {
+                        setHasError(false);
+                        setErrorMessage('');
+                      }}
+                      className="mt-3 bg-red-600 hover:bg-red-700"
+                    >
+                      Coba Lagi
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
@@ -502,11 +581,55 @@ const ArsipDokumen = () => {
           {/* Document List Panel - Only show when year is selected */}
           {selectedYear && (
             <div className="mb-8">
-              <DocumentList 
-                year={selectedYear}
-                showFilters={true}
-                filterYear={selectedYear}
-              />
+              <Card className="border-0 shadow-lg">
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <FileText className="w-5 h-5" />
+                    <span>Daftar Dokumen Tahun {selectedYear}</span>
+                  </CardTitle>
+                  <CardDescription>
+                    Daftar semua dokumen GCG yang tersedia untuk tahun buku ini
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {yearDocuments.length > 0 ? (
+                    <div className="space-y-4">
+                      {yearDocuments.map((doc, index) => (
+                        <div key={doc.id || index} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
+                          <div className="flex items-center space-x-3">
+                            <FileText className="w-5 h-5 text-blue-600" />
+                            <div>
+                              <h4 className="font-medium text-gray-900">{doc.fileName || `Dokumen ${index + 1}`}</h4>
+                              <p className="text-sm text-gray-600">
+                                {doc.direktorat || 'N/A'} • {doc.subdirektorat || 'N/A'} • {doc.aspek || 'N/A'}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                Ukuran: {formatFileSize(doc.fileSize || 0)} • Upload: {doc.uploadDate || 'N/A'}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-700">
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" className="text-green-600 hover:text-green-700">
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                      <p>Belum ada dokumen untuk tahun {selectedYear}</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </div>
           )}
 

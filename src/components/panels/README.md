@@ -27,6 +27,36 @@ import { YearSelectorPanel } from '@/components/panels';
 />
 ```
 
+## AdminYearPanel
+
+Panel khusus untuk admin yang menampilkan tahun aktif dengan icon upload dan tahun-tahun sebelumnya dengan icon mata.
+
+### Props
+- `selectedYear: number | null` - Tahun yang sedang dipilih
+- `onYearChange: (year: number) => void` - Callback ketika tahun berubah
+- `availableYears: number[]` - Array tahun yang tersedia
+- `currentYear: number` - Tahun saat ini untuk menentukan tahun aktif
+- `className?: string` - Class CSS tambahan
+
+### Fitur
+- **Tahun Aktif**: Menampilkan tahun terkini dengan icon upload (hijau)
+- **Tahun Sebelumnya**: Menampilkan tahun-tahun sebelumnya dengan icon mata (abu-abu)
+- **Auto-sorting**: Tahun aktif selalu di atas, tahun sebelumnya diurutkan descending
+- **Visual Feedback**: Badge untuk membedakan tahun aktif dan arsip
+- **Responsive**: Layout yang responsif dengan flexbox
+
+### Contoh Penggunaan
+```tsx
+import { AdminYearPanel } from '@/components/panels';
+
+<AdminYearPanel
+  selectedYear={selectedYear}
+  onYearChange={setSelectedYear}
+  availableYears={availableYears}
+  currentYear={new Date().getFullYear()}
+/>
+```
+
 ## StatsPanel
 
 Panel untuk menampilkan statistik dalam format grid atau list.
@@ -58,22 +88,12 @@ import { StatsPanel } from '@/components/panels';
 
 <StatsPanel
   title="Statistik Dashboard"
-  description="Overview data tahun 2024"
+  description="Overview data dashboard"
   stats={[
-    {
-      title: "Total Dokumen",
-      value: 150,
-      subtitle: "Dokumen terupload",
-      progress: 75
-    },
-    {
-      title: "Checklist Selesai",
-      value: 45,
-      subtitle: "Dari 60 item",
-      progress: 75,
-      trend: 'up'
-    }
+    { title: "Total Dokumen", value: 150, icon: <FileText /> },
+    { title: "Selesai", value: 120, progress: 80, color: "green" }
   ]}
+  layout="grid"
   showProgress={true}
 />
 ```
