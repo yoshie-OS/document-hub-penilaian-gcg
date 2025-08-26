@@ -41,11 +41,13 @@ const Login = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
-              <img 
-                src="/aset/POSIND_2023_(with_wordmark).svg.png" 
-                alt="POS Indonesia" 
-                className="h-10 w-auto"
-              />
+              <div className="h-10 w-10 flex items-center justify-center">
+                <img 
+                  src="/aset/POSIND_2023_(with_wordmark).svg.png" 
+                  alt="POSIND Logo" 
+                  className="w-full h-full object-contain"
+                />
+              </div>
               <div className="hidden md:block">
                 <h1 className="text-xl font-bold text-blue-900">GCG Document Hub</h1>
                 <p className="text-sm text-blue-600">Sistem Manajemen Dokumen GCG</p>
@@ -158,11 +160,13 @@ const Login = () => {
           <div className="w-full max-w-md">
             {/* Mobile Header */}
             <div className="lg:hidden text-center mb-8">
-              <img 
-                src="/aset/POSIND_2023_(with_wordmark).svg.png" 
-                alt="POS Indonesia" 
-                className="h-12 w-auto mx-auto mb-4"
-              />
+              <div className="h-12 w-12 flex items-center justify-center mx-auto mb-4">
+                <img 
+                  src="/aset/POSIND_2023_(with_wordmark).svg.png" 
+                  alt="POSIND Logo" 
+                  className="w-full h-full object-contain"
+                />
+              </div>
               <h2 className="text-2xl font-bold text-blue-900 mb-2">GCG Document Hub</h2>
               <p className="text-blue-600">Sistem Manajemen Dokumen GCG</p>
             </div>
@@ -252,27 +256,27 @@ const Login = () => {
                 </form>
 
                 {/* Demo Account Info */}
-                <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <h4 className="text-sm font-medium text-blue-900 mb-2 flex items-center space-x-2">
-                    <CheckCircle className="w-4 h-4" />
-                    <span>Demo Account</span>
-                  </h4>
-                  <div className="space-y-1 text-sm text-blue-800">
-                    <p><span className="font-medium">Email:</span> arsippostgcg@gmail.com</p>
-                    <p><span className="font-medium">Password:</span> postarsipGCG.</p>
+                                  <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <h4 className="text-sm font-medium text-blue-900 mb-2 flex items-center space-x-2">
+                      <CheckCircle className="w-4 h-4" />
+                      <span>Super Admin Account</span>
+                    </h4>
+                    <div className="space-y-1 text-sm text-blue-800">
+                      <p><span className="font-medium">Email:</span> arsippostgcg@gmail.com</p>
+                      <p><span className="font-medium">Password:</span> postarsipGCG.</p>
+                    </div>
+                    <div className="mt-3 pt-3 border-t border-blue-200">
+                      <button
+                        onClick={() => {
+                          localStorage.clear();
+                          window.location.reload();
+                        }}
+                        className="text-xs text-blue-600 hover:text-blue-800 underline"
+                        >
+                        Reset Data (jika login bermasalah)
+                      </button>
+                    </div>
                   </div>
-                  <div className="mt-3 pt-3 border-t border-blue-200">
-                    <button
-                      onClick={() => {
-                        localStorage.clear();
-                        window.location.reload();
-                      }}
-                      className="text-xs text-blue-600 hover:text-blue-800 underline"
-                    >
-                      Reset Data (jika login bermasalah)
-                    </button>
-                  </div>
-                </div>
 
                 {/* Register Link */}
                 <div className="mt-6 text-center">

@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { seedDirektorat, seedSubdirektorat } from "@/lib/seed/seedDirektorat";
 
 export interface Direktorat {
   id: number;
@@ -34,15 +33,15 @@ export const DirektoratProvider = ({ children }: { children: ReactNode }) => {
     const subdirektoratData = JSON.parse(localStorage.getItem("subdirektorat") || "null");
     
     if (!direktoratData) {
-      localStorage.setItem("direktorat", JSON.stringify(seedDirektorat));
-      setDirektorat(seedDirektorat);
+      localStorage.setItem("direktorat", JSON.stringify([]));
+      setDirektorat([]);
     } else {
       setDirektorat(direktoratData);
     }
     
     if (!subdirektoratData) {
-      localStorage.setItem("subdirektorat", JSON.stringify(seedSubdirektorat));
-      setSubdirektorat(seedSubdirektorat);
+      localStorage.setItem("subdirektorat", JSON.stringify([]));
+      setSubdirektorat([]);
     } else {
       setSubdirektorat(subdirektoratData);
     }

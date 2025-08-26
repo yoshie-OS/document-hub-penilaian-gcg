@@ -8,7 +8,7 @@ import { FileUploadProvider } from './contexts/FileUploadContext';
 import { DocumentMetadataProvider } from './contexts/DocumentMetadataContext';
 import { SidebarProvider } from './contexts/SidebarContext';
 import { YearProvider } from './contexts/YearContext';
-import { KlasifikasiProvider } from './contexts/KlasifikasiContext';
+
 import { StrukturPerusahaanProvider } from './contexts/StrukturPerusahaanContext';
 import { Toaster } from './components/ui/toaster';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -21,11 +21,8 @@ import MonitoringUploadGCG from './pages/MonitoringUploadGCG';
 import GraphView from './pages/GraphView';
 import GraphViewTest from './pages/GraphViewTest';
 import ArsipDokumen from './pages/admin/ArsipDokumen';
-import StrukturPerusahaan from './pages/admin/StrukturPerusahaan';
-import DashboardAdmin from './pages/admin/DashboardAdmin';
 import DokumenGCG from './pages/admin/DokumenGCG';
-import KelolaAkun from './pages/admin/KelolaAkun';
-import MetaData from './pages/admin/MetaData';
+import PengaturanBaru from './pages/admin/PengaturanBaru';
 import NotFound from './pages/NotFound';
 import { useUser } from './contexts/UserContext';
 
@@ -79,22 +76,22 @@ const AppRoutes = () => {
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         
-        {/* Dashboard - Different for Super Admin and Admin */}
+        {/* Dashboard - All users go to DashboardMain for now */}
         <Route 
           path="/dashboard" 
           element={
             <ProtectedRoute>
-              {user.role === 'admin' ? <DashboardAdmin /> : <DashboardMain />}
+              <DashboardMain />
             </ProtectedRoute>
           } 
         />
 
-        {/* Admin Dashboard Route */}
+        {/* Admin Dashboard Route - Redirect to main dashboard */}
         <Route 
           path="/admin/dashboard" 
           element={
             <AdminRoute>
-              <DashboardAdmin />
+              <Navigate to="/dashboard" replace />
             </AdminRoute>
           } 
         />
@@ -140,14 +137,6 @@ const AppRoutes = () => {
       />
 
       <Route 
-        path="/admin/kelola-akun" 
-        element={
-          <SuperAdminRoute>
-            <KelolaAkun />
-          </SuperAdminRoute>
-        } 
-      />
-      <Route 
         path="/admin/arsip-dokumen" 
         element={
           <SuperAdminRoute>
@@ -156,18 +145,10 @@ const AppRoutes = () => {
         } 
       />
       <Route 
-        path="/admin/struktur-perusahaan" 
+        path="/admin/pengaturan-baru" 
         element={
           <SuperAdminRoute>
-            <StrukturPerusahaan />
-          </SuperAdminRoute>
-        } 
-      />
-      <Route 
-        path="/admin/meta-data" 
-        element={
-          <SuperAdminRoute>
-            <MetaData />
+            <PengaturanBaru />
           </SuperAdminRoute>
         } 
       />
@@ -196,14 +177,12 @@ const App = () => {
             <FileUploadProvider>
               <DocumentMetadataProvider>
                 <YearProvider>
-                  <KlasifikasiProvider>
                     <StrukturPerusahaanProvider>
                       <SidebarProvider>
                         <AppRoutes />
                         <Toaster />
                       </SidebarProvider>
                     </StrukturPerusahaanProvider>
-                  </KlasifikasiProvider>
                 </YearProvider>
               </DocumentMetadataProvider>
             </FileUploadProvider>

@@ -5,7 +5,7 @@ import { useUser } from '@/contexts/UserContext';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  requireRole?: 'superadmin' | 'admin' | 'user';
+  requireRole?: 'superadmin' | 'admin';
 }
 
 const ProtectedRoute = ({ children, requireRole }: ProtectedRouteProps) => {

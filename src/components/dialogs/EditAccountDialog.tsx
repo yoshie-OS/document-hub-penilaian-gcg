@@ -35,7 +35,7 @@ interface AccountData {
   id: number;
   email: string;
   name: string;
-  role: 'admin' | 'user' | 'superadmin';
+  role: 'admin' | 'superadmin';
   direktorat: string;
   subdirektorat: string;
   divisi: string;
@@ -46,7 +46,7 @@ interface AccountFormData {
   email: string;
   password: string;
   name: string;
-  role: 'admin' | 'user';
+  role: 'admin';
   direktorat: string;
   subdirektorat: string;
   divisi: string;
@@ -67,7 +67,7 @@ const EditAccountDialog: React.FC<EditAccountDialogProps> = ({
     email: '',
     password: '',
     name: '',
-    role: 'user',
+            role: 'admin',
     direktorat: '',
     subdirektorat: '',
     divisi: ''
@@ -447,7 +447,7 @@ const EditAccountDialog: React.FC<EditAccountDialogProps> = ({
                 </Label>
                 <Select 
                   value={formData.role} 
-                  onValueChange={(value: 'admin' | 'user') => handleInputChange('role', value)}
+                  onValueChange={(value: 'admin') => handleInputChange('role', value)}
                   disabled={isLoading}
                 >
                   <SelectTrigger>
@@ -474,7 +474,7 @@ const EditAccountDialog: React.FC<EditAccountDialogProps> = ({
                   <Badge variant="outline" className={getRoleColor(formData.role)}>
                     {getRoleIcon(formData.role)}
                     <span className="ml-1">
-                      {formData.role === 'admin' ? 'Akses admin terbatas' : 'Akses user standar'}
+                      Akses admin terbatas
                     </span>
                   </Badge>
                 </div>

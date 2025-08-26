@@ -1,15 +1,14 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { useKeenSlider, KeenSliderPlugin } from 'keen-slider/react';
-import 'keen-slider/keen-slider.min.css';
 import { useNavigate } from 'react-router-dom';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { useFileUpload } from '@/contexts/FileUploadContext';
 import { useChecklist } from '@/contexts/ChecklistContext';
+import { useDocumentMetadata } from '@/contexts/DocumentMetadataContext';
 import { useYear } from '@/contexts/YearContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import AnalysisCard from '@/components/cards/AnalysisCard';
+import YearStatisticsPanel from '@/components/dashboard/YearStatisticsPanel';
 import { 
   BarChart3, 
   TrendingUp, 
@@ -18,40 +17,8 @@ import {
   CheckCircle, 
   Clock, 
   Plus,
-  Eye,
-  ChevronUp,
-  ChevronDown
+  Eye
 } from 'lucide-react';
-
-// Keen-slider autoplay plugin
-const autoplay = (run = true, interval = 2500): KeenSliderPlugin => (slider) => {
-  let timeout: ReturnType<typeof setTimeout>;
-  let mouseOver = false;
-  function clearNextTimeout() {
-    clearTimeout(timeout);
-  }
-  function nextTimeout() {
-    clearTimeout(timeout);
-    if (mouseOver) return;
-    timeout = setTimeout(() => {
-      if (run && slider) slider.next();
-    }, interval);
-  }
-  slider.on('created', () => {
-    slider.container.addEventListener('mouseover', () => {
-      mouseOver = true;
-      clearNextTimeout();
-    });
-    slider.container.addEventListener('mouseout', () => {
-      mouseOver = false;
-      nextTimeout();
-    });
-    nextTimeout();
-  });
-  slider.on('dragStarted', clearNextTimeout);
-  slider.on('animationEnded', nextTimeout);
-  slider.on('updated', nextTimeout);
-};
 
 const formatFileSize = (bytes: number) => {
   if (bytes === 0) return '0 Bytes';
@@ -61,113 +28,20 @@ const formatFileSize = (bytes: number) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
-// Custom CSS for keen-slider
-const keenSliderStyles = `
-  .keen-slider {
-    display: flex;
-    overflow: hidden;
-    position: relative;
-    width: 100%;
-    max-width: 100%;
-    -webkit-touch-callout: none;
-    -webkit-tap-highlight-color: transparent;
-    -webkit-user-select: none;
-    -moz-user-select: none;
-    -ms-user-select: none;
-    user-select: none;
-    -khtml-user-select: none;
-    touch-action: pan-y;
-  }
-  .keen-slider__slide {
-    position: relative;
-    overflow: hidden;
-    width: 100%;
-    min-height: 100%;
-    flex-shrink: 0;
-  }
-  .keen-slider[data-keen-slider-v] {
-    flex-wrap: wrap;
-  }
-  .keen-slider[data-keen-slider-v] .keen-slider__slide {
-    width: 100%;
-  }
-  .keen-slider[data-keen-slider-moves] * {
-    pointer-events: none;
-  }
-  .keen-slider[data-keen-slider-mode="free-snap"] {
-    scroll-snap-type: x mandatory;
-  }
-  .keen-slider[data-keen-slider-mode="free-snap"] .keen-slider__slide {
-    scroll-snap-align: start;
-  }
-`;
-
-// Inject custom styles
-if (typeof document !== 'undefined') {
-  const styleElement = document.createElement('style');
-  styleElement.textContent = keenSliderStyles;
-  document.head.appendChild(styleElement);
-}
-
 const DashboardStats = () => {
   const navigate = useNavigate();
-  const { selectedYear } = useYear();
-  const { getYearStats, getFilesByYear } = useFileUpload();
-  const { checklist } = useChecklist();
   const { isSidebarOpen } = useSidebar();
-  const [showAllAspects, setShowAllAspects] = useState(false);
-  const [sliderRef, instanceRef] = useKeenSlider({
-    loop: true,
-    mode: 'free-snap',
-    slides: { perView: 1, spacing: 16 },
-    breakpoints: {
-      '(min-width: 640px)': { slides: { perView: 2, spacing: 16 } },
-      '(min-width: 768px)': { slides: { perView: 2, spacing: 20 } },
-      '(min-width: 1024px)': { slides: { perView: 3, spacing: 20 } },
-      '(min-width: 1280px)': { slides: { perView: 4, spacing: 20 } },
-      '(min-width: 1536px)': { slides: { perView: 4, spacing: 24 } },
-    },
-    drag: true,
-    created(slider) {
-      slider.moveToIdx(0, true);
-    },
-    updated(slider) {
-      // Avoid infinite recursion - don't call update() in updated callback
-      // The slider will handle updates automatically
-    }
-  }, [autoplay()]);
+  const { selectedYear } = useYear();
+  const { uploadedFiles, getFilesByYear, refreshFiles } = useFileUpload();
+  const { checklist, getAspectsByYear } = useChecklist();
+  const { refreshDocuments } = useDocumentMetadata();
+  const [forceUpdate, setForceUpdate] = useState(0);
 
-  // Update slider when sidebar state changes
-  useEffect(() => {
-    if (instanceRef.current) {
-      // Longer delay to ensure DOM has fully updated
-      setTimeout(() => {
-        instanceRef.current?.update();
-        // Force a second update after a short delay
-        setTimeout(() => {
-          instanceRef.current?.update();
-        }, 50);
-      }, 150);
-    }
-  }, [isSidebarOpen, instanceRef]);
-
-  // Update slider on window resize
-  useEffect(() => {
-    const handleResize = () => {
-      if (instanceRef.current) {
-        instanceRef.current.update();
-      }
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [instanceRef]);
-
-  // Calculate statistics based on selected year
+  // Get statistics
   const getStats = () => {
     if (!selectedYear) {
       return {
-        totalChecklist: 0,
+        totalFiles: 0,
         uploadedFiles: 0,
         pendingFiles: 0,
         totalSize: 0,
@@ -175,84 +49,182 @@ const DashboardStats = () => {
       };
     }
 
-    const yearStats = getYearStats(selectedYear);
-    const yearChecklist = checklist.filter(item => item.tahun === selectedYear);
-    const totalChecklist = yearChecklist.length;
-    const progress = totalChecklist > 0 ? Math.round((yearStats.uploadedCount / totalChecklist) * 100) : 0;
+    try {
+      const yearFiles = getFilesByYear(selectedYear) || [];
+      const yearChecklist = checklist?.filter(item => item.tahun === selectedYear) || [];
+      
+      const totalChecklist = yearChecklist.length;
+      const uploadedFiles = yearFiles.length;
+      const pendingFiles = totalChecklist - uploadedFiles;
+      const totalSize = yearFiles.reduce((total, file) => total + (file.fileSize || 0), 0);
+      const progress = totalChecklist > 0 ? Math.round((uploadedFiles / totalChecklist) * 100) : 0;
 
-    return {
-      totalChecklist,
-      uploadedFiles: yearStats.uploadedCount,
-      pendingFiles: totalChecklist - yearStats.uploadedCount,
-      totalSize: yearStats.totalSize,
-      progress
-    };
+      return {
+        totalFiles: yearFiles.length,
+        uploadedFiles,
+        pendingFiles,
+        totalSize,
+        progress
+      };
+    } catch (error) {
+      console.error('Error calculating stats:', error);
+      return {
+        totalFiles: 0,
+        uploadedFiles: 0,
+        pendingFiles: 0,
+        totalSize: 0,
+        progress: 0
+      };
+    }
   };
 
   // Get statistics per aspect
   const getAspectStats = () => {
     if (!selectedYear) return [];
 
-    const yearFiles = getFilesByYear(selectedYear);
-    const yearChecklist = checklist.filter(item => item.tahun === selectedYear);
-    const aspects = [...new Set(yearChecklist.map(item => item.aspek))];
+    try {
+      const yearFiles = getFilesByYear(selectedYear) || [];
+      const yearChecklist = checklist?.filter(item => item.tahun === selectedYear) || [];
+      
+      // Get aspects from context for the selected year
+      const yearAspects = getAspectsByYear(selectedYear);
+      
+      return yearAspects.map(aspek => {
+        const aspectItems = yearChecklist.filter(item => item.aspek === aspek.nama);
+        const uploadedFiles = yearFiles.filter(file => file.aspect === aspek.nama);
+        const totalItems = aspectItems.length;
+        const uploadedCount = uploadedFiles.length;
+        const pendingCount = totalItems - uploadedCount;
+        const progress = totalItems > 0 ? Math.round((uploadedCount / totalItems) * 100) : 0;
+
+        return {
+          aspek: aspek.nama,
+          totalItems,
+          uploadedCount,
+          pendingCount,
+          progress,
+          files: uploadedFiles
+        };
+      });
+    } catch (error) {
+      console.error('Error calculating aspect stats:', error);
+      return [];
+    }
+  };
+
+  // Get overall progress data
+  const getOverallProgress = () => {
+    if (!selectedYear) return null;
     
-    return aspects.map(aspek => {
-      const aspectItems = yearChecklist.filter(item => item.aspek === aspek);
-      const uploadedFiles = yearFiles.filter(file => file.aspect === aspek);
-      const totalItems = aspectItems.length;
-      const uploadedCount = uploadedFiles.length;
-      const pendingCount = totalItems - uploadedCount;
+    try {
+      const yearFiles = getFilesByYear(selectedYear) || [];
+      const yearChecklist = checklist?.filter(item => item.tahun === selectedYear) || [];
+      
+      const totalItems = yearChecklist.length;
+      const uploadedCount = yearFiles.length;
       const progress = totalItems > 0 ? Math.round((uploadedCount / totalItems) * 100) : 0;
 
       return {
-        aspek,
+        aspek: 'Progress Keseluruhan',
         totalItems,
         uploadedCount,
-        pendingCount,
-        progress,
-        files: uploadedFiles
+        progress
       };
-    });
+    } catch (error) {
+      console.error('Error calculating overall progress:', error);
+      return null;
+    }
   };
 
-  const stats = getStats();
-  const aspectStats = getAspectStats();
+  // Event handling for real-time updates
+  useEffect(() => {
+    const handleDataUpdate = async () => {
+      console.log('🔔 DashboardStats: Data update event received, refreshing data');
+      try {
+        await Promise.all([refreshFiles(), refreshDocuments()]);
+        setForceUpdate(prev => prev + 1);
+      } catch (error) {
+        console.error('❌ DashboardStats: Error refreshing data:', error);
+      }
+    };
 
+    const handleFileUpload = async () => {
+      console.log('🔔 DashboardStats: File upload event received, refreshing data');
+      try {
+        await Promise.all([refreshFiles(), refreshDocuments()]);
+        setForceUpdate(prev => prev + 1);
+      } catch (error) {
+        console.error('❌ DashboardStats: Error refreshing data:', error);
+      }
+    };
 
+    // Listen to all relevant events for real-time updates
+    window.addEventListener('fileUploaded', handleFileUpload);
+    window.addEventListener('documentsUpdated', handleDataUpdate);
+    window.addEventListener('assignmentsUpdated', handleDataUpdate);
+    window.addEventListener('uploadedFilesChanged', handleDataUpdate);
+    window.addEventListener('checklistAssignmentsChanged', handleDataUpdate);
 
-  // Get first 4 aspects for display
-  const getFirstFourAspects = () => {
-    return aspectStats.slice(0, 4);
-  };
+    // Also listen to storage changes for real-time updates
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'checklistAssignments' || e.key === 'documentMetadata' || e.key === 'checklist' || e.key === 'uploadedFiles') {
+        console.log('🔔 DashboardStats: Storage change detected:', e.key, 'refreshing data');
+        handleDataUpdate();
+      }
+    };
 
-  const firstFourAspects = getFirstFourAspects();
-  const allAspects = aspectStats;
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('fileUploaded', handleFileUpload);
+      window.removeEventListener('documentsUpdated', handleDataUpdate);
+      window.removeEventListener('assignmentsUpdated', handleDataUpdate);
+      window.removeEventListener('uploadedFilesChanged', handleDataUpdate);
+      window.removeEventListener('checklistAssignmentsChanged', handleDataUpdate);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [refreshFiles]);
+
+  // Force refresh when year changes
+  useEffect(() => {
+    if (selectedYear) {
+      console.log('🔔 DashboardStats: Year changed to', selectedYear, 'refreshing data');
+      setForceUpdate(prev => prev + 1);
+    }
+  }, [selectedYear]);
+
+  const stats = useMemo(() => getStats(), [selectedYear, checklist, uploadedFiles, forceUpdate]);
+  const aspectStats = useMemo(() => getAspectStats(), [selectedYear, checklist, uploadedFiles, forceUpdate]);
+  const overallProgress = useMemo(() => getOverallProgress(), [selectedYear, checklist, uploadedFiles, forceUpdate]);
 
   // Helper functions
   const getAspectIcon = (aspekName: string) => {
-    if (aspekName.includes('ASPEK I')) return BarChart3;
-    if (aspekName.includes('ASPEK II')) return CheckCircle;
-    if (aspekName.includes('ASPEK III')) return TrendingUp;
-    if (aspekName.includes('ASPEK IV')) return FileText;
-    if (aspekName.includes('ASPEK V')) return Upload;
-    // Aspek baru/default
-    return Plus;
+    // Use predefined icons for known aspects, fallback to Plus for new ones
+    const iconMap: Record<string, any> = {
+      'ASPEK I. Komitmen': BarChart3,
+      'ASPEK II. RUPS': CheckCircle,
+      'ASPEK III. Dewan Komisaris': TrendingUp,
+      'ASPEK IV. Direksi': FileText,
+      'ASPEK V. Pengungkapan': Upload,
+    };
+    
+    return iconMap[aspekName] || Plus;
   };
 
-  // Mapping warna unik untuk tiap aspek
-  const ASPECT_COLORS: Record<string, string> = {
+  // Generate colors dynamically based on aspect index
+  const getAspectColor = (aspekName: string, progress: number) => {
+    // Predefined colors for known aspects
+    const predefinedColors: Record<string, string> = {
     'ASPEK I. Komitmen': '#2563eb', // biru
     'ASPEK II. RUPS': '#059669',    // hijau
     'ASPEK III. Dewan Komisaris': '#f59e42', // oranye
     'ASPEK IV. Direksi': '#eab308', // kuning
     'ASPEK V. Pengungkapan': '#d946ef', // ungu
-    // fallback
-    'default': '#ef4444', // merah
   };
 
-  const getAspectColor = (aspekName: string, progress: number) => {
-    if (ASPECT_COLORS[aspekName]) return ASPECT_COLORS[aspekName];
+    if (predefinedColors[aspekName]) return predefinedColors[aspekName];
+    
+    // For new aspects, generate color based on progress
     if (progress >= 80) return '#059669'; // hijau
     if (progress >= 50) return '#eab308'; // kuning
     return '#ef4444'; // merah
@@ -266,35 +238,20 @@ const DashboardStats = () => {
     navigate(`/list-gcg?year=${selectedYear}&aspect=${encodeURIComponent(aspectName)}&scroll=checklist`);
   };
 
-  // Create analysis data for first 4 aspects
-  const analysisData = firstFourAspects.map((aspect) => ({
-      title: aspect.aspek,
-      value: `${aspect.totalItems} item`,
-      subtitle: `${aspect.uploadedCount} sudah terupload`,
-      icon: getAspectIcon(aspect.aspek),
-    color: getAspectColor(aspect.aspek, aspect.progress),
-      percentage: aspect.progress
-  }));
-
-  // Create analysis data for all aspects
-  const allAnalysisData = allAspects.map((aspect) => ({
-      title: aspect.aspek,
-      value: `${aspect.totalItems} item`,
-      subtitle: `${aspect.uploadedCount} sudah terupload`,
-      icon: getAspectIcon(aspect.aspek),
-    color: getAspectColor(aspect.aspek, aspect.progress),
-      percentage: aspect.progress
-  }));
-
   if (!selectedYear) {
     return (
-      <div className="mb-8">
-        <div className="text-center py-12 bg-white rounded-xl shadow-md">
-          <Eye className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+      <div className="mb-6">
+        <div className="text-center py-8 bg-white rounded-xl shadow-md">
+          <div className="w-12 h-12 text-gray-400 mx-auto mb-3">
+            <svg className="w-full h-full" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            </svg>
+          </div>
+          <h3 className="text-base font-semibold text-gray-900 mb-2">
             Pilih Tahun Buku
           </h3>
-          <p className="text-gray-600">
+          <p className="text-sm text-gray-600">
             Silakan pilih tahun buku di atas untuk melihat statistik dashboard
           </p>
         </div>
@@ -303,100 +260,20 @@ const DashboardStats = () => {
   }
 
   return (
-    <div className="mb-8">
-      {/* Year Header */}
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">
-          Statistik Tahun Buku {selectedYear}
-        </h2>
-        <p className="text-gray-600">
-          Overview dokumen dan assessment dokumen GCG tahun {selectedYear}
-        </p>
-      </div>
-
-      {/* Overall Progress Bar */}
-      <div className="mb-6">
-        <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-lg shadow-md p-4 text-white">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="p-1.5 bg-white/20 rounded-md">
-                <TrendingUp className="w-4 h-4 text-white" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold">Progress Keseluruhan</h3>
-                <p className="text-purple-100 text-xs">Progress Keseluruhan Tahun {selectedYear}</p>
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-2xl font-bold">{stats.uploadedFiles}/{stats.totalChecklist}</div>
-              <div className="text-purple-100 text-xs">
-                {stats.progress}% selesai
-              </div>
-            </div>
-          </div>
-          <div className="w-full bg-white/20 rounded-full h-2 mt-3">
-            <div 
-              className="bg-white rounded-full h-2 transition-all duration-1000 ease-out"
-              style={{ width: `${stats.progress}%` }}
-            ></div>
-          </div>
-        </div>
-      </div>
-
-      {/* Analysis Cards Grid / Swiper */}
-      <div className="relative">
-        {showAllAspects ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {allAnalysisData.map((data, index) => (
-              <AnalysisCard 
-                key={index} 
-                {...data} 
-                onClick={() => handleAspectClick(data.title)}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="overflow-hidden">
-            <div ref={sliderRef} className="keen-slider">
-              {allAnalysisData.map((data, index) => (
-                <div key={index} className="keen-slider__slide">
-                  <AnalysisCard 
-                    {...data} 
-                    highlightBorder={data.color}
-                    onClick={() => handleAspectClick(data.title)}
-                  />
-                </div>
-          ))}
-        </div>
-          </div>
-        )}
-        {/* View All Button */}
-        {aspectStats.length > 4 && (
-          <div className="flex justify-center mt-6">
-            <Button 
-              variant="outline" 
-              className="flex items-center space-x-2"
-              onClick={() => setShowAllAspects(!showAllAspects)}
-            >
-              {showAllAspects ? (
-                <>
-                  <ChevronUp className="w-4 h-4" />
-                  <span>Sembunyikan Semua Aspek</span>
-                </>
-              ) : (
-                <>
-                  <ChevronDown className="w-4 h-4" />
-                  <span>Lihat Semua Aspek</span>
-                </>
-              )}
-            </Button>
-          </div>
-        )}
-      </div>
-
-
-
-
+      {/* Use YearStatisticsPanel for consistent UI */}
+      <YearStatisticsPanel 
+        selectedYear={selectedYear}
+        aspectStats={aspectStats}
+        overallProgress={overallProgress}
+        getAspectIcon={getAspectIcon}
+        getAspectColor={getAspectColor}
+        onAspectClick={handleAspectClick}
+        isSidebarOpen={isSidebarOpen}
+        title="Statistik Tahun Buku"
+        description={`Overview dokumen dan assessment dokumen GCG tahun ${selectedYear}`}
+        showOverallProgress={true}
+      />
     </div>
   );
 };

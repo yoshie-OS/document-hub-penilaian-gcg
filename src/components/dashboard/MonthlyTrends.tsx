@@ -28,8 +28,7 @@ interface ChecklistAssignment {
 const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
   const { selectedYear } = useYear();
   const { documents, getDocumentsByYear } = useDocumentMetadata();
-  const { subdirektorat } = useDirektorat();
-  const { subdirektorat: subdirektoratByYear } = useStrukturPerusahaan();
+  const { subdirektorat: strukturSubdirektorat } = useStrukturPerusahaan();
 
   // Get assignments data for the selected year
   const assignments = useMemo(() => {
@@ -62,12 +61,18 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
     if (!selectedYear) return [];
     const yearDocuments = getDocumentsByYear(selectedYear);
 
-    // Gunakan daftar subdirektorat dari StrukturPerusahaanContext bila tersedia agar semua subdirektorat terlihat
-    const subdirs: string[] = (subdirektoratByYear && subdirektoratByYear.length > 0)
-      ? subdirektoratByYear
-      : subdirektorat.map(s => s.nama);
+    // Gunakan daftar subdirektorat dari StrukturPerusahaanContext untuk tahun terpilih
+    const subdirs: string[] = (strukturSubdirektorat || [])
+      .map((s) => s?.nama)
+      .filter((name): name is string => !!name && typeof name === 'string' && name.trim() !== '');
 
     return subdirs.map((subName) => {
+      // Pastikan subName adalah string yang valid
+      if (!subName || typeof subName !== 'string') {
+        console.warn('Invalid subName:', subName);
+        return null;
+      }
+      
       // Hilangkan awalan "Sub Direktorat " agar rapi
       const cleanName = subName.replace(/^\s*Sub\s*Direktorat\s*/i, '').trim();
       
@@ -99,8 +104,8 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
         target,
         divisions
       };
-    });
-  }, [selectedYear, documents, getDocumentsByYear, subdirektorat, subdirektoratByYear, assignments]);
+    }).filter(Boolean); // Filter out null values
+  }, [selectedYear, documents, getDocumentsByYear, strukturSubdirektorat, assignments]);
 
   if (!chartData.length) return (
     <Card className={`border-0 shadow-xl bg-white/80 backdrop-blur-sm ${className}`}>
@@ -285,8 +290,9 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
                 }).join(' ')}
                 fill="none"
                 stroke="rgb(59, 130, 246)"
-                strokeWidth="3"
-                className="animate-[dash_3s_ease-in-out_infinite]"
+                strokeWidth="4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               />
 
               {/* Data Points */}
@@ -294,14 +300,26 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
                 const x = getX(index);
                 const y = bottomDataY - (data.percent / 100) * valueHeight;
                 return (
-                  <circle
-                    key={`point-${index}`}
-                    cx={x}
-                    cy={y}
-                    r={index === activeIndex ? 6 : 4}
-                    fill={index === activeIndex ? 'rgb(37, 99, 235)' : 'rgb(59, 130, 246)'}
-                    style={{ animationDelay: `${index * 100}ms` }}
-                  />
+                  <g key={`point-group-${index}`}>
+                    <circle
+                      cx={x}
+                      cy={y}
+                      r={index === activeIndex ? 8 : 6}
+                      fill={index === activeIndex ? 'rgb(37, 99, 235)' : 'rgb(59, 130, 246)'}
+                      stroke="white"
+                      strokeWidth="2"
+                    />
+                    {/* Percentage Label */}
+                    <text
+                      x={x}
+                      y={y - (index === activeIndex ? 16 : 14)}
+                      textAnchor="middle"
+                      className="fill-gray-700 font-bold"
+                      style={{ fontSize: '10px' }}
+                    >
+                      {Math.round(data.percent)}%
+                    </text>
+                  </g>
                 );
               })}
 
@@ -312,9 +330,10 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
                   y1={topDataY}
                   x2={getX(activeIndex)}
                   y2={bottomDataY}
-                  stroke="#bfdbfe"
+                  stroke="#3b82f6"
                   strokeWidth="2"
-                  strokeDasharray="4 4"
+                  strokeDasharray="6 3"
+                  opacity="0.7"
                 />
               )}
 

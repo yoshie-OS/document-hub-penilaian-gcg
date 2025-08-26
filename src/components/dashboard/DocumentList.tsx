@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,9 +12,8 @@ import { useDocumentMetadata } from '@/contexts/DocumentMetadataContext';
 import { useFileUpload } from '@/contexts/FileUploadContext';
 import { useChecklist } from '@/contexts/ChecklistContext';
 import { useDirektorat } from '@/contexts/DireksiContext';
-import { useYear } from '@/contexts/YearContext';
-import { useKlasifikasi } from '@/contexts/KlasifikasiContext';
 import { useStrukturPerusahaan } from '@/contexts/StrukturPerusahaanContext';
+import { useYear } from '@/contexts/YearContext';
 import { useToast } from '@/hooks/use-toast';
 import { 
   FileText, 
@@ -60,14 +59,44 @@ const DocumentList: React.FC<DocumentListProps> = ({
   const { selectedYear } = useYear();
   const { checklist } = useChecklist();
   const { direktorat } = useDirektorat();
-  const { klasifikasiPrinsip, klasifikasiJenis, klasifikasiKategori, klasifikasiData } = useKlasifikasi();
-  const { direktorat: direktorats, subdirektorat: subDirektorats } = useStrukturPerusahaan();
+  const { direktorat: direktoratsCtx, subdirektorat: subdirektoratsCtx } = useStrukturPerusahaan();
+  
+  // Transform object arrays to string arrays for display
+  const direktorats = useMemo(() => {
+    if (!direktoratsCtx || !Array.isArray(direktoratsCtx)) return [];
+    if (!selectedYear) return [];
+    
+    try {
+      return direktoratsCtx
+        .filter(item => item && item.tahun === selectedYear && item.nama)
+        .map(item => String(item.nama))
+        .filter(Boolean);
+    } catch (error) {
+      console.error('Error processing direktorat data:', error);
+      return [];
+    }
+  }, [direktoratsCtx, selectedYear]);
+  
+  const subDirektorats = useMemo(() => {
+    if (!subdirektoratsCtx || !Array.isArray(subdirektoratsCtx)) return [];
+    if (!selectedYear) return [];
+    
+    try {
+      return subdirektoratsCtx
+        .filter(item => item && item.tahun === selectedYear && item.nama)
+        .map(item => String(item.nama))
+        .filter(Boolean);
+    } catch (error) {
+      console.error('Error processing subdirektorat data:', error);
+      return [];
+    }
+  }, [subdirektoratsCtx, selectedYear]);
+  
+
   const { toast } = useToast();
   
   // Filter state
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedPrinciple, setSelectedPrinciple] = useState('all');
-  const [selectedType, setSelectedType] = useState('all');
   const [selectedDirektorat, setSelectedDirektorat] = useState('all');
   const [selectedSubDirektorat, setSelectedSubDirektorat] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
@@ -140,13 +169,7 @@ const DocumentList: React.FC<DocumentListProps> = ({
       );
     }
 
-    if (selectedPrinciple !== 'all') {
-      filtered = filtered.filter(doc => doc.gcgPrinciple === selectedPrinciple);
-    }
 
-    if (selectedType !== 'all') {
-      filtered = filtered.filter(doc => doc.documentType === selectedType);
-    }
 
     if (selectedDirektorat !== 'all') {
       filtered = filtered.filter(doc => doc.direktorat === selectedDirektorat);

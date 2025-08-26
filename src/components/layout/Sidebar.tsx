@@ -5,12 +5,12 @@ import { useSidebar } from '@/contexts/SidebarContext';
 import { 
   LayoutDashboard, 
   Shield,
-  UserCog,
   ListTodo,
   LogOut,
   BarChart3,
   PanelLeft,
   FileText,
+<<<<<<< HEAD
   Settings,
   Building2,
   Folder,
@@ -19,6 +19,9 @@ import {
   Plus,
   Lock,
   Network
+=======
+  Settings
+>>>>>>> upstream/progres-4
 } from 'lucide-react';
 
 interface MenuItem {
@@ -40,68 +43,55 @@ const Sidebar = () => {
 
   // No longer need auto-expand logic since there are no submenus
 
-  const menuItems: MenuItem[] = [
-    { 
-      name: 'Dashboard', 
-      icon: LayoutDashboard, 
-      path: '/dashboard',
-      badge: null
-    },
+  const menuItems: MenuItem[] = [];
 
-    { 
-      name: 'Performa GCG', 
-      icon: BarChart3, 
-      path: '/performa-gcg',
-      badge: null,
-      badgeIcon: Lock
-    },
-    { 
-      name: 'Graph View', 
-      icon: Network, 
-      path: '/graph-view',
-      badge: null
-    }
-  ];
-
-  // Tambahkan menu Super Admin hanya untuk Super Admin
+  // Tambahkan menu Super Admin dengan urutan yang diminta
   if (user?.role === 'superadmin') {
     menuItems.push(
       {
+        name: 'Pengaturan Baru',
+        icon: Settings,
+        path: '/admin/pengaturan-baru'
+      },
+      { 
+        name: 'Dashboard', 
+        icon: LayoutDashboard, 
+        path: '/dashboard'
+      },
+      {
         name: 'Monitoring & Upload GCG',
         icon: PanelLeft,
-        path: '/list-gcg',
-        badgeIcon: Lock
+        path: '/list-gcg'
       },
       {
         name: 'Arsip Dokumen',
         icon: FileText,
-        path: '/admin/arsip-dokumen',
-        badgeIcon: Lock
+        path: '/admin/arsip-dokumen'
       },
-      {
-        name: 'Manajemen User',
-        icon: UserCog,
-        path: '/admin/kelola-akun',
-        badgeIcon: Lock
+      { 
+        name: 'Performa GCG', 
+        icon: BarChart3, 
+        path: '/performa-gcg'
       },
-      {
-        name: 'Struktur Organisasi',
-        icon: Building2,
-        path: '/admin/struktur-perusahaan',
-        badgeIcon: Lock
-      },
-
-      {
-        name: 'Pengaturan Metadata',
-        icon: Settings,
-        path: '/admin/meta-data',
-        badgeIcon: Lock
+      { 
+        name: 'Graph View', 
+        icon: Network, 
+        path: '/graph-view'
       },
       {
         name: 'Kelola Aspek',
         icon: ListTodo,
-        path: '/admin/checklist-gcg',
-        badgeIcon: Lock
+        path: '/admin/checklist-gcg'
+      }
+    );
+  } else {
+    // Untuk user non-superadmin, hanya dashboard
+    menuItems.push(
+      { 
+        name: 'Dashboard', 
+        icon: LayoutDashboard, 
+        path: '/dashboard'
+>>>>>>> upstream/progres-4
       }
     );
   }
@@ -140,23 +130,14 @@ const Sidebar = () => {
       
       {/* Sidebar */}
       <div className={`
-        fixed top-0 left-0 h-full bg-gray-900 z-40 transition-all duration-300 ease-in-out
+        fixed top-16 left-0 h-[calc(100vh-4rem)] bg-gray-900 z-40 transition-all duration-300 ease-in-out
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
         w-64 shadow-xl overflow-y-auto
       `}>
-        {/* Logo */}
-        <div className="p-6 border-b border-gray-800">
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">GCG</span>
-            </div>
-            <span className="text-white font-semibold text-lg">Document Hub</span>
-          </div>
-        </div>
-
         {/* Menu Items */}
-        <nav className="mt-6 pb-20">
+        <nav className="pt-6 pb-20">
           <div className="px-4 space-y-1">
+<<<<<<< HEAD
             {menuItems
               .filter(item => {
                 // Hide Performa GCG menu if user is not superadmin
@@ -166,6 +147,9 @@ const Sidebar = () => {
                 return true;
               })
               .map((item) => {
+=======
+            {menuItems.map((item, index) => {
+>>>>>>> upstream/progres-4
               const Icon = item.icon;
               const active = isActive(item.path);
               
@@ -198,6 +182,13 @@ const Sidebar = () => {
                       </div>
                     </Link>
                   </div>
+                  
+                  {/* Add separator after Pengaturan Baru */}
+                  {item.name === 'Pengaturan Baru' && (
+                    <div className="my-3 px-4">
+                      <div className="h-px bg-gray-700"></div>
+                    </div>
+                  )}
                 </div>
               );
             })}
