@@ -921,6 +921,42 @@ def get_aspek_data():
             'data': []
         }), 500
 
+def _cleanup_orphaned_data_internal():
+    """
+    Internal helper function to clean up orphaned data (without returning HTTP response)
+    """
+    output_xlsx_path = Path(__file__).parent.parent / 'web-output' / 'output.xlsx'
+    assessments_path = Path(__file__).parent.parent / 'web-output' / 'assessments.json'
+    
+    # Get years that exist in output.xlsx
+    xlsx_years = set()
+    if output_xlsx_path.exists():
+        df = pd.read_excel(output_xlsx_path)
+        xlsx_years = set(df['Tahun'].unique())
+    
+    # Clean up assessments.json
+    orphaned_count = 0
+    if assessments_path.exists():
+        with open(assessments_path, 'r') as f:
+            assessments_data = json.load(f)
+        
+        # Filter out orphaned entries
+        cleaned_assessments = []
+        for assessment in assessments_data.get('assessments', []):
+            year = assessment.get('year')
+            if year in xlsx_years:
+                cleaned_assessments.append(assessment)
+            else:
+                orphaned_count += 1
+        
+        # Save cleaned data if any changes were made
+        if orphaned_count > 0:
+            assessments_data['assessments'] = cleaned_assessments
+            with open(assessments_path, 'w') as f:
+                json.dump(assessments_data, f, indent=2)
+            print(f"🔄 Auto-cleaned {orphaned_count} orphaned entries")
+    
+    return orphaned_count
 
 @app.route('/api/indicator-data', methods=['GET'])
 def get_indicator_data():
@@ -929,6 +965,12 @@ def get_indicator_data():
     """
     try:
         output_xlsx_path = Path(__file__).parent.parent / 'web-output' / 'output.xlsx'
+        
+        # Auto-cleanup orphaned data before proceeding
+        try:
+            _cleanup_orphaned_data_internal()
+        except Exception as cleanup_error:
+            print(f"⚠️ Auto-cleanup failed: {cleanup_error}")
         
         if not output_xlsx_path.exists():
             return jsonify({
@@ -1029,7 +1071,7 @@ def get_gcg_chart_data():
                 'Penilai': str(row.get('Penilai', 'Unknown')),
                 'No': str(row.get('No', '')),
                 'Deskripsi': str(row.get('Deskripsi', '')),
-                'Jenis_Penilaian': str(row.get('Jenis_Asesmen', 'Internal'))
+                'Jenis_Penilaian': str(row.get('Jenis_Penilaian', 'Data Kosong'))
             }
             gcg_data.append(gcg_item)
         
@@ -1100,6 +1142,69 @@ def get_gcg_mapping():
             'success': False,
             'error': str(e),
             'data': []
+        }), 500
+
+@app.route('/api/cleanup-orphaned-data', methods=['POST'])
+def cleanup_orphaned_data():
+    """
+    Clean up orphaned entries in assessments.json that don't exist in output.xlsx
+    """
+    try:
+        output_xlsx_path = Path(__file__).parent.parent / 'web-output' / 'output.xlsx'
+        assessments_path = Path(__file__).parent.parent / 'web-output' / 'assessments.json'
+        
+        # Get years that exist in output.xlsx
+        xlsx_years = set()
+        if output_xlsx_path.exists():
+            df = pd.read_excel(output_xlsx_path)
+            xlsx_years = set(df['Tahun'].unique())
+            print(f"📊 Found years in output.xlsx: {sorted(xlsx_years)}")
+        else:
+            print("⚠️ output.xlsx not found - will clean all assessments.json entries")
+        
+        # Clean up assessments.json
+        orphaned_count = 0
+        if assessments_path.exists():
+            with open(assessments_path, 'r') as f:
+                assessments_data = json.load(f)
+            
+            original_count = len(assessments_data.get('assessments', []))
+            
+            # Filter out orphaned entries (keep only years that exist in xlsx or if xlsx doesn't exist, keep none)
+            cleaned_assessments = []
+            for assessment in assessments_data.get('assessments', []):
+                year = assessment.get('year')
+                if year in xlsx_years:
+                    cleaned_assessments.append(assessment)
+                else:
+                    orphaned_count += 1
+                    print(f"🗑️ Removing orphaned assessment for year {year}")
+            
+            # Save cleaned data
+            assessments_data['assessments'] = cleaned_assessments
+            with open(assessments_path, 'w') as f:
+                json.dump(assessments_data, f, indent=2)
+                
+            print(f"✅ Cleaned up {orphaned_count} orphaned entries from assessments.json")
+            print(f"📊 Kept {len(cleaned_assessments)} valid entries")
+        else:
+            print("⚠️ assessments.json not found - nothing to clean")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Successfully cleaned up {orphaned_count} orphaned entries',
+            'orphaned_count': orphaned_count,
+            'xlsx_years': sorted(list(xlsx_years)),
+            'xlsx_exists': output_xlsx_path.exists(),
+            'assessments_exists': assessments_path.exists()
+        })
+        
+    except Exception as e:
+        print(f"❌ Error during cleanup: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'message': 'Failed to cleanup orphaned data'
         }), 500
 
 

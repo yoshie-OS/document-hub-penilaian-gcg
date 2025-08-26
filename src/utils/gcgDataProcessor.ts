@@ -64,7 +64,7 @@ export const processGCGData = (data: GCGData[]): ProcessedGCGData[] => {
     const totalScore = level4Row.Skor;
   const penilai = level4Row.Penilai;
   const penjelasan = level4Row.Penjelasan;
-  const jenisPenilaian = level4Row.Jenis_Penilaian;
+  const jenisPenilaian = level4Row.Jenis_Penilaian || 'Data Kosong';
     
     // Check if has Level 2 data
     const hasLevel2Data = rows.some(row => row.Level === 2);
@@ -156,6 +156,7 @@ export const processGCGDataFromAPI = (apiData: any): ProcessedGCGData[] => {
     // Find penilai and general info
     const penilai = yearData.auditor || 'Unknown';
     const penjelasan = yearData.penjelasan || '';
+    const jenisPenilaian = yearData.jenisPenilaian || 'Data Kosong';
     
     // Process sections (aspects I-VI)
     const aspectRows = yearData.data.filter((row: any) => row.type === 'subtotal');
@@ -197,7 +198,8 @@ export const processGCGDataFromAPI = (apiData: any): ProcessedGCGData[] => {
       sections,
       hasLevel2Data: true, // Assume we have detailed data
       penilai,
-      penjelasan
+      penjelasan,
+      jenisPenilaian
     });
   });
   
@@ -284,6 +286,7 @@ export const processGCGDataFromTable = (
     sections,
     hasLevel2Data: true,
     penilai: auditor,
-    penjelasan: jenisAsesmen
+    penjelasan: '',
+    jenisPenilaian: jenisAsesmen || 'Data Kosong'
   }];
 };

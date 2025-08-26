@@ -29,6 +29,7 @@ export const GCGChartWrapper: React.FC<GCGChartWrapperProps> = ({
   jenisAsesmen
 }) => {
   const [chartData, setChartData] = useState<any[]>([]);
+  const [rawGCGData, setRawGCGData] = useState<GCGData[]>([]);
   const [chartMode, setChartMode] = useState<'aspek' | 'tahun'>('aspek');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +46,7 @@ export const GCGChartWrapper: React.FC<GCGChartWrapperProps> = ({
           if (response.ok) {
             const apiData = await response.json();
             if (apiData.success && apiData.data && apiData.data.length > 0) {
+              setRawGCGData(apiData.data as GCGData[]);
               const processedApiData = processGCGData(apiData.data as GCGData[]);
               
               if (processedApiData.length > 0) {
@@ -107,6 +109,7 @@ export const GCGChartWrapper: React.FC<GCGChartWrapperProps> = ({
   return (
     <GCGChart
       data={chartData}
+      rawData={rawGCGData}
       chartMode={chartMode}
       setChartMode={setChartMode}
     />

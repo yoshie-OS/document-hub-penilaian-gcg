@@ -102,6 +102,26 @@ const PenilaianGCG = () => {
     console.log('🔧 DEBUG: Component mounted, ensuring all years have checklist data...');
     ensureAllYearsHaveData();
   }, [ensureAllYearsHaveData]);
+
+  // Load data when entering table step for the first time
+  useEffect(() => {
+    if (currentStep === 'table' && tableData.length === 0) {
+      console.log('🔧 DEBUG: Entering table step - loading initial data...');
+      // Load appropriate data based on current mode
+      if (isDetailedMode) {
+        // DETAILED mode - load aspect summary and predetermined rows
+        setAspectSummaryData(getAspectSummaryRows());
+        const predeterminedRows = generatePredeterminedRows(selectedYear, true);
+        setTableData(predeterminedRows);
+        console.log(`📊 DETAILED mode activated on table entry - ${predeterminedRows.length} rows loaded`);
+      } else {
+        // BRIEF mode - load aspect summary as main table
+        setAspectSummaryData([]);
+        setTableData(getAspectSummaryRows());
+        console.log('📋 BRIEF mode activated on table entry - 6 aspect rows loaded');
+      }
+    }
+  }, [currentStep, selectedYear, isDetailedMode]);
   
   // Generate predetermined rows from Kelola Aspek data
   const generatePredeterminedRows = (year: number, isDetailed: boolean): PenilaianRow[] => {
@@ -129,7 +149,7 @@ const PenilaianGCG = () => {
         no: isDetailed ? (index + 1).toString() : undefined,
         aspek: aspek,
         deskripsi: item.deskripsi,
-        jumlah_parameter: isDetailed ? 1 : 0, // Default to 1 parameter per item in detailed mode
+        jumlah_parameter: 0, // Default to 0 - user will fill this manually
         bobot: 0, // User will fill this
         skor: 0, // User will fill this
         capaian: initialCapaian,
@@ -341,10 +361,11 @@ const PenilaianGCG = () => {
     const detectedFormat = detectDataFormat(data);
     console.log(`🎯 Detected format: ${detectedFormat}`);
     
-    // Set mode based on detection
-    setIsDetailedMode(detectedFormat === 'DETAILED');
+    // REMOVED: Automatic mode switching - let user control the mode
+    // setIsDetailedMode(detectedFormat === 'DETAILED');
     
-    if (detectedFormat === 'DETAILED') {
+    // Use current user mode instead of detected format
+    if (isDetailedMode) {
       // Priority 1: Use BRIEF sheet data if available
       if (briefSheetData && briefSheetData.length > 0) {
         console.log('✅ Using BRIEF sheet data for aspect summary');
@@ -792,53 +813,80 @@ const PenilaianGCG = () => {
           if (indicatorResult.success && indicatorResult.data.length > 0) {
             const yearIndicators = indicatorResult.data.filter((item: any) => item.tahun === year);
             if (yearIndicators.length > 0) {
-              // We have indicator data - use detailed mode
-              setIsDetailedMode(true);
+              // We have indicator data - load it but RESPECT current mode
               loadDataWithDetection(yearIndicators);
-              console.log(`✅ Found ${yearIndicators.length} indicators - using detailed mode`);
+              console.log(`✅ Found ${yearIndicators.length} indicators - loaded in ${isDetailedMode ? 'DETAILED' : 'BRIEF'} mode`);
+              
+              // Set summary data based on current mode
+              if (isDetailedMode) {
+                setAspectSummaryData(getAspectSummaryRows());
+              } else {
+                setAspectSummaryData([]);
+                setTableData(yearAspekData);
+              }
             } else {
-              // No indicators for this year - use brief mode
-              setIsDetailedMode(false);
+              // No indicators for this year - use aspek data
               setAspectSummaryData([]); // Clear aspect summary table
               setTableData(yearAspekData);
-              console.log(`📝 No indicators for year ${year} - using brief mode`);
+              console.log(`📝 No indicators for year ${year} - using aspek data in ${isDetailedMode ? 'DETAILED' : 'BRIEF'} mode`);
             }
           } else {
-            // No indicator data at all - use brief mode
-            setIsDetailedMode(false);
+            // No indicator data at all - use aspek data
             setAspectSummaryData([]); // Clear aspect summary table
             setTableData(yearAspekData);
-            console.log(`📝 No indicator data available - using brief mode`);
+            console.log(`📝 No indicator data available - using aspek data in ${isDetailedMode ? 'DETAILED' : 'BRIEF'} mode`);
           }
         } else {
-          // No aspek data for this year - load predetermined rows
-          console.log(`📝 No aspek data found for year ${year}, loading predetermined rows`);
+          // No aspek data for this year - load appropriate rows based on mode
+          console.log(`📝 No aspek data found for year ${year}, loading ${isDetailedMode ? 'predetermined indicator rows' : 'default aspect rows'}`);
           
-          const predeterminedRows = generatePredeterminedRows(year, isDetailedMode);
-          loadDataWithDetection(predeterminedRows);
-          setSaveMessage(`📋 No data for year ${year} - loaded ${predeterminedRows.length} placeholder rows`);
-          
-          setIsDetailedMode(true);
-          setAspectSummaryData(getAspectSummaryRows());
+          if (isDetailedMode) {
+            // DETAILED mode - load predetermined indicator rows from Kelola Aspek
+            const predeterminedRows = generatePredeterminedRows(year, true);
+            loadDataWithDetection(predeterminedRows);
+            setSaveMessage(`📋 No data for year ${year} - loaded ${predeterminedRows.length} detailed placeholder rows`);
+            setAspectSummaryData(getAspectSummaryRows());
+          } else {
+            // BRIEF mode - load 6 simple aspect rows
+            setAspectSummaryData([]);
+            setTableData(getAspectSummaryRows());
+            setSaveMessage(`📋 No data for year ${year} - loaded 6 aspect rows (BRIEF mode)`);
+          }
         }
         
         setTimeout(() => setSaveMessage(null), 3000);
       } else {
-        console.log(`📝 No aspek data available, loading predetermined rows`);
+        console.log(`📝 No aspek data available, loading ${isDetailedMode ? 'predetermined indicator rows' : 'default aspect rows'}`);
         
-        const predeterminedRows = generatePredeterminedRows(year, isDetailedMode);
-        loadDataWithDetection(predeterminedRows);
-        setSaveMessage(`📋 No data available - loaded ${predeterminedRows.length} placeholder rows`);
+        if (isDetailedMode) {
+          // DETAILED mode - load predetermined indicator rows from Kelola Aspek
+          const predeterminedRows = generatePredeterminedRows(year, true);
+          loadDataWithDetection(predeterminedRows);
+          setSaveMessage(`📋 No data available - loaded ${predeterminedRows.length} detailed placeholder rows`);
+        } else {
+          // BRIEF mode - load 6 simple aspect rows
+          setAspectSummaryData([]);
+          setTableData(getAspectSummaryRows());
+          setSaveMessage(`📋 No data available - loaded 6 aspect rows (BRIEF mode)`);
+        }
         
         setTimeout(() => setSaveMessage(null), 3000);
       }
       
     } catch (error) {
       console.error('❌ Error loading indicator data:', error);
-      // Fallback to predetermined rows
-      const predeterminedRows = generatePredeterminedRows(year, isDetailedMode);
-      loadDataWithDetection(predeterminedRows);
-      setSaveMessage(`❌ Error loading data - using ${predeterminedRows.length} placeholder rows`);
+      
+      if (isDetailedMode) {
+        // DETAILED mode - fallback to predetermined indicator rows
+        const predeterminedRows = generatePredeterminedRows(year, true);
+        loadDataWithDetection(predeterminedRows);
+        setSaveMessage(`❌ Error loading data - using ${predeterminedRows.length} detailed placeholder rows`);
+      } else {
+        // BRIEF mode - fallback to 6 simple aspect rows
+        setAspectSummaryData([]);
+        setTableData(getAspectSummaryRows());
+        setSaveMessage(`❌ Error loading data - using 6 aspect rows (BRIEF mode)`);
+      }
       setTimeout(() => setSaveMessage(null), 5000);
     }
   };

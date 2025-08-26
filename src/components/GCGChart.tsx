@@ -46,7 +46,7 @@ const DonutChart: React.FC<{ value: number; color: string; size?: number }> = ({
 };
 import React from 'react';
 
-import { ProcessedGCGData } from '@/types/gcg';
+import { ProcessedGCGData, GCGData } from '@/types/gcg';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useNavigate } from 'react-router-dom';
 
@@ -57,6 +57,7 @@ const CHART_VERTICAL_PADDING = 20; // px
 
 interface GCGChartProps {
   data: ProcessedGCGData[];
+  rawData?: GCGData[];
   onBarClick?: (year: string) => void;
   barWidth?: number; // px
   barGap?: number; // px
@@ -71,9 +72,10 @@ interface YearlyScoreChartProps {
   setYearFilter: React.Dispatch<React.SetStateAction<{ start: number; end: number } | null>>;
   chartMode?: 'aspek' | 'tahun';
   setChartMode?: (mode: 'aspek' | 'tahun') => void;
+  rawData?: GCGData[];
 }
 
-const YearlyScoreChart: React.FC<YearlyScoreChartProps> = ({ data, allYears, yearFilter, setYearFilter, chartMode, setChartMode }) => {
+const YearlyScoreChart: React.FC<YearlyScoreChartProps> = ({ data, allYears, yearFilter, setYearFilter, chartMode, setChartMode, rawData = [] }) => {
 
   // chartAreaWidth dinamis sesuai jumlah tahun yang terfilter
   const filteredYearsCount = data.length;
@@ -111,12 +113,8 @@ const YearlyScoreChart: React.FC<YearlyScoreChartProps> = ({ data, allYears, yea
 
   // Tabel aspek untuk tahun terakhir (atau bisa diubah sesuai kebutuhan)
   const [selectedYear, setSelectedYear] = React.useState<number|null>(null);
-  // Ambil data input asli dari localStorage
-  let inputData: any[] = [];
-  try {
-    const raw = localStorage.getItem('gcgData');
-    if (raw) inputData = JSON.parse(raw);
-  } catch {}
+  // Use raw data passed from parent component
+  const inputData = rawData;
   const formatNum = (num: any) => {
     if (num === undefined || num === null) return '-';
     const n = typeof num === 'number' ? num : (typeof num === 'string' && !isNaN(Number(num)) ? Number(num) : null);
@@ -323,7 +321,7 @@ const YearlyScoreChart: React.FC<YearlyScoreChartProps> = ({ data, allYears, yea
                               Number(row.Level) === 3
                             );
                             const penjelasan = penjelasanRow?.Penjelasan ?? '-';
-                            // Ambil deskripsi (Level 1)
+                            // Ambil deskripsi (Level 1, mapped from Type='header')
                             const deskripsiRow = inputData.find(row =>
                               Number(row.Tahun) === selectedYear &&
                               String(row.Section) === section.romanNumeral &&
@@ -355,7 +353,7 @@ const YearlyScoreChart: React.FC<YearlyScoreChartProps> = ({ data, allYears, yea
   );
 };
 
-export const GCGChart: React.FC<GCGChartProps> = ({ data, onBarClick, barWidth: propBarWidth, barGap: propBarGap, chartMode = 'aspek', setChartMode }) => {
+export const GCGChart: React.FC<GCGChartProps> = ({ data, rawData = [], onBarClick, barWidth: propBarWidth, barGap: propBarGap, chartMode = 'aspek', setChartMode }) => {
   const [hovered, setHovered] = React.useState<{year:number, section:string}|null>(null);
   const [hoveredBar, setHoveredBar] = React.useState<number|null>(null);
   const [selectedYear, setSelectedYear] = React.useState<number|null>(null);
@@ -419,7 +417,7 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, onBarClick, barWidth: 
   
   if (chartMode === 'tahun') {
     // Filter juga untuk grafik skor tahunan
-    return <YearlyScoreChart data={filteredData} allYears={allYears} yearFilter={yearFilter} setYearFilter={setYearFilter} chartMode={chartMode} setChartMode={setChartMode} />;
+    return <YearlyScoreChart data={filteredData} allYears={allYears} yearFilter={yearFilter} setYearFilter={setYearFilter} chartMode={chartMode} setChartMode={setChartMode} rawData={rawData} />;
   }
 
   // X axis: skala tetap 0 - 100
@@ -789,12 +787,8 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, onBarClick, barWidth: 
                   (() => {
                     const selectedData = data.find(d => d.year === selectedYear);
                     if (!selectedData) return <span className="text-muted-foreground">Data tidak ditemukan</span>;
-                    // Ambil data input asli dari localStorage
-                    let inputData: any[] = [];
-                    try {
-                      const raw = localStorage.getItem('gcgData');
-                      if (raw) inputData = JSON.parse(raw);
-                    } catch {}
+                    // Use raw data passed from parent component
+                    const inputData = rawData;
                     // Sort so Aspek I is always at the top, then II, III, IV, V, VI
                     const sortedSections = [...selectedData.sections].sort((a, b) => romanNumerals.indexOf(a.romanNumeral) - romanNumerals.indexOf(b.romanNumeral));
                     return (
@@ -831,7 +825,7 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, onBarClick, barWidth: 
                                     Number(row.Level) === 3
                                   );
                                   const penjelasan = penjelasanRow?.Penjelasan ?? '-';
-                                  // Cari deskripsi dari inputData (Level 1)
+                                  // Cari deskripsi dari inputData (Level 1, mapped from Type='header')
                                   const deskripsiRow = inputData.find(row =>
                                     Number(row.Tahun) === selectedYear &&
                                     String(row.Section) === section.romanNumeral &&
