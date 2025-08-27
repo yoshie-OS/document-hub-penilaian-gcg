@@ -1,12 +1,14 @@
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-python-multipart==0.0.6
-pandas==2.1.4
-openpyxl==3.1.2
-numpy==1.26.2
+# Core web framework (Flask is actually used, not FastAPI)
+flask>=3.0.0
+flask-cors>=4.0.0
+werkzeug>=3.0.0
+
+# File processing
+pandas>=2.0.0
+openpyxl>=3.1.0
 
 # Optional: Enhanced OCR support (if needed)
-# pytesseract==0.3.10
-# opencv-python==4.8.1.78
-# pdf2image==1.16.3
-# Pillow==10.1.0
+# pytesseract>=0.3.10
+# opencv-python>=4.8.0
+# pdf2image>=1.16.0
+# Pillow>=10.0.0

@@ -506,7 +506,7 @@ def save_assessment():
                     
                 print(f"🔧 DEBUG: Starting with {len(all_rows)} rows from other years")
             except Exception as e:
-                print(f"⚠️ Could not read existing XLSX: {e}")
+                print(f"WARNING: Could not read existing XLSX: {e}")
         
         # Process new data and add to all_rows
         year = data.get('year', 'unknown')
@@ -634,7 +634,7 @@ def save_assessment():
             # Create directory and save XLSX
             os.makedirs(output_xlsx_path.parent, exist_ok=True)
             df_sorted.to_excel(output_xlsx_path, index=False)
-            print(f"✅ Saved to output.xlsx with {len(df_sorted)} rows (sorted: year→aspek→no→type) at: {output_xlsx_path}")
+            print(f"SUCCESS: Saved to output.xlsx with {len(df_sorted)} rows (sorted: year->aspek->no->type) at: {output_xlsx_path}")
             
         return jsonify({
             'success': True,
@@ -644,7 +644,7 @@ def save_assessment():
         })
         
     except Exception as e:
-        print(f"❌ Error saving assessment: {str(e)}")
+        print(f"ERROR: Error saving assessment: {str(e)}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -765,7 +765,7 @@ def load_assessment_by_year(year):
             })
             
     except Exception as e:
-        print(f"❌ Error loading year {year}: {str(e)}")
+        print(f"ERROR: Error loading year {year}: {str(e)}")
         return jsonify({
             'success': False,
             'error': str(e),
@@ -851,7 +851,7 @@ def get_dashboard_data():
         })
         
     except Exception as e:
-        print(f"❌ Error loading dashboard data: {str(e)}")
+        print(f"ERROR: Error loading dashboard data: {str(e)}")
         return jsonify({
             'success': False,
             'error': str(e),
@@ -914,7 +914,7 @@ def get_aspek_data():
         })
         
     except Exception as e:
-        print(f"❌ Error loading aspek data: {e}")
+        print(f"ERROR: Error loading aspek data: {e}")
         return jsonify({
             'success': False,
             'error': str(e),
@@ -970,7 +970,7 @@ def get_indicator_data():
         try:
             _cleanup_orphaned_data_internal()
         except Exception as cleanup_error:
-            print(f"⚠️ Auto-cleanup failed: {cleanup_error}")
+            print(f"WARNING: Auto-cleanup failed: {cleanup_error}")
         
         if not output_xlsx_path.exists():
             return jsonify({
@@ -1008,7 +1008,7 @@ def get_indicator_data():
         })
         
     except Exception as e:
-        print(f"❌ Error loading indicator data: {e}")
+        print(f"ERROR: Error loading indicator data: {e}")
         return jsonify({
             'success': False,
             'error': str(e),
@@ -1084,7 +1084,7 @@ def get_gcg_chart_data():
         })
         
     except Exception as e:
-        print(f"❌ Error loading GCG chart data: {str(e)}")
+        print(f"ERROR: Error loading GCG chart data: {str(e)}")
         return jsonify({
             'success': False,
             'error': str(e),
@@ -1102,7 +1102,7 @@ def get_gcg_mapping():
         gcg_mapping_path = Path(__file__).parent.parent / 'GCG_MAPPING.csv'
         
         if not gcg_mapping_path.exists():
-            print(f"⚠️ GCG_MAPPING.csv not found at: {gcg_mapping_path}")
+            print(f"WARNING: GCG_MAPPING.csv not found at: {gcg_mapping_path}")
             return jsonify({
                 'success': False,
                 'error': 'GCG mapping file not found',
@@ -1137,7 +1137,7 @@ def get_gcg_mapping():
         })
         
     except Exception as e:
-        print(f"❌ Error loading GCG mapping: {str(e)}")
+        print(f"ERROR: Error loading GCG mapping: {str(e)}")
         return jsonify({
             'success': False,
             'error': str(e),
@@ -1158,9 +1158,9 @@ def cleanup_orphaned_data():
         if output_xlsx_path.exists():
             df = pd.read_excel(output_xlsx_path)
             xlsx_years = set(df['Tahun'].unique())
-            print(f"📊 Found years in output.xlsx: {sorted(xlsx_years)}")
+            print(f"INFO: Found years in output.xlsx: {sorted(xlsx_years)}")
         else:
-            print("⚠️ output.xlsx not found - will clean all assessments.json entries")
+            print("WARNING: output.xlsx not found - will clean all assessments.json entries")
         
         # Clean up assessments.json
         orphaned_count = 0
@@ -1178,17 +1178,17 @@ def cleanup_orphaned_data():
                     cleaned_assessments.append(assessment)
                 else:
                     orphaned_count += 1
-                    print(f"🗑️ Removing orphaned assessment for year {year}")
+                    print(f"CLEANUP: Removing orphaned assessment for year {year}")
             
             # Save cleaned data
             assessments_data['assessments'] = cleaned_assessments
             with open(assessments_path, 'w') as f:
                 json.dump(assessments_data, f, indent=2)
                 
-            print(f"✅ Cleaned up {orphaned_count} orphaned entries from assessments.json")
-            print(f"📊 Kept {len(cleaned_assessments)} valid entries")
+            print(f"SUCCESS: Cleaned up {orphaned_count} orphaned entries from assessments.json")
+            print(f"INFO: Kept {len(cleaned_assessments)} valid entries")
         else:
-            print("⚠️ assessments.json not found - nothing to clean")
+            print("WARNING: assessments.json not found - nothing to clean")
         
         return jsonify({
             'success': True,
@@ -1200,7 +1200,7 @@ def cleanup_orphaned_data():
         })
         
     except Exception as e:
-        print(f"❌ Error during cleanup: {e}")
+        print(f"ERROR: Error during cleanup: {e}")
         return jsonify({
             'success': False,
             'error': str(e),
@@ -1209,11 +1209,11 @@ def cleanup_orphaned_data():
 
 
 if __name__ == '__main__':
-    print("🚀 Starting POS Data Cleaner 2 Web API")
-    print(f"📁 Upload folder: {UPLOAD_FOLDER}")
-    print(f"📁 Output folder: {OUTPUT_FOLDER}")
-    print("🔗 CORS enabled for React frontend")
-    print("✅ Production system integrated")
-    print("🌐 Server starting on http://localhost:5000")
+    print(">> Starting POS Data Cleaner 2 Web API")
+    print(f"   Upload folder: {UPLOAD_FOLDER}")
+    print(f"   Output folder: {OUTPUT_FOLDER}")
+    print("   CORS enabled for React frontend")
+    print("   Production system integrated")
+    print("   Server starting on http://localhost:5000")
     
     app.run(debug=True, host='0.0.0.0', port=5000)
