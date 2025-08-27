@@ -77,16 +77,22 @@ interface YearlyScoreChartProps {
 
 const YearlyScoreChart: React.FC<YearlyScoreChartProps> = ({ data, allYears, yearFilter, setYearFilter, chartMode, setChartMode, rawData = [] }) => {
 
-  // chartAreaWidth dinamis sesuai jumlah tahun yang terfilter
-  const filteredYearsCount = data.length;
-  let chartAreaWidth = 1000;
-  if (filteredYearsCount > 15) chartAreaWidth = 1500;
-  else if (filteredYearsCount > 10) chartAreaWidth = 1250;
+  // Calculate maximum bars per row based on container constraint (900px max, responsive)
+  const barWidth = 40;
+  const barGap = 15; // Fixed gap between bars
+  const maxBarsPerRow = Math.floor((900 - 80) / (barWidth + barGap)); // 900px max width minus padding
+  
+  // Split data into rows
+  const dataRows = [];
+  for (let i = 0; i < data.length; i += maxBarsPerRow) {
+    dataRows.push(data.slice(i, i + maxBarsPerRow));
+  }
+  
+  // Chart dimensions
   const yAxisPadding = 60;
   const barAreaHeight = 270; // tinggi area bar tetap
   const xAxisLabelPadding = 60; // ruang bawah untuk label X
   const chartHeight = barAreaHeight + xAxisLabelPadding; // total tinggi SVG
-  const chartWidth = chartAreaWidth - yAxisPadding;
 
   // Hitung min dan max dinamis untuk sumbu Y
   const scores = data.map(d => d.totalScore);
@@ -95,19 +101,10 @@ const YearlyScoreChart: React.FC<YearlyScoreChartProps> = ({ data, allYears, yea
   if (minScoreY < 0) minScoreY = 0;
   if (maxScoreY > 100) maxScoreY = 100;
 
-  const barWidth = 40;
-  const barGap = data.length > 1 ? (chartWidth - (data.length * barWidth)) / (data.length - 1) : 0;
-
   // Fungsi konversi skor ke posisi Y pada chart
   const getY = (score: number) => {
     return barAreaHeight - ((score - minScoreY) / (maxScoreY - minScoreY)) * barAreaHeight;
   };
-
-  const points = data.map((yearData, index) => {
-    const x = (index * (barWidth + barGap)) + (barWidth / 2);
-    const y = getY(yearData.totalScore);
-    return `${x},${y}`;
-  }).join(' ');
 
   const [hoveredYear, setHoveredYear] = React.useState<number | null>(null);
 
@@ -162,119 +159,141 @@ const YearlyScoreChart: React.FC<YearlyScoreChartProps> = ({ data, allYears, yea
             ))}
           </select>
         </div>
-        <div style={{ position: 'relative', width: chartAreaWidth }}>
-          {/* Label vertikal 'Skor' di samping sumbu Y */}
-          <div style={{
-            position: 'absolute',
-            left: -1, 
-            top: 130,
-            transform: 'rotate(-90deg)',
-            transformOrigin: 'left top',
-            fontSize: 13,
-            color: '#64748b',
-            fontWeight: 500,
-            letterSpacing: 1,
-            zIndex: 10,
-            userSelect: 'none',
-          }}>
-            Skor
-          </div>
-          <svg width={chartAreaWidth} height={chartHeight} className="font-sans mb-8">
-            {/* Sumbu Y dan grid */}
-            <g className="text-xs text-muted-foreground" transform={`translate(${yAxisPadding - 10}, 0)`}>
-              <text x="-18" y="-18" textAnchor="middle" fontSize="12" fontStyle="italic" fill="#64748b">Capaian(%)</text>
-              {/* Label angka sumbu Y dan grid (setiap 5 sesuai rentang) */}
-              {(() => {
-                const labels = [];
-                const start = Math.ceil(minScoreY / 5) * 5;
-                const end = Math.floor(maxScoreY / 5) * 5;
-                for (let val = start; val <= end; val += 5) {
-                  const yVal = getY(val);
-                  labels.push(
-                    <g key={val}>
-                      <text x="-12" y={yVal + 4} textAnchor="end" fontSize="12" fill="#64748b">{val}</text>
-                      <line x1={0} y1={yVal} x2={chartWidth} y2={yVal} stroke="#e5e7eb" strokeDasharray="4 2" />
-                    </g>
-                  );
-                }
-                return labels;
-              })()}
-              {/* Bar dulu */}
-              {data.map((yearData, index) => {
-                const x = (index * (barWidth + barGap));
-                const y = getY(yearData.totalScore);
-                const barH = barAreaHeight - y;
-                const r = 10;
-                const path = `M0,${y + r} Q0,${y} ${r},${y} H${barWidth - r} Q${barWidth},${y} ${barWidth},${y + r} V${y + barH} H0 Z`;
-                const yearLabelY = barAreaHeight + 20;
-                const penilaiLabelY = barAreaHeight + 36;
-                const penjelasanLabelY = barAreaHeight + 32;
-                return (
-                  <g 
-                    key={yearData.year} 
-                    transform={`translate(${x}, 0)`} 
-                    onClick={() => handleYearClick(yearData.year)} 
-                    style={{ cursor: 'pointer', transition: 'transform 0.2s' }} 
-                    onMouseEnter={() => setHoveredYear(yearData.year)}
-                    onMouseLeave={() => setHoveredYear(null)}>
-                    <path
-                      d={path}
-                      fill="#90cdf4"
-                      className="opacity-90 hover:opacity-100 transition-opacity"
-                      style={{ transform: hoveredYear === yearData.year ? 'scale(1.05)' : 'scale(1)', transformOrigin: `${barWidth/2}px ${barAreaHeight}px` }}
+        <div className="w-full max-w-[900px] flex flex-col items-center gap-6">
+          {dataRows.map((rowData, rowIndex) => {
+            // Let CSS handle responsive width, just calculate based on content
+            const chartAreaWidth = rowData.length * (barWidth + barGap) + 80;
+            const chartWidth = chartAreaWidth - yAxisPadding;
+            
+            // Calculate points for polyline for this row
+            const points = rowData.map((yearData, index) => {
+              const x = (index * (barWidth + barGap)) + (barWidth / 2);
+              const y = getY(yearData.totalScore);
+              return `${x},${y}`;
+            }).join(' ');
+
+            return (
+              <div key={rowIndex} style={{ position: 'relative', width: chartAreaWidth }}>
+                {/* Label vertikal 'Skor' di samping sumbu Y - hanya di row pertama */}
+                {rowIndex === 0 && (
+                  <div style={{
+                    position: 'absolute',
+                    left: -1, 
+                    top: 130,
+                    transform: 'rotate(-90deg)',
+                    transformOrigin: 'left top',
+                    fontSize: 13,
+                    color: '#64748b',
+                    fontWeight: 500,
+                    letterSpacing: 1,
+                    zIndex: 10,
+                    userSelect: 'none',
+                  }}>
+                    Skor
+                  </div>
+                )}
+                <svg width={chartAreaWidth} height={chartHeight} className="font-sans mb-8">
+                  {/* Sumbu Y dan grid */}
+                  <g className="text-xs text-muted-foreground" transform={`translate(${yAxisPadding - 10}, 0)`}>
+                    {/* Hanya tampilkan label Y-axis di row pertama */}
+                    {rowIndex === 0 && (
+                      <text x="-18" y="-18" textAnchor="middle" fontSize="12" fontStyle="italic" fill="#64748b">Capaian(%)</text>
+                    )}
+                    {/* Label angka sumbu Y dan grid (setiap 5 sesuai rentang) */}
+                    {(() => {
+                      const labels = [];
+                      const start = Math.ceil(minScoreY / 5) * 5;
+                      const end = Math.floor(maxScoreY / 5) * 5;
+                      for (let val = start; val <= end; val += 5) {
+                        const yVal = getY(val);
+                        labels.push(
+                          <g key={val}>
+                            <text x="-12" y={yVal + 4} textAnchor="end" fontSize="12" fill="#64748b">{val}</text>
+                            <line x1={0} y1={yVal} x2={chartWidth} y2={yVal} stroke="#e5e7eb" strokeDasharray="4 2" />
+                          </g>
+                        );
+                      }
+                      return labels;
+                    })()}
+                    {/* Bar dulu */}
+                    {rowData.map((yearData, index) => {
+                      const x = (index * (barWidth + barGap));
+                      const y = getY(yearData.totalScore);
+                      const barH = barAreaHeight - y;
+                      const r = 10;
+                      const path = `M0,${y + r} Q0,${y} ${r},${y} H${barWidth - r} Q${barWidth},${y} ${barWidth},${y + r} V${y + barH} H0 Z`;
+                      const yearLabelY = barAreaHeight + 20;
+                      const penilaiLabelY = barAreaHeight + 36;
+                      const penjelasanLabelY = barAreaHeight + 32;
+                      return (
+                        <g 
+                          key={yearData.year} 
+                          transform={`translate(${x}, 0)`} 
+                          onClick={() => handleYearClick(yearData.year)} 
+                          style={{ cursor: 'pointer', transition: 'transform 0.2s' }} 
+                          onMouseEnter={() => setHoveredYear(yearData.year)}
+                          onMouseLeave={() => setHoveredYear(null)}>
+                          <path
+                            d={path}
+                            fill="#90cdf4"
+                            className="opacity-90 hover:opacity-100 transition-opacity"
+                            style={{ transform: hoveredYear === yearData.year ? 'scale(1.05)' : 'scale(1)', transformOrigin: `${barWidth/2}px ${barAreaHeight}px` }}
+                          />
+                          {/* Label tahun */}
+                          <text x={barWidth / 2} y={yearLabelY} textAnchor="middle" fontSize="14" fill="#666">
+                            {yearData.year}
+                          </text>
+                          {/* Keterangan penilai dan penjelasan di bawah tahun */}
+                          {yearData.penilai && (
+                            <title>{`Penilai: ${yearData.penilai}`}</title>
+                          )}
+                          {yearData.penjelasan && (
+                            <foreignObject x={-30} y={penjelasanLabelY} width={barWidth + 60} height={40} xmlns="http://www.w3.org/1999/xhtml">
+                              <div style={{
+                                color: '#64748b',
+                                fontSize: '11px',
+                                textAlign: 'center',
+                                wordBreak: 'break-word',
+                                whiteSpace: 'pre-line',
+                                maxWidth: `${barWidth + 60}px`,
+                                margin: '0 auto',
+                                lineHeight: 1.2,
+                                padding: 0,
+                              }}>
+                                {yearData.penjelasan}
+                              </div>
+                            </foreignObject>
+                          )}
+                        </g>
+                      );
+                    })}
+                    {/* Polyline (line) di atas bar - hanya untuk data di row ini */}
+                    <polyline
+                      fill="none"
+                      stroke="#6ba2dd80"
+                      strokeWidth="2.5"
+                      points={points.replace(/NaN/g, '0')}
                     />
-                    {/* Label tahun */}
-                    <text x={barWidth / 2} y={yearLabelY} textAnchor="middle" fontSize="14" fill="#666">
-                      {yearData.year}
-                    </text>
-                    {/* Keterangan penilai dan penjelasan di bawah tahun */}
-                    {yearData.penilai && (
-                      <title>{`Penilai: ${yearData.penilai}`}</title>
-                    )}
-                    {yearData.penjelasan && (
-                      <foreignObject x={-30} y={penjelasanLabelY} width={barWidth + 60} height={40} xmlns="http://www.w3.org/1999/xhtml">
-                        <div style={{
-                          color: '#64748b',
-                          fontSize: '11px',
-                          textAlign: 'center',
-                          wordBreak: 'break-word',
-                          whiteSpace: 'pre-line',
-                          maxWidth: `${barWidth + 60}px`,
-                          margin: '0 auto',
-                          lineHeight: 1.2,
-                          padding: 0,
-                        }}>
-                          {yearData.penjelasan}
-                        </div>
-                      </foreignObject>
-                    )}
+                    {rowData.map((yearData, index) => {
+                      const x = (index * (barWidth + barGap)) + (barWidth / 2);
+                      const y = getY(yearData.totalScore);
+                      return <circle key={yearData.year} cx={x} cy={y} r="4" fill="#4660a7ff" />;
+                    })}
+                    {/* Label skor di atas bar */}
+                    {rowData.map((yearData, index) => {
+                      const x = (index * (barWidth + barGap)) + (barWidth / 2);
+                      const y = getY(yearData.totalScore);
+                      return (
+                        <text key={yearData.year + '-score'} x={x} y={y - 8} textAnchor="middle" fontSize="12" fill="#333" fontWeight="bold">
+                          {yearData.totalScore.toFixed(2)}
+                        </text>
+                      );
+                    })}
                   </g>
-                );
-              })}
-              {/* Polyline (line) di atas bar */}
-              <polyline
-                fill="none"
-                stroke="#6ba2dd80"
-                strokeWidth="2.5"
-                points={points.replace(/NaN/g, '0')}
-              />
-              {data.map((yearData, index) => {
-                const x = (index * (barWidth + barGap)) + (barWidth / 2);
-                const y = getY(yearData.totalScore);
-                return <circle key={yearData.year} cx={x} cy={y} r="4" fill="#4660a7ff" />;
-              })}
-              {/* Label skor di atas bar */}
-              {data.map((yearData, index) => {
-                const x = (index * (barWidth + barGap)) + (barWidth / 2);
-                const y = getY(yearData.totalScore);
-                return (
-                  <text key={yearData.year + '-score'} x={x} y={y - 8} textAnchor="middle" fontSize="12" fill="#333" fontWeight="bold">
-                    {yearData.totalScore.toFixed(2)}
-                  </text>
-                );
-              })}
-            </g>
-          </svg>
+                </svg>
+              </div>
+            );
+          })}
         </div>
         {/* Tabel aspek di bawah grafik, posisi tengah */}
         {!selectedYear ? (

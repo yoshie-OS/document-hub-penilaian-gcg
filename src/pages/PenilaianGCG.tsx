@@ -948,42 +948,8 @@ const PenilaianGCG = () => {
   // Method Selection Step
   const renderMethodSelection = () => (
     <div className="space-y-8">
-      {/* Header */}
-      <div className="text-center mb-8">
-        <div className="flex items-center justify-center space-x-3 mb-4">
-          <div className="p-3 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl shadow-lg">
-            <BarChart3 className="w-8 h-8 text-white" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-              Performa GCG
-            </h1>
-            <p className="text-gray-600 mt-1">
-              Pilih metode input data penilaian Good Corporate Governance
-            </p>
-          </div>
-        </div>
-      </div>
 
-      {/* Input Section */}
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-gray-800 text-left">
-            {isSuperAdmin() ? 'Input' : 'Lihat Data'}
-          </h2>
-          
-          {/* Role Information */}
-          <div className="text-sm text-gray-600">
-            <span className={`px-2 py-1 rounded text-xs font-medium ${
-              isSuperAdmin() ? 'bg-red-100 text-red-800' : 
-              user?.role === 'admin' ? 'bg-blue-100 text-blue-800' : 
-              'bg-green-100 text-green-800'
-            }`}>
-              {user?.role === 'superadmin' ? 'Super Admin' : 
-               user?.role === 'admin' ? 'Admin' : 'User'} - {user?.name}
-            </span>
-          </div>
-        </div>
         
         {/* Access Level Message for Non-Superadmin */}
         {!isSuperAdmin() && (
@@ -995,19 +961,6 @@ const PenilaianGCG = () => {
         )}
         
         <div className="flex items-center space-x-4">
-          {/* Input/Edit Data - Only for Superadmin */}
-          {isSuperAdmin() && (
-            <Button 
-              onClick={() => {
-                setSelectedMethod('manual');
-                setCurrentStep('table');
-              }}
-              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 text-sm"
-            >
-              <Edit3 className="w-4 h-4 mr-2" />
-              Input/Edit Data
-            </Button>
-          )}
 
 
         </div>
@@ -1018,6 +971,22 @@ const PenilaianGCG = () => {
         <h2 className="text-xl font-semibold text-gray-800 text-left">Dashboard Visualisasi</h2>
         
         <GCGChartWrapper selectedYear={selectedYear} tableData={tableData} auditor={auditor} jenisAsesmen={jenisAsesmen} />
+        
+        {/* Input/Edit Data Button - moved to bottom */}
+        {isSuperAdmin() && (
+          <div className="flex justify-center pt-4">
+            <Button 
+              onClick={() => {
+                setSelectedMethod('manual');
+                setCurrentStep('table');
+              }}
+              className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 text-sm"
+            >
+              <Edit3 className="w-4 h-4 mr-2" />
+              Input/Edit Data
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
