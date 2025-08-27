@@ -1,14 +1,56 @@
 // Graph Data Service - Maps GCG document metadata to graph structure
 import { GraphNode, GraphEdge, GraphData } from '@/types/graph';
-import { DocumentMetadata } from '@/contexts/DocumentMetadataContext';
-import { initializeDocumentMetadata } from '@/lib/seed/seedDocumentMetadata';
+import { DocumentMetadata as BaseDocumentMetadata } from '@/contexts/DocumentMetadataContext';
+
+// Extended DocumentMetadata interface for graph service
+interface DocumentMetadata extends BaseDocumentMetadata {
+  gcgPrinciple?: string;
+  documentType?: string;
+  direksi?: string;
+}
+// Simple fallback function for seed data
+const initializeDocumentMetadata = (): DocumentMetadata[] => {
+  return [
+    {
+      id: '1',
+      title: 'Pedoman Good Corporate Governance 2024',
+      documentNumber: 'GCG-001/2024',
+      documentDate: '2024-01-15',
+      description: 'Pedoman pelaksanaan Good Corporate Governance tahun 2024',
+      direktorat: 'Direktorat Utama',
+      subdirektorat: 'Sub Direktorat Governance',
+      division: 'Divisi Compliance',
+      fileName: 'pedoman-gcg-2024.pdf',
+      fileSize: 2048576,
+      fileUrl: '/uploads/pedoman-gcg-2024.pdf',
+      status: 'published',
+      confidentiality: 'Internal',
+      year: 2024,
+      uploadedBy: 'admin@example.com',
+      uploadDate: '2024-01-15T10:00:00Z',
+      checklistId: 1,
+      checklistDescription: 'Implementasi GCG',
+      aspect: 'ASPEK I. Komitmen',
+      gcgPrinciple: 'Transparency',
+      documentType: 'Kebijakan',
+      direksi: 'Direktorat Utama'
+    }
+  ];
+};
 
 // Get document data from localStorage or initialize with seed data
 const getDocumentData = (): DocumentMetadata[] => {
   try {
     const savedData = localStorage.getItem('documentMetadata');
     if (savedData) {
-      return JSON.parse(savedData);
+      const parsedData: BaseDocumentMetadata[] = JSON.parse(savedData);
+      // Extend with default values for graph fields
+      return parsedData.map(doc => ({
+        ...doc,
+        gcgPrinciple: (doc as any).gcgPrinciple || 'Transparency',
+        documentType: (doc as any).documentType || 'Kebijakan',
+        direksi: (doc as any).direksi || 'Non Direktorat'
+      }));
     }
     return initializeDocumentMetadata();
   } catch (error) {

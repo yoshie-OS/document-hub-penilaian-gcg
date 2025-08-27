@@ -10,7 +10,6 @@ import {
   BarChart3,
   PanelLeft,
   FileText,
-<<<<<<< HEAD
   Settings,
   Building2,
   Folder,
@@ -19,9 +18,6 @@ import {
   Plus,
   Lock,
   Network
-=======
-  Settings
->>>>>>> upstream/progres-4
 } from 'lucide-react';
 
 interface MenuItem {
@@ -91,7 +87,6 @@ const Sidebar = () => {
         name: 'Dashboard', 
         icon: LayoutDashboard, 
         path: '/dashboard'
->>>>>>> upstream/progres-4
       }
     );
   }
@@ -137,7 +132,6 @@ const Sidebar = () => {
         {/* Menu Items */}
         <nav className="pt-6 pb-20">
           <div className="px-4 space-y-1">
-<<<<<<< HEAD
             {menuItems
               .filter(item => {
                 // Hide Performa GCG menu if user is not superadmin
@@ -146,10 +140,7 @@ const Sidebar = () => {
                 }
                 return true;
               })
-              .map((item) => {
-=======
-            {menuItems.map((item, index) => {
->>>>>>> upstream/progres-4
+              .map((item, index) => {
               const Icon = item.icon;
               const active = isActive(item.path);
               
