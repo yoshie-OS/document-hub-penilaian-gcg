@@ -37,7 +37,7 @@ const DashboardStats = () => {
   const { refreshDocuments } = useDocumentMetadata();
   const [forceUpdate, setForceUpdate] = useState(0);
 
-  // Get statistics
+  // Get statistics - menggunakan logika yang sama dengan MonitoringUploadGCG
   const getStats = () => {
     if (!selectedYear) {
       return {
@@ -50,17 +50,29 @@ const DashboardStats = () => {
     }
 
     try {
-      const yearFiles = getFilesByYear(selectedYear) || [];
       const yearChecklist = checklist?.filter(item => item.tahun === selectedYear) || [];
+      const yearFiles = getFilesByYear(selectedYear) || [];
       
       const totalChecklist = yearChecklist.length;
-      const uploadedFiles = yearFiles.length;
+      
+      // Hitung uploaded files berdasarkan checklist items yang sudah diupload
+      // Ini mencegah double counting saat re-upload
+      const uploadedFiles = yearChecklist.filter(item => 
+        yearFiles.some(file => file.checklistId === item.id)
+      ).length;
+      
       const pendingFiles = totalChecklist - uploadedFiles;
-      const totalSize = yearFiles.reduce((total, file) => total + (file.fileSize || 0), 0);
+      
+      // Hitung total size dari file yang unik (berdasarkan checklistId)
+      const uniqueFiles = yearFiles.filter((file, index, self) => 
+        index === self.findIndex(f => f.checklistId === file.checklistId)
+      );
+      const totalSize = uniqueFiles.reduce((total, file) => total + (file.fileSize || 0), 0);
+      
       const progress = totalChecklist > 0 ? Math.round((uploadedFiles / totalChecklist) * 100) : 0;
 
       return {
-        totalFiles: yearFiles.length,
+        totalFiles: uniqueFiles.length, // Gunakan unique files
         uploadedFiles,
         pendingFiles,
         totalSize,
@@ -78,7 +90,7 @@ const DashboardStats = () => {
     }
   };
 
-  // Get statistics per aspect
+  // Get statistics per aspect - menggunakan logika yang sama dengan MonitoringUploadGCG
   const getAspectStats = () => {
     if (!selectedYear) return [];
 
@@ -86,33 +98,46 @@ const DashboardStats = () => {
       const yearFiles = getFilesByYear(selectedYear) || [];
       const yearChecklist = checklist?.filter(item => item.tahun === selectedYear) || [];
       
-      // Get aspects from context for the selected year
-      const yearAspects = getAspectsByYear(selectedYear);
+      // Get unique aspects dari checklist items (termasuk yang kosong) - sama seperti MonitoringUploadGCG
+      const uniqueAspects = Array.from(new Set(yearChecklist.map(item => item.aspek)));
       
-      return yearAspects.map(aspek => {
-        const aspectItems = yearChecklist.filter(item => item.aspek === aspek.nama);
-        const uploadedFiles = yearFiles.filter(file => file.aspect === aspek.nama);
+      return uniqueAspects.map(aspek => {
+        // Handle aspek kosong dengan nama yang user-friendly
+        const aspectName = aspek && aspek.trim() !== '' ? aspek : 'Tanpa Aspek';
+        const aspectItems = yearChecklist.filter(item => item.aspek === aspek);
+        
+        // Hitung uploaded files berdasarkan checklist items yang sudah diupload
+        // Ini mencegah double counting saat re-upload
+        const uploadedCount = aspectItems.filter(item => 
+          yearFiles.some(file => file.checklistId === item.id)
+        ).length;
+        
         const totalItems = aspectItems.length;
-        const uploadedCount = uploadedFiles.length;
         const pendingCount = totalItems - uploadedCount;
         const progress = totalItems > 0 ? Math.round((uploadedCount / totalItems) * 100) : 0;
 
+        // Ambil file yang unik untuk aspek ini
+        const uniqueFiles = yearFiles.filter((file, index, self) => 
+          file.aspect === aspek && 
+          index === self.findIndex(f => f.checklistId === file.checklistId)
+        );
+
         return {
-          aspek: aspek.nama,
+          aspek: aspectName,
           totalItems,
           uploadedCount,
           pendingCount,
           progress,
-          files: uploadedFiles
+          files: uniqueFiles
         };
-      });
+      }).sort((a, b) => b.progress - a.progress); // Sort by progress descending seperti MonitoringUploadGCG
     } catch (error) {
       console.error('Error calculating aspect stats:', error);
       return [];
     }
   };
 
-  // Get overall progress data
+  // Get overall progress data - menggunakan logika yang sama dengan MonitoringUploadGCG
   const getOverallProgress = () => {
     if (!selectedYear) return null;
     
@@ -121,7 +146,13 @@ const DashboardStats = () => {
       const yearChecklist = checklist?.filter(item => item.tahun === selectedYear) || [];
       
       const totalItems = yearChecklist.length;
-      const uploadedCount = yearFiles.length;
+      
+      // Hitung uploaded files berdasarkan checklist items yang sudah diupload
+      // Ini mencegah double counting saat re-upload
+      const uploadedCount = yearChecklist.filter(item => 
+        yearFiles.some(file => file.checklistId === item.id)
+      ).length;
+      
       const progress = totalItems > 0 ? Math.round((uploadedCount / totalItems) * 100) : 0;
 
       return {

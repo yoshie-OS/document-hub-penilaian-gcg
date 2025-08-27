@@ -191,28 +191,30 @@ const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
        clearInterval(progressInterval);
        setUploadProgress(100);
 
-       // Actually upload file to context
-       if (checklistItem && selectedFile) {
-         if (isReUpload) {
-           // For re-upload: remove old file and add new one
-           reUploadFile(
-             selectedFile,
-             checklistItem.tahun || new Date().getFullYear(),
-             checklistItem.id,
-             checklistItem.deskripsi,
-             checklistItem.aspek || ''
-           );
-         } else {
-           // For new upload: add new file
-           uploadFile(
-             selectedFile,
-             checklistItem.tahun || new Date().getFullYear(),
-             checklistItem.id,
-             checklistItem.deskripsi,
-             checklistItem.aspek || ''
-           );
-         }
-       }
+               // Actually upload file to context
+        if (checklistItem && selectedFile) {
+          if (isReUpload) {
+            // For re-upload: remove old file and add new one
+            reUploadFile(
+              selectedFile,
+              checklistItem.tahun || new Date().getFullYear(),
+              checklistItem.id,
+              checklistItem.deskripsi,
+              checklistItem.aspek || '',
+              user?.subdirektorat
+            );
+          } else {
+            // For new upload: add new file
+            uploadFile(
+              selectedFile,
+              checklistItem.tahun || new Date().getFullYear(),
+              checklistItem.id,
+              checklistItem.deskripsi,
+              checklistItem.aspek || '',
+              user?.subdirektorat
+            );
+          }
+        }
 
        // Show success message
        toast({

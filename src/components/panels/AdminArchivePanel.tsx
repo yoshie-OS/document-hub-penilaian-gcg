@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,6 +10,8 @@ import {
   Download,
   FileText
 } from 'lucide-react';
+import { useFileUpload } from '@/contexts/FileUploadContext';
+import { useUser } from '@/contexts/UserContext';
 
 interface UserDocument {
   id: string | number;
@@ -23,19 +25,52 @@ interface UserDocument {
 
 interface AdminArchivePanelProps {
   selectedYear: number | null;
-  currentYearDocuments: UserDocument[];
-  previousYearDocuments: UserDocument[];
   canUploadInCurrentYear: boolean;
   isCurrentYear: boolean;
 }
 
 const AdminArchivePanel: React.FC<AdminArchivePanelProps> = ({
   selectedYear,
-  currentYearDocuments,
-  previousYearDocuments,
   canUploadInCurrentYear,
   isCurrentYear
 }) => {
+  const { user } = useUser();
+  const { getFilesByYear } = useFileUpload();
+
+  // Generate real-time data from FileUploadContext
+  const currentYearDocuments = useMemo(() => {
+    if (!selectedYear || !user?.subdirektorat) return [];
+    
+    const yearFiles = getFilesByYear(selectedYear);
+    return yearFiles
+      .filter(file => file.subdirektorat === user.subdirektorat)
+      .map(file => ({
+        id: file.id,
+        namaFile: file.fileName,
+        aspek: file.aspect || 'Unknown Aspect',
+        subdirektorat: file.subdirektorat || user.subdirektorat,
+        uploadDate: file.uploadDate.toISOString(),
+        status: file.status,
+        tahunBuku: file.year.toString()
+      }))
+      .sort((a, b) => new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime());
+  }, [selectedYear, user?.subdirektorat, getFilesByYear]);
+
+  const previousYearDocuments = useMemo(() => {
+    if (!selectedYear) return [];
+    
+    const yearFiles = getFilesByYear(selectedYear);
+    return yearFiles.map(file => ({
+      id: file.id,
+      namaFile: file.fileName,
+      aspek: file.aspect || 'Unknown Aspect',
+      subdirektorat: file.subdirektorat || 'Unknown',
+      uploadDate: file.uploadDate.toISOString(),
+      status: file.status,
+      tahunBuku: file.year.toString()
+    }))
+    .sort((a, b) => new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime());
+  }, [selectedYear, getFilesByYear]);
   // Get status badge color
   const getStatusBadge = (status: string) => {
     switch (status) {

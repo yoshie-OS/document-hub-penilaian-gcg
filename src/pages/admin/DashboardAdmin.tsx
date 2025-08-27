@@ -125,9 +125,9 @@ const DashboardAdmin: React.FC = () => {
   // Check if current year allows uploads
   const canUploadInCurrentYear = selectedYear?.toString() === currentYear;
 
-  // Get checklist items berdasarkan tahun dari context
+  // Get checklist items berdasarkan tahun dan subdirektorat admin dari context
   const checklistItems = useMemo(() => {
-    if (!selectedYear) return [];
+    if (!selectedYear || !user?.subdirektorat) return [];
     
     try {
       // Get checklist items for selected year
@@ -139,8 +139,35 @@ const DashboardAdmin: React.FC = () => {
         return [];
       }
       
+      // Get assignments untuk tahun dan subdirektorat admin
+      const storedAssignments = localStorage.getItem('checklistAssignments');
+      let adminAssignments: any[] = [];
+      
+      if (storedAssignments) {
+        try {
+          const allAssignments = JSON.parse(storedAssignments);
+          adminAssignments = allAssignments.filter((assignment: any) => 
+            assignment.tahun === selectedYear && 
+            assignment.subdirektorat === user.subdirektorat
+          );
+        } catch (error) {
+          console.error('Error parsing assignments:', error);
+        }
+      }
+      
+      // Filter checklist items berdasarkan assignments admin
+      const assignedChecklistIds = new Set(adminAssignments.map(a => a.checklistId));
+      const assignedItems = yearChecklist.filter(item => assignedChecklistIds.has(item.id));
+      
+      console.log('Admin assignments for year and subdirektorat:', {
+        year: selectedYear,
+        subdirektorat: user.subdirektorat,
+        totalAssignments: adminAssignments.length,
+        assignedItems: assignedItems.length
+      });
+      
       // Check if items are uploaded using FileUploadContext (real-time)
-      const itemsWithStatus = yearChecklist.map(item => {
+      const itemsWithStatus = assignedItems.map(item => {
         // Allow items without aspek (like superadmin does)
         if (!item.deskripsi) {
           console.warn('Invalid checklist item - missing deskripsi:', item);
@@ -160,13 +187,13 @@ const DashboardAdmin: React.FC = () => {
         };
       }).filter(Boolean); // Remove null items
       
-      console.log('Processed checklist items with file info:', itemsWithStatus);
+      console.log('Processed checklist items with file info for admin:', itemsWithStatus);
       return itemsWithStatus;
     } catch (error) {
       console.error('Error processing checklist items:', error);
       return [];
     }
-  }, [selectedYear, getChecklistByYear, getFilesByYear]);
+  }, [selectedYear, getChecklistByYear, getFilesByYear, user?.subdirektorat]);
 
 
 
@@ -347,8 +374,6 @@ const DashboardAdmin: React.FC = () => {
                             {/* Arsip Dokumen - Hanya tab Tahun Terkini */}
               <AdminArchivePanel
                 selectedYear={selectedYear}
-                currentYearDocuments={currentYearDocuments}
-                previousYearDocuments={previousYearDocuments}
                 canUploadInCurrentYear={canUploadInCurrentYear}
                 isCurrentYear={true}
               />
@@ -357,8 +382,6 @@ const DashboardAdmin: React.FC = () => {
                         // Tahun Lama - Hanya tampilkan panel Arsip Dokumen
             <AdminArchivePanel
               selectedYear={selectedYear}
-              currentYearDocuments={currentYearDocuments}
-              previousYearDocuments={previousYearDocuments}
               canUploadInCurrentYear={canUploadInCurrentYear}
               isCurrentYear={false}
             />
@@ -368,8 +391,8 @@ const DashboardAdmin: React.FC = () => {
 
       {/* Admin Upload Dialog */}
       <AdminUploadDialog
-        isOpen={isUploadDialogOpen}
-        onOpenChange={setIsUploadDialogOpen}
+          isOpen={isUploadDialogOpen}
+          onOpenChange={setIsUploadDialogOpen}
         checklistItem={selectedChecklistItem}
         isReUpload={false}
         onUploadSuccess={handleUploadSuccess}

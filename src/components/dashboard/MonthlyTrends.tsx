@@ -1,65 +1,53 @@
 import React, { useMemo, useEffect, useState, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { useDocumentMetadata } from '@/contexts/DocumentMetadataContext';
+import { useFileUpload } from '@/contexts/FileUploadContext';
+import { useChecklist } from '@/contexts/ChecklistContext';
 import { useYear } from '@/contexts/YearContext';
-import { useDirektorat } from '@/contexts/DireksiContext';
 import { useStrukturPerusahaan } from '@/contexts/StrukturPerusahaanContext';
-import { TrendingUp } from 'lucide-react';
-// removed keen-slider as Progres Subdirektorat section is deleted
+import { TrendingUp, Building2, Users, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 
 interface MonthlyTrendsProps {
   className?: string;
 }
 
-interface ChecklistAssignment {
-  id: number;
-  checklistId: number;
+interface SubdirektoratProgress {
   subdirektorat: string;
-  aspek: string;
-  deskripsi: string;
-  tahun: number;
-  assignedBy: string;
-  assignedAt: Date;
-  status: 'assigned' | 'in_progress' | 'completed';
-  notes?: string;
+  percent: number;
+  progress: number;
+  target: number;
+  divisions: Array<{ name: string; count: number }>;
+  status: 'completed' | 'in_progress' | 'pending';
 }
 
 const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
   const { selectedYear } = useYear();
-  const { documents, getDocumentsByYear } = useDocumentMetadata();
+  const { getFilesByYear } = useFileUpload();
+  const { checklist } = useChecklist();
   const { subdirektorat: strukturSubdirektorat } = useStrukturPerusahaan();
 
-  // Get assignments data for the selected year
-  const assignments = useMemo(() => {
-    try {
-      const stored = localStorage.getItem('checklistAssignments');
-      if (!stored) return [];
-      const parsed = JSON.parse(stored) as ChecklistAssignment[];
-      return parsed.filter(a => a.tahun === selectedYear);
-    } catch (error) {
-      console.error('Error getting assignments:', error);
-      return [];
-    }
-  }, [selectedYear]);
-
-  // Listen for assignments updates
-  useEffect(() => {
-    const handleAssignmentsUpdate = () => {
-      // Force re-render when assignments change
-      window.location.reload();
-    };
-
-    window.addEventListener('assignmentsUpdated', handleAssignmentsUpdate);
-    return () => {
-      window.removeEventListener('assignmentsUpdated', handleAssignmentsUpdate);
-    };
-  }, []);
-
-  // Data progres per subdirektorat (berdasarkan dokumen yang diupload)
+  // Data progres per subdirektorat (berdasarkan dokumen yang diupload) - REAL-TIME
   const chartData = useMemo(() => {
     if (!selectedYear) return [];
-    const yearDocuments = getDocumentsByYear(selectedYear);
+    
+    // Get checklist items dan uploaded files untuk tahun yang dipilih
+    const yearChecklist = checklist?.filter(item => item.tahun === selectedYear) || [];
+    const yearFiles = getFilesByYear(selectedYear) || [];
+
+    // Get assignments untuk tahun yang dipilih
+    const storedAssignments = localStorage.getItem('checklistAssignments');
+    let yearAssignments: any[] = [];
+    
+    if (storedAssignments) {
+      try {
+        const allAssignments = JSON.parse(storedAssignments);
+        yearAssignments = allAssignments.filter((assignment: any) => 
+          assignment.tahun === selectedYear
+        );
+      } catch (error) {
+        console.error('Error parsing assignments:', error);
+      }
+    }
 
     // Gunakan daftar subdirektorat dari StrukturPerusahaanContext untuk tahun terpilih
     const subdirs: string[] = (strukturSubdirektorat || [])
@@ -76,36 +64,57 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
       // Hilangkan awalan "Sub Direktorat " agar rapi
       const cleanName = subName.replace(/^\s*Sub\s*Direktorat\s*/i, '').trim();
       
-      // Hitung target dari assignments (berapa checklist yang ditugaskan)
-      const targetAssignments = assignments.filter(a => a.subdirektorat === subName);
-      const target = targetAssignments.length;
+      // Hitung target dari assignments untuk subdirektorat ini
+      // Target = total checklist items yang diassign ke subdirektorat ini
+      const subdirAssignments = yearAssignments.filter(a => a.subdirektorat === subName);
+      const target = subdirAssignments.length;
       
-      // Hitung progress dari dokumen yang sudah diupload
-      const subdirDocs = yearDocuments.filter(doc => (doc.subdirektorat || '').trim() === subName);
-      const progress = subdirDocs.length;
+      // Hitung progress dari dokumen yang sudah diupload untuk subdirektorat ini
+      // Progress = checklist items yang sudah diupload (berdasarkan checklistId)
+      const uploadedChecklistIds = new Set(yearFiles.map(file => file.checklistId));
+      const progress = subdirAssignments.filter(assignment => 
+        uploadedChecklistIds.has(assignment.checklistId)
+      ).length;
       
-      // Breakdown per divisi
-      const divisionCounts: Record<string, number> = {};
-      subdirDocs.forEach(doc => {
-        const div = (doc.division || '').trim() || 'Divisi Lainnya';
-        divisionCounts[div] = (divisionCounts[div] || 0) + 1;
+      // Breakdown per aspek (bukan divisi) untuk lebih relevan
+      const aspectCounts: Record<string, number> = {};
+      yearFiles.forEach(file => {
+        if (file.subdirektorat === subName && file.aspect) {
+          const aspect = file.aspect.trim() || 'Tanpa Aspek';
+          aspectCounts[aspect] = (aspectCounts[aspect] || 0) + 1;
+        }
       });
-      const divisions = Object.entries(divisionCounts)
+      const aspects = Object.entries(aspectCounts)
         .sort((a, b) => b[1] - a[1])
         .map(([name, count]) => ({ name, count }));
       
       // Hitung persentase berdasarkan target dan progress
       const percent = target > 0 ? (progress / target) * 100 : 0;
       
+      // Tentukan status berdasarkan progress
+      let status: 'completed' | 'in_progress' | 'pending';
+      if (percent >= 100) status = 'completed';
+      else if (percent > 0) status = 'in_progress';
+      else status = 'pending';
+      
+      console.log(`Progress for ${subName}:`, {
+        target,
+        progress,
+        percent,
+        status,
+        assignments: subdirAssignments.length
+      });
+      
       return {
         subdirektorat: cleanName,
         percent,
         progress,
         target,
-        divisions
+        divisions: aspects, // Gunakan aspects sebagai divisions untuk konsistensi
+        status
       };
     }).filter(Boolean); // Filter out null values
-  }, [selectedYear, documents, getDocumentsByYear, strukturSubdirektorat, assignments]);
+  }, [selectedYear, checklist, getFilesByYear, strukturSubdirektorat]);
 
   if (!chartData.length) return (
     <Card className={`border-0 shadow-xl bg-white/80 backdrop-blur-sm ${className}`}>
@@ -363,25 +372,90 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
 
           {/* Removed Progres Subdirektorat section as requested */}
 
-          {/* Breakdown Penugasan Subdirektorat (x/x, nama simple) */}
-          <div className="space-y-3">
-            <h4 className="text-lg font-semibold text-gray-900">Breakdown Penugasan Subdirektorat</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {/* Breakdown Penugasan Subdirektorat - REAL-TIME */}
+          <div className="space-y-4">
+            <h4 className="text-lg font-semibold text-gray-900 flex items-center space-x-2">
+              <Building2 className="w-5 h-5 text-blue-600" />
+              <span>Breakdown Penugasan Subdirektorat</span>
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {chartData.map((data, index) => (
-                <div key={index} className="p-4 bg-gray-50 rounded-lg">
-                  <div className="text-sm font-semibold text-gray-900 mb-1 text-center truncate">{data.subdirektorat}</div>
-                  <div className="flex items-center justify-center space-x-2 mb-2">
-                    <span className="text-base font-bold text-blue-600">{data.progress}/{data.target}</span>
+                <div key={index} className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                  {/* Header dengan status indicator */}
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-sm font-semibold text-gray-900 truncate max-w-[120px]" title={data.subdirektorat}>
+                      {data.subdirektorat}
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      {data.status === 'completed' && (
+                        <CheckCircle className="w-4 h-4 text-green-600" title="Selesai" />
+                      )}
+                      {data.status === 'in_progress' && (
+                        <Clock className="w-4 h-4 text-yellow-600" title="Sedang Berjalan" />
+                      )}
+                      {data.status === 'pending' && (
+                        <AlertCircle className="w-4 h-4 text-red-600" title="Belum Dimulai" />
+                      )}
+                    </div>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
+
+                  {/* Progress Info */}
+                  <div className="flex items-center justify-center space-x-2 mb-3">
+                    <span className="text-lg font-bold text-blue-600">{data.progress}</span>
+                    <span className="text-gray-500">/</span>
+                    <span className="text-lg font-bold text-gray-700">{data.target}</span>
+                    <span className="text-sm text-gray-500">dokumen</span>
+                  </div>
+
+                  {/* Progress Bar */}
+                  <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
                     <div 
-                      className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-1000 ease-out"
+                      className={`h-2 rounded-full transition-all duration-1000 ease-out ${
+                        data.status === 'completed' ? 'bg-green-500' :
+                        data.status === 'in_progress' ? 'bg-yellow-500' :
+                        'bg-red-500'
+                      }`}
                       style={{ 
                         width: `${data.percent}%`,
                         animationDelay: `${index * 100}ms`
                       }}
                     ></div>
                   </div>
+
+                  {/* Percentage */}
+                  <div className="text-center mb-3">
+                    <span className={`text-sm font-semibold ${
+                      data.status === 'completed' ? 'text-green-600' :
+                      data.status === 'in_progress' ? 'text-yellow-600' :
+                      'text-red-600'
+                    }`}>
+                      {Math.round(data.percent)}% Selesai
+                    </span>
+                  </div>
+
+                  {/* Breakdown per Aspek */}
+                  {data.divisions.length > 0 && (
+                    <div className="border-t pt-3">
+                      <div className="text-xs font-medium text-gray-600 mb-2">Breakdown per Aspek:</div>
+                      <div className="space-y-1">
+                        {data.divisions.slice(0, 3).map((aspect, aspectIndex) => (
+                          <div key={aspectIndex} className="flex items-center justify-between text-xs">
+                            <span className="text-gray-600 truncate max-w-[80px]" title={aspect.name}>
+                              {aspect.name}
+                            </span>
+                            <Badge variant="outline" className="text-xs px-2 py-0">
+                              {aspect.count}
+                            </Badge>
+                          </div>
+                        ))}
+                        {data.divisions.length > 3 && (
+                          <div className="text-xs text-gray-500 text-center">
+                            +{data.divisions.length - 3} aspek lainnya
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
