@@ -12,4 +12,5 @@ export { default as AdminYearPanel } from './AdminYearPanel';
 export { default as AdminDocumentListPanel } from './AdminDocumentListPanel';
 export { default as AdminStatisticsPanel } from './AdminStatisticsPanel';
 export { default as AdminArchivePanel } from './AdminArchivePanel';
-export { default as AdminHeaderPanel } from './AdminHeaderPanel'; 
+export { default as AdminHeaderPanel } from './AdminHeaderPanel';
+export { default as AdminNotificationPanel } from './AdminNotificationPanel'; 

@@ -17,18 +17,20 @@ import {
 } from 'lucide-react';
 import { useUser } from '@/contexts/UserContext';
 import { useToast } from '@/hooks/use-toast';
+import { useFileUpload } from '@/contexts/FileUploadContext';
 
 interface AdminUploadDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   checklistItem: {
     id: number;
-    aspek: string;
+    aspek?: string; // Make aspek optional
     deskripsi: string;
     tahun?: number;
   } | null;
   isReUpload?: boolean;
   existingFileName?: string;
+  onUploadSuccess?: () => void; // Callback untuk refresh data
 }
 
 interface UploadFormData {
@@ -42,10 +44,12 @@ const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
   onOpenChange,
   checklistItem,
   isReUpload = false,
-  existingFileName
+  existingFileName,
+  onUploadSuccess
 }) => {
   const { user } = useUser();
   const { toast } = useToast();
+  const { uploadFile, reUploadFile } = useFileUpload();
   
   // Form state
   const [formData, setFormData] = useState<UploadFormData>({
@@ -169,42 +173,68 @@ const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
     setIsUploading(true);
     setUploadProgress(0);
 
-    try {
-      // Simulate upload progress
-      const progressInterval = setInterval(() => {
-        setUploadProgress(prev => {
-          if (prev >= 90) {
-            clearInterval(progressInterval);
-            return 90;
-          }
-          return prev + 10;
-        });
-      }, 200);
+         try {
+       // Simulate upload progress
+       const progressInterval = setInterval(() => {
+         setUploadProgress(prev => {
+           if (prev >= 90) {
+             clearInterval(progressInterval);
+             return 90;
+           }
+           return prev + 10;
+         });
+       }, 200);
 
-      // Simulate upload delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
+       // Simulate upload delay
+       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      clearInterval(progressInterval);
-      setUploadProgress(100);
+       clearInterval(progressInterval);
+       setUploadProgress(100);
 
-      // Simulate success
-      setTimeout(() => {
-        toast({
-          title: isReUpload ? "Re-upload berhasil" : "Upload berhasil",
-          description: `Dokumen ${formData.fileName} berhasil diupload`,
-        });
+       // Actually upload file to context
+       if (checklistItem && selectedFile) {
+         if (isReUpload) {
+           // For re-upload: remove old file and add new one
+           reUploadFile(
+             selectedFile,
+             checklistItem.tahun || new Date().getFullYear(),
+             checklistItem.id,
+             checklistItem.deskripsi,
+             checklistItem.aspek || ''
+           );
+         } else {
+           // For new upload: add new file
+           uploadFile(
+             selectedFile,
+             checklistItem.tahun || new Date().getFullYear(),
+             checklistItem.id,
+             checklistItem.deskripsi,
+             checklistItem.aspek || ''
+           );
+         }
+       }
 
-        // Reset form and close dialog
-        setFormData({
-          fileName: '',
-          description: '',
-          notes: ''
-        });
-        setSelectedFile(null);
-        setUploadProgress(0);
-        setIsUploading(false);
-        onOpenChange(false);
-      }, 500);
+       // Show success message
+       toast({
+         title: isReUpload ? "Re-upload berhasil" : "Upload berhasil",
+         description: `Dokumen ${formData.fileName} berhasil diupload`,
+       });
+
+       // Reset form and close dialog
+       setFormData({
+         fileName: '',
+         description: '',
+         notes: ''
+       });
+       setSelectedFile(null);
+       setUploadProgress(0);
+       setIsUploading(false);
+       onOpenChange(false);
+       
+       // Trigger refresh callback
+       if (onUploadSuccess) {
+         onUploadSuccess();
+       }
 
     } catch (error) {
       toast({

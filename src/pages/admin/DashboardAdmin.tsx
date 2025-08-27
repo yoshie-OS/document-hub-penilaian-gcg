@@ -17,6 +17,8 @@ import {
 import { useUser } from '@/contexts/UserContext';
 import { useYear } from '@/contexts/YearContext';
 import { useDocumentMetadata } from '@/contexts/DocumentMetadataContext';
+import { useChecklist } from '@/contexts/ChecklistContext';
+import { useFileUpload } from '@/contexts/FileUploadContext';
 import { useSidebar } from '@/contexts/SidebarContext';
 import Sidebar from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
@@ -25,9 +27,14 @@ import {
   AdminDocumentListPanel, 
   AdminStatisticsPanel, 
   AdminArchivePanel, 
-  AdminHeaderPanel 
+  AdminHeaderPanel,
+  AdminNotificationPanel
 } from '@/components/panels';
 import { AdminUploadDialog } from '@/components/dialogs';
+import { 
+  mockNotifications,
+  getNotificationsBySubdirektorat
+} from '@/services/mockAdminData';
 
 interface DashboardStats {
   totalDocuments: number;
@@ -36,19 +43,12 @@ interface DashboardStats {
   progressPercentage: number;
 }
 
-interface ChecklistItem {
-  id: number;
-  aspek: string;
-  deskripsi: string;
-  tahun?: number;
-  status?: 'uploaded' | 'not_uploaded';
-  file?: string;
-}
-
 const DashboardAdmin: React.FC = () => {
   const { user } = useUser();
   const { selectedYear, setSelectedYear, availableYears } = useYear();
   const { documents } = useDocumentMetadata();
+  const { checklist, getChecklistByYear } = useChecklist();
+  const { getFilesByYear } = useFileUpload();
   const { isSidebarOpen } = useSidebar();
 
   // Get current year for upload restrictions
@@ -83,87 +83,103 @@ const DashboardAdmin: React.FC = () => {
 
   // Get user documents for current year and previous years
   const userDocuments = useMemo(() => {
-    if (!user?.subdirektorat || !documents || !Array.isArray(documents)) return [];
+    if (!user?.subdirektorat) return [];
 
+    // Use real data from context
     return documents
       .filter(doc => doc.subdirektorat === user.subdirektorat)
       .map(doc => ({
         id: doc.id,
-        namaFile: doc.fileName || 'Unknown File',
+        namaFile: doc.fileName,
         aspek: doc.aspect || 'Unknown Aspect',
         subdirektorat: doc.subdirektorat,
-        uploadDate: doc.uploadDate || new Date().toISOString(),
-        status: doc.status || 'pending',
-        tahunBuku: doc.year?.toString() || 'Unknown Year'
+        uploadDate: doc.uploadDate,
+        status: doc.status,
+        tahunBuku: doc.year?.toString() || 'Unknown'
       }))
       .sort((a, b) => new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime());
   }, [documents, user?.subdirektorat]);
 
   // Filter documents by year
-  const currentYearDocuments = useMemo(() => 
-    userDocuments.filter(doc => doc.tahunBuku === selectedYear?.toString()),
-    [userDocuments, selectedYear]
-  );
+  const currentYearDocuments = useMemo(() => {
+    if (!selectedYear) return [];
+    return userDocuments.filter(doc => doc.tahunBuku === selectedYear.toString());
+  }, [userDocuments, selectedYear]);
 
-  const previousYearDocuments = useMemo(() => 
-    userDocuments.filter(doc => doc.tahunBuku !== selectedYear?.toString()),
-    [userDocuments, selectedYear]
-  );
+  const previousYearDocuments = useMemo(() => {
+    if (!selectedYear) return [];
+    // For previous years, show all documents from all subdirektorats
+    return documents
+      .filter(doc => doc.year === selectedYear)
+      .map(doc => ({
+        id: doc.id,
+        namaFile: doc.fileName,
+        aspek: doc.aspect || 'Unknown Aspect',
+        subdirektorat: doc.subdirektorat,
+        uploadDate: doc.uploadDate,
+        status: doc.status,
+        tahunBuku: doc.year?.toString() || 'Unknown'
+      }));
+  }, [documents, selectedYear]);
 
   // Check if current year allows uploads
   const canUploadInCurrentYear = selectedYear?.toString() === currentYear;
 
-  // Mock data for checklist items (this should come from checklist context later)
-  const checklistItems = useMemo((): ChecklistItem[] => {
+  // Get checklist items berdasarkan tahun dari context
+  const checklistItems = useMemo(() => {
     if (!selectedYear) return [];
     
-    return [
-      {
-        id: 1,
-        aspek: 'ASPEK I. Komitmen',
-        deskripsi: 'Laporan Good Corporate Governance untuk kuartal pertama tahun 2024',
-        tahun: selectedYear,
-        status: 'not_uploaded'
-      },
-      {
-        id: 2,
-        aspek: 'ASPEK II. RUPS',
-        deskripsi: 'Penilaian kepatuhan terhadap regulasi yang berlaku',
-        tahun: selectedYear,
-        status: 'uploaded',
-        file: 'Assessment_Kepatuhan_2024.pdf'
-      },
-      {
-        id: 3,
-        aspek: 'ASPEK III. Dewan Komisaris',
-        deskripsi: 'Dokumen pendukung audit internal tahun 2024',
-        tahun: selectedYear,
-        status: 'uploaded',
-        file: 'Audit_Internal_2024.pdf'
-      },
-      {
-        id: 4,
-        aspek: 'ASPEK IV. Direksi',
-        deskripsi: 'Laporan identifikasi dan mitigasi risiko operasional',
-        tahun: selectedYear,
-        status: 'not_uploaded'
-      },
-      {
-        id: 5,
-        aspek: 'ASPEK V. Pengungkapan',
-        deskripsi: 'Dokumen pengungkapan informasi perusahaan',
-        tahun: selectedYear,
-        status: 'not_uploaded'
+    try {
+      // Get checklist items for selected year
+      const yearChecklist = getChecklistByYear(selectedYear);
+      console.log('Year checklist data:', yearChecklist);
+      
+      if (!yearChecklist || yearChecklist.length === 0) {
+        console.log('No checklist data for year:', selectedYear);
+        return [];
       }
-    ];
-  }, [selectedYear]);
+      
+      // Check if items are uploaded using FileUploadContext (real-time)
+      const itemsWithStatus = yearChecklist.map(item => {
+        // Allow items without aspek (like superadmin does)
+        if (!item.deskripsi) {
+          console.warn('Invalid checklist item - missing deskripsi:', item);
+          return null;
+        }
+        
+        // Get real-time upload status and file info
+        const uploadedFile = getFilesByYear(selectedYear).find(file => file.checklistId === item.id);
+        
+        return {
+          ...item,
+          // Handle items without aspek gracefully
+          aspek: item.aspek || '',
+          status: uploadedFile ? 'completed' : 'pending',
+          // Add file information for real-time updates
+          uploadedFile: uploadedFile || null
+        };
+      }).filter(Boolean); // Remove null items
+      
+      console.log('Processed checklist items with file info:', itemsWithStatus);
+      return itemsWithStatus;
+    } catch (error) {
+      console.error('Error processing checklist items:', error);
+      return [];
+    }
+  }, [selectedYear, getChecklistByYear, getFilesByYear]);
 
 
 
   // Upload dialog state
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [isReUploadDialogOpen, setIsReUploadDialogOpen] = useState(false);
-  const [selectedChecklistItem, setSelectedChecklistItem] = useState<ChecklistItem | null>(null);
+  const [selectedChecklistItem, setSelectedChecklistItem] = useState<{
+    id: number;
+    aspek?: string; // Make aspek optional
+    deskripsi: string;
+    tahun?: number;
+    status: string;
+  } | null>(null);
 
   // Handler functions
   const handleUpload = (itemId: number) => {
@@ -182,11 +198,28 @@ const DashboardAdmin: React.FC = () => {
     }
   };
 
+  // Refresh data after upload
+  const handleUploadSuccess = useCallback(() => {
+    // Force re-render by updating a dummy state
+    if (selectedYear) {
+      // Trigger a small delay to ensure context is updated
+      setTimeout(() => {
+        setSelectedYear(selectedYear);
+      }, 100);
+    }
+  }, [selectedYear]);
+
   const handleViewDocument = (itemId: number) => {
     const item = checklistItems.find(item => item.id === itemId);
     if (item) {
       // TODO: Implement document view dialog or redirect
-      alert(`Lihat dokumen: ${item.file || 'File tidak tersedia'}`);
+      const uploadedFile = getFilesByYear(selectedYear || new Date().getFullYear())
+        .find(file => file.checklistId === itemId);
+      if (uploadedFile) {
+        alert(`Lihat dokumen: ${uploadedFile.fileName}`);
+      } else {
+        alert('Belum ada dokumen yang diupload untuk item ini');
+      }
     }
   };
 
@@ -194,7 +227,13 @@ const DashboardAdmin: React.FC = () => {
     const item = checklistItems.find(item => item.id === itemId);
     if (item) {
       // TODO: Implement document download
-      alert(`Download dokumen: ${item.file || 'File tidak tersedia'}`);
+      const uploadedFile = getFilesByYear(selectedYear || new Date().getFullYear())
+        .find(file => file.checklistId === itemId);
+      if (uploadedFile) {
+        alert(`Download dokumen: ${uploadedFile.fileName}`);
+      } else {
+        alert('Belum ada dokumen yang diupload untuk item ini');
+      }
     }
   };
 
@@ -252,7 +291,7 @@ const DashboardAdmin: React.FC = () => {
         ${isSidebarOpen ? 'lg:ml-64' : 'ml-0'}
       `}>
         <div className="p-6">
-                    {/* Header */}
+          {/* Header */}
           <AdminHeaderPanel 
             userName={user.name}
             userSubdirektorat={user.subdirektorat}
@@ -272,10 +311,27 @@ const DashboardAdmin: React.FC = () => {
             <>
                             {/* Statistik Progress Penugasan - UI sama dengan superadmin */}
               <AdminStatisticsPanel 
-                selectedYear={selectedYear}
+                      selectedYear={selectedYear}
                 checklistItems={checklistItems}
                 userSubdirektorat={user.subdirektorat}
-                isSidebarOpen={isSidebarOpen}
+                      isSidebarOpen={isSidebarOpen}
+              />
+
+              {/* Notification Panel */}
+              <AdminNotificationPanel
+                notifications={getNotificationsBySubdirektorat(user.subdirektorat)}
+                onNotificationClick={(notification) => {
+                  console.log('Notification clicked:', notification);
+                  // TODO: Implement notification action
+                }}
+                onMarkAsRead={(notificationId) => {
+                  console.log('Mark as read:', notificationId);
+                  // TODO: Implement mark as read
+                }}
+                onMarkAllAsRead={() => {
+                  console.log('Mark all as read');
+                  // TODO: Implement mark all as read
+                }}
               />
 
               {/* Admin Document List Panel */}
@@ -312,10 +368,11 @@ const DashboardAdmin: React.FC = () => {
 
       {/* Admin Upload Dialog */}
       <AdminUploadDialog
-          isOpen={isUploadDialogOpen}
-          onOpenChange={setIsUploadDialogOpen}
+        isOpen={isUploadDialogOpen}
+        onOpenChange={setIsUploadDialogOpen}
         checklistItem={selectedChecklistItem}
         isReUpload={false}
+        onUploadSuccess={handleUploadSuccess}
       />
 
       {/* Admin Re-upload Dialog */}
@@ -324,7 +381,12 @@ const DashboardAdmin: React.FC = () => {
         onOpenChange={setIsReUploadDialogOpen}
         checklistItem={selectedChecklistItem}
         isReUpload={true}
-        existingFileName={selectedChecklistItem?.file}
+        existingFileName={selectedChecklistItem ? 
+          getFilesByYear(selectedYear || new Date().getFullYear())
+            .find(file => file.checklistId === selectedChecklistItem.id)?.fileName || '' 
+          : ''
+        }
+        onUploadSuccess={handleUploadSuccess}
       />
     </>
   );

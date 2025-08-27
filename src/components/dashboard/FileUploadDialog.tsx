@@ -413,7 +413,7 @@ const OrganizationalSection = memo(({
                 <SelectItem key={direktorat} value={direktorat}>{direktorat}</SelectItem>
               ))
             ) : (
-              <SelectItem value="" disabled>Tidak ada data direktorat</SelectItem>
+                              <SelectItem value="no-data" disabled>Tidak ada data direktorat</SelectItem>
             )}
           </OptimizedSelect>
           {userRole === 'admin' && (
@@ -436,7 +436,7 @@ const OrganizationalSection = memo(({
                 <SelectItem key={subdirektorat} value={subdirektorat}>{subdirektorat}</SelectItem>
               ))
             ) : (
-              <SelectItem value="" disabled>Tidak ada data subdirektorat</SelectItem>
+                              <SelectItem value="no-data" disabled>Tidak ada data subdirektorat</SelectItem>
             )}
           </OptimizedSelect>
           {userRole === 'admin' && (
@@ -460,7 +460,7 @@ const OrganizationalSection = memo(({
                   <SelectItem key={division} value={division}>{division}</SelectItem>
                 ))
               ) : (
-                <SelectItem value="" disabled>Tidak ada data divisi</SelectItem>
+                <SelectItem value="no-data" disabled>Tidak ada data divisi</SelectItem>
               )}
             </OptimizedSelect>
             {userRole !== 'admin' && (

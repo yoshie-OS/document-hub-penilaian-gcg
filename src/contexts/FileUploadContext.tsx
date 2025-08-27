@@ -15,6 +15,7 @@ export interface UploadedFile {
 interface FileUploadContextType {
   uploadedFiles: UploadedFile[];
   uploadFile: (file: File, year: number, checklistId?: number, checklistDescription?: string, aspect?: string) => void;
+  reUploadFile: (file: File, year: number, checklistId?: number, checklistDescription?: string, aspect?: string) => void;
   deleteFile: (fileId: string) => void;
   deleteFileByFileName: (fileName: string) => void;
   refreshFiles: () => void;
@@ -83,6 +84,26 @@ export const FileUploadProvider: React.FC<{ children: ReactNode }> = ({ children
     setUploadedFiles(prev => [...prev, newFile]);
   };
 
+  const reUploadFile = (file: File, year: number, checklistId?: number, checklistDescription?: string, aspect?: string) => {
+    // Remove existing file with same checklistId
+    setUploadedFiles(prev => prev.filter(existingFile => existingFile.checklistId !== checklistId));
+    
+    // Add new file
+    const newFile: UploadedFile = {
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+      fileName: file.name,
+      fileSize: file.size,
+      uploadDate: new Date(),
+      year: year,
+      checklistId,
+      checklistDescription,
+      aspect,
+      status: 'uploaded'
+    };
+
+    setUploadedFiles(prev => [...prev, newFile]);
+  };
+
   const deleteFile = (fileId: string) => {
     setUploadedFiles(prev => prev.filter(file => file.id !== fileId));
   };
@@ -124,6 +145,7 @@ export const FileUploadProvider: React.FC<{ children: ReactNode }> = ({ children
     <FileUploadContext.Provider value={{
       uploadedFiles,
       uploadFile,
+      reUploadFile,
       deleteFile,
       deleteFileByFileName,
       refreshFiles,

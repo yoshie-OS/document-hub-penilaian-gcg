@@ -54,7 +54,7 @@ interface IconButtonProps extends ActionButtonProps {
   label?: string;
 }
 
-const ActionButton: React.FC<ActionButtonProps> = ({
+const ActionButton = React.forwardRef<HTMLButtonElement, ActionButtonProps>(({
   onClick,
   variant = 'default',
   size = 'default',
@@ -67,7 +67,7 @@ const ActionButton: React.FC<ActionButtonProps> = ({
   icon,
   iconPosition = 'left',
   tooltip
-}) => {
+}, ref) => {
   const buttonContent = (
     <>
       {isLoading ? (
@@ -87,6 +87,7 @@ const ActionButton: React.FC<ActionButtonProps> = ({
 
   return (
     <Button
+      ref={ref}
       type={type}
       variant={variant}
       size={size}
@@ -98,7 +99,9 @@ const ActionButton: React.FC<ActionButtonProps> = ({
       {buttonContent}
     </Button>
   );
-};
+});
+
+ActionButton.displayName = 'ActionButton';
 
 const IconButton: React.FC<IconButtonProps> = ({
   action,
