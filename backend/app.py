@@ -1025,8 +1025,9 @@ def get_gcg_chart_data():
         output_xlsx_path = Path(__file__).parent.parent / 'web-output' / 'output.xlsx'
         
         if not output_xlsx_path.exists():
+            print(f"WARNING: output.xlsx not found at {output_xlsx_path}")
             return jsonify({
-                'success': False,
+                'success': True,
                 'data': [],
                 'message': 'No chart data available. Please save some assessments first.'
             })
@@ -1034,7 +1035,7 @@ def get_gcg_chart_data():
         # Read XLSX data
         df = pd.read_excel(output_xlsx_path)
         
-        print(f"🎨 GCG Chart Data: Loading {len(df)} rows from output.xlsx")
+        print(f"INFO: GCG Chart Data: Loading {len(df)} rows from output.xlsx")
         
         # Convert to graphics-2 GCGData format
         gcg_data = []
