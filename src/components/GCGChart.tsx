@@ -77,22 +77,16 @@ interface YearlyScoreChartProps {
 
 const YearlyScoreChart: React.FC<YearlyScoreChartProps> = ({ data, allYears, yearFilter, setYearFilter, chartMode, setChartMode, rawData = [] }) => {
 
-  // Calculate maximum bars per row based on container constraint (900px max, responsive)
-  const barWidth = 40;
-  const barGap = 15; // Fixed gap between bars
-  const maxBarsPerRow = Math.floor((900 - 80) / (barWidth + barGap)); // 900px max width minus padding
-  
-  // Split data into rows
-  const dataRows = [];
-  for (let i = 0; i < data.length; i += maxBarsPerRow) {
-    dataRows.push(data.slice(i, i + maxBarsPerRow));
-  }
-  
-  // Chart dimensions
+  // chartAreaWidth dinamis sesuai jumlah tahun yang terfilter
+  const filteredYearsCount = data.length;
+  let chartAreaWidth = 1000;
+  if (filteredYearsCount > 15) chartAreaWidth = 1450;
+  else if (filteredYearsCount > 10) chartAreaWidth = 1250;
   const yAxisPadding = 60;
   const barAreaHeight = 270; // tinggi area bar tetap
   const xAxisLabelPadding = 60; // ruang bawah untuk label X
   const chartHeight = barAreaHeight + xAxisLabelPadding; // total tinggi SVG
+  const chartWidth = chartAreaWidth - yAxisPadding;
 
   // Hitung min dan max dinamis untuk sumbu Y
   const scores = data.map(d => d.totalScore);
@@ -101,10 +95,20 @@ const YearlyScoreChart: React.FC<YearlyScoreChartProps> = ({ data, allYears, yea
   if (minScoreY < 0) minScoreY = 0;
   if (maxScoreY > 100) maxScoreY = 100;
 
+  const barWidth = 40;
+  const barSidePadding = 24; // padding kiri-kanan chart agar bar tidak mepet
+  const barGap = data.length > 1 ? (chartWidth - (data.length * barWidth) - 2 * barSidePadding) / (data.length - 1) : 0;
+
   // Fungsi konversi skor ke posisi Y pada chart
   const getY = (score: number) => {
     return barAreaHeight - ((score - minScoreY) / (maxScoreY - minScoreY)) * barAreaHeight;
   };
+
+  const points = data.map((yearData, index) => {
+    const x = barSidePadding + (index * (barWidth + barGap)) + (barWidth / 2);
+    const y = getY(yearData.totalScore);
+    return `${x},${y}`;
+  }).join(' ');
 
   const [hoveredYear, setHoveredYear] = React.useState<number | null>(null);
 
@@ -125,17 +129,17 @@ const YearlyScoreChart: React.FC<YearlyScoreChartProps> = ({ data, allYears, yea
     <Card className="w-full min-h-fit">
       <CardContent className="p-4 min-h-fit flex flex-col items-center">
         {/* Switch + Filter tahun di atas grafik skor tahunan */}
-        <div className="flex flex-row items-center justify-center gap-2 mb-4">
+        <div className="flex flex-row items-center justify-center gap-2 mb-4" style={{ marginTop: '-5px' }}>
           {setChartMode && (
             <div className="flex items-center space-x-2 mr-4">
-              <Label htmlFor="chart-mode" className="text-xs">Capaian Aspek</Label>
+              <Label htmlFor="chart-mode" className="text-sm">Capaian Aspek</Label>
               <Switch
                 id="chart-mode"
                 checked={chartMode === 'tahun'}
                 onCheckedChange={(checked) => setChartMode(checked ? 'tahun' : 'aspek')}
-                className="h-4 w-7"
+                className="h-5 w-9"
               />
-              <Label htmlFor="chart-mode" className="text-xs">Skor Tahunan</Label>
+              <Label htmlFor="chart-mode" className="text-sm">Skor Tahunan</Label>
             </div>
           )}
           <span className="text-sm text-gray-600">Filter Tahun:</span>
@@ -159,141 +163,121 @@ const YearlyScoreChart: React.FC<YearlyScoreChartProps> = ({ data, allYears, yea
             ))}
           </select>
         </div>
-        <div className="w-full max-w-[900px] flex flex-col items-center gap-6">
-          {dataRows.map((rowData, rowIndex) => {
-            // Let CSS handle responsive width, just calculate based on content
-            const chartAreaWidth = rowData.length * (barWidth + barGap) + 80;
-            const chartWidth = chartAreaWidth - yAxisPadding;
-            
-            // Calculate points for polyline for this row
-            const points = rowData.map((yearData, index) => {
-              const x = (index * (barWidth + barGap)) + (barWidth / 2);
-              const y = getY(yearData.totalScore);
-              return `${x},${y}`;
-            }).join(' ');
-
-            return (
-              <div key={rowIndex} style={{ position: 'relative', width: chartAreaWidth }}>
-                {/* Label vertikal 'Skor' di samping sumbu Y - hanya di row pertama */}
-                {rowIndex === 0 && (
-                  <div style={{
-                    position: 'absolute',
-                    left: -1, 
-                    top: 130,
-                    transform: 'rotate(-90deg)',
-                    transformOrigin: 'left top',
-                    fontSize: 13,
-                    color: '#64748b',
-                    fontWeight: 500,
-                    letterSpacing: 1,
-                    zIndex: 10,
-                    userSelect: 'none',
-                  }}>
-                    Skor
-                  </div>
-                )}
-                <svg width={chartAreaWidth} height={chartHeight} className="font-sans mb-8">
-                  {/* Sumbu Y dan grid */}
-                  <g className="text-xs text-muted-foreground" transform={`translate(${yAxisPadding - 10}, 0)`}>
-                    {/* Hanya tampilkan label Y-axis di row pertama */}
-                    {rowIndex === 0 && (
-                      <text x="-18" y="-18" textAnchor="middle" fontSize="12" fontStyle="italic" fill="#64748b">Capaian(%)</text>
-                    )}
-                    {/* Label angka sumbu Y dan grid (setiap 5 sesuai rentang) */}
-                    {(() => {
-                      const labels = [];
-                      const start = Math.ceil(minScoreY / 5) * 5;
-                      const end = Math.floor(maxScoreY / 5) * 5;
-                      for (let val = start; val <= end; val += 5) {
-                        const yVal = getY(val);
-                        labels.push(
-                          <g key={val}>
-                            <text x="-12" y={yVal + 4} textAnchor="end" fontSize="12" fill="#64748b">{val}</text>
-                            <line x1={0} y1={yVal} x2={chartWidth} y2={yVal} stroke="#e5e7eb" strokeDasharray="4 2" />
-                          </g>
-                        );
-                      }
-                      return labels;
-                    })()}
-                    {/* Bar dulu */}
-                    {rowData.map((yearData, index) => {
-                      const x = (index * (barWidth + barGap));
-                      const y = getY(yearData.totalScore);
-                      const barH = barAreaHeight - y;
-                      const r = 10;
-                      const path = `M0,${y + r} Q0,${y} ${r},${y} H${barWidth - r} Q${barWidth},${y} ${barWidth},${y + r} V${y + barH} H0 Z`;
-                      const yearLabelY = barAreaHeight + 20;
-                      const penilaiLabelY = barAreaHeight + 36;
-                      const penjelasanLabelY = barAreaHeight + 32;
-                      return (
-                        <g 
-                          key={yearData.year} 
-                          transform={`translate(${x}, 0)`} 
-                          onClick={() => handleYearClick(yearData.year)} 
-                          style={{ cursor: 'pointer', transition: 'transform 0.2s' }} 
-                          onMouseEnter={() => setHoveredYear(yearData.year)}
-                          onMouseLeave={() => setHoveredYear(null)}>
-                          <path
-                            d={path}
-                            fill="#90cdf4"
-                            className="opacity-90 hover:opacity-100 transition-opacity"
-                            style={{ transform: hoveredYear === yearData.year ? 'scale(1.05)' : 'scale(1)', transformOrigin: `${barWidth/2}px ${barAreaHeight}px` }}
-                          />
-                          {/* Label tahun */}
-                          <text x={barWidth / 2} y={yearLabelY} textAnchor="middle" fontSize="14" fill="#666">
-                            {yearData.year}
-                          </text>
-                          {/* Keterangan penilai dan penjelasan di bawah tahun */}
-                          {yearData.penilai && (
-                            <title>{`Penilai: ${yearData.penilai}`}</title>
-                          )}
-                          {yearData.penjelasan && (
-                            <foreignObject x={-30} y={penjelasanLabelY} width={barWidth + 60} height={40} xmlns="http://www.w3.org/1999/xhtml">
-                              <div style={{
-                                color: '#64748b',
-                                fontSize: '11px',
-                                textAlign: 'center',
-                                wordBreak: 'break-word',
-                                whiteSpace: 'pre-line',
-                                maxWidth: `${barWidth + 60}px`,
-                                margin: '0 auto',
-                                lineHeight: 1.2,
-                                padding: 0,
-                              }}>
-                                {yearData.penjelasan}
-                              </div>
-                            </foreignObject>
-                          )}
-                        </g>
-                      );
-                    })}
-                    {/* Polyline (line) di atas bar - hanya untuk data di row ini */}
-                    <polyline
-                      fill="none"
-                      stroke="#6ba2dd80"
-                      strokeWidth="2.5"
-                      points={points.replace(/NaN/g, '0')}
+        <div style={{ position: 'relative', width: chartAreaWidth }}>
+          {/* Label vertikal 'Skor' di samping sumbu Y */}
+          <div style={{
+            position: 'absolute',
+            left: -1, 
+            top: 130,
+            transform: 'rotate(-90deg)',
+            transformOrigin: 'left top',
+            fontSize: 13,
+            color: '#64748b',
+            fontWeight: 500,
+            letterSpacing: 1,
+            zIndex: 10,
+            userSelect: 'none',
+          }}>
+            Skor
+          </div>
+          <svg width={chartAreaWidth} height={chartHeight} className="font-sans mb-5">
+            {/* Sumbu Y dan grid */}
+            <g className="text-xs text-muted-foreground" transform={`translate(${yAxisPadding - 10}, 0)`}>
+              <text x="-18" y="-18" textAnchor="middle" fontSize="12" fontStyle="italic" fill="#64748b">Capaian(%)</text>
+              {/* Label angka sumbu Y dan grid (setiap 5 sesuai rentang) */}
+              {(() => {
+                const labels = [];
+                const start = Math.ceil(minScoreY / 5) * 5;
+                const end = Math.floor(maxScoreY / 5) * 5;
+                for (let val = start; val <= end; val += 5) {
+                  const yVal = getY(val);
+                  labels.push(
+                    <g key={val}>
+                      <text x="-12" y={yVal + 4} textAnchor="end" fontSize="12" fill="#64748b">{val}</text>
+                      <line x1={0} y1={yVal} x2={chartWidth} y2={yVal} stroke="#e5e7eb" strokeDasharray="4 2" />
+                    </g>
+                  );
+                }
+                return labels;
+              })()}
+              {/* Bar dulu */}
+              {data.map((yearData, index) => {
+                const x = barSidePadding + (index * (barWidth + barGap));
+                const y = getY(yearData.totalScore);
+                const barH = barAreaHeight - y;
+                const r = 10;
+                const path = `M0,${y + r} Q0,${y} ${r},${y} H${barWidth - r} Q${barWidth},${y} ${barWidth},${y + r} V${y + barH} H0 Z`;
+                const yearLabelY = barAreaHeight + 20;
+                const penilaiLabelY = barAreaHeight + 36;
+                const penjelasanLabelY = barAreaHeight + 32;
+                return (
+                  <g 
+                    key={yearData.year} 
+                    transform={`translate(${x}, 0)`} 
+                    onClick={() => handleYearClick(yearData.year)} 
+                    style={{ cursor: 'pointer', transition: 'transform 0.2s' }} 
+                    onMouseEnter={() => setHoveredYear(yearData.year)}
+                    onMouseLeave={() => setHoveredYear(null)}>
+                    <path
+                      d={path}
+                      fill="#112861ff"
+                      className="opacity-90 hover:opacity-100 transition-opacity"
+                      style={{ transform: hoveredYear === yearData.year ? 'scale(1.05)' : 'scale(1)', transformOrigin: `${barWidth/2}px ${barAreaHeight}px` }}
                     />
-                    {rowData.map((yearData, index) => {
-                      const x = (index * (barWidth + barGap)) + (barWidth / 2);
-                      const y = getY(yearData.totalScore);
-                      return <circle key={yearData.year} cx={x} cy={y} r="4" fill="#4660a7ff" />;
-                    })}
-                    {/* Label skor di atas bar */}
-                    {rowData.map((yearData, index) => {
-                      const x = (index * (barWidth + barGap)) + (barWidth / 2);
-                      const y = getY(yearData.totalScore);
-                      return (
-                        <text key={yearData.year + '-score'} x={x} y={y - 8} textAnchor="middle" fontSize="12" fill="#333" fontWeight="bold">
-                          {yearData.totalScore.toFixed(2)}
-                        </text>
-                      );
-                    })}
+                    {/* Label tahun */}
+                    <text x={barWidth / 2} y={yearLabelY} textAnchor="middle" fontSize="14" fill="#000000ff">
+                      {yearData.year}
+                    </text>
+                    {/* Jenis Penilaian di bawah tahun */}
+                    {yearData.jenisPenilaian && (
+                      <text x={barWidth / 2} y={yearLabelY + 16} textAnchor="middle" fontSize="11" fill="#888">
+                        {yearData.jenisPenilaian}
+                      </text>
+                    )}
+                    {yearData.penjelasan && (
+                      <foreignObject x={-30} y={penjelasanLabelY + 10} width={barWidth + 60} height={40} xmlns="http://www.w3.org/1999/xhtml">
+                        <div style={{
+                          color: '#64748b',
+                          fontSize: '11px',
+                          textAlign: 'center',
+                          wordBreak: 'break-word',
+                          whiteSpace: 'pre-line',
+                          maxWidth: `${barWidth + 60}px`,
+                          margin: '0 auto',
+                          lineHeight: 1.2,
+                          padding: 0,
+                        }}>
+                          {yearData.penjelasan}
+                        </div>
+                      </foreignObject>
+                    )}
                   </g>
-                </svg>
-              </div>
-            );
-          })}
+                );
+              })}
+              {/* Polyline (line) di atas bar */}
+              <polyline
+                fill="none"
+                stroke="#6ba2dd80"
+                strokeWidth="2.5"
+                points={points.replace(/NaN/g, '0')}
+              />
+              {data.map((yearData, index) => {
+                const x = barSidePadding + (index * (barWidth + barGap)) + (barWidth / 2);
+                const y = getY(yearData.totalScore);
+                return <circle key={yearData.year} cx={x} cy={y} r="4" fill="#90cdf4" />;
+              })}
+              {/* Label skor di atas bar */}
+              {data.map((yearData, index) => {
+                const x = barSidePadding + (index * (barWidth + barGap)) + (barWidth / 2);
+                const y = getY(yearData.totalScore);
+                return (
+                  <text key={yearData.year + '-score'} x={x} y={y - 8} textAnchor="middle" fontSize="12" fill="#333" fontWeight="bold">
+                    {yearData.totalScore.toFixed(2)}
+                  </text>
+                );
+              })}
+            </g>
+          </svg>
         </div>
         {/* Tabel aspek di bawah grafik, posisi tengah */}
         {!selectedYear ? (
@@ -306,29 +290,31 @@ const YearlyScoreChart: React.FC<YearlyScoreChartProps> = ({ data, allYears, yea
             if (!selectedData) return null;
             const sortedSections = [...selectedData.sections].sort((a, b) => romanNumerals.indexOf(a.romanNumeral) - romanNumerals.indexOf(b.romanNumeral));
             return (
-              <div className="w-full flex justify-center mt-2">
+              <div className="w-full flex justify-center mt-1">
                 <div className="max-w-[900px] w-full">
             <Card className="w-full">
                     <CardContent className="p-2">
                       {selectedYear && (
-                        <div className="mb-2 text-base font-semibold text-gray-500 text-center">
-                          Tahun Buku {selectedYear}
-                          {selectedData.jenisPenilaian && (
-                            <span style={{ fontWeight: 400, fontSize: '0.95em', marginLeft: 8 }}>
-                              ({selectedData.jenisPenilaian})
-                            </span>
+                        <div className="mb-1 text-sm font-semibold text-gray-600 text-center" style={{ paddingTop: 0, paddingBottom: 0}}>
+                          <span className="font-semibold text-gray-600">
+                            {selectedData.jenisPenilaian ? `${selectedData.jenisPenilaian} ` : ''}GCG Tahun Buku {selectedYear}
+                          </span>
+                          {selectedData.penilai && String(selectedData.penilai).trim() && String(selectedData.penilai).toLowerCase() !== 'nan' && (
+                            <div style={{ fontSize: '0.82em', fontWeight: 400, color: '#515151ff', paddingTop: 0, paddingBottom: 0}}>
+                              {selectedData.penilai}
+                            </div>
                           )}
                         </div>
                       )}
               <table className="min-w-[340px] w-full text-xs bg-white overflow-hidden rounded">
                         <thead>
                           <tr className="bg-blue-100 text-blue-900">
-                            <th className="px-4 py-3 font-semibold">Aspek</th>
-                            <th className="px-4 py-3 font-semibold">Deskripsi</th>
-                            <th className="px-4 py-3 font-semibold">Bobot</th>
-                            <th className="px-4 py-3 font-semibold">Skor</th>
-                            <th className="px-4 py-3 font-semibold">Capaian</th>
-                            <th className="px-4 py-3 font-semibold">Penjelasan</th>
+                            <th className="px-4 py-1.5 font-semibold w-10">ASPEK</th>
+                            <th className="px-4 py-1.5 font-semibold w-100">DESKRIPSI</th>
+                            <th className="px-4 py-1.5 font-semibold w-10">BOBOT</th>
+                            <th className="px-4 py-1.5 font-semibold w-10">SKOR</th>
+                            <th className="px-4 py-1.5 font-semibold w-10">CAPAIAN</th>
+                            <th className="px-4 py-1.5 font-semibold w-10">PENJELASAN</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -349,12 +335,12 @@ const YearlyScoreChart: React.FC<YearlyScoreChartProps> = ({ data, allYears, yea
                             const deskripsi = deskripsiRow?.Deskripsi ?? '-';
                             return (
                               <tr key={section.romanNumeral} className="hover:bg-blue-50 transition">
-                                <td className="px-4 py-1.5 font-bold text-center text-blue-800 align-middle">{section.romanNumeral}</td>
-                                <td className="px-4 py-1.5 align-middle max-w-[220px] whitespace-pre-line text-center">{deskripsi}</td>
-                                <td className="px-4 py-1.5 text-center align-middle">{section.bobot !== undefined ? formatNum(section.bobot) : '-'}</td>
-                                <td className="px-4 py-1.5 text-center align-middle">{section.skor !== undefined ? formatNum(section.skor) : '-'}</td>
-                                <td className="px-4 py-1.5 text-center align-middle">{section.capaian !== undefined ? formatNum(section.capaian) : '-'}</td>
-                                <td className="px-4 py-1.5 align-middle max-w-[220px] whitespace-pre-line text-center">{penjelasan}</td>
+                                <td className="px-4 py-1 font-bold text-center text-blue-800 align-middle">{section.romanNumeral}</td>
+                                <td className="px-4 py-1 align-middle max-w-[220px] whitespace-pre-line text-left">{deskripsi}</td>
+                                <td className="px-4 py-1 text-center align-middle">{section.bobot !== undefined ? formatNum(section.bobot) : '-'}</td>
+                                <td className="px-4 py-1 text-center align-middle">{section.skor !== undefined ? formatNum(section.skor) : '-'}</td>
+                                <td className="px-4 py-1 text-center align-middle">{section.capaian !== undefined ? formatNum(section.capaian) : '-'}</td>
+                                <td className="px-4 py-1 align-middle max-w-[220px] whitespace-pre-line text-center">{penjelasan}</td>
                               </tr>
                             );
                           })}
@@ -480,17 +466,17 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, rawData = [], onBarCli
       <CardContent className="p-4 min-h-fit">
         <div className="w-full min-h-fit">
           {/* Filter tahun dan switch selalu tampil di atas kedua grafik */}
-          <div className="flex flex-row items-center justify-center gap-2 mb-4">
+          <div className="flex flex-row items-center justify-center gap-2 mb-2" style={{ marginTop: '-5px' }}>
             {setChartMode && (
               <div className="flex items-center space-x-2 mr-4">
-                <Label htmlFor="chart-mode" className="text-xs">Capaian Aspek</Label>
+                <Label htmlFor="chart-mode" className="text-sm">Capaian Aspek</Label>
                 <Switch
                   id="chart-mode"
                   checked={chartMode === 'tahun'}
                   onCheckedChange={(checked) => setChartMode(checked ? 'tahun' : 'aspek')}
-                  className="h-4 w-7"
+                  className="h-5 w-9"
                 />
-                <Label htmlFor="chart-mode" className="text-xs">Skor Tahunan</Label>
+                <Label htmlFor="chart-mode" className="text-sm">Skor Tahunan</Label>
               </div>
             )}
             <span className="text-sm text-gray-600">Filter Tahun:</span>
@@ -570,7 +556,7 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, rawData = [], onBarCli
                         yAxisLabels.push(yMax)
                       }
 
-                      const chartHeight = 200;
+                      const chartHeight = 180;
                       const getY = (value: number) => {
                         const totalRange = yMax - yMin;
                         if (totalRange === 0) return chartHeight / 2;
@@ -634,9 +620,9 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, rawData = [], onBarCli
                                   style={{
                                     position: 'absolute',
                                     left: hoverBoxLeft,
-                                    top: -25,
+                                    top: -5,
                                     width: `${hoverBoxWidth}px`,
-                                    height: 'calc(100% + 30px)',
+                                    height: '300px',
                                     background: 'transparent',
                                     border: hoveredBar === yearData.year ? '2px solid #ffffffff' : '2px solid transparent',
                                     boxSizing: 'border-box',
@@ -674,7 +660,7 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, rawData = [], onBarCli
                                           height: `${chartHeight}px`,
                                           cursor: 'pointer',
                                           transition: 'transform 0.2s ease-out',
-                                          transform: hovered?.year === yearData.year && hovered?.section === section.romanNumeral ? 'scaleY(1.08)' : 'scaleY(1)',
+                                          transform: hovered?.year === yearData.year && hovered?.section === section.romanNumeral ? 'scaleY(1.02)' : 'scaleY(1)',
                                           transformOrigin: 'bottom',
                                         }}
                                         onClick={(e) => handleSectionClick(e, yearData.year, section.romanNumeral)}
@@ -708,7 +694,7 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, rawData = [], onBarCli
                                             width: '100%',
                                             textAlign: 'center',
                                             fontSize: 10,
-                                            color: '#334155',
+                                            color: '#6b6b6bff',
                                             fontWeight: 500,
                                             letterSpacing: 1,
                                             userSelect: 'none',
@@ -726,25 +712,27 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, rawData = [], onBarCli
                                   onMouseEnter={() => setHoveredBar(yearData.year)}
                                   onMouseLeave={() => setHoveredBar(null)}
                                 >
-                                  <span className="block text-xs font-medium text-center group-hover:underline group-hover:text-blue-700 transition">{yearData.year}</span>
-                                  <div className="flex flex-col items-center text-[11px] text-muted-foreground w-full" style={{ paddingBottom: '5px' }}>
-                                    <span
-                                      style={{
-                                        display: 'block',
-                                        maxWidth: `${yearWidth}px`,
-                                        width: '100%',
-                                        wordBreak: 'break-word',
-                                        whiteSpace: 'pre-line',
-                                        textAlign: 'center',
-                                        overflowWrap: 'break-word',
-                                        lineHeight: 1.2,
-                                        margin: '0 auto',
-                                      }}
-                                    >
-                                      {yearData.penilai ?? '-'}
-                                    </span>
-                                    <span>Skor: {typeof yearData.totalScore === 'number' ? yearData.totalScore.toFixed(2) : '-'}</span>
-                                    <span>{yearData.penjelasan ?? '-'}</span>
+                                  <div style={{ position: 'absolute', top: `${chartHeight - 200}px`, left: 0, width: '100%' }}>
+                                    <div className="flex flex-col items-center text-[11px] text-muted-foreground w-full" style={{ paddingBottom: '5px' }}>
+                                      <span className="block text-xs font-medium text-center group-hover:underline group-hover:text-blue-700 transition" style={{ color: '#222' }}>{yearData.year}</span>
+                                      <span
+                                        style={{
+                                          display: 'block',
+                                          maxWidth: `${yearWidth}px`,
+                                          width: '100%',
+                                          wordBreak: 'break-word',
+                                          whiteSpace: 'pre-line',
+                                          textAlign: 'center',
+                                          overflowWrap: 'break-word',
+                                          lineHeight: 1.2,
+                                          margin: '0 auto',
+                                        }}
+                                      >
+                                        {yearData.jenisPenilaian ?? '-'}
+                                      </span>
+                                      <span>Skor: {typeof yearData.totalScore === 'number' ? yearData.totalScore.toFixed(2) : '-'}</span>
+                                      <span>{yearData.penjelasan ?? '-'}</span>
+                                    </div>
                                   </div>
                                 </div>
                               </div>
@@ -761,7 +749,7 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, rawData = [], onBarCli
           </div>
 
           {/* Area deskripsi aspek split 3 kolom: kiri, tengah, kanan (tabel kosong) */}
-          <div className="mt-7 pl-11 pr-11 w-full rounded-lg pt-2">
+          <div className="mt-3 pl-11 pr-11 w-full rounded-lg mb-[-10px]">
             <div className="flex flex-row w-full gap-0">
               {/* Kiri: semua DonutChart aspek I-VI, 2/5 width */}
               <div className="basis-[40%] flex flex-col gap-2 items-end pr-0 bg-blue-50/10">
@@ -785,9 +773,9 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, rawData = [], onBarCli
                       const avg = count > 0 ? sum / count : 0;
                       const color = filteredData[0]?.sections.find(s => s.romanNumeral === roman)?.color || '#ccc';
                       return (
-                        <div key={roman} className="flex flex-row items-center min-h-[80px] p-2 gap-2 w-full bg-white">
+                        <div key={roman} className="flex flex-row items-center min-h-[40px] p-2 gap-2 w-full bg-white">
                           <div className="flex-shrink-0 flex items-center justify-center">
-                            <DonutChart value={avg} color={color} size={35} />
+                            <DonutChart value={avg} color={color} size={30} />
                           </div>
                           <div className="flex flex-col justify-center pl-1">
                             <div className="flex items-center mb-0.5">
@@ -813,26 +801,28 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, rawData = [], onBarCli
                     return (
                       <div className="overflow-x-auto w-full flex flex-col items-center justify-center mb-2">
                         <Card className="w-full">
-                          <CardContent className="p-2">
-                            {selectedYear && (
-                              <div className="mb-2 text-base font-semibold text-gray-500 drop-shadow-sm text-center">
-                                Tahun Buku {selectedYear}
-                                {selectedData.jenisPenilaian && (
-                                  <span style={{ fontWeight: 400, fontSize: '0.95em', marginLeft: 8 }}>
-                                    ({selectedData.jenisPenilaian})
+                            <CardContent className="p-2">
+                              {selectedYear && (
+                                <div className="mb-1 text-sm font-semibold text-gray-600 text-center">
+                                  <span className="font-semibold text-gray-600">
+                                    {selectedData.jenisPenilaian ? `${selectedData.jenisPenilaian} ` : ''}GCG Tahun Buku {selectedYear}
                                   </span>
-                                )}
-                              </div>
-                            )}
+                                  {selectedData.penilai && String(selectedData.penilai).trim() && String(selectedData.penilai).toLowerCase() !== 'nan' && (
+                                    <div style={{ fontSize: '0.82em', fontWeight: 400, color: '#515151ff', paddingTop: 0, paddingBottom: 0}}>
+                                      {selectedData.penilai}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             <table className="min-w-[340px] w-full text-xs bg-white overflow-hidden rounded">
                               <thead>
                                 <tr className="bg-blue-100 text-blue-900">
-                                  <th className="px-4 py-3 font-semibold">Aspek</th>
-                                  <th className="px-4 py-3 font-semibold">Deskripsi</th>
-                                  <th className="px-4 py-3 font-semibold">Bobot</th>
-                                  <th className="px-4 py-3 font-semibold">Skor</th>
-                                  <th className="px-4 py-3 font-semibold">Capaian</th>
-                                  <th className="px-4 py-3 font-semibold">Penjelasan</th>
+                                  <th className="px-4 py-1.5 font-semibold w-10">ASPEK</th>
+                                  <th className="px-4 py-1.5 font-semibold w-100">DESKRIPSI</th>
+                                  <th className="px-4 py-1.5 font-semibold w-10">BOBOT</th>
+                                  <th className="px-4 py-1.5 font-semibold w-10">SKOR</th>
+                                  <th className="px-4 py-1.5 font-semibold w-10">CAPAIAN</th>
+                                  <th className="px-4 py-1.5 font-semibold w-10">PENJELASAN</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -870,12 +860,12 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, rawData = [], onBarCli
                                       : ''
                                   }`}>
 
-                                      <td className="px-4 py-1.5 font-bold text-center text-blue-800 align-middle">{section.romanNumeral}</td>
-                                      <td className="px-4 py-1.5 align-middle max-w-[220px] whitespace-pre-line text-center">{deskripsi}</td>
-                                      <td className="px-4 py-1.5 text-center align-middle">{section.bobot !== undefined ? formatNum(section.bobot) : '-'}</td>
-                                      <td className="px-4 py-1.5 text-center align-middle">{section.skor !== undefined ? formatNum(section.skor) : '-'}</td>
-                                      <td className="px-4 py-1.5 text-center align-middle">{section.capaian !== undefined ? formatNum(section.capaian) : '-'}</td>
-                                      <td className="px-4 py-1.5 align-middle max-w-[220px] whitespace-pre-line text-center">{penjelasan}</td>
+                                      <td className="px-4 py-1 font-bold text-center text-blue-800 align-middle">{section.romanNumeral}</td>
+                                      <td className="px-4 py-1 align-middle max-w-[220px] whitespace-pre-line text-left">{deskripsi}</td>
+                                      <td className="px-4 py-1 text-center align-middle">{section.bobot !== undefined ? formatNum(section.bobot) : '-'}</td>
+                                      <td className="px-4 py-1 text-center align-middle">{section.skor !== undefined ? formatNum(section.skor) : '-'}</td>
+                                      <td className="px-4 py-1 text-center align-middle">{section.capaian !== undefined ? formatNum(section.capaian) : '-'}</td>
+                                      <td className="px-4 py-1 align-middle max-w-[220px] whitespace-pre-line text-center">{penjelasan}</td>
                                     </tr>
                                   );
                                 })}

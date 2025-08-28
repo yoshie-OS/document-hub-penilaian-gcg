@@ -45,7 +45,7 @@ interface PenilaianRow {
 const PenilaianGCG = () => {
   const { isSidebarOpen } = useSidebar();
   const { user } = useUser();
-  const { getChecklistByYear, ensureAllYearsHaveData } = useChecklist();
+  const { getChecklistByYear, getAspectsByYear, ensureAllYearsHaveData } = useChecklist();
   
   // State untuk workflow
   const [currentStep, setCurrentStep] = useState<'method' | 'table' | 'upload' | 'view'>('method');
@@ -117,8 +117,9 @@ const PenilaianGCG = () => {
       } else {
         // BRIEF mode - load aspect summary as main table
         setAspectSummaryData([]);
-        setTableData(getAspectSummaryRows());
-        console.log('📋 BRIEF mode activated on table entry - 6 aspect rows loaded');
+        const aspectRows = getAspectSummaryRows();
+        setTableData(aspectRows);
+        console.log(`📋 BRIEF mode activated on table entry - ${aspectRows.length} aspect rows loaded`);
       }
     }
   }, [currentStep, selectedYear, isDetailedMode]);
@@ -164,69 +165,28 @@ const PenilaianGCG = () => {
     return rows;
   };
 
-  // Predetermined GCG aspect summary rows (for DETAILED mode)
-  const getAspectSummaryRows = (): PenilaianRow[] => [
-    {
-      id: 'aspect-1',
-      aspek: 'I',
-      deskripsi: '',
-      jumlah_parameter: 0,
-      bobot: 0,
-      skor: 0,
-      capaian: 0,
-      penjelasan: ''
-    },
-    {
-      id: 'aspect-2', 
-      aspek: 'II',
-      deskripsi: '',
-      jumlah_parameter: 0,
-      bobot: 0,
-      skor: 0,
-      capaian: 0,
-      penjelasan: ''
-    },
-    {
-      id: 'aspect-3',
-      aspek: 'III', 
-      deskripsi: '',
-      jumlah_parameter: 0,
-      bobot: 0,
-      skor: 0,
-      capaian: 0,
-      penjelasan: ''
-    },
-    {
-      id: 'aspect-4',
-      aspek: 'IV',
-      deskripsi: '',
-      jumlah_parameter: 0,
-      bobot: 0,
-      skor: 0,
-      capaian: 0,
-      penjelasan: ''
-    },
-    {
-      id: 'aspect-5',
-      aspek: 'V',
-      deskripsi: '', 
-      jumlah_parameter: 0,
-      bobot: 0,
-      skor: 0,
-      capaian: 0,
-      penjelasan: ''
-    },
-    {
-      id: 'aspect-6',
-      aspek: 'VI',
-      deskripsi: '',
-      jumlah_parameter: 0,
-      bobot: 0,
-      skor: 0,
-      capaian: 0,
-      penjelasan: ''
+  // Dynamic GCG aspect summary rows based on configured aspects
+  const getAspectSummaryRows = (): PenilaianRow[] => {
+    const aspectsData = getAspectsByYear(selectedYear);
+    
+    if (aspectsData.length === 0) {
+      console.log(`⚠️ No aspects configured for year ${selectedYear}, using empty array`);
+      return [];
     }
-  ];
+    
+    console.log(`📋 Found ${aspectsData.length} aspects for year ${selectedYear}:`, aspectsData);
+    
+    return aspectsData.map((aspect, index) => ({
+      id: `aspect-${aspect.id}`,
+      aspek: aspect.nama, // Use the actual aspect name from Kelola Aspek
+      deskripsi: '',
+      jumlah_parameter: 0,
+      bobot: 0,
+      skor: 0,
+      capaian: 0,
+      penjelasan: ''
+    }));
+  };
 
   // Auto-detect data format from existing data
   const detectDataFormat = (data: PenilaianRow[]): 'BRIEF' | 'DETAILED' => {
