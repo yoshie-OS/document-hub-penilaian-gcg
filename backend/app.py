@@ -659,6 +659,105 @@ def save_assessment():
 # generate_output_xlsx function removed - now saving directly to XLSX
 
 
+@app.route('/api/delete-year-data', methods=['DELETE'])
+def delete_year_data():
+    """
+    Delete all assessment data for a specific year from output.xlsx
+    """
+    try:
+        data = request.json
+        year_to_delete = data.get('year')
+        
+        if not year_to_delete:
+            return jsonify({
+                'success': False,
+                'error': 'Year parameter is required'
+            }), 400
+        
+        print(f"🗑️ DEBUG: Received delete request for year: {year_to_delete}")
+        
+        output_xlsx_path = Path(__file__).parent.parent / 'web-output' / 'output.xlsx'
+        
+        if not output_xlsx_path.exists():
+            return jsonify({
+                'success': False,
+                'error': 'No data file exists to delete from'
+            }), 404
+        
+        # Load existing XLSX data
+        try:
+            existing_df = pd.read_excel(output_xlsx_path)
+            print(f"🔧 DEBUG: Loading existing XLSX with {len(existing_df)} rows")
+            print(f"🔧 DEBUG: Year to delete: {year_to_delete}")
+            print(f"🔧 DEBUG: Existing years in file: {existing_df['Tahun'].unique().tolist()}")
+            
+            # Check if the year exists in the data
+            if year_to_delete not in existing_df['Tahun'].values:
+                return jsonify({
+                    'success': False,
+                    'error': f'No data found for year {year_to_delete}'
+                }), 404
+            
+            # Remove all data for the specified year
+            original_count = len(existing_df)
+            filtered_df = existing_df[existing_df['Tahun'] != year_to_delete]
+            deleted_count = original_count - len(filtered_df)
+            
+            print(f"🗑️ DEBUG: Deleted {deleted_count} rows for year {year_to_delete}")
+            print(f"🔧 DEBUG: Remaining {len(filtered_df)} rows from other years")
+            
+            # Save the filtered data back to the XLSX file
+            if len(filtered_df) > 0:
+                # Sort the remaining data properly before saving
+                def sort_key(row):
+                    year = row['Tahun']
+                    section = str(row['Section']) if pd.notna(row['Section']) else ''
+                    no = row['No']
+                    row_type = str(row['Type']) if pd.notna(row['Type']) else 'indicator'
+                    
+                    # Convert 'no' to numeric for proper sorting
+                    try:
+                        no_numeric = int(no) if str(no).isdigit() else 9999
+                    except (ValueError, TypeError):
+                        no_numeric = 9999
+                    
+                    type_priority = {'header': 0, 'indicator': 1, 'subtotal': 2}.get(row_type, 1)
+                    return (year, section, type_priority, no_numeric)
+                
+                # Apply sorting
+                df_sorted = filtered_df.loc[filtered_df.apply(sort_key, axis=1).sort_values().index]
+                df_sorted.to_excel(output_xlsx_path, index=False)
+                print(f"SUCCESS: Updated output.xlsx with {len(df_sorted)} rows (deleted {deleted_count} rows for year {year_to_delete})")
+            else:
+                # If no data remains, create an empty file with just headers
+                empty_df = pd.DataFrame(columns=['Level', 'Type', 'Section', 'No', 'Deskripsi', 'Jumlah_Parameter', 
+                                               'Bobot', 'Skor', 'Capaian', 'Penjelasan', 'Tahun', 'Penilai', 
+                                               'Jenis_Asesmen', 'Export_Date'])
+                empty_df.to_excel(output_xlsx_path, index=False)
+                print(f"SUCCESS: Created empty output.xlsx file (all data deleted)")
+            
+        except Exception as e:
+            print(f"ERROR: Could not process XLSX file: {e}")
+            return jsonify({
+                'success': False,
+                'error': f'Could not process XLSX file: {str(e)}'
+            }), 500
+        
+        return jsonify({
+            'success': True,
+            'message': f'Data untuk tahun {year_to_delete} berhasil dihapus',
+            'deleted_rows': deleted_count,
+            'year': year_to_delete
+        })
+        
+    except Exception as e:
+        print(f"ERROR: Error deleting year data: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @app.route('/api/load/<int:year>', methods=['GET'])
 def load_assessment_by_year(year):
     """

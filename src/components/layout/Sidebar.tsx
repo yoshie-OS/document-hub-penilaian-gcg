@@ -5,7 +5,6 @@ import { useSidebar } from '@/contexts/SidebarContext';
 import { 
   LayoutDashboard, 
   Shield,
-  ListTodo,
   LogOut,
   BarChart3,
   PanelLeft,
@@ -17,7 +16,6 @@ import {
   RotateCcw,
   Plus,
   Lock,
-  Network
 } from 'lucide-react';
 
 interface MenuItem {
@@ -69,16 +67,6 @@ const Sidebar = () => {
         icon: BarChart3, 
         path: '/performa-gcg'
       },
-      { 
-        name: 'Graph View', 
-        icon: Network, 
-        path: '/graph-view'
-      },
-      {
-        name: 'Kelola Aspek',
-        icon: ListTodo,
-        path: '/admin/checklist-gcg'
-      }
     );
   } else {
     // Untuk user non-superadmin, hanya dashboard

@@ -57,37 +57,57 @@ export const processGCGData = (data: GCGData[]): ProcessedGCGData[] => {
   Object.entries(yearGroups).forEach(([year, rows]) => {
     const yearNum = parseInt(year);
     
-    // Find total score (Level 4)
+    // Find total score (Level 4, or calculate from available levels)
     const level4Row = rows.find(row => row.Level === 4);
-    if (!level4Row) return;
+    let totalScore = 0;
+    let penilai = '';
+    let penjelasan = '';
+    let jenisPenilaian = 'Data Kosong';
     
-    const totalScore = level4Row.Skor;
-  const penilai = level4Row.Penilai;
-  const penjelasan = level4Row.Penjelasan;
-  const jenisPenilaian = level4Row.Jenis_Penilaian || 'Data Kosong';
+    if (level4Row) {
+      // Use Level 4 data if available
+      totalScore = level4Row.Skor;
+      penilai = level4Row.Penilai;
+      penjelasan = level4Row.Penjelasan;
+      jenisPenilaian = level4Row.Jenis_Penilaian || 'Data Kosong';
+    } else {
+      // Calculate total from Level 3 or Level 1 data
+      const level3Rows = rows.filter(row => row.Level === 3);
+      const level1Rows = rows.filter(row => row.Level === 1);
+      const dataRows = level3Rows.length > 0 ? level3Rows : level1Rows;
+      
+      if (dataRows.length === 0) return;
+      
+      totalScore = dataRows.reduce((sum, row) => sum + (row.Skor || 0), 0);
+      penilai = dataRows[0]?.Penilai || '';
+      penjelasan = dataRows[0]?.Penjelasan || '';
+      jenisPenilaian = dataRows[0]?.Jenis_Penilaian || 'Data Kosong';
+    }
     
     // Check if has Level 2 data
     const hasLevel2Data = rows.some(row => row.Level === 2);
     
-    // Find Level 3 rows for sections
+    // Find Level 3 rows for sections, fallback to Level 1 if no Level 3 exists
     const level3Rows = rows.filter(row => row.Level === 3);
-    if (level3Rows.length === 0) return;
+    const level1Rows = rows.filter(row => row.Level === 1);
+    const sectionRows = level3Rows.length > 0 ? level3Rows : level1Rows;
+    if (sectionRows.length === 0) return;
     
     // Get unique sections (excluding empty values) - reversed order for proper display
     const uniqueSections = [...new Set(
-      level3Rows
+      sectionRows
         .map(row => row.Section)
         .filter(section => section && section.trim() !== '')
     )].sort((a, b) => romanNumerals.indexOf(a) - romanNumerals.indexOf(b));
     
     const aspekColors = generateAspekColors(uniqueSections.length);
     
-    const totalCapaian = level3Rows.reduce((sum, row) => sum + Math.abs(row.Capaian), 0);
+    const totalCapaian = sectionRows.reduce((sum, row) => sum + Math.abs(row.Capaian), 0);
     const baseHeight = 0.07 * totalScore; // 5% of total score
     const remainingHeight = totalScore - (baseHeight * uniqueSections.length);
     
     const sections: SectionData[] = uniqueSections.map((sectionName, index) => {
-      const sectionRow = level3Rows.find(row => row.Section === sectionName);
+      const sectionRow = sectionRows.find(row => row.Section === sectionName);
       const capaian = sectionRow ? sectionRow.Capaian : 0;
       const absCapaian = Math.abs(capaian);
       

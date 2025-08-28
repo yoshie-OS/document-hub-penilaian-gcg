@@ -8,11 +8,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { useUser } from '@/contexts/UserContext';
 import { useChecklist } from '@/contexts/ChecklistContext';
+import { useYear } from '@/contexts/YearContext';
 import { GCGChartWrapper } from '@/components/dashboard/GCGChartWrapper';
 import { 
   FileText, 
@@ -27,15 +27,21 @@ import {
   CheckCircle,
   AlertCircle,
   ArrowLeft,
-  HelpCircle
+  HelpCircle,
+  Trash2
 } from 'lucide-react';
+
+// Convert number to Roman numeral
+const toRoman = (num: number): string => {
+  const romanNumerals = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
+  return romanNumerals[num - 1] || num.toString();
+};
 
 interface PenilaianRow {
   id: string;
-  no?: string; // Only for DETAILED mode
   aspek: string;
   deskripsi: string;
-  jumlah_parameter: number; // Always present, defaults to 0 for BRIEF mode
+  jumlah_parameter: number;
   bobot: number;
   skor: number;
   capaian: number;
@@ -46,6 +52,7 @@ const PenilaianGCG = () => {
   const { isSidebarOpen } = useSidebar();
   const { user } = useUser();
   const { getChecklistByYear, getAspectsByYear, ensureAllYearsHaveData } = useChecklist();
+  const { availableYears } = useYear();
   
   // State untuk workflow
   const [currentStep, setCurrentStep] = useState<'method' | 'table' | 'upload' | 'view'>('method');
@@ -56,11 +63,9 @@ const PenilaianGCG = () => {
   
   // State untuk tahun dan auditor
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [customYear, setCustomYear] = useState('');
-  const [showAddYear, setShowAddYear] = useState(false);
-  const [customYears, setCustomYears] = useState<number[]>([]);
-  const [auditor, setAuditor] = useState('Self Assessment');
-  const [jenisAsesmen, setJenisAsesmen] = useState('Internal');
+  const [chartRefreshKey, setChartRefreshKey] = useState(0);
+  const [auditor, setAuditor] = useState('');
+  const [jenisAsesmen, setJenisAsesmen] = useState('');
   
   // State untuk data table
   const [tableData, setTableData] = useState<PenilaianRow[]>([]);
@@ -77,11 +82,11 @@ const PenilaianGCG = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   
-  // State for data format mode
-  const [isDetailedMode, setIsDetailedMode] = useState(false);
+  // State untuk delete functionality
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteMessage, setDeleteMessage] = useState<string | null>(null);
   
-  // State for aspect summary table (DETAILED mode only)
-  const [aspectSummaryData, setAspectSummaryData] = useState<PenilaianRow[]>([]);
   
   // State for filtering (Lihat Tabel page only)
   const [filterAspek, setFilterAspek] = useState<string>('all');
@@ -106,23 +111,55 @@ const PenilaianGCG = () => {
   // Load data when entering table step for the first time
   useEffect(() => {
     if (currentStep === 'table' && tableData.length === 0) {
-      console.log('🔧 DEBUG: Entering table step - loading initial data...');
-      // Load appropriate data based on current mode
-      if (isDetailedMode) {
-        // DETAILED mode - load aspect summary and predetermined rows
-        setAspectSummaryData(getAspectSummaryRows());
-        const predeterminedRows = generatePredeterminedRows(selectedYear, true);
-        setTableData(predeterminedRows);
-        console.log(`📊 DETAILED mode activated on table entry - ${predeterminedRows.length} rows loaded`);
-      } else {
-        // BRIEF mode - load aspect summary as main table
-        setAspectSummaryData([]);
-        const aspectRows = getAspectSummaryRows();
-        setTableData(aspectRows);
-        console.log(`📋 BRIEF mode activated on table entry - ${aspectRows.length} aspect rows loaded`);
-      }
+      console.log('🔧 DEBUG: Entering table step - loading data for year', selectedYear);
+      loadExistingDataForYear(selectedYear);
     }
-  }, [currentStep, selectedYear, isDetailedMode]);
+  }, [currentStep, selectedYear]);
+
+  // Load existing data for a year, fallback to empty rows if none found
+  const loadExistingDataForYear = async (year: number) => {
+    try {
+      // First try to load existing data from the saved file
+      const response = await fetch('/api/gcg-chart-data');
+      if (response.ok) {
+        const apiData = await response.json();
+        if (apiData.success && apiData.data) {
+          // Filter data for the selected year
+          const yearData = apiData.data.filter((item: any) => item.Tahun === year);
+          
+          if (yearData.length > 0) {
+            console.log(`✅ Found ${yearData.length} existing rows for year ${year}`);
+            
+            // Convert API data format to table format
+            const convertedData = yearData.map((item: any, index: number) => ({
+              id: `existing-${item.Tahun}-${item.Section}-${index}`,
+              aspek: item.Section,
+              deskripsi: item.Deskripsi || '',
+              jumlah_parameter: item.Jumlah_Parameter || 0,
+              bobot: item.Bobot || 0,
+              skor: item.Skor || 0,
+              capaian: item.Capaian || 0,
+              penjelasan: item.Penjelasan || ''
+            }));
+            
+            setTableData(convertedData);
+            setSaveMessage(`📊 Loaded ${yearData.length} existing rows for year ${year}`);
+            setTimeout(() => setSaveMessage(null), 3000);
+            return;
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error loading existing data:', error);
+    }
+
+    // Fallback: Generate empty rows if no existing data found
+    console.log(`📋 No existing data for year ${year}, generating empty rows`);
+    // BRIEF mode - use aspect summary for main table
+    const aspectRows = getAspectSummaryRows();
+    setTableData(aspectRows);
+    console.log(`📋 BRIEF mode - ${aspectRows.length} empty aspect rows loaded`);
+  };
   
   // Generate predetermined rows from Kelola Aspek data
   const generatePredeterminedRows = (year: number, isDetailed: boolean): PenilaianRow[] => {
@@ -178,8 +215,8 @@ const PenilaianGCG = () => {
     
     return aspectsData.map((aspect, index) => ({
       id: `aspect-${aspect.id}`,
-      aspek: aspect.nama, // Use the actual aspect name from Kelola Aspek
-      deskripsi: '',
+      aspek: toRoman(index + 1), // Use roman numerals for Aspek column
+      deskripsi: aspect.nama, // Use aspect name for Deskripsi column
       jumlah_parameter: 0,
       bobot: 0,
       skor: 0,
@@ -214,26 +251,6 @@ const PenilaianGCG = () => {
     return isDetailed ? 'DETAILED' : 'BRIEF';
   };
 
-  // Handle mode toggle
-  const handleModeToggle = (detailed: boolean) => {
-    setIsDetailedMode(detailed);
-    
-    if (detailed) {
-      // Switch to DETAILED mode - load aspect summary and predetermined rows
-      setAspectSummaryData(getAspectSummaryRows());
-      
-      // Load predetermined rows from Kelola Aspek for current year
-      const predeterminedRows = generatePredeterminedRows(selectedYear, true);
-      setTableData(predeterminedRows);
-      console.log(`📊 DETAILED mode activated - aspect summary + ${predeterminedRows.length} predetermined rows loaded`);
-    } else {
-      // Switch to BRIEF mode - use aspect summary as main table
-      setAspectSummaryData([]);
-      // Load 6 predefined aspects into main table for BRIEF mode
-      setTableData(getAspectSummaryRows());
-      console.log('📋 BRIEF mode activated - 6 predefined aspects loaded into main table');
-    }
-  };
 
 
   // Generate aspect summary from detailed indicators
@@ -324,54 +341,45 @@ const PenilaianGCG = () => {
     // REMOVED: Automatic mode switching - let user control the mode
     // setIsDetailedMode(detectedFormat === 'DETAILED');
     
-    // Use current user mode instead of detected format
-    if (isDetailedMode) {
-      // Priority 1: Use BRIEF sheet data if available
-      if (briefSheetData && briefSheetData.length > 0) {
-        console.log('✅ Using BRIEF sheet data for aspect summary');
-        const briefSummaryData = briefSheetData.map((row: any, index: number) => ({
-          id: `brief-summary-${index + 1}`,
-          aspek: row.aspek || '',
-          deskripsi: row.deskripsi || '',
-          jumlah_parameter: row.jumlah_parameter || 0,
-          bobot: row.bobot || 0,
-          skor: row.skor || 0,
-          capaian: row.capaian || 0,
-          penjelasan: row.penjelasan || getPenjelasan(row.skor || 0, row.bobot || 0)
-        }));
-        setAspectSummaryData(briefSummaryData);
-      } 
-      // Priority 2: Generate from detailed indicators automatically
-      else if (data && data.length > 0) {
-        console.log('🔧 Generating aspect summary from detailed indicators');
-        const autoSummary = generateAspectSummaryFromDetailed(data);
-        setAspectSummaryData(autoSummary.length > 0 ? autoSummary : getAspectSummaryRows());
-      }
-      // Priority 3: Default empty summary
-      else {
-        console.log('⚠️ No data available - using default summary rows');
-        setAspectSummaryData(getAspectSummaryRows());
-      }
-    } else {
-      setAspectSummaryData([]);
-    }
+    // Always use BRIEF mode - load data directly into main table
+    console.log('✅ Loading data in BRIEF mode');
     
-    // Load the main data (DETAILED indicators)
-    setTableData(data);
+    // Priority 1: Use BRIEF sheet data if available
+    if (briefSheetData && briefSheetData.length > 0) {
+      console.log('✅ Using BRIEF sheet data');
+      const briefData = briefSheetData.map((row: any, index: number) => ({
+        id: `brief-${index + 1}`,
+        aspek: row.aspek || '',
+        deskripsi: row.deskripsi || '',
+        jumlah_parameter: row.jumlah_parameter || 0,
+        bobot: row.bobot || 0,
+        skor: row.skor || 0,
+        capaian: row.capaian || 0,
+        penjelasan: row.penjelasan || getPenjelasan(row.skor || 0, row.bobot || 0)
+      }));
+      setTableData(briefData);
+    } 
+    // Priority 2: Use provided data if available
+    else if (data && data.length > 0) {
+      console.log('✅ Using provided data');
+      setTableData(data);
+    }
+    // Priority 3: Default empty rows
+    else {
+      console.log('⚠️ No data available - using default aspect rows');
+      setTableData(getAspectSummaryRows());
+    }
   };
 
-  // Generate tahun dari 2014 sampai sekarang + 2 tahun ke depan + custom years
+  // Use years configured in Pengaturan Baru -> Tahun Buku
   const years = useMemo(() => {
-    const currentYear = new Date().getFullYear();
-    const baseYears = [];
-    for (let year = currentYear + 2; year >= 2014; year--) {
-      baseYears.push(year);
+    // Use only availableYears from YearContext (managed in Pengaturan Baru)
+    if (availableYears.length === 0) {
+      return [new Date().getFullYear()];
     }
     
-    // Combine base years with custom years and sort
-    const allYears = [...baseYears, ...customYears];
-    return [...new Set(allYears)].sort((a, b) => b - a);
-  }, [customYears]);
+    return [...availableYears].sort((a, b) => b - a);
+  }, [availableYears]);
 
   // Auto-calculate capaian dan penjelasan with negative bobot handling
   const calculateCapaian = (skor: number, bobot: number): number => {
@@ -516,20 +524,7 @@ const PenilaianGCG = () => {
 
   // Check if aspect summary table has meaningful data
   const isAspectSummaryFilled = () => {
-    if (!isDetailedMode) return true; // Always show for BRIEF mode
-    
-    // Check if any aspect summary row has meaningful data
-    // Don't consider default roman numerals (I, II, III, IV, V, VI) as meaningful
-    const defaultRomanNumerals = ['I', 'II', 'III', 'IV', 'V', 'VI'];
-    const hasMeaningfulData = aspectSummaryData.some(row => {
-      const isNonDefaultAspek = row.aspek.trim() !== '' && !defaultRomanNumerals.includes(row.aspek.trim());
-      return isNonDefaultAspek || 
-             row.deskripsi.trim() !== '' || 
-             row.bobot > 0 || 
-             row.skor > 0;
-    });
-    
-    return hasMeaningfulData;
+    return true; // Always show for BRIEF mode
   };
 
   // Update cell value
@@ -559,9 +554,7 @@ const PenilaianGCG = () => {
     
     // Define field order as arrays of PenilaianRow keys (including penjelasan)
     const summaryFieldOrder: (keyof PenilaianRow)[] = ['aspek', 'deskripsi', 'bobot', 'skor', 'penjelasan'];
-    const mainFieldOrder: (keyof PenilaianRow)[] = isDetailedMode 
-      ? ['aspek', 'no', 'deskripsi', 'jumlah_parameter', 'bobot', 'skor', 'penjelasan']
-      : ['aspek', 'deskripsi', 'bobot', 'skor', 'penjelasan'];
+    const mainFieldOrder: (keyof PenilaianRow)[] = ['aspek', 'deskripsi', 'bobot', 'skor', 'penjelasan'];
     
     const fieldOrder = tableType === 'summary' ? summaryFieldOrder : mainFieldOrder;
     
@@ -646,16 +639,6 @@ const PenilaianGCG = () => {
     }
   };
 
-  // Handle add custom year
-  const handleAddYear = () => {
-    const year = parseInt(customYear);
-    if (year && year >= 2000 && year <= 2050 && !years.includes(year)) {
-      setCustomYears([...customYears, year]);
-      setSelectedYear(year);
-      setCustomYear('');
-      setShowAddYear(false);
-    }
-  };
 
   // Handle file upload for otomatis method
   const handleFileUpload = async (file: File) => {
@@ -775,60 +758,37 @@ const PenilaianGCG = () => {
             if (yearIndicators.length > 0) {
               // We have indicator data - load it but RESPECT current mode
               loadDataWithDetection(yearIndicators);
-              console.log(`✅ Found ${yearIndicators.length} indicators - loaded in ${isDetailedMode ? 'DETAILED' : 'BRIEF'} mode`);
+              console.log(`✅ Found ${yearIndicators.length} indicators - loaded in BRIEF mode`);
               
-              // Set summary data based on current mode
-              if (isDetailedMode) {
-                setAspectSummaryData(getAspectSummaryRows());
-              } else {
-                setAspectSummaryData([]);
-                setTableData(yearAspekData);
-              }
+              // BRIEF mode - no aspect summary needed
             } else {
               // No indicators for this year - use aspek data
               setAspectSummaryData([]); // Clear aspect summary table
               setTableData(yearAspekData);
-              console.log(`📝 No indicators for year ${year} - using aspek data in ${isDetailedMode ? 'DETAILED' : 'BRIEF'} mode`);
+              console.log(`📝 No indicators for year ${year} - using aspek data in BRIEF mode`);
             }
           } else {
             // No indicator data at all - use aspek data
             setAspectSummaryData([]); // Clear aspect summary table
             setTableData(yearAspekData);
-            console.log(`📝 No indicator data available - using aspek data in ${isDetailedMode ? 'DETAILED' : 'BRIEF'} mode`);
+            console.log(`📝 No indicator data available - using aspek data in BRIEF mode`);
           }
         } else {
-          // No aspek data for this year - load appropriate rows based on mode
-          console.log(`📝 No aspek data found for year ${year}, loading ${isDetailedMode ? 'predetermined indicator rows' : 'default aspect rows'}`);
+          // No aspek data for this year - load default aspect rows
+          console.log(`📝 No aspek data found for year ${year}, loading default aspect rows`);
           
-          if (isDetailedMode) {
-            // DETAILED mode - load predetermined indicator rows from Kelola Aspek
-            const predeterminedRows = generatePredeterminedRows(year, true);
-            loadDataWithDetection(predeterminedRows);
-            setSaveMessage(`📋 No data for year ${year} - loaded ${predeterminedRows.length} detailed placeholder rows`);
-            setAspectSummaryData(getAspectSummaryRows());
-          } else {
-            // BRIEF mode - load 6 simple aspect rows
-            setAspectSummaryData([]);
-            setTableData(getAspectSummaryRows());
-            setSaveMessage(`📋 No data for year ${year} - loaded 6 aspect rows (BRIEF mode)`);
-          }
+          // BRIEF mode - load 6 simple aspect rows
+          setTableData(getAspectSummaryRows());
+          setSaveMessage(`📋 No data for year ${year} - loaded 6 aspect rows (BRIEF mode)`);
         }
         
         setTimeout(() => setSaveMessage(null), 3000);
       } else {
-        console.log(`📝 No aspek data available, loading ${isDetailedMode ? 'predetermined indicator rows' : 'default aspect rows'}`);
+        console.log(`📝 No aspek data available, loading default aspect rows`);
         
-        if (isDetailedMode) {
-          // DETAILED mode - load predetermined indicator rows from Kelola Aspek
-          const predeterminedRows = generatePredeterminedRows(year, true);
-          loadDataWithDetection(predeterminedRows);
-          setSaveMessage(`📋 No data available - loaded ${predeterminedRows.length} detailed placeholder rows`);
-        } else {
-          // BRIEF mode - load 6 simple aspect rows
-          setAspectSummaryData([]);
-          setTableData(getAspectSummaryRows());
-          setSaveMessage(`📋 No data available - loaded 6 aspect rows (BRIEF mode)`);
-        }
+        // BRIEF mode - load 6 simple aspect rows
+        setTableData(getAspectSummaryRows());
+        setSaveMessage(`📋 No data available - loaded 6 aspect rows (BRIEF mode)`);
         
         setTimeout(() => setSaveMessage(null), 3000);
       }
@@ -836,17 +796,9 @@ const PenilaianGCG = () => {
     } catch (error) {
       console.error('❌ Error loading indicator data:', error);
       
-      if (isDetailedMode) {
-        // DETAILED mode - fallback to predetermined indicator rows
-        const predeterminedRows = generatePredeterminedRows(year, true);
-        loadDataWithDetection(predeterminedRows);
-        setSaveMessage(`❌ Error loading data - using ${predeterminedRows.length} detailed placeholder rows`);
-      } else {
-        // BRIEF mode - fallback to 6 simple aspect rows
-        setAspectSummaryData([]);
-        setTableData(getAspectSummaryRows());
-        setSaveMessage(`❌ Error loading data - using 6 aspect rows (BRIEF mode)`);
-      }
+      // BRIEF mode - fallback to 6 simple aspect rows
+      setTableData(getAspectSummaryRows());
+      setSaveMessage(`❌ Error loading data - using 6 aspect rows (BRIEF mode)`);
       setTimeout(() => setSaveMessage(null), 5000);
     }
   };
@@ -859,12 +811,12 @@ const PenilaianGCG = () => {
       
       console.log('🔧 DEBUG: Starting save process...');
       console.log(`📊 Saving ${tableData.length} main rows for year ${selectedYear}`);
-      console.log(`📋 Saving ${isDetailedMode ? aspectSummaryData.length : 0} aspect summary rows`);
+      console.log(`📋 Saving 0 aspect summary rows (BRIEF mode)`);
       console.log(`🎯 Year being saved: ${selectedYear}, Auditor: ${auditor}, Jenis Asesmen: ${jenisAsesmen}`);
       
       const saveData = {
         data: tableData,
-        aspectSummaryData: isDetailedMode ? aspectSummaryData : [],
+        aspectSummaryData: [],
         year: selectedYear,
         auditor: auditor,
         jenis_asesmen: jenisAsesmen,
@@ -891,6 +843,9 @@ const PenilaianGCG = () => {
         💾 Assessment ID: ${result.assessment_id}
         📁 Excel otomatis dibuat di: data/output/web-output/output.xlsx`);
         
+        // Force chart refresh by updating a key prop
+        setChartRefreshKey(prev => prev + 1);
+        
         // Auto-hide success message after 5 seconds (longer for more info)
         setTimeout(() => setSaveMessage(null), 5000);
       } else {
@@ -903,6 +858,83 @@ const PenilaianGCG = () => {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // Delete handler for removing year data
+  const handleDeleteConfirm = async () => {
+    try {
+      setIsDeleting(true);
+      setShowDeleteConfirm(false);
+      setDeleteMessage(null);
+      
+      console.log(`🗑️ Deleting data for year ${selectedYear}...`);
+      
+      const response = await fetch('/api/delete-year-data', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          year: selectedYear
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        console.log(`✅ Delete successful for year ${selectedYear}`);
+        setDeleteMessage(`🗑️ Data tahun ${selectedYear} berhasil dihapus dari Excel!
+        📁 File Excel telah diupdate: data/output/web-output/output.xlsx
+        ✏️ Tabel input masih tersedia untuk memasukkan data baru.`);
+        
+        // Reset table data to empty input rows while preserving structure
+        const emptyRows = getAspectSummaryRows();
+        setTableData(emptyRows);
+        setSaveMessage(null);
+        
+        // Force chart refresh by updating a key prop
+        setChartRefreshKey(prev => prev + 1);
+        
+        // Auto-hide success message after 5 seconds
+        setTimeout(() => setDeleteMessage(null), 5000);
+      } else {
+        throw new Error(result.error || 'Delete failed');
+      }
+      
+    } catch (error) {
+      console.error('❌ Delete error:', error);
+      setDeleteMessage(`❌ Gagal menghapus data: ${error}`);
+      setTimeout(() => setDeleteMessage(null), 5000);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteConfirm(false);
+  };
+
+  // Check if there's meaningful data to delete (not just empty input rows)
+  const hasDataToDelete = () => {
+    return tableData.some(row => 
+      row.deskripsi.trim() !== '' || 
+      row.bobot > 0 || 
+      row.skor > 0 || 
+      row.penjelasan.trim() !== ''
+    );
+  };
+
+  const handleDeleteClick = () => {
+    if (!hasDataToDelete()) {
+      setDeleteMessage('❌ Tidak ada data untuk dihapus');
+      setTimeout(() => setDeleteMessage(null), 3000);
+      return;
+    }
+    setShowDeleteConfirm(true);
   };
 
   // Method Selection Step
@@ -930,7 +962,7 @@ const PenilaianGCG = () => {
       <div className="space-y-6">
         <h2 className="text-xl font-semibold text-gray-800 text-left">Dashboard Visualisasi</h2>
         
-        <GCGChartWrapper selectedYear={selectedYear} tableData={tableData} auditor={auditor} jenisAsesmen={jenisAsesmen} />
+        <GCGChartWrapper key={chartRefreshKey} selectedYear={selectedYear} tableData={tableData} auditor={auditor} jenisAsesmen={jenisAsesmen} />
         
         {/* Input/Edit Data Button - moved to bottom */}
         {isSuperAdmin() && (
@@ -1201,8 +1233,8 @@ const PenilaianGCG = () => {
       {/* Data Tables - Read Only */}
       {tableData.length > 0 && (
         <>
-          {/* Aspek Summary Table (DETAILED mode only) - Read Only */}
-          {isDetailedMode && aspectSummaryData.length > 0 && (
+          {/* Aspek Summary Table removed - BRIEF mode only */}
+          {false && (
             <Card className="border-0 shadow-lg bg-gray-50">
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
@@ -1264,10 +1296,8 @@ const PenilaianGCG = () => {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-gray-100 hover:bg-gray-100">
-                    {isDetailedMode && <TableHead className="text-gray-900 font-semibold">No</TableHead>}
                     <TableHead className="text-gray-900 font-semibold">Aspek</TableHead>
                     <TableHead className="text-gray-900 font-semibold">Deskripsi</TableHead>
-                    {isDetailedMode && <TableHead className="text-gray-900 font-semibold">Jumlah Parameter</TableHead>}
                     <TableHead className="text-gray-900 font-semibold">Bobot</TableHead>
                     <TableHead className="text-gray-900 font-semibold">Skor</TableHead>
                     <TableHead className="text-gray-900 font-semibold">Capaian (%)</TableHead>
@@ -1277,10 +1307,8 @@ const PenilaianGCG = () => {
                 <TableBody>
                   {getFilteredAndSortedData(tableData).map((row) => (
                     <TableRow key={row.id} className="hover:bg-gray-50">
-                      {isDetailedMode && <TableCell className="text-center font-medium">{row.no}</TableCell>}
                       <TableCell className="font-medium text-center">{row.aspek}</TableCell>
                       <TableCell className="text-sm">{row.deskripsi}</TableCell>
-                      {isDetailedMode && <TableCell className="text-center">{row.jumlah_parameter}</TableCell>}
                       <TableCell className="text-center">{row.bobot}</TableCell>
                       <TableCell className="text-center">{row.skor}</TableCell>
                       <TableCell className="text-center">{row.capaian}%</TableCell>
@@ -1310,7 +1338,7 @@ const PenilaianGCG = () => {
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div className="text-sm text-blue-900">
-                  <strong>Format:</strong> {isDetailedMode ? 'DETAILED' : 'BRIEF'} | 
+                  <strong>Format:</strong> BRIEF | 
                   <strong> Menampilkan:</strong> {getFilteredAndSortedData(tableData).length} dari {tableData.length} indikator | 
                   <strong> Penilai:</strong> {auditor} | <strong>Jenis:</strong> {jenisAsesmen}
                 </div>
@@ -1392,41 +1420,6 @@ const PenilaianGCG = () => {
                   </SelectContent>
                 </Select>
               </div>
-            
-              {showAddYear ? (
-                <div className="flex items-center space-x-2">
-                  <Input
-                    type="number"
-                    placeholder="2026"
-                    value={customYear}
-                    onChange={(e) => setCustomYear(e.target.value)}
-                    className="w-20"
-                  />
-                  <Button size="sm" onClick={handleAddYear}>
-                    <CheckCircle className="w-3 h-3" />
-                  </Button>
-                  <Button 
-                    size="sm" 
-                    variant="outline" 
-                    onClick={() => {
-                      setShowAddYear(false);
-                      setCustomYear('');
-                    }}
-                  >
-                    <Minus className="w-3 h-3" />
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowAddYear(true)}
-                  className="border-dashed border-blue-300 text-blue-600 hover:bg-blue-50"
-                >
-                  <Plus className="w-3 h-3 mr-1" />
-                  Tambah Tahun Buku
-                </Button>
-              )}
             </div>
 
             {/* Auditor Selection Row */}
@@ -1434,7 +1427,7 @@ const PenilaianGCG = () => {
               <Label className="text-sm font-medium text-gray-700 mb-2 block">Auditor/Penilai</Label>
               <Input
                 type="text"
-                placeholder="Contoh: Self Assessment, BPKP, Internal Audit, PWC, etc."
+                placeholder="Contoh: PT Pos Indonesia"
                 value={auditor}
                 onChange={(e) => setAuditor(e.target.value)}
                 className="w-full"
@@ -1449,7 +1442,7 @@ const PenilaianGCG = () => {
               <Label className="text-sm font-medium text-gray-700 mb-2 block">Jenis Asesmen</Label>
               <Input
                 type="text"
-                placeholder="External, Internal, atau jenis lainnya"
+                placeholder="Contoh: Review, asesmen, atau jenis lainnya"
                 value={jenisAsesmen}
                 onChange={(e) => setJenisAsesmen(e.target.value)}
                 className="w-full"
@@ -1458,53 +1451,21 @@ const PenilaianGCG = () => {
               <datalist id="jenis-asesmen-suggestions">
                 <option value="External" />
                 <option value="Internal" />
+                <option value="Lainnya" />
               </datalist>
               <p className="text-xs text-gray-500 mt-1">
                 Masukkan jenis asesmen (External, Internal, atau custom sesuai kebutuhan)
               </p>
             </div>
 
-            {/* Data Format Mode Toggle */}
-            <div className="pt-4 border-t border-gray-200">
-              <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                  <Label className="text-sm font-medium text-gray-700">Format Data</Label>
-                  <p className="text-xs text-gray-500">
-                    Pilih format input: BRIEF (per aspek) atau DETAILED (per indikator dengan No dan Jumlah Parameter)
-                  </p>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <span className={`text-sm ${!isDetailedMode ? 'text-gray-900 font-medium' : 'text-gray-500'}`}>
-                    BRIEF
-                  </span>
-                  <Switch
-                    checked={isDetailedMode}
-                    onCheckedChange={handleModeToggle}
-                    className="data-[state=checked]:bg-purple-600"
-                  />
-                  <span className={`text-sm ${isDetailedMode ? 'text-purple-900 font-medium' : 'text-gray-500'}`}>
-                    DETAILED
-                  </span>
-                </div>
-              </div>
-              
-              {isDetailedMode && (
-                <div className="mt-2 p-2 bg-purple-50 rounded-lg">
-                  <p className="text-xs text-purple-800">
-                    📊 Mode DETAILED aktif - Tabel aspek summary + tabel indikator dengan kolom No dan Jumlah Parameter
-                  </p>
-                </div>
-              )}
-            </div>
           </div>
           
           <div className="mt-3 p-3 bg-blue-50 rounded-lg">
             <p className="text-sm text-blue-800">
-              <strong>Tahun Buku: {selectedYear}</strong> | <strong>Auditor: {auditor}</strong> | <strong>Jenis: {jenisAsesmen}</strong> | <strong>Format: {isDetailedMode ? 'DETAILED' : 'BRIEF'}</strong>
+              <strong>Tahun Buku: {selectedYear}</strong> | <strong>Auditor: {auditor}</strong> | <strong>Jenis: {jenisAsesmen}</strong> | <strong>Format: BRIEF</strong>
               <br />
               <span className="text-xs">
                 Semua data akan disimpan dengan informasi ini
-                {isDetailedMode && ' | Mode DETAILED: Tabel aspek + indikator'}
               </span>
             </p>
           </div>
@@ -1552,7 +1513,7 @@ const PenilaianGCG = () => {
       )}
 
       {/* Aspect Summary Table (DETAILED mode only) */}
-      {isDetailedMode && (
+      {false && (
         <Card className="border-0 shadow-lg bg-purple-50">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
@@ -1809,24 +1770,30 @@ const PenilaianGCG = () => {
               <CardTitle className="flex items-center space-x-2">
                 <FileText className="w-5 h-5 text-indigo-600" />
                 <span>
-                  {isDetailedMode 
-                    ? `Data Indikator Detail - Tahun Buku ${selectedYear}` 
-                    : `Data Performa GCG - Tahun Buku ${selectedYear}`
-                  }
+                  Data Performa GCG - Tahun Buku {selectedYear}
                 </span>
               </CardTitle>
               <CardDescription>
-                {tableData.length} baris data {isDetailedMode ? 'indikator detail' : 'penilaian'}
+                {tableData.length} baris data penilaian
               </CardDescription>
             </div>
             <div className="space-x-2">
               <Button 
                 className="bg-blue-600 hover:bg-blue-700"
-                disabled={tableData.length === 0 || isSaving}
+                disabled={tableData.length === 0 || isSaving || isDeleting}
                 onClick={handleSave}
               >
                 <Save className="w-4 h-4 mr-2" />
                 {isSaving ? 'Menyimpan...' : 'Simpan Data'}
+              </Button>
+              <Button 
+                variant="destructive"
+                className="bg-red-600 hover:bg-red-700"
+                disabled={!hasDataToDelete() || isSaving || isDeleting}
+                onClick={handleDeleteClick}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                {isDeleting ? 'Menghapus...' : 'Hapus Tabel'}
               </Button>
             </div>
           </div>
@@ -1844,6 +1811,19 @@ const PenilaianGCG = () => {
             </div>
           </div>
         )}
+
+        {/* Delete Message */}
+        {deleteMessage && (
+          <div className="mx-6 mb-4">
+            <div className={`p-3 rounded-lg text-sm ${
+              deleteMessage.includes('berhasil') 
+                ? 'bg-green-50 text-green-800 border border-green-200' 
+                : 'bg-red-50 text-red-800 border border-red-200'
+            }`}>
+              {deleteMessage}
+            </div>
+          </div>
+        )}
         
         <CardContent>
           <div className="overflow-x-auto">
@@ -1851,27 +1831,7 @@ const PenilaianGCG = () => {
               <TableHeader>
                 <TableRow className="bg-gradient-to-r from-indigo-50 to-purple-50">
                   <TableHead className="text-indigo-900 font-semibold">Aspek</TableHead>
-                  {isDetailedMode && (
-                    <TableHead className="text-indigo-900 font-semibold">No</TableHead>
-                  )}
                   <TableHead className="text-indigo-900 font-semibold">Deskripsi</TableHead>
-                  {isDetailedMode && (
-                    <TableHead className="text-indigo-900 font-semibold">
-                      <div className="flex items-center space-x-1">
-                        <span>Jumlah Parameter</span>
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <HelpCircle className="w-4 h-4 text-indigo-600 hover:text-indigo-800 cursor-help" />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p className="text-sm">Kalau jumlah parameter gak ada, kosongin aja</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </div>
-                    </TableHead>
-                  )}
                   <TableHead className="text-indigo-900 font-semibold">Bobot</TableHead>
                   <TableHead className="text-indigo-900 font-semibold">Skor</TableHead>
                   <TableHead className="text-indigo-900 font-semibold">Capaian (%)</TableHead>
@@ -1894,19 +1854,6 @@ const PenilaianGCG = () => {
                       />
                     </TableCell>
                     
-                    {/* No (DETAILED mode only) */}
-                    {isDetailedMode && (
-                      <TableCell>
-                        <Input
-                          id={`main-${row.id}-no`}
-                          value={row.no || ''}
-                          onChange={(e) => updateCell(row.id, 'no', e.target.value)}
-                          onKeyDown={(e) => handleKeyDown(e, row.id, 'no', 'main')}
-                          className="border-0 bg-transparent focus:bg-white focus:border focus:border-blue-300 w-20"
-                          placeholder="1, 2, 3..."
-                        />
-                      </TableCell>
-                    )}
                     
                     {/* Deskripsi - read-only for loaded indicators, editable for manual input */}
                     <TableCell className="min-w-64">
@@ -1922,13 +1869,13 @@ const PenilaianGCG = () => {
                           onKeyDown={(e) => handleKeyDown(e, row.id, 'deskripsi', 'main')}
                           className="border-0 bg-transparent focus:bg-white focus:border focus:border-blue-300"
                           placeholder="Deskripsi penilaian..."
-                          filterType={isDetailedMode ? "indicator" : "header"}
+                          filterType="header"
                         />
                       )}
                     </TableCell>
                     
                     {/* Jumlah Parameter (DETAILED mode only) */}
-                    {isDetailedMode && (
+                    {false && (
                       <TableCell>
                         <Input
                           id={`main-${row.id}-jumlah_parameter`}
@@ -2185,7 +2132,7 @@ const PenilaianGCG = () => {
             
             
             {/* Mode Info */}
-            {isDetailedMode && tableData.length > 0 && (
+            {false && tableData.length > 0 && (
               <div className="mt-4 text-center">
                 <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
                   <p className="text-sm text-purple-800">
@@ -2201,12 +2148,11 @@ const PenilaianGCG = () => {
                   <FileText className="w-8 h-8 text-gray-400" />
                 </div>
                 <h3 className="text-lg font-semibold text-gray-700 mb-2">
-                  Belum ada data {isDetailedMode ? 'indikator detail' : 'penilaian'}
+                  Belum ada data penilaian
                 </h3>
                 <p className="text-gray-500 mb-4">
                   Data akan diisi otomatis berdasarkan aspek dari halaman Kelola Aspek
-                  {isDetailedMode && ' (kolom No dan Jumlah Parameter tersedia)'}
-                </p>
+                                  </p>
               </div>
             )}
           </div>
@@ -2230,6 +2176,52 @@ const PenilaianGCG = () => {
           {currentStep === 'table' && renderTable()}
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="flex-shrink-0">
+                <AlertCircle className="w-8 h-8 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Konfirmasi Hapus Data
+                </h3>
+              </div>
+            </div>
+            
+            <div className="mb-6">
+              <p className="text-sm text-gray-600">
+                Apakah Anda yakin ingin menghapus semua data untuk <strong>Tahun {selectedYear}</strong>? 
+              </p>
+              <p className="text-sm text-red-600 mt-2 font-medium">
+                ⚠️ Tindakan ini tidak dapat dibatalkan dan akan menghapus data dari file Excel secara permanen.
+              </p>
+            </div>
+            
+            <div className="flex space-x-3 justify-end">
+              <Button
+                variant="outline"
+                onClick={handleDeleteCancel}
+                disabled={isDeleting}
+              >
+                Batal
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDeleteConfirm}
+                disabled={isDeleting}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Ya, Hapus Data
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
