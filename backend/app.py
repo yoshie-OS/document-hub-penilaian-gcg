@@ -612,10 +612,15 @@ def save_assessment():
             
             # Custom sorting: year → aspek → no, then organize headers and subtotals properly
             def sort_key(row):
-                year = row['Tahun']
-                section = row['Section']
+                # Ensure all values are consistently typed for comparison
+                try:
+                    year = int(row['Tahun']) if pd.notna(row['Tahun']) else 0
+                except (ValueError, TypeError):
+                    year = 0
+                
+                section = str(row['Section']) if pd.notna(row['Section']) else ''
                 no = row['No']
-                row_type = row['Type']
+                row_type = str(row['Type']) if pd.notna(row['Type']) else 'indicator'
                 
                 # Convert 'no' to numeric for proper sorting, handle empty values
                 try:
