@@ -80,7 +80,7 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
       const aspectCounts: Record<string, number> = {};
       yearFiles.forEach(file => {
         if (file.subdirektorat === subName && file.aspect) {
-          const aspect = file.aspect.trim() || 'Tanpa Aspek';
+          const aspect = file.aspect.trim() || 'Tidak Diberikan Aspek';
           aspectCounts[aspect] = (aspectCounts[aspect] || 0) + 1;
         }
       });

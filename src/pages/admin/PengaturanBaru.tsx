@@ -447,13 +447,19 @@ const PengaturanBaru = () => {
     if (storedAssignments) {
       try {
         const parsedAssignments = JSON.parse(storedAssignments);
-        setAssignments(parsedAssignments);
+        // Filter assignments berdasarkan tahun yang dipilih
+        if (selectedYear) {
+          const yearAssignments = parsedAssignments.filter((a: any) => a.tahun === selectedYear);
+          setAssignments(yearAssignments);
+        } else {
+          setAssignments(parsedAssignments);
+        }
       } catch (error) {
         console.error('Error parsing assignments:', error);
         setAssignments([]);
       }
     }
-  }, []);
+  }, [selectedYear]);
 
   // Effect untuk mengupdate progress kelola dokumen
   useEffect(() => {
@@ -478,6 +484,25 @@ const PengaturanBaru = () => {
       setOriginalChecklistItems([...checklistItems]);
     }
   }, [checklistItems, originalChecklistItems]);
+
+  // Effect untuk refresh assignments saat tahun berubah
+  useEffect(() => {
+    if (selectedYear) {
+      const storedAssignments = localStorage.getItem('checklistAssignments');
+      if (storedAssignments) {
+        try {
+          const parsedAssignments = JSON.parse(storedAssignments);
+          const yearAssignments = parsedAssignments.filter((a: any) => a.tahun === selectedYear);
+          setAssignments(yearAssignments);
+        } catch (error) {
+          console.error('Error parsing assignments for year change:', error);
+          setAssignments([]);
+        }
+      } else {
+        setAssignments([]);
+      }
+    }
+  }, [selectedYear]);
   
   // Effect untuk mendengarkan event fresh year creation
   useEffect(() => {
@@ -491,6 +516,9 @@ const PengaturanBaru = () => {
         setOriginalChecklistItems([]);
         setItemChanges(new Set());
         setHasUnsavedChanges(false);
+        
+        // Clear assignments untuk tahun baru
+        setAssignments([]);
         
         console.log('PengaturanBaru: Cleared all checklist data for fresh year', year);
       }
@@ -506,6 +534,9 @@ const PengaturanBaru = () => {
         setOriginalChecklistItems([]);
         setItemChanges(new Set());
         setHasUnsavedChanges(false);
+        
+        // Clear assignments untuk tahun yang dihapus
+        setAssignments([]);
         
         console.log('PengaturanBaru: Cleared all checklist data for removed year', year);
       }
@@ -555,10 +586,16 @@ const PengaturanBaru = () => {
   const [showAnakPerusahaanDialog, setShowAnakPerusahaanDialog] = useState(false);
   const [showDivisiDialog, setShowDivisiDialog] = useState(false);
   const [showUserDialog, setShowUserDialog] = useState(false);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [showPassword, setShowPassword] = useState(false);
-  
-  // State untuk tracking progress
+      const [editingUser, setEditingUser] = useState<User | null>(null);
+    const [showPassword, setShowPassword] = useState(false);
+    
+    // State untuk editing struktur organisasi
+    const [editingDirektorat, setEditingDirektorat] = useState<{ id: number; nama: string; deskripsi: string } | null>(null);
+    const [editingSubdirektorat, setEditingSubdirektorat] = useState<{ id: number; nama: string; deskripsi: string; direktoratId: number } | null>(null);
+    const [editingAnakPerusahaan, setEditingAnakPerusahaan] = useState<{ id: number; nama: string; deskripsi: string } | null>(null);
+    const [editingDivisi, setEditingDivisi] = useState<{ id: number; nama: string; deskripsi: string; subdirektoratId: number } | null>(null);
+    
+    // State untuk tracking progress
   const [setupProgress, setSetupProgress] = useState({
     tahunBuku: false,
     strukturOrganisasi: false,
@@ -579,8 +616,10 @@ const PengaturanBaru = () => {
       divisi && divisi.length > 0
     );
     
-    // Progress untuk manajemen akun - bisa diakses meskipun belum ada tahun
-    const hasUsers = Boolean(users && users.length > 0);
+    // Progress untuk manajemen akun - EXCLUDE superadmin dan hanya hitung admin untuk tahun yang dipilih
+    const hasUsers = selectedYear ? Boolean(
+      users && users.filter(u => u.tahun === selectedYear && u.role === 'admin').length > 0
+    ) : Boolean(users && users.filter(u => u.role === 'admin').length > 0);
     
     // Progress untuk kelola dokumen - bisa diakses meskipun belum ada tahun
     const hasChecklist = Boolean(checklistItems && checklistItems.length > 0);
@@ -591,7 +630,7 @@ const PengaturanBaru = () => {
       manajemenAkun: hasUsers,
       kelolaDokumen: hasChecklist,
     });
-  }, [availableYears, direktorat, subdirektorat, anakPerusahaan, divisi, users, checklistItems]);
+  }, [availableYears, direktorat, subdirektorat, anakPerusahaan, divisi, users, checklistItems, selectedYear]);
 
   // Handler untuk submit tahun buku
   const handleTahunSubmit = (e: React.FormEvent) => {
@@ -1111,6 +1150,43 @@ const PengaturanBaru = () => {
     }
   };
 
+  // Fungsi-fungsi untuk editing struktur organisasi
+  const openEditDirektorat = (id: number, nama: string, deskripsi: string) => {
+    setEditingDirektorat({ id, nama, deskripsi });
+    setStrukturForm(prev => ({
+      ...prev,
+      direktorat: { nama, deskripsi }
+    }));
+    setShowDirektoratDialog(true);
+  };
+
+  const openEditSubdirektorat = (id: number, nama: string, deskripsi: string, direktoratId: number) => {
+    setEditingSubdirektorat({ id, nama, deskripsi, direktoratId });
+    setStrukturForm(prev => ({
+      ...prev,
+      subdirektorat: { nama, direktoratId: direktoratId.toString(), deskripsi }
+    }));
+    setShowSubdirektoratDialog(true);
+  };
+
+  const openEditAnakPerusahaan = (id: number, nama: string, deskripsi: string) => {
+    setEditingAnakPerusahaan({ id, nama, deskripsi });
+    setStrukturForm(prev => ({
+      ...prev,
+      anakPerusahaan: { nama, deskripsi }
+    }));
+    setShowAnakPerusahaanDialog(true);
+  };
+
+  const openEditDivisi = (id: number, nama: string, deskripsi: string, subdirektoratId: number) => {
+    setEditingDivisi({ id, nama, deskripsi, subdirektoratId });
+    setStrukturForm(prev => ({
+      ...prev,
+      divisi: { nama, subdirektoratId: subdirektoratId.toString(), deskripsi }
+    }));
+    setShowDivisiDialog(true);
+  };
+
   // Handler untuk user management
   const handleUserSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1345,21 +1421,57 @@ const PengaturanBaru = () => {
     });
   };
 
+  // Helper function untuk konversi angka ke angka romawi
+  const getRomanNumeral = (num: number): string => {
+    const romanNumerals = [
+      { value: 1000, numeral: 'M' },
+      { value: 900, numeral: 'CM' },
+      { value: 500, numeral: 'D' },
+      { value: 400, numeral: 'CD' },
+      { value: 100, numeral: 'C' },
+      { value: 90, numeral: 'XC' },
+      { value: 50, numeral: 'L' },
+      { value: 40, numeral: 'XL' },
+      { value: 10, numeral: 'X' },
+      { value: 9, numeral: 'IX' },
+      { value: 5, numeral: 'V' },
+      { value: 4, numeral: 'IV' },
+      { value: 1, numeral: 'I' }
+    ];
+    
+    let result = '';
+    let remaining = num;
+    
+    for (const { value, numeral } of romanNumerals) {
+      while (remaining >= value) {
+        result += numeral;
+        remaining -= value;
+      }
+    }
+    
+    return result;
+  };
+
   // Handle manajemen aspek
   const handleAddAspek = () => {
     if (!aspekForm.nama.trim()) {
       toast({
         title: "Error",
-        description: "Nama aspek tidak boleh kosong!",
+        description: "Deskripsi aspek tidak boleh kosong!",
         variant: "destructive"
       });
       return;
     }
 
-    // Check if aspek already exists for the selected year
+    // Generate full aspek name with prefix
     const yearAspects = getAspectsByYear(selectedYear);
+    const nextNumber = yearAspects.length + 1;
+    const romanNumeral = getRomanNumeral(nextNumber);
+    const fullAspekName = `ASPEK ${romanNumeral}. ${aspekForm.nama.trim()}`;
+
+    // Check if aspek already exists for the selected year
     const existingAspek = yearAspects.find(aspek => 
-      aspek.nama.toLowerCase() === aspekForm.nama.trim().toLowerCase()
+      aspek.nama.toLowerCase() === fullAspekName.toLowerCase()
     );
     
     if (existingAspek) {
@@ -1371,15 +1483,15 @@ const PengaturanBaru = () => {
       return;
     }
 
-    // Add new aspek using context
-    addAspek(aspekForm.nama.trim(), selectedYear);
+    // Add new aspek using context with full name
+    addAspek(fullAspekName, selectedYear);
     
     // Reset form
     setAspekForm({ nama: '' });
     
     toast({
       title: "Berhasil!",
-      description: "Aspek baru berhasil ditambahkan",
+      description: `Aspek "${fullAspekName}" berhasil ditambahkan`,
     });
   };
 
@@ -1387,14 +1499,46 @@ const PengaturanBaru = () => {
     if (!editingAspek || !aspekForm.nama.trim()) {
       toast({
         title: "Error",
-        description: "Nama aspek tidak boleh kosong!",
+        description: "Deskripsi aspek tidak boleh kosong!",
         variant: "destructive"
       });
       return;
     }
 
-    // Update aspek using context
-    editAspek(editingAspek.id, aspekForm.nama.trim(), selectedYear);
+    // Extract the current aspek number from the existing aspek name
+    const currentAspekName = editingAspek.nama;
+    const aspekNumberMatch = currentAspekName.match(/^ASPEK\s+([IVX]+)\.\s+/);
+    
+    if (!aspekNumberMatch) {
+      toast({
+        title: "Error",
+        description: "Format aspek tidak valid untuk diedit!",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const romanNumeral = aspekNumberMatch[1];
+    const fullAspekName = `ASPEK ${romanNumeral}. ${aspekForm.nama.trim()}`;
+
+    // Check if the new name conflicts with existing aspek
+    const yearAspects = getAspectsByYear(selectedYear);
+    const existingAspek = yearAspects.find(aspek => 
+      aspek.id !== editingAspek.id && 
+      aspek.nama.toLowerCase() === fullAspekName.toLowerCase()
+    );
+    
+    if (existingAspek) {
+      toast({
+        title: "Error",
+        description: "Nama aspek sudah ada untuk tahun ini!",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Update aspek using context with full name
+    editAspek(editingAspek.id, fullAspekName, selectedYear);
 
     // Reset form and close edit mode
     setAspekForm({ nama: '' });
@@ -1402,7 +1546,7 @@ const PengaturanBaru = () => {
     
     toast({
       title: "Berhasil!",
-      description: "Aspek berhasil diperbarui",
+      description: `Aspek berhasil diperbarui menjadi "${fullAspekName}"`,
     });
   };
 
@@ -1418,7 +1562,12 @@ const PengaturanBaru = () => {
 
   const openEditAspek = (aspekId: number, aspekName: string) => {
     setEditingAspek({ id: aspekId, nama: aspekName });
-    setAspekForm({ nama: aspekName });
+    
+    // Extract only the description part (without "ASPEK X." prefix)
+    const descriptionMatch = aspekName.match(/^ASPEK\s+[IVX]+\.\s+(.+)$/);
+    const description = descriptionMatch ? descriptionMatch[1] : aspekName;
+    
+    setAspekForm({ nama: description });
   };
 
   // Handle save changes
@@ -1740,23 +1889,23 @@ const PengaturanBaru = () => {
             <TabsContent value="tahun-buku">
               <div className="space-y-6">
                 {/* Header */}
-                <div className="mb-6 p-6 bg-gradient-to-r from-orange-50 via-orange-25 to-amber-50 border border-orange-200 rounded-xl shadow-sm">
+                <div className="mb-6 p-6 bg-gradient-to-r from-blue-50 via-blue-25 to-indigo-50 border border-blue-200 rounded-xl shadow-sm">
                   <div className="flex items-center space-x-3 mb-3">
-                    <div className="p-2 bg-gradient-to-r from-orange-500 to-orange-600 rounded-lg shadow-sm">
+                    <div className="p-2 bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg shadow-sm">
                       <Calendar className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                      <h2 className="text-xl font-bold text-orange-900">Kelola Tahun Buku</h2>
-                      <p className="text-orange-700 text-sm">
+                      <h2 className="text-xl font-bold text-blue-900">Kelola Tahun Buku</h2>
+                      <p className="text-blue-700 text-sm">
                         Tambah atau hapus tahun buku untuk sistem GCG
                       </p>
                     </div>
                   </div>
                   
                   {selectedYear && (
-                    <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-orange-100 to-orange-200 rounded-full border border-orange-300 shadow-sm">
-                      <div className="w-2 h-2 bg-orange-500 rounded-full mr-2 animate-pulse"></div>
-                      <span className="text-sm font-semibold text-orange-800">
+                    <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-100 to-blue-200 rounded-full border border-blue-300 shadow-sm">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full mr-2 animate-pulse"></div>
+                      <span className="text-sm font-semibold text-blue-800">
                         Tahun Aktif: {selectedYear}
                       </span>
                     </div>
@@ -1777,13 +1926,13 @@ const PengaturanBaru = () => {
                     <div className="flex items-center justify-between">
                       <div>
                         <CardTitle className="flex items-center space-x-3 text-xl">
-                          <div className="p-2 bg-gradient-to-r from-orange-100 to-orange-200 rounded-lg">
-                            <Calendar className="w-5 h-5 text-orange-600" />
+                          <div className="p-2 bg-gradient-to-r from-blue-100 to-blue-200 rounded-lg">
+                            <Calendar className="w-5 h-5 text-blue-600" />
                           </div>
                           <span className="text-gray-800">Daftar Tahun Buku</span>
                         </CardTitle>
                         <CardDescription className="text-base mt-2 text-gray-600">
-                          <span className="font-semibold text-orange-600">{availableYears?.length || 0}</span> tahun buku tersedia dalam sistem
+                          <span className="font-semibold text-blue-600">{availableYears?.length || 0}</span> tahun buku tersedia dalam sistem
                         </CardDescription>
                       </div>
                       <div className="flex gap-3">
@@ -1807,23 +1956,23 @@ const PengaturanBaru = () => {
                               variant="default"
                               icon={<Plus className="w-4 h-4" />}
                               onClick={() => setShowTahunDialog(true)}
-                              className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 
+                              className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 
                                        text-white shadow-lg hover:shadow-xl transition-all duration-200 border-0
                                        px-6 py-2.5 rounded-lg font-semibold"
                             >
                               Tambah Tahun
                             </ActionButton>
                           </DialogTrigger>
-                          <DialogContent>
+                          <DialogContent className="bg-white border border-blue-200 shadow-xl">
                             <DialogHeader>
-                              <DialogTitle>Tambah Tahun Buku Baru</DialogTitle>
-                              <DialogDescription>
+                              <DialogTitle className="text-blue-900">Tambah Tahun Buku Baru</DialogTitle>
+                              <DialogDescription className="text-blue-700">
                                 Masukkan tahun buku yang akan ditambahkan ke sistem
                               </DialogDescription>
                             </DialogHeader>
                             <form onSubmit={handleTahunSubmit} className="space-y-4">
                               <div>
-                                <Label htmlFor="year">Tahun Buku</Label>
+                                <Label htmlFor="year" className="text-blue-800 font-medium">Tahun Buku</Label>
                                 <Input
                                   id="year"
                                   type="number"
@@ -1832,11 +1981,12 @@ const PengaturanBaru = () => {
                                   value={tahunForm.tahun || ''}
                                   onChange={(e) => setTahunForm({ ...tahunForm, tahun: parseInt(e.target.value) })}
                                   placeholder="Contoh: 2025"
+                                  className="border-blue-200 focus:border-blue-500 focus:ring-blue-500"
                                   required
                                 />
                               </div>
                               <div className="flex justify-end space-x-2">
-                                <Button type="submit" variant="default">
+                                <Button type="submit" variant="default" className="bg-blue-600 hover:bg-blue-700">
                                   Tambah Tahun
                                 </Button>
                               </div>
@@ -1901,21 +2051,21 @@ const PengaturanBaru = () => {
                <Card className="border-0 shadow-xl bg-white/95 backdrop-blur-sm">
                  <CardHeader className="pb-4">
                    <div className="flex items-center space-x-3 mb-4">
-                     <div className="p-3 bg-gradient-to-r from-emerald-100 to-green-100 rounded-xl shadow-sm">
-                       <Building2 className="w-7 h-7 text-emerald-600" />
+                     <div className="p-3 bg-gradient-to-r from-blue-100 to-indigo-100 rounded-xl shadow-sm">
+                       <Building2 className="w-7 h-7 text-blue-600" />
                      </div>
                      <div>
-                       <CardTitle className="text-2xl font-bold text-emerald-900">Setup Struktur Organisasi</CardTitle>
-                       <CardDescription className="text-base text-emerald-700">
+                       <CardTitle className="text-2xl font-bold text-blue-900">Setup Struktur Organisasi</CardTitle>
+                       <CardDescription className="text-base text-blue-700">
                          Setup struktur organisasi untuk sistem GCG. Bisa diakses meskipun belum ada tahun buku yang dipilih.
                        </CardDescription>
                      </div>
                    </div>
                    
                    {selectedYear && (
-                     <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-emerald-100 to-emerald-200 rounded-full border border-emerald-300 shadow-sm">
-                       <div className="w-2 h-2 bg-emerald-500 rounded-full mr-2 animate-pulse"></div>
-                       <span className="text-sm font-semibold text-emerald-800">
+                     <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-100 to-blue-200 rounded-full border border-blue-300 shadow-sm">
+                       <div className="w-2 h-2 bg-blue-500 rounded-full mr-2 animate-pulse"></div>
+                       <span className="text-sm font-semibold text-blue-800">
                          Tahun Aktif: {selectedYear}
                        </span>
                      </div>
@@ -1934,28 +2084,28 @@ const PengaturanBaru = () => {
                    <div className="flex flex-wrap gap-3">
                      <Button 
                        onClick={() => setShowDirektoratDialog(true)}
-                       className="bg-emerald-600 hover:bg-emerald-700"
+                       className="bg-blue-600 hover:bg-blue-700"
                      >
                        <Plus className="w-4 h-4 mr-2" />
                        Tambah Direktorat
                      </Button>
                      <Button 
                        onClick={() => setShowSubdirektoratDialog(true)}
-                       className="bg-emerald-600 hover:bg-emerald-700"
+                       className="bg-blue-600 hover:bg-blue-700"
                      >
                        <Plus className="w-4 h-4 mr-2" />
                        Tambah Subdirektorat
                      </Button>
                      <Button 
                        onClick={() => setShowAnakPerusahaanDialog(true)}
-                       className="bg-emerald-600 hover:bg-emerald-700"
+                       className="bg-blue-600 hover:bg-blue-700"
                      >
                        <Plus className="w-4 h-4 mr-2" />
                        Tambah Anak Perusahaan
                      </Button>
                      <Button 
                        onClick={() => setShowDivisiDialog(true)}
-                       className="bg-emerald-600 hover:bg-emerald-700"
+                       className="bg-blue-600 hover:bg-blue-700"
                      >
                        <Plus className="w-4 h-4 mr-2" />
                        Tambah Divisi
@@ -1963,7 +2113,7 @@ const PengaturanBaru = () => {
                      <Button 
                        onClick={handleUseDefaultStruktur}
                        variant="outline"
-                       className="border-emerald-600 text-emerald-600 hover:bg-emerald-50"
+                       className="border-blue-600 text-blue-600 hover:bg-blue-50"
                      >
                        <Copy className="w-4 h-4 mr-2" />
                        Gunakan Data Default
@@ -1972,62 +2122,78 @@ const PengaturanBaru = () => {
 
                                        {/* Data Overview */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
-                        <div className="text-2xl font-bold text-emerald-600">{direktorat && direktorat.length || 0}</div>
-                        <div className="text-sm text-emerald-600">Direktorat</div>
+                      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="text-2xl font-bold text-blue-600">{direktorat && direktorat.length || 0}</div>
+                        <div className="text-sm text-blue-600">Direktorat</div>
                       </div>
-                      <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
-                        <div className="text-2xl font-bold text-emerald-600">{subdirektorat && subdirektorat.length || 0}</div>
-                        <div className="text-sm text-emerald-600">Subdirektorat</div>
+                      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="text-2xl font-bold text-blue-600">{subdirektorat && subdirektorat.length || 0}</div>
+                        <div className="text-sm text-blue-600">Subdirektorat</div>
                       </div>
-                      <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
-                        <div className="text-2xl font-bold text-emerald-600">{anakPerusahaan && anakPerusahaan.length || 0}</div>
-                        <div className="text-sm text-emerald-600">Anak Perusahaan</div>
+                      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="text-2xl font-bold text-blue-600">{anakPerusahaan && anakPerusahaan.length || 0}</div>
+                        <div className="text-sm text-blue-600">Anak Perusahaan</div>
                       </div>
-                      <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
-                        <div className="text-2xl font-bold text-emerald-600">{divisi && divisi.length || 0}</div>
-                        <div className="text-sm text-emerald-600">Divisi</div>
+                      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="text-2xl font-bold text-blue-600">{divisi && divisi.length || 0}</div>
+                        <div className="text-sm text-blue-600">Divisi</div>
                       </div>
                     </div>
 
-                   {/* Direktorat Section */}
-                   <Card className="border border-emerald-200 bg-emerald-50/30">
+                                       {/* Struktur Organisasi Tables - Layout Sejajar */}
+                    <div className="space-y-6">
+                     {/* Direktorat Section */}
+                     <Card className="border border-blue-200 bg-blue-50/30">
                      <CardHeader className="pb-3">
-                       <CardTitle className="text-lg font-semibold text-emerald-900 flex items-center">
-                         <Briefcase className="w-5 h-5 text-emerald-600 mr-2" />
+                       <CardTitle className="text-lg font-semibold text-blue-900 flex items-center">
+                         <Briefcase className="w-5 h-5 text-blue-600 mr-2" />
                          Direktorat
                        </CardTitle>
                      </CardHeader>
                      <CardContent>
                        <Table>
                          <TableHeader>
-                           <TableRow className="bg-emerald-100/50">
-                             <TableHead className="text-emerald-900">Nama</TableHead>
-                             <TableHead className="text-emerald-900">Deskripsi</TableHead>
-                             <TableHead className="text-emerald-900">Tahun</TableHead>
-                             <TableHead className="text-emerald-900">Aksi</TableHead>
+                           <TableRow className="bg-gray-50">
+                             <TableHead className="text-gray-700 font-medium w-1/5">Nama</TableHead>
+                             <TableHead className="text-gray-700 font-medium w-1/5">Parent</TableHead>
+                             <TableHead className="text-gray-700 font-medium w-2/5">Deskripsi</TableHead>
+                             <TableHead className="text-gray-700 font-medium w-1/5">Tahun</TableHead>
+                             <TableHead className="text-gray-700 font-medium w-1/5">Aksi</TableHead>
                            </TableRow>
                          </TableHeader>
                          <TableBody>
                            {direktorat && direktorat.length > 0 ? direktorat.map((item) => (
-                             <TableRow key={item.id} className="hover:bg-emerald-50/50 py-4">
+                             <TableRow key={item.id} className="hover:bg-blue-50/50 py-4">
                                <TableCell className="font-medium py-4">{item.nama}</TableCell>
+                               <TableCell className="py-4">
+                                 <Badge variant="outline" className="border-gray-200 text-gray-600 bg-gray-50">Tingkat Atas</Badge>
+                               </TableCell>
                                <TableCell className="py-4">{item.deskripsi}</TableCell>
                                <TableCell className="py-4">{item.tahun}</TableCell>
                                <TableCell className="py-4">
-                                 <Button
-                                   variant="ghost"
-                                   size="sm"
-                                   onClick={() => deleteDirektorat(item.id)}
-                                   className="text-red-600 hover:text-red-700"
-                                 >
-                                   <Trash2 className="w-4 h-4" />
-                                 </Button>
+                                 <div className="flex gap-2">
+                                   <Button
+                                     variant="ghost"
+                                     size="sm"
+                                     onClick={() => openEditDirektorat(item.id, item.nama, item.deskripsi)}
+                                     className="text-blue-600 hover:text-blue-700"
+                                   >
+                                     <Edit className="w-4 h-4" />
+                                   </Button>
+                                   <Button
+                                     variant="ghost"
+                                     size="sm"
+                                     onClick={() => deleteDirektorat(item.id)}
+                                     className="text-red-600 hover:text-red-700"
+                                   >
+                                     <Trash2 className="w-4 h-4" />
+                                   </Button>
+                                 </div>
                                </TableCell>
                              </TableRow>
                            )) : (
                              <TableRow>
-                               <TableCell colSpan={4} className="text-center text-gray-500 py-8">
+                               <TableCell colSpan={5} className="text-center text-gray-500 py-8">
                                  Belum ada data direktorat untuk tahun {selectedYear}
                                </TableCell>
                              </TableRow>
@@ -2038,36 +2204,45 @@ const PengaturanBaru = () => {
                    </Card>
 
                    {/* Subdirektorat Section */}
-                   <Card className="border border-emerald-200 bg-emerald-50/30">
+                   <Card className="border border-blue-200 bg-blue-50/30">
                      <CardHeader className="pb-3">
-                       <CardTitle className="text-lg font-semibold text-emerald-900 flex items-center">
-                         <Users className="w-5 h-5 text-emerald-600 mr-2" />
+                       <CardTitle className="text-lg font-semibold text-blue-900 flex items-center">
+                         <Users className="w-5 h-5 text-blue-600 mr-2" />
                          Subdirektorat
                        </CardTitle>
                      </CardHeader>
                      <CardContent>
                        <Table>
                          <TableHeader>
-                           <TableRow className="bg-emerald-100/50">
-                             <TableHead className="text-emerald-900">Nama</TableHead>
-                             <TableHead className="text-emerald-900">Direktorat</TableHead>
-                             <TableHead className="text-emerald-900">Deskripsi</TableHead>
-                             <TableHead className="text-emerald-900">Tahun</TableHead>
-                             <TableHead className="text-emerald-900">Aksi</TableHead>
+                           <TableRow className="bg-gray-50">
+                             <TableHead className="text-gray-700 font-medium w-1/5">Nama</TableHead>
+                             <TableHead className="text-gray-700 font-medium w-1/5">Parent</TableHead>
+                             <TableHead className="text-gray-700 font-medium w-2/5">Deskripsi</TableHead>
+                             <TableHead className="text-gray-700 font-medium w-1/5">Tahun</TableHead>
+                             <TableHead className="text-gray-700 font-medium w-1/5">Aksi</TableHead>
                            </TableRow>
                          </TableHeader>
                          <TableBody>
                            {subdirektorat && subdirektorat.length > 0 ? subdirektorat.map((item) => {
                              const parentDirektorat = direktorat && direktorat.find(d => d.id === item.direktoratId);
                              return (
-                               <TableRow key={item.id} className="hover:bg-emerald-50/50 py-4">
+                               <TableRow key={item.id} className="hover:bg-blue-50/50 py-4">
                                  <TableCell className="font-medium py-4">{item.nama}</TableCell>
                                  <TableCell className="py-4">
-                                   <Badge variant="outline" className="border-emerald-200 text-emerald-700 bg-emerald-50">{parentDirektorat ? parentDirektorat.nama : 'N/A'}</Badge>
+                                   <Badge variant="outline" className="border-blue-200 text-blue-700 bg-blue-50">{parentDirektorat ? parentDirektorat.nama : 'N/A'}</Badge>
                                  </TableCell>
                                  <TableCell className="py-4">{item.deskripsi}</TableCell>
                                  <TableCell className="py-4">{item.tahun}</TableCell>
-                                 <TableCell className="py-4">
+                                                                <TableCell className="py-4">
+                                 <div className="flex gap-2">
+                                   <Button
+                                     variant="ghost"
+                                     size="sm"
+                                     onClick={() => openEditSubdirektorat(item.id, item.nama, item.deskripsi, item.direktoratId)}
+                                     className="text-blue-600 hover:text-blue-700"
+                                   >
+                                     <Edit className="w-4 h-4" />
+                                   </Button>
                                    <Button
                                      variant="ghost"
                                      size="sm"
@@ -2076,7 +2251,8 @@ const PengaturanBaru = () => {
                                    >
                                      <Trash2 className="w-4 h-4" />
                                    </Button>
-                                 </TableCell>
+                                 </div>
+                               </TableCell>
                                </TableRow>
                              );
                            }) : (
@@ -2092,30 +2268,34 @@ const PengaturanBaru = () => {
                    </Card>
 
                    {/* Anak Perusahaan Section */}
-                   <Card className="border border-emerald-200 bg-emerald-50/30">
+                   <Card className="border border-blue-200 bg-blue-50/30">
                      <CardHeader className="pb-3">
-                       <CardTitle className="text-lg font-semibold text-emerald-900 flex items-center">
-                         <Building className="w-5 h-5 text-emerald-600 mr-2" />
+                       <CardTitle className="text-lg font-semibold text-blue-900 flex items-center">
+                         <Building className="w-5 h-5 text-blue-600 mr-2" />
                          Anak Perusahaan & Badan Afiliasi
                        </CardTitle>
                      </CardHeader>
                      <CardContent>
                        <Table>
                          <TableHeader>
-                           <TableRow className="bg-emerald-100/50">
-                             <TableHead className="text-emerald-900">Nama</TableHead>
-                             <TableHead className="text-emerald-900">Deskripsi</TableHead>
-                             <TableHead className="text-emerald-900">Tahun</TableHead>
-                             <TableHead className="text-emerald-900">Aksi</TableHead>
+                           <TableRow className="bg-gray-50">
+                             <TableHead className="text-gray-700 font-medium w-1/5">Nama</TableHead>
+                             <TableHead className="text-gray-700 font-medium w-1/5">Parent</TableHead>
+                             <TableHead className="text-gray-700 font-medium w-2/5">Deskripsi</TableHead>
+                             <TableHead className="text-gray-700 font-medium w-1/5">Tahun</TableHead>
+                             <TableHead className="text-gray-700 font-medium w-1/5">Aksi</TableHead>
                            </TableRow>
                          </TableHeader>
                          <TableBody>
                            {anakPerusahaan && anakPerusahaan.length > 0 ? anakPerusahaan.map((item) => (
-                             <TableRow key={item.id} className="hover:bg-emerald-50/50 py-4">
+                             <TableRow key={item.id} className="hover:bg-blue-50/50 py-4">
                                <TableCell className="font-medium py-4">{item.nama}</TableCell>
+                               <TableCell className="py-4">
+                                 <Badge variant="outline" className="border-gray-200 text-gray-600 bg-gray-50">Mandiri</Badge>
+                               </TableCell>
                                <TableCell className="py-4">{item.deskripsi}</TableCell>
                                <TableCell className="py-4">{item.tahun}</TableCell>
-                                                                <TableCell className="py-4">
+                               <TableCell className="py-4">
                                  <Button
                                    variant="ghost"
                                    size="sm"
@@ -2128,7 +2308,7 @@ const PengaturanBaru = () => {
                              </TableRow>
                            )) : (
                              <TableRow>
-                               <TableCell colSpan={4} className="text-center text-gray-500 py-8">
+                               <TableCell colSpan={5} className="text-center text-gray-500 py-8">
                                  Belum ada data anak perusahaan untuk tahun {selectedYear}
                                </TableCell>
                              </TableRow>
@@ -2139,32 +2319,32 @@ const PengaturanBaru = () => {
                    </Card>
 
                    {/* Divisi Section */}
-                   <Card className="border border-emerald-200 bg-emerald-50/30">
+                   <Card className="border border-blue-200 bg-blue-50/30">
                      <CardHeader className="pb-3">
-                       <CardTitle className="text-lg font-semibold text-emerald-900 flex items-center">
-                         <Building2 className="w-5 h-5 text-emerald-600 mr-2" />
+                       <CardTitle className="text-lg font-semibold text-blue-900 flex items-center">
+                         <Building2 className="w-5 h-5 text-blue-600 mr-2" />
                          Divisi
                        </CardTitle>
                      </CardHeader>
                      <CardContent>
                        <Table>
                          <TableHeader>
-                           <TableRow className="bg-emerald-100/50">
-                             <TableHead className="text-emerald-900">Nama</TableHead>
-                             <TableHead className="text-emerald-900">Subdirektorat</TableHead>
-                             <TableHead className="text-emerald-900">Deskripsi</TableHead>
-                             <TableHead className="text-emerald-900">Tahun</TableHead>
-                             <TableHead className="text-emerald-900">Aksi</TableHead>
+                           <TableRow className="bg-gray-50">
+                             <TableHead className="text-gray-700 font-medium w-1/5">Nama</TableHead>
+                             <TableHead className="text-gray-700 font-medium w-1/5">Parent</TableHead>
+                             <TableHead className="text-gray-700 font-medium w-2/5">Deskripsi</TableHead>
+                             <TableHead className="text-gray-700 font-medium w-1/5">Tahun</TableHead>
+                             <TableHead className="text-gray-700 font-medium w-1/5">Aksi</TableHead>
                            </TableRow>
                          </TableHeader>
                          <TableBody>
                            {divisi && divisi.length > 0 ? divisi.map((item) => {
                              const parentSubdirektorat = subdirektorat && subdirektorat.find(s => s.id === item.subdirektoratId);
                              return (
-                               <TableRow key={item.id} className="hover:bg-emerald-50/50 py-4">
+                               <TableRow key={item.id} className="hover:bg-blue-50/50 py-4">
                                  <TableCell className="font-medium py-4">{item.nama}</TableCell>
                                  <TableCell className="py-4">
-                                   <Badge variant="outline" className="border-emerald-200 text-emerald-700 bg-emerald-50">{parentSubdirektorat ? parentSubdirektorat.nama : 'N/A'}</Badge>
+                                   <Badge variant="outline" className="border-blue-200 text-blue-700 bg-blue-50">{parentSubdirektorat ? parentSubdirektorat.nama : 'N/A'}</Badge>
                                  </TableCell>
                                  <TableCell className="py-4">{item.deskripsi}</TableCell>
                                  <TableCell className="py-4">{item.tahun}</TableCell>
@@ -2191,6 +2371,7 @@ const PengaturanBaru = () => {
                        </Table>
                      </CardContent>
                    </Card>
+                   </div>
                  </CardContent>
                </Card>
              </TabsContent>
@@ -2251,16 +2432,22 @@ const PengaturanBaru = () => {
                    {/* Data Overview */}
                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                       <div className="text-2xl font-bold text-blue-600">{users && users.length || 0}</div>
+                       <div className="text-2xl font-bold text-blue-600">
+                         {users && users.filter(u => selectedYear ? u.tahun === selectedYear : true).length || 0}
+                       </div>
                        <div className="text-sm text-blue-600">Total Users</div>
                      </div>
                      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                       <div className="text-2xl font-bold text-blue-600">{users && users.filter(u => u.role === 'admin').length || 0}</div>
+                       <div className="text-2xl font-bold text-blue-600">
+                         {users && users.filter(u => selectedYear ? u.tahun === selectedYear && u.role === 'admin' : u.role === 'admin').length || 0}
+                       </div>
                        <div className="text-sm text-blue-600">Admin</div>
                      </div>
 
                      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                       <div className="text-2xl font-bold text-blue-600">{users && users.filter(u => u.role === 'superadmin').length || 0}</div>
+                       <div className="text-2xl font-bold text-blue-600">
+                         {users && users.filter(u => selectedYear ? u.tahun === selectedYear && u.role === 'superadmin' : u.role === 'superadmin').length || 0}
+                       </div>
                        <div className="text-sm text-blue-600">Super Admin</div>
                      </div>
                    </div>
@@ -2270,20 +2457,21 @@ const PengaturanBaru = () => {
                      <h3 className="text-lg font-semibold text-gray-900 mb-3">Daftar User</h3>
                      <Table>
                        <TableHeader>
-                         <TableRow>
-                           <TableHead>Nama</TableHead>
-                           <TableHead>Email</TableHead>
-                           <TableHead>Role</TableHead>
-                           <TableHead>Direktorat</TableHead>
-                           <TableHead>Subdirektorat</TableHead>
-                           <TableHead>Divisi</TableHead>
-                           <TableHead>WhatsApp</TableHead>
-                           <TableHead>Tahun</TableHead>
-                           <TableHead>Aksi</TableHead>
+                         <TableRow className="bg-gray-50">
+                           <TableHead className="text-gray-700 font-medium">Nama</TableHead>
+                           <TableHead className="text-gray-700 font-medium">Email</TableHead>
+                           <TableHead className="text-gray-700 font-medium">Role</TableHead>
+                           <TableHead className="text-gray-700 font-medium">Direktorat</TableHead>
+                           <TableHead className="text-gray-700 font-medium">Subdirektorat</TableHead>
+                           <TableHead className="text-gray-700 font-medium">Divisi</TableHead>
+                           <TableHead className="text-gray-700 font-medium">WhatsApp</TableHead>
+                           <TableHead className="text-gray-700 font-medium">Tahun</TableHead>
+                           <TableHead className="text-gray-700 font-medium">Aksi</TableHead>
                          </TableRow>
                        </TableHeader>
                        <TableBody>
-                         {users && users.length > 0 ? users.map((item) => (
+                         {users && users.filter(u => selectedYear ? u.tahun === selectedYear : true).length > 0 ? 
+                           users.filter(u => selectedYear ? u.tahun === selectedYear : true).map((item) => (
                            <TableRow key={item.id}>
                              <TableCell className="font-medium">{item.name}</TableCell>
                              <TableCell>{item.email}</TableCell>
@@ -2327,7 +2515,7 @@ const PengaturanBaru = () => {
                          )) : (
                            <TableRow>
                              <TableCell colSpan={9} className="text-center text-gray-500 py-8">
-                               Belum ada data user dalam sistem
+                               {selectedYear ? `Belum ada data user untuk tahun ${selectedYear}` : 'Belum ada data user dalam sistem'}
                              </TableCell>
                            </TableRow>
                          )}
@@ -2343,21 +2531,21 @@ const PengaturanBaru = () => {
                <Card className="border-0 shadow-xl bg-white/95 backdrop-blur-sm">
                  <CardHeader className="pb-4">
                    <div className="flex items-center space-x-3 mb-4">
-                     <div className="p-3 bg-gradient-to-r from-purple-100 to-violet-100 rounded-xl shadow-sm">
-                       <FileText className="w-7 h-7 text-purple-600" />
+                     <div className="p-3 bg-gradient-to-r from-blue-100 to-indigo-100 rounded-xl shadow-sm">
+                       <FileText className="w-7 h-7 text-blue-600" />
                      </div>
                      <div>
-                       <CardTitle className="text-2xl font-bold text-purple-900">Setup Kelola Dokumen GCG</CardTitle>
-                       <CardDescription className="text-base text-purple-700">
+                       <CardTitle className="text-2xl font-bold text-blue-900">Setup Kelola Dokumen GCG</CardTitle>
+                       <CardDescription className="text-base text-blue-700">
                          Setup dokumen GCG dan aspek untuk tahun buku baru dengan tabel inline editing
                        </CardDescription>
                      </div>
                    </div>
                    
                    {selectedYear && (
-                     <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-purple-100 to-purple-200 rounded-full border border-purple-300 shadow-sm">
-                       <div className="w-2 h-2 bg-purple-500 rounded-full mr-2 animate-pulse"></div>
-                       <span className="text-sm font-semibold text-purple-800">
+                     <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-100 to-blue-200 rounded-full border border-blue-300 shadow-sm">
+                       <div className="w-2 h-2 bg-blue-500 rounded-full mr-2 animate-pulse"></div>
+                       <span className="text-sm font-semibold text-blue-800">
                          Tahun Aktif: {selectedYear}
                        </span>
                      </div>
@@ -2407,14 +2595,14 @@ const PengaturanBaru = () => {
                              });
                            }, 5000);
                          }}
-                         className="bg-purple-600 hover:bg-purple-700"
+                         className="bg-blue-600 hover:bg-blue-700"
                        >
                          <Plus className="w-4 h-4 mr-2" />
                          Tambah Item Baru
                        </Button>
                                                <Button 
                           onClick={() => setShowAspekManagementPanel(true)}
-                          className="bg-purple-600 hover:bg-purple-700"
+                          className="bg-blue-600 hover:bg-blue-700"
                         >
                           <Settings className="w-4 h-4 mr-2" />
                           Kelola Aspek
@@ -2423,7 +2611,7 @@ const PengaturanBaru = () => {
                          <Button 
                            onClick={() => setShowDefaultDataButton(true)}
                            variant="outline"
-                           className="border-purple-600 text-purple-600 hover:bg-purple-50"
+                           className="border-blue-600 text-blue-600 hover:bg-blue-50"
                          >
                            <Eye className="w-4 h-4 mr-2" />
                            Tampilkan Data Default
@@ -2432,7 +2620,7 @@ const PengaturanBaru = () => {
                          <Button 
                            onClick={handleUseDefaultChecklist}
                            variant="outline"
-                           className="border-purple-600 text-purple-600 hover:bg-purple-50"
+                           className="border-blue-600 text-blue-600 hover:bg-blue-700"
                          >
                            <Copy className="w-4 h-4 mr-2" />
                            Gunakan Data Default
@@ -2445,21 +2633,21 @@ const PengaturanBaru = () => {
 
                    {/* Data Overview */}
                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                     <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
-                       <div className="text-2xl font-bold text-indigo-600">{checklistItems && checklistItems.length || 0}</div>
-                       <div className="text-sm text-indigo-600">Total Item</div>
+                     <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                       <div className="text-2xl font-bold text-blue-600">{checklistItems && checklistItems.length || 0}</div>
+                       <div className="text-sm text-blue-600">Total Item</div>
                      </div>
                      
                      {/* Subdirektorat Assignment Overview */}
-                     <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                       <div className="text-2xl font-bold text-green-600">
+                     <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                       <div className="text-2xl font-bold text-blue-600">
                          {(() => {
                            const yearAssignments = assignments?.filter(a => a.tahun === selectedYear) || [];
                            const uniqueSubdirektorat = [...new Set(yearAssignments.map(a => a.subdirektorat))];
                            return uniqueSubdirektorat.length;
                          })()}
                        </div>
-                       <div className="text-sm text-green-600">Subdirektorat Aktif</div>
+                       <div className="text-sm text-blue-600">Subdirektorat Aktif</div>
                      </div>
                    </div>
 
@@ -2498,15 +2686,15 @@ const PengaturanBaru = () => {
                                                            {/* Checklist Items Table with Enhanced Design */}
                     <div ref={checklistTableRef}>
                       <h3 className="text-lg font-semibold text-gray-900 mb-3">Dokumen GCG Checklist</h3>
-                      <div className="overflow-hidden rounded-lg border border-indigo-100 shadow-lg">
+                      <div className="overflow-hidden rounded-lg border border-blue-100 shadow-lg">
                         <Table>
                           <TableHeader>
-                            <TableRow className="bg-gradient-to-r from-purple-600 to-purple-700 border-purple-200">
-                              <TableHead className="text-white font-bold w-16 text-center">No</TableHead>
-                              <TableHead className="text-white font-bold w-48 text-center">Aspek (Opsional)</TableHead>
-                              <TableHead className="text-white font-bold w-96 text-center">Deskripsi</TableHead>
-                              <TableHead className="text-white font-bold w-48 text-center">Assign To</TableHead>
-                              <TableHead className="text-white font-bold w-32 text-center">Aksi</TableHead>
+                            <TableRow className="bg-gray-50">
+                              <TableHead className="text-gray-700 font-medium w-16 text-center">No</TableHead>
+                              <TableHead className="text-gray-700 font-medium w-48 text-center">Aspek (Opsional)</TableHead>
+                              <TableHead className="text-gray-700 font-medium w-96 text-center">Deskripsi</TableHead>
+                              <TableHead className="text-gray-700 font-medium w-48 text-center">Assign To</TableHead>
+                              <TableHead className="text-gray-700 font-medium w-32 text-center">Aksi</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -2516,15 +2704,15 @@ const PengaturanBaru = () => {
                                 ref={newItems.has(item.id) ? newItemRef : null}
                                 className={`transition-all duration-200 border-b border-gray-100 ${
                                   newItems.has(item.id) 
-                                    ? 'bg-gradient-to-r from-purple-50 to-purple-100 border-purple-200 shadow-md' 
-                                    : 'hover:bg-gradient-to-r hover:from-purple-50 hover:to-purple-100'
+                                    ? 'bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200 shadow-md' 
+                                    : 'hover:bg-gradient-to-r hover:from-blue-50 hover:to-blue-100'
                                 }`}
                               >
                                 <TableCell className="font-bold text-gray-700 text-center bg-gray-50">
                                   <div className="flex items-center justify-center gap-2">
                                     {index + 1}
                                     {newItems.has(item.id) && (
-                                      <Badge variant="secondary" className="bg-purple-100 text-purple-700 text-xs px-2 py-0.5">
+                                      <Badge variant="secondary" className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5">
                                         NEW
                                       </Badge>
                                     )}
@@ -2541,7 +2729,7 @@ const PengaturanBaru = () => {
                                       trackItemChange(item.id);
                                     }}
                                   >
-                                    <SelectTrigger className="w-44 border-2 border-gray-200 hover:border-purple-400 focus:border-purple-500 transition-colors">
+                                    <SelectTrigger className="w-44 border-2 border-gray-200 hover:border-blue-400 focus:border-blue-500 transition-colors">
                                       <SelectValue placeholder="Pilih Aspek (Opsional)" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -2740,9 +2928,9 @@ const PengaturanBaru = () => {
                           ...prev, 
                           strukturOrganisasi: e.target.checked 
                         }))}
-                        className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                       />
-                      <label htmlFor="copy-struktur" className="text-sm font-medium text-gray-700">
+                      <label htmlFor="copy-struktur" className="text-sm font-medium text-blue-700">
                         Struktur Organisasi
                       </label>
                     </div>
@@ -2757,9 +2945,9 @@ const PengaturanBaru = () => {
                           ...prev, 
                           manajemenAkun: e.target.checked 
                         }))}
-                        className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                       />
-                      <label htmlFor="copy-manajemen" className="text-sm font-medium text-gray-700">
+                      <label htmlFor="copy-manajemen" className="text-sm font-medium text-blue-700">
                         Manajemen Akun
                       </label>
                     </div>
@@ -2774,21 +2962,21 @@ const PengaturanBaru = () => {
                           ...prev, 
                           kelolaDokumen: e.target.checked 
                         }))}
-                        className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                       />
-                      <label htmlFor="copy-dokumen" className="text-sm font-medium text-gray-700">
+                      <label htmlFor="copy-dokumen" className="text-sm font-medium text-blue-700">
                         Kelola Dokumen
                       </label>
                     </div>
                   </div>
                   
                   <div className="flex gap-3">
-                    <Button
-                      onClick={handleCopyOptionsSubmit}
-                      className="flex-1 bg-indigo-600 hover:bg-indigo-700"
-                    >
-                      {Object.values(copyOptions).some(Boolean) ? 'Copy Data' : 'Lanjut Tanpa Copy'}
-                    </Button>
+                                          <Button
+                        onClick={handleCopyOptionsSubmit}
+                        className="flex-1 bg-blue-600 hover:bg-blue-700"
+                      >
+                        {Object.values(copyOptions).some(Boolean) ? 'Copy Data' : 'Lanjut Tanpa Copy'}
+                      </Button>
                     <Button
                       variant="outline"
                       onClick={() => {
@@ -2815,11 +3003,11 @@ const PengaturanBaru = () => {
             {/* Dialog Direktorat */}
           {showDirektoratDialog && (
             <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-              <div className="bg-white rounded-lg p-6 w-full max-w-md">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Tambah Direktorat</h3>
+              <div className="bg-white rounded-lg p-6 w-full max-w-md border border-blue-200 shadow-xl">
+                <h3 className="text-lg font-semibold text-blue-900 mb-4">Tambah Direktorat</h3>
                 <form onSubmit={handleDirektoratSubmit} className="space-y-4">
                   <div>
-                    <Label htmlFor="direktorat-nama">Nama Direktorat *</Label>
+                    <Label htmlFor="direktorat-nama" className="text-blue-800 font-medium">Nama Direktorat *</Label>
                     <Input
                       id="direktorat-nama"
                       value={strukturForm.direktorat.nama}
@@ -2828,11 +3016,12 @@ const PengaturanBaru = () => {
                         direktorat: { ...prev.direktorat, nama: e.target.value } 
                       }))}
                       placeholder="Contoh: Direktorat Keuangan"
+                      className="border-blue-200 focus:border-blue-500 focus:ring-blue-500"
                       required
                     />
                   </div>
                   <div>
-                    <Label htmlFor="direktorat-deskripsi">Deskripsi</Label>
+                    <Label htmlFor="direktorat-deskripsi" className="text-blue-800 font-medium">Deskripsi</Label>
                     <Textarea
                       id="direktorat-deskripsi"
                       value={strukturForm.direktorat.deskripsi}
@@ -2841,11 +3030,12 @@ const PengaturanBaru = () => {
                         direktorat: { ...prev.direktorat, deskripsi: e.target.value } 
                       }))}
                       placeholder="Deskripsi direktorat (opsional)"
+                      className="border-blue-200 focus:border-blue-500 focus:ring-blue-500"
                       rows={3}
                     />
                   </div>
                   <div className="flex gap-3">
-                    <Button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-700">
+                    <Button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700">
                       <Plus className="w-4 h-4 mr-2" />
                       Tambah
                     </Button>
@@ -2853,7 +3043,7 @@ const PengaturanBaru = () => {
                       type="button" 
                       variant="outline" 
                       onClick={() => setShowDirektoratDialog(false)}
-                      className="flex-1"
+                      className="flex-1 border-blue-600 text-blue-600 hover:bg-blue-50"
                     >
                       Batal
                     </Button>
@@ -2866,11 +3056,11 @@ const PengaturanBaru = () => {
           {/* Dialog Subdirektorat */}
           {showSubdirektoratDialog && (
             <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-              <div className="bg-white rounded-lg p-6 w-full max-w-md">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Tambah Subdirektorat</h3>
+              <div className="bg-white rounded-lg p-6 w-full max-w-md border border-blue-200 shadow-xl">
+                <h3 className="text-lg font-semibold text-blue-900 mb-4">Tambah Subdirektorat</h3>
                 <form onSubmit={handleSubdirektoratSubmit} className="space-y-4">
                   <div>
-                    <Label htmlFor="subdirektorat-nama">Nama Subdirektorat *</Label>
+                    <Label htmlFor="subdirektorat-nama" className="text-blue-800 font-medium">Nama Subdirektorat *</Label>
                     <Input
                       id="subdirektorat-nama"
                       value={strukturForm.subdirektorat.nama}
@@ -2879,11 +3069,12 @@ const PengaturanBaru = () => {
                         subdirektorat: { ...prev.subdirektorat, nama: e.target.value } 
                       }))}
                       placeholder="Contoh: Subdirektorat Akuntansi"
+                      className="border-blue-200 focus:border-blue-500 focus:ring-blue-500"
                       required
                     />
                   </div>
                   <div>
-                    <Label htmlFor="subdirektorat-direktorat">Direktorat *</Label>
+                    <Label htmlFor="subdirektorat-direktorat" className="text-blue-800 font-medium">Direktorat *</Label>
                     <Select
                       value={strukturForm.subdirektorat.direktoratId}
                       onValueChange={(value) => setStrukturForm(prev => ({ 
@@ -2891,7 +3082,7 @@ const PengaturanBaru = () => {
                         subdirektorat: { ...prev.subdirektorat, direktoratId: value } 
                       }))}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="border-blue-200 focus:border-blue-500 focus:ring-blue-500">
                         <SelectValue placeholder="Pilih Direktorat" />
                       </SelectTrigger>
                       <SelectContent>
@@ -2904,7 +3095,7 @@ const PengaturanBaru = () => {
                     </Select>
                   </div>
                   <div>
-                    <Label htmlFor="subdirektorat-deskripsi">Deskripsi</Label>
+                    <Label htmlFor="subdirektorat-deskripsi" className="text-blue-800 font-medium">Deskripsi</Label>
                     <Textarea
                       id="subdirektorat-deskripsi"
                       value={strukturForm.subdirektorat.deskripsi}
@@ -2913,6 +3104,7 @@ const PengaturanBaru = () => {
                         subdirektorat: { ...prev.subdirektorat, deskripsi: e.target.value } 
                       }))}
                       placeholder="Deskripsi subdirektorat (opsional)"
+                      className="border-blue-200 focus:border-blue-500 focus:ring-blue-500"
                       rows={3}
                     />
                   </div>
@@ -2925,7 +3117,7 @@ const PengaturanBaru = () => {
                       type="button" 
                       variant="outline" 
                       onClick={() => setShowSubdirektoratDialog(false)}
-                      className="flex-1"
+                      className="flex-1 border-blue-600 text-blue-600 hover:bg-blue-50"
                     >
                       Batal
                     </Button>
@@ -2938,11 +3130,11 @@ const PengaturanBaru = () => {
           {/* Dialog Anak Perusahaan */}
           {showAnakPerusahaanDialog && (
             <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-              <div className="bg-white rounded-lg p-6 w-full max-w-md">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Tambah Anak Perusahaan</h3>
+              <div className="bg-white rounded-lg p-6 w-full max-w-md border border-blue-200 shadow-xl">
+                <h3 className="text-lg font-semibold text-blue-900 mb-4">Tambah Anak Perusahaan</h3>
                 <form onSubmit={handleAnakPerusahaanSubmit} className="space-y-4">
                   <div>
-                    <Label htmlFor="anakperusahaan-nama">Nama *</Label>
+                    <Label htmlFor="anakperusahaan-nama" className="text-blue-800 font-medium">Nama *</Label>
                     <Input
                       id="anakperusahaan-nama"
                       value={strukturForm.anakPerusahaan.nama}
@@ -2951,12 +3143,13 @@ const PengaturanBaru = () => {
                         anakPerusahaan: { ...prev.anakPerusahaan, nama: e.target.value } 
                       }))}
                       placeholder="Contoh: PT Pos Logistik Indonesia"
+                      className="border-blue-200 focus:border-blue-500 focus:ring-blue-500"
                       required
                     />
                   </div>
 
                   <div>
-                    <Label htmlFor="anakperusahaan-deskripsi">Deskripsi</Label>
+                    <Label htmlFor="anakperusahaan-deskripsi" className="text-blue-800 font-medium">Deskripsi</Label>
                     <Textarea
                       id="anakperusahaan-deskripsi"
                       value={strukturForm.anakPerusahaan.deskripsi}
@@ -2965,11 +3158,12 @@ const PengaturanBaru = () => {
                         anakPerusahaan: { ...prev.anakPerusahaan, deskripsi: e.target.value } 
                       }))}
                       placeholder="Deskripsi (opsional)"
+                      className="border-blue-200 focus:border-blue-500 focus:ring-blue-500"
                       rows={3}
                     />
                   </div>
                   <div className="flex gap-3">
-                    <Button type="submit" className="flex-1 bg-purple-600 hover:bg-purple-700">
+                    <Button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700">
                       <Plus className="w-4 h-4 mr-2" />
                       Tambah
                     </Button>
@@ -2977,7 +3171,7 @@ const PengaturanBaru = () => {
                       type="button" 
                       variant="outline" 
                       onClick={() => setShowAnakPerusahaanDialog(false)}
-                      className="flex-1"
+                      className="flex-1 border-blue-600 text-blue-600 hover:bg-blue-50"
                     >
                       Batal
                     </Button>
@@ -2987,14 +3181,14 @@ const PengaturanBaru = () => {
             </div>
           )}
 
-                     {/* Dialog Divisi */}
+                                          {/* Dialog Divisi */}
            {showDivisiDialog && (
              <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-               <div className="bg-white rounded-lg p-6 w-full max-w-md">
-                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Tambah Divisi</h3>
+               <div className="bg-white rounded-lg p-6 w-full max-w-md border border-blue-200 shadow-xl">
+                 <h3 className="text-lg font-semibold text-blue-900 mb-4">Tambah Divisi</h3>
                  <form onSubmit={handleDivisiSubmit} className="space-y-4">
                    <div>
-                     <Label htmlFor="divisi-nama">Nama Divisi *</Label>
+                     <Label htmlFor="divisi-nama" className="text-blue-800 font-medium">Nama Divisi *</Label>
                      <Input
                        id="divisi-nama"
                        value={strukturForm.divisi.nama}
@@ -3003,11 +3197,12 @@ const PengaturanBaru = () => {
                          divisi: { ...prev.divisi, nama: e.target.value } 
                        }))}
                        placeholder="Contoh: Divisi Akuntansi"
+                       className="border-blue-200 focus:border-blue-500 focus:ring-blue-500"
                        required
                      />
                    </div>
                    <div>
-                     <Label htmlFor="divisi-subdirektorat">Subdirektorat *</Label>
+                     <Label htmlFor="divisi-subdirektorat" className="text-blue-800 font-medium">Subdirektorat *</Label>
                      <Select
                        value={strukturForm.divisi.subdirektoratId}
                        onValueChange={(value) => setStrukturForm(prev => ({ 
@@ -3015,20 +3210,20 @@ const PengaturanBaru = () => {
                          divisi: { ...prev.divisi, subdirektoratId: value } 
                        }))}
                      >
-                       <SelectTrigger>
+                       <SelectTrigger className="border-blue-200 focus:border-blue-500 focus:ring-blue-500">
                          <SelectValue placeholder="Pilih Subdirektorat" />
                        </SelectTrigger>
-                                             <SelectContent>
-                        {subdirektorat && subdirektorat.length > 0 ? subdirektorat.map((item) => (
-                          <SelectItem key={item.id} value={item.id.toString()}>
-                            {item.nama}
-                          </SelectItem>
-                        )) : []}
-                      </SelectContent>
+                       <SelectContent>
+                         {subdirektorat && subdirektorat.length > 0 ? subdirektorat.map((item) => (
+                           <SelectItem key={item.id} value={item.id.toString()}>
+                             {item.nama}
+                           </SelectItem>
+                         )) : []}
+                       </SelectContent>
                      </Select>
                    </div>
                    <div>
-                     <Label htmlFor="divisi-deskripsi">Deskripsi</Label>
+                     <Label htmlFor="divisi-deskripsi" className="text-blue-800 font-medium">Deskripsi</Label>
                      <Textarea
                        id="divisi-deskripsi"
                        value={strukturForm.divisi.deskripsi}
@@ -3037,11 +3232,12 @@ const PengaturanBaru = () => {
                          divisi: { ...prev.divisi, deskripsi: e.target.value } 
                        }))}
                        placeholder="Deskripsi divisi (opsional)"
+                       className="border-blue-200 focus:border-blue-500 focus:ring-blue-500"
                        rows={3}
                      />
                    </div>
                    <div className="flex gap-3">
-                     <Button type="submit" className="flex-1 bg-orange-600 hover:bg-orange-700">
+                     <Button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700">
                        <Plus className="w-4 h-4 mr-2" />
                        Tambah
                      </Button>
@@ -3049,7 +3245,7 @@ const PengaturanBaru = () => {
                        type="button" 
                        variant="outline" 
                        onClick={() => setShowDivisiDialog(false)}
-                       className="flex-1"
+                       className="flex-1 border-blue-600 text-blue-600 hover:bg-blue-50"
                      >
                        Batal
                      </Button>
@@ -3059,37 +3255,39 @@ const PengaturanBaru = () => {
              </div>
            )}
 
-                       {/* Dialog User Management */}
+                                              {/* Dialog User Management */}
             {showUserDialog && (
               <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-                <div className="bg-white rounded-lg p-6 w-full max-w-md">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                <div className="bg-white rounded-lg p-6 w-full max-w-md border border-blue-200 shadow-xl">
+                  <h3 className="text-lg font-semibold text-blue-900 mb-4">
                     {editingUser ? 'Edit PIC' : 'Tambah PIC Baru'}
                   </h3>
                   <form onSubmit={handleUserSubmit} className="space-y-4">
                     <div>
-                      <Label htmlFor="user-name">Nama Lengkap *</Label>
+                      <Label htmlFor="user-name" className="text-blue-800 font-medium">Nama Lengkap *</Label>
                       <Input
                         id="user-name"
                         value={userForm.name}
                         onChange={(e) => setUserForm(prev => ({ ...prev, name: e.target.value }))}
                         placeholder="Contoh: John Doe"
+                        className="border-blue-200 focus:border-blue-500 focus:ring-blue-500"
                         required
                       />
                     </div>
                     <div>
-                      <Label htmlFor="user-email">Email *</Label>
+                      <Label htmlFor="user-email" className="text-blue-800 font-medium">Email *</Label>
                       <Input
                         id="user-email"
                         type="email"
                         value={userForm.email}
                         onChange={(e) => setUserForm(prev => ({ ...prev, email: e.target.value }))}
                         placeholder="Contoh: john@example.com"
+                        className="border-blue-200 focus:border-blue-500 focus:ring-blue-500"
                         required
                       />
                     </div>
                     <div>
-                      <Label htmlFor="user-password">Password *</Label>
+                      <Label htmlFor="user-password" className="text-blue-800 font-medium">Password *</Label>
                       <div className="flex gap-2 items-center">
                         <div className="relative flex-1">
                           <Input
@@ -3099,12 +3297,12 @@ const PengaturanBaru = () => {
                             onChange={(e) => setUserForm(prev => ({ ...prev, password: e.target.value }))}
                             placeholder="Minimal 6 karakter"
                             required
-                            className="pr-10"
+                            className="pr-10 border-blue-200 focus:border-blue-500 focus:ring-blue-500"
                           />
                           <button
                             type="button"
                             onClick={() => setShowPassword(prev => !prev)}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-blue-500 hover:text-blue-700"
                             aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}
                           >
                             {showPassword ? (
@@ -3118,7 +3316,7 @@ const PengaturanBaru = () => {
                           type="button"
                           variant="outline"
                           onClick={handleGeneratePassword}
-                          className="px-3"
+                          className="px-3 border-blue-600 text-blue-600 hover:bg-blue-50"
                           title="Generate password"
                         >
                           <RefreshCw className="w-4 h-4" />
@@ -3128,7 +3326,7 @@ const PengaturanBaru = () => {
                       {userForm.password && (
                         <div className="mt-2">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="text-sm text-gray-600">Kekuatan Password:</span>
+                            <span className="text-sm text-blue-600">Kekuatan Password:</span>
                             <span className={`text-sm font-medium ${
                               getPasswordStrength(userForm.password) === 'weak' ? 'text-red-600' :
                               getPasswordStrength(userForm.password) === 'medium' ? 'text-yellow-600' :
@@ -3153,12 +3351,12 @@ const PengaturanBaru = () => {
                     </div>
 
                     <div>
-                      <Label htmlFor="user-direktorat">Direktorat</Label>
+                      <Label htmlFor="user-direktorat" className="text-blue-800 font-medium">Direktorat</Label>
                       <Select
                         value={userForm.direktorat}
                         onValueChange={(value) => setUserForm(prev => ({ ...prev, direktorat: value }))}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className="border-blue-200 focus:border-blue-500 focus:ring-blue-500">
                           <SelectValue placeholder="Pilih Direktorat" />
                         </SelectTrigger>
                         <SelectContent>
@@ -3171,12 +3369,12 @@ const PengaturanBaru = () => {
                       </Select>
                     </div>
                     <div>
-                      <Label htmlFor="user-subdirektorat">Subdirektorat</Label>
+                      <Label htmlFor="user-subdirektorat" className="text-blue-800 font-medium">Subdirektorat</Label>
                       <Select
                         value={userForm.subdirektorat}
                         onValueChange={(value) => setUserForm(prev => ({ ...prev, subdirektorat: value }))}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className="border-blue-200 focus:border-blue-500 focus:ring-blue-500">
                           <SelectValue placeholder="Pilih Subdirektorat" />
                         </SelectTrigger>
                         <SelectContent>
@@ -3189,12 +3387,12 @@ const PengaturanBaru = () => {
                       </Select>
                     </div>
                     <div>
-                      <Label htmlFor="user-divisi">Divisi</Label>
+                      <Label htmlFor="user-divisi" className="text-blue-800 font-medium">Divisi</Label>
                       <Select
                         value={userForm.divisi}
                         onValueChange={(value) => setUserForm(prev => ({ ...prev, divisi: value }))}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className="border-blue-200 focus:border-blue-500 focus:ring-blue-500">
                           <SelectValue placeholder="Pilih Divisi" />
                         </SelectTrigger>
                         <SelectContent>
@@ -3207,7 +3405,7 @@ const PengaturanBaru = () => {
                       </Select>
                     </div>
                     <div>
-                      <Label htmlFor="user-whatsapp">Nomor WhatsApp (Opsional)</Label>
+                      <Label htmlFor="user-whatsapp" className="text-blue-800 font-medium">Nomor WhatsApp (Opsional)</Label>
                       <Input
                         id="user-whatsapp"
                         type="tel"
@@ -3227,13 +3425,14 @@ const PengaturanBaru = () => {
                           setUserForm(prev => ({ ...prev, whatsapp: value }));
                         }}
                         placeholder="Contoh: 08123456789 (akan otomatis menjadi 628123456789)"
+                        className="border-blue-200 focus:border-blue-500 focus:ring-blue-500"
                       />
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-xs text-blue-600 mt-1">
                         Format: 08xxx akan otomatis menjadi 628xxx (format internasional)
                       </p>
                     </div>
                     <div className="flex gap-3">
-                      <Button type="submit" className="flex-1 bg-purple-600 hover:bg-purple-700">
+                      <Button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700">
                         <Plus className="w-4 h-4 mr-2" />
                         {editingUser ? 'Update' : 'Tambah PIC'}
                       </Button>
@@ -3254,7 +3453,7 @@ const PengaturanBaru = () => {
                             whatsapp: ''
                           });
                         }}
-                        className="flex-1"
+                        className="flex-1 border-blue-600 text-blue-600 hover:bg-blue-50"
                       >
                         Batal
                       </Button>
@@ -3262,7 +3461,7 @@ const PengaturanBaru = () => {
                   </form>
                 </div>
               </div>
-                         )}
+            )}
 
                            {/* Panel Manajemen Aspek */}
               {showAspekManagementPanel && (
@@ -3289,15 +3488,31 @@ const PengaturanBaru = () => {
                           
                           <div className="space-y-3">
                             <div>
-                              <Label htmlFor="aspek-nama">Nama Aspek *</Label>
-                              <Input
-                                id="aspek-nama"
-                                value={aspekForm.nama}
-                                onChange={(e) => setAspekForm(prev => ({ ...prev, nama: e.target.value }))}
-                                placeholder="Contoh: ASPEK I. Komitmen"
-                                className="mt-1"
-                                required
-                              />
+                              <Label htmlFor="aspek-nama">Deskripsi Aspek *</Label>
+                              <div className="mt-1">
+                                <div className="flex items-center space-x-2 mb-2">
+                                  <span className="text-sm font-medium text-blue-600">ASPEK {(() => {
+                                    const yearAspects = getAspectsByYear(selectedYear);
+                                    return yearAspects.length > 0 ? 
+                                      getRomanNumeral(yearAspects.length + 1) : 'I';
+                                  })()}. </span>
+                                  <Input
+                                    id="aspek-nama"
+                                    value={aspekForm.nama}
+                                    onChange={(e) => setAspekForm(prev => ({ ...prev, nama: e.target.value }))}
+                                    placeholder="Masukkan deskripsi aspek (contoh: Komitmen)"
+                                    className="flex-1 border-blue-200 focus:border-blue-500 focus:ring-blue-500"
+                                    required
+                                  />
+                                </div>
+                                <p className="text-xs text-blue-600">
+                                  Hasil akhir: ASPEK {(() => {
+                                    const yearAspects = getAspectsByYear(selectedYear);
+                                    return yearAspects.length > 0 ? 
+                                      getRomanNumeral(yearAspects.length + 1) : 'I';
+                                  })()}. {aspekForm.nama || '[Deskripsi Aspek]'}
+                                </p>
+                              </div>
                             </div>
                             
 

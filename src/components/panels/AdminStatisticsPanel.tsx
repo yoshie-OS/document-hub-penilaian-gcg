@@ -39,7 +39,7 @@ const AdminStatisticsPanel: React.FC<AdminStatisticsPanelProps> = ({
 
     // Group checklist items by aspect
     const aspectGroups = checklistItems.reduce((groups, item) => {
-      const aspek = item.aspek && item.aspek.trim() !== '' ? item.aspek : 'Tanpa Aspek';
+      const aspek = item.aspek && item.aspek.trim() !== '' ? item.aspek : 'Tidak Diberikan Aspek';
       if (!groups[aspek]) {
         groups[aspek] = [];
       }
@@ -78,10 +78,10 @@ const AdminStatisticsPanel: React.FC<AdminStatisticsPanelProps> = ({
     };
   }, [checklistItems, selectedYear]);
 
-  // Get aspect icon
+  // Get aspect icon - konsisten dengan superadmin dashboard
   const getAspectIcon = React.useCallback((aspekName: string) => {
     if (aspekName === 'KESELURUHAN') return TrendingUp;
-    if (aspekName === 'Tanpa Aspek') return AlertTriangle;
+    if (aspekName === 'Tidak Diberikan Aspek') return Plus; // Konsisten dengan superadmin
     if (aspekName.includes('ASPEK I')) return FileText;
     if (aspekName.includes('ASPEK II')) return CheckCircle;
     if (aspekName.includes('ASPEK III')) return TrendingUp;
@@ -94,7 +94,7 @@ const AdminStatisticsPanel: React.FC<AdminStatisticsPanelProps> = ({
   // Get aspect color
   const getAspectColor = React.useCallback((aspekName: string, progress: number) => {
     if (aspekName === 'KESELURUHAN') return '#7c3aed'; // ungu gelap
-    if (aspekName === 'Tanpa Aspek') return '#6b7280'; // abu-abu
+    if (aspekName === 'Tidak Diberikan Aspek') return '#6b7280'; // abu-abu
     if (aspekName.includes('ASPEK I')) return '#2563eb'; // biru
     if (aspekName.includes('ASPEK II')) return '#059669'; // hijau
     if (aspekName.includes('ASPEK III')) return '#f59e42'; // oranye
@@ -140,7 +140,12 @@ const AdminStatisticsPanel: React.FC<AdminStatisticsPanelProps> = ({
                   </div>
                 </div>
               </div>
-              <Progress value={overallProgress.progress} className="h-2 bg-white/20" />
+              <div className="w-full bg-white/20 rounded-full h-2">
+                <div 
+                  className="bg-white rounded-full h-2 transition-all duration-1000 ease-out"
+                  style={{ width: `${overallProgress.progress}%` }}
+                />
+              </div>
             </div>
           </div>
         )}

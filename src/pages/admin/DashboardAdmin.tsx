@@ -51,8 +51,8 @@ const DashboardAdmin: React.FC = () => {
   const { getFilesByYear } = useFileUpload();
   const { isSidebarOpen } = useSidebar();
 
-  // Get current year for upload restrictions
-  const currentYear = new Date().getFullYear().toString();
+  // Get current year for upload restrictions - use the most recent year from available years
+  const currentYear = availableYears.length > 0 ? Math.max(...availableYears).toString() : new Date().getFullYear().toString();
 
   // Dashboard statistics
   const dashboardStats = useMemo((): DashboardStats => {
@@ -122,8 +122,8 @@ const DashboardAdmin: React.FC = () => {
       }));
   }, [documents, selectedYear]);
 
-  // Check if current year allows uploads
-  const canUploadInCurrentYear = selectedYear?.toString() === currentYear;
+  // Check if current year allows uploads - only the most recent year allows uploads
+  const canUploadInCurrentYear = selectedYear === Math.max(...availableYears);
 
   // Get checklist items berdasarkan tahun dan subdirektorat admin dari context
   const checklistItems = useMemo(() => {
@@ -329,12 +329,12 @@ const DashboardAdmin: React.FC = () => {
             selectedYear={selectedYear}
             onYearChange={setSelectedYear}
             availableYears={availableYears}
-            currentYear={parseInt(currentYear)}
+            currentYear={availableYears.length > 0 ? Math.max(...availableYears) : new Date().getFullYear()}
           />
 
           {/* Conditional Display based on selected year */}
-          {selectedYear === parseInt(currentYear) ? (
-            // Tahun Terkini - Tampilkan semua panel
+          {selectedYear === Math.max(...availableYears) ? (
+            // Tahun Terkini (Paling Baru) - Tampilkan semua panel
             <>
                             {/* Statistik Progress Penugasan - UI sama dengan superadmin */}
               <AdminStatisticsPanel 

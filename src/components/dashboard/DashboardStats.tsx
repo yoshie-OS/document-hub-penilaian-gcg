@@ -98,12 +98,13 @@ const DashboardStats = () => {
       const yearFiles = getFilesByYear(selectedYear) || [];
       const yearChecklist = checklist?.filter(item => item.tahun === selectedYear) || [];
       
-      // Get unique aspects dari checklist items (termasuk yang kosong) - sama seperti MonitoringUploadGCG
+      // Get unique aspects dari checklist items (termasuk yang kosong/undefined)
+      // Ini konsisten dengan MonitoringUploadGCG
       const uniqueAspects = Array.from(new Set(yearChecklist.map(item => item.aspek)));
       
       return uniqueAspects.map(aspek => {
-        // Handle aspek kosong dengan nama yang user-friendly
-        const aspectName = aspek && aspek.trim() !== '' ? aspek : 'Tanpa Aspek';
+        // Handle aspek yang kosong/undefined
+        const aspekName = aspek || 'Tidak Diberikan Aspek';
         const aspectItems = yearChecklist.filter(item => item.aspek === aspek);
         
         // Hitung uploaded files berdasarkan checklist items yang sudah diupload
@@ -117,20 +118,23 @@ const DashboardStats = () => {
         const progress = totalItems > 0 ? Math.round((uploadedCount / totalItems) * 100) : 0;
 
         // Ambil file yang unik untuk aspek ini
-        const uniqueFiles = yearFiles.filter((file, index, self) => 
-          file.aspect === aspek && 
-          index === self.findIndex(f => f.checklistId === file.checklistId)
-        );
+        const uniqueFiles = yearFiles.filter((file, index, self) => {
+          // Handle aspek yang kosong/undefined
+          const fileAspect = file.aspect || '';
+          const itemAspect = aspek || '';
+          return fileAspect === itemAspect && 
+            index === self.findIndex(f => f.checklistId === file.checklistId);
+        });
 
         return {
-          aspek: aspectName,
+          aspek: aspekName,
           totalItems,
           uploadedCount,
           pendingCount,
           progress,
           files: uniqueFiles
         };
-      }).sort((a, b) => b.progress - a.progress); // Sort by progress descending seperti MonitoringUploadGCG
+      }).sort((a, b) => b.progress - a.progress); // Sort by progress descending
     } catch (error) {
       console.error('Error calculating aspect stats:', error);
       return [];

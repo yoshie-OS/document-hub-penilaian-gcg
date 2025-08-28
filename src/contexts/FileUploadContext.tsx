@@ -78,7 +78,7 @@ export const FileUploadProvider: React.FC<{ children: ReactNode }> = ({ children
       year: year,
       checklistId,
       checklistDescription,
-      aspect,
+      aspect: aspect || 'Tidak Diberikan Aspek',
       status: 'uploaded',
       subdirektorat
     };
@@ -99,7 +99,7 @@ export const FileUploadProvider: React.FC<{ children: ReactNode }> = ({ children
       year: year,
       checklistId,
       checklistDescription,
-      aspect,
+      aspect: aspect || 'Tidak Diberikan Aspek',
       status: 'uploaded',
       subdirektorat
     };

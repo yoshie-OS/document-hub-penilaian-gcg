@@ -14,7 +14,7 @@ import { useFileUpload } from '@/contexts/FileUploadContext';
 import { useYear } from '@/contexts/YearContext';
 
 import { useToast } from '@/hooks/use-toast';
-import FileUploadDialog from '@/components/dashboard/FileUploadDialog';
+import { AdminUploadDialog } from '@/components/dialogs';
 import { YearSelectorPanel, PageHeaderPanel } from '@/components/panels';
 import YearStatisticsPanel from '@/components/dashboard/YearStatisticsPanel';
 
@@ -55,38 +55,116 @@ const MonitoringUploadGCG = () => {
     aspek: string;
     deskripsi: string;
   } | null>(null);
+  // Force re-render state untuk memastikan data terupdate
+  const [forceUpdate, setForceUpdate] = useState(0);
   
   // Ensure all years have dokumen GCG data when component mounts
   useEffect(() => {
     ensureAllYearsHaveData();
   }, [ensureAllYearsHaveData]);
 
-  // Listen for real-time updates from PengaturanBaru
+  // Listen for real-time updates from PengaturanBaru and FileUploadDialog
   useEffect(() => {
     const handleChecklistUpdate = (event: CustomEvent) => {
       if (event.detail?.type === 'checklistUpdated') {
         console.log('MonitoringUploadGCG: Received checklist update from PengaturanBaru', event.detail.data);
-        // Force re-render by updating a dummy state
-        setSearchTerm(prev => prev);
+        // Force re-render using setSelectedYear like admin dashboard
+        if (selectedYear) {
+          setTimeout(() => {
+            setSelectedYear(selectedYear);
+          }, 100);
+        }
       }
     };
 
     const handleAspectsUpdate = (event: CustomEvent) => {
       if (event.detail?.type === 'aspectsUpdated') {
         console.log('MonitoringUploadGCG: Received aspects update from PengaturanBaru', event.detail.data);
-        // Force re-render by updating a dummy state
-        setSearchTerm(prev => prev);
+        // Force re-render using setSelectedYear like admin dashboard
+        if (selectedYear) {
+          setTimeout(() => {
+            setSelectedYear(selectedYear);
+          }, 100);
+        }
+      }
+    };
+
+    // Listen for file upload events from FileUploadDialog
+    const handleFileUploaded = () => {
+      console.log('MonitoringUploadGCG: Received fileUploaded event from FileUploadDialog');
+      // Force re-render using setSelectedYear like admin dashboard
+      if (selectedYear) {
+        setTimeout(() => {
+          setSelectedYear(selectedYear);
+        }, 100);
+      }
+    };
+
+    const handleDocumentsUpdated = () => {
+      console.log('MonitoringUploadGCG: Received documentsUpdated event from FileUploadDialog');
+      // Force re-render using setSelectedYear like admin dashboard
+      if (selectedYear) {
+        setTimeout(() => {
+          setSelectedYear(selectedYear);
+        }, 100);
+      }
+    };
+
+    const handleUploadedFilesChanged = () => {
+      console.log('MonitoringUploadGCG: Received uploadedFilesChanged event from FileUploadDialog');
+      // Force re-render using setSelectedYear like admin dashboard
+      if (selectedYear) {
+        setTimeout(() => {
+          setSelectedYear(selectedYear);
+        }, 100);
+      }
+    };
+
+    const handleAssignmentsUpdated = () => {
+      console.log('MonitoringUploadGCG: Received assignmentsUpdated event from FileUploadDialog');
+      // Force re-render using setSelectedYear like admin dashboard
+      setForceUpdate(prev => prev + 1);
+    };
+
+    const handleChecklistAssignmentsChanged = () => {
+      console.log('MonitoringUploadGCG: Received checklistAssignmentsChanged event from FileUploadDialog');
+      // Force re-render using setSelectedYear like admin dashboard
+      setForceUpdate(prev => prev + 1);
+    };
+
+    // Listen for localStorage changes
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === 'uploadedFiles' || event.key === 'checklistAssignments') {
+        console.log('MonitoringUploadGCG: Detected localStorage change:', event.key);
+        // Force re-render using setSelectedYear like admin dashboard
+        if (selectedYear) {
+          setTimeout(() => {
+            setSelectedYear(selectedYear);
+          }, 100);
+        }
       }
     };
 
     window.addEventListener('checklistUpdated', handleChecklistUpdate as EventListener);
     window.addEventListener('aspectsUpdated', handleAspectsUpdate as EventListener);
+    window.addEventListener('fileUploaded', handleFileUploaded);
+    window.addEventListener('documentsUpdated', handleDocumentsUpdated);
+    window.addEventListener('uploadedFilesChanged', handleUploadedFilesChanged);
+    window.addEventListener('assignmentsUpdated', handleAssignmentsUpdated);
+    window.addEventListener('checklistAssignmentsChanged', handleChecklistAssignmentsChanged);
+    window.addEventListener('storage', handleStorageChange);
     
     return () => {
       window.removeEventListener('checklistUpdated', handleChecklistUpdate as EventListener);
       window.removeEventListener('aspectsUpdated', handleAspectsUpdate as EventListener);
+      window.removeEventListener('fileUploaded', handleFileUploaded);
+      window.removeEventListener('documentsUpdated', handleDocumentsUpdated);
+      window.removeEventListener('uploadedFilesChanged', handleUploadedFilesChanged);
+      window.removeEventListener('assignmentsUpdated', handleAssignmentsUpdated);
+      window.removeEventListener('checklistAssignmentsChanged', handleChecklistAssignmentsChanged);
+      window.removeEventListener('storage', handleStorageChange);
     };
-  }, []);
+  }, [selectedYear]);
 
   // Auto-set filters from URL parameters
   useEffect(() => {
@@ -138,8 +216,12 @@ const MonitoringUploadGCG = () => {
               stored: parsedData.length,
               current: checklist.length
             });
-            // Force re-render
-            setSearchTerm(prev => prev);
+            // Force re-render using setSelectedYear like admin dashboard
+            if (selectedYear) {
+              setTimeout(() => {
+                setSelectedYear(selectedYear);
+              }, 100);
+            }
           }
         } catch (error) {
           console.error('MonitoringUploadGCG: Error parsing localStorage data', error);
@@ -165,6 +247,7 @@ const MonitoringUploadGCG = () => {
   const isChecklistUploaded = useCallback((checklistId: number) => {
     if (!selectedYear) return false;
     const yearFiles = getFilesByYear(selectedYear);
+    console.log('MonitoringUploadGCG: isChecklistUploaded called for checklistId:', checklistId, 'yearFiles:', yearFiles);
     return yearFiles.some(file => file.checklistId === checklistId);
   }, [getFilesByYear, selectedYear]);
 
@@ -172,6 +255,7 @@ const MonitoringUploadGCG = () => {
   const getUploadedDocument = useCallback((checklistId: number) => {
     if (!selectedYear) return null;
     const yearFiles = getFilesByYear(selectedYear);
+    console.log('MonitoringUploadGCG: getUploadedDocument called for checklistId:', checklistId, 'yearFiles:', yearFiles);
     return yearFiles.find(file => file.checklistId === checklistId);
   }, [getFilesByYear, selectedYear]);
 
@@ -200,7 +284,7 @@ const MonitoringUploadGCG = () => {
     }
 
     return filtered;
-  }, [checklist, selectedAspek, selectedStatus, selectedYear, debouncedSearchTerm, isChecklistUploaded]);
+  }, [checklist, selectedAspek, selectedStatus, selectedYear, debouncedSearchTerm, isChecklistUploaded, forceUpdate]);
 
   // Navigate to dashboard with document highlight
   const handleViewDocument = useCallback((checklistId: number) => {
@@ -779,12 +863,19 @@ const MonitoringUploadGCG = () => {
       </div>
 
       {/* File Upload Dialog */}
-      <FileUploadDialog
+      <AdminUploadDialog
         isOpen={isUploadDialogOpen}
         onOpenChange={setIsUploadDialogOpen}
-        checklistId={selectedChecklistItem?.id}
-        checklistDescription={selectedChecklistItem?.deskripsi}
-        aspect={selectedChecklistItem?.aspek}
+        checklistItem={selectedChecklistItem}
+        isReUpload={false}
+        onUploadSuccess={() => {
+          // Force refresh using the same mechanism as admin dashboard
+          if (selectedYear) {
+            setTimeout(() => {
+              setSelectedYear(selectedYear);
+            }, 100);
+          }
+        }}
       />
     </div>
   );

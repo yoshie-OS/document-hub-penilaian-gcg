@@ -90,16 +90,16 @@ const AdminDocumentListPanel: React.FC<AdminDocumentListPanelProps> = ({
         .filter(item => item && item.aspek && typeof item.aspek === 'string' && item.aspek.trim() !== '')
         .map(item => item.aspek);
       
-      // Add "Tanpa Aspek" option if there are items without aspek
+      // Add "Tidak Diberikan Aspek" option if there are items without aspek
       const hasItemsWithoutAspect = checklistItems.some(item => !item.aspek || item.aspek === '' || item.aspek.trim() === '');
       
       const uniqueAspects = [...new Set(allAspects)];
       if (hasItemsWithoutAspect) {
-        uniqueAspects.push('Tanpa Aspek');
+        uniqueAspects.push('Tidak Diberikan Aspek');
       }
       
       const sortedAspects = uniqueAspects.sort();
-      console.log('All aspects including "Tanpa Aspek":', sortedAspects);
+      console.log('All aspects including "Tidak Diberikan Aspek":', sortedAspects);
       return sortedAspects;
     } catch (error) {
       console.error('Error processing aspects:', error);
@@ -127,7 +127,7 @@ const AdminDocumentListPanel: React.FC<AdminDocumentListPanelProps> = ({
         let matchesAspect = true;
         if (selectedAspect === 'all') {
           matchesAspect = true;
-        } else if (selectedAspect === 'Tanpa Aspek') {
+        } else if (selectedAspect === 'Tidak Diberikan Aspek') {
           matchesAspect = !hasValidAspek;
         } else {
           matchesAspect = hasValidAspek && itemAspek === selectedAspect;
@@ -280,13 +280,13 @@ const AdminDocumentListPanel: React.FC<AdminDocumentListPanelProps> = ({
                         {index + 1}
                       </TableCell>
                                               <TableCell className="py-4">
-                          {item.aspek && item.aspek.trim() !== '' ? (
-                            <Badge variant="outline">{item.aspek}</Badge>
-                          ) : (
-                            <Badge variant="outline" className="bg-gray-100 text-gray-600">
-                              Tanpa Aspek
-                            </Badge>
-                          )}
+                                          {item.aspek && item.aspek.trim() !== '' ? (
+                  <Badge variant="outline">{item.aspek}</Badge>
+                ) : (
+                  <Badge variant="outline" className="bg-gray-100 text-gray-600">
+                    Tidak Diberikan Aspek
+                  </Badge>
+                )}
                         </TableCell>
                       <TableCell className="py-4 max-w-md">
                         <div className="text-sm font-semibold text-gray-900 leading-relaxed" title={item.deskripsi}>

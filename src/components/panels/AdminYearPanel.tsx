@@ -19,15 +19,11 @@ const AdminYearPanel: React.FC<AdminYearPanelProps> = ({
   currentYear,
   className = ""
 }) => {
-  // Sort years: current year first, then previous years in descending order
-  const sortedYears = availableYears.sort((a, b) => {
-    if (a === currentYear) return -1;
-    if (b === currentYear) return 1;
-    return b - a;
-  });
+  // Sort years: newest added year first (most recent), then previous years in descending order
+  const sortedYears = [...availableYears].sort((a, b) => b - a);
 
   // Get the most recent year (first in sorted array) and previous years
-  const mostRecentYear = sortedYears[0]; // Tahun paling baru
+  const mostRecentYear = sortedYears[0]; // Tahun paling baru yang ditambahkan
   const previousYears = sortedYears.slice(1); // Tahun-tahun sebelumnya
 
   return (
