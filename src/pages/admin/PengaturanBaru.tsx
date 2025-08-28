@@ -2296,14 +2296,24 @@ const PengaturanBaru = () => {
                                <TableCell className="py-4">{item.deskripsi}</TableCell>
                                <TableCell className="py-4">{item.tahun}</TableCell>
                                <TableCell className="py-4">
-                                 <Button
-                                   variant="ghost"
-                                   size="sm"
-                                   onClick={() => deleteAnakPerusahaan(item.id)}
-                                   className="text-red-600 hover:text-red-700"
-                                 >
-                                   <Trash2 className="w-4 h-4" />
-                                 </Button>
+                                 <div className="flex gap-2">
+                                   <Button
+                                     variant="ghost"
+                                     size="sm"
+                                     onClick={() => openEditAnakPerusahaan(item.id, item.nama, item.deskripsi)}
+                                     className="text-blue-600 hover:text-blue-700"
+                                   >
+                                     <Edit className="w-4 h-4" />
+                                   </Button>
+                                   <Button
+                                     variant="ghost"
+                                     size="sm"
+                                     onClick={() => deleteAnakPerusahaan(item.id)}
+                                     className="text-red-600 hover:text-red-700"
+                                   >
+                                     <Trash2 className="w-4 h-4" />
+                                   </Button>
+                                 </div>
                                </TableCell>
                              </TableRow>
                            )) : (
@@ -2348,7 +2358,16 @@ const PengaturanBaru = () => {
                                  </TableCell>
                                  <TableCell className="py-4">{item.deskripsi}</TableCell>
                                  <TableCell className="py-4">{item.tahun}</TableCell>
-                                 <TableCell className="py-4">
+                                                                <TableCell className="py-4">
+                                 <div className="flex gap-2">
+                                   <Button
+                                     variant="ghost"
+                                     size="sm"
+                                     onClick={() => openEditDivisi(item.id, item.nama, item.deskripsi, item.subdirektoratId)}
+                                     className="text-blue-600 hover:text-blue-700"
+                                   >
+                                     <Edit className="w-4 h-4" />
+                                   </Button>
                                    <Button
                                      variant="ghost"
                                      size="sm"
@@ -2357,7 +2376,8 @@ const PengaturanBaru = () => {
                                    >
                                      <Trash2 className="w-4 h-4" />
                                    </Button>
-                                 </TableCell>
+                                 </div>
+                               </TableCell>
                                </TableRow>
                              );
                            }) : (

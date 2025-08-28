@@ -66,6 +66,11 @@ const Sidebar = () => {
         name: 'Performa GCG', 
         icon: BarChart3, 
         path: '/performa-gcg'
+      },
+      {
+        name: 'AOI Management',
+        icon: FileText,
+        path: '/admin/aoi-management'
       }
     );
   } else if (user?.role === 'admin') {

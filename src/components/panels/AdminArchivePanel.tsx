@@ -8,7 +8,8 @@ import {
   Eye,
   Upload,
   Download,
-  FileText
+  FileText,
+  Archive
 } from 'lucide-react';
 import { useFileUpload } from '@/contexts/FileUploadContext';
 import { useUser } from '@/contexts/UserContext';
@@ -90,37 +91,37 @@ const AdminArchivePanel: React.FC<AdminArchivePanelProps> = ({
   if (isCurrentYear) {
     // Panel untuk tahun terkini - hanya dokumen subdirektorat admin
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <FolderOpen className="h-5 h-5" />
+      <Card className="border-0 shadow-lg bg-gradient-to-r from-white to-blue-50">
+        <CardHeader className="pb-4">
+          <CardTitle className="flex items-center space-x-2 text-blue-900">
+            <Archive className="w-5 h-5 text-blue-600" />
             <span>Arsip Dokumen</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-medium text-gray-900">
+              <h3 className="text-lg font-medium text-blue-900">
                 Dokumen Tahun {selectedYear}
               </h3>
-              <p className="text-sm text-gray-600">Hanya dokumen subdirektorat Anda</p>
+              <p className="text-sm text-blue-700">Hanya dokumen subdirektorat Anda</p>
             </div>
             
             {currentYearDocuments.length > 0 ? (
-              <div className="border rounded-lg overflow-hidden">
+              <div className="border border-blue-200 rounded-lg overflow-hidden bg-white">
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead>Nama File</TableHead>
-                      <TableHead>Aspek</TableHead>
-                      <TableHead>Tanggal Upload</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Aksi</TableHead>
+                    <TableRow className="bg-blue-50">
+                      <TableHead className="text-blue-900 font-semibold">Nama File</TableHead>
+                      <TableHead className="text-blue-900 font-semibold">Aspek</TableHead>
+                      <TableHead className="text-blue-900 font-semibold">Tanggal Upload</TableHead>
+                      <TableHead className="text-blue-900 font-semibold">Status</TableHead>
+                      <TableHead className="text-blue-900 font-semibold">Aksi</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {currentYearDocuments.map((doc) => (
-                      <TableRow key={doc.id}>
+                      <TableRow key={doc.id} className="hover:bg-blue-50/50">
                         <TableCell className="font-medium">{doc.namaFile}</TableCell>
                         <TableCell>{doc.aspek}</TableCell>
                         <TableCell>
@@ -129,12 +130,12 @@ const AdminArchivePanel: React.FC<AdminArchivePanelProps> = ({
                         <TableCell>{getStatusBadge(doc.status)}</TableCell>
                         <TableCell>
                           <div className="flex space-x-2">
-                            <Button size="sm" variant="outline">
+                            <Button size="sm" variant="outline" className="border-blue-200 text-blue-600 hover:bg-blue-50">
                               <Eye className="h-4 w-4 mr-1" />
                               Lihat
                             </Button>
                             {canUploadInCurrentYear && (
-                              <Button size="sm" variant="outline">
+                              <Button size="sm" variant="outline" className="border-green-200 text-green-600 hover:bg-green-50">
                                 <Upload className="h-4 w-4 mr-1" />
                                 Update
                               </Button>
@@ -148,10 +149,10 @@ const AdminArchivePanel: React.FC<AdminArchivePanelProps> = ({
               </div>
             ) : (
               <div className="text-center py-8">
-                <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-600">Belum ada dokumen untuk tahun {selectedYear}</p>
+                <FileText className="h-12 w-12 text-blue-400 mx-auto mb-4" />
+                <p className="text-blue-700">Belum ada dokumen untuk tahun {selectedYear}</p>
                 {canUploadInCurrentYear && (
-                  <p className="text-sm text-gray-500 mt-1">
+                  <p className="text-sm text-blue-600 mt-1">
                     Mulai upload dokumen untuk memulai progress
                   </p>
                 )}
@@ -164,33 +165,33 @@ const AdminArchivePanel: React.FC<AdminArchivePanelProps> = ({
   } else {
     // Panel untuk tahun lama - semua dokumen dari semua subdirektorat
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <FolderOpen className="h-5 h-5" />
+      <Card className="border-0 shadow-lg bg-gradient-to-r from-white to-blue-50">
+        <CardHeader className="pb-4">
+          <CardTitle className="flex items-center space-x-2 text-blue-900">
+            <Archive className="w-5 h-5 text-blue-600" />
             <span>Arsip Dokumen - Tahun {selectedYear}</span>
           </CardTitle>
-          <p className="text-sm text-gray-600 mt-2">
+          <p className="text-sm text-blue-700 mt-2">
             Semua dokumen dari semua subdirektorat untuk tahun {selectedYear}
           </p>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             {previousYearDocuments.length > 0 ? (
-              <div className="border rounded-lg overflow-hidden">
+              <div className="border border-blue-200 rounded-lg overflow-hidden bg-white">
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead>Nama File</TableHead>
-                      <TableHead>Aspek</TableHead>
-                      <TableHead>Subdirektorat</TableHead>
-                      <TableHead>Tanggal Upload</TableHead>
-                      <TableHead>Aksi</TableHead>
+                    <TableRow className="bg-blue-50">
+                      <TableHead className="text-blue-900 font-semibold">Nama File</TableHead>
+                      <TableHead className="text-blue-900 font-semibold">Aspek</TableHead>
+                      <TableHead className="text-blue-900 font-semibold">Subdirektorat</TableHead>
+                      <TableHead className="text-blue-900 font-semibold">Tanggal Upload</TableHead>
+                      <TableHead className="text-blue-900 font-semibold">Aksi</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {previousYearDocuments.map((doc) => (
-                      <TableRow key={doc.id}>
+                      <TableRow key={doc.id} className="hover:bg-blue-50/50">
                         <TableCell className="font-medium">{doc.namaFile}</TableCell>
                         <TableCell>{doc.aspek}</TableCell>
                         <TableCell>{doc.subdirektorat || 'N/A'}</TableCell>
@@ -199,11 +200,11 @@ const AdminArchivePanel: React.FC<AdminArchivePanelProps> = ({
                         </TableCell>
                         <TableCell>
                           <div className="flex space-x-2">
-                            <Button size="sm" variant="outline">
+                            <Button size="sm" variant="outline" className="border-blue-200 text-blue-600 hover:bg-blue-50">
                               <Eye className="h-4 w-4 mr-1" />
                               Lihat
                             </Button>
-                            <Button size="sm" variant="outline">
+                            <Button size="sm" variant="outline" className="border-green-200 text-green-600 hover:bg-green-50">
                               <Download className="h-4 w-4 mr-1" />
                               Download
                             </Button>
@@ -216,9 +217,9 @@ const AdminArchivePanel: React.FC<AdminArchivePanelProps> = ({
               </div>
             ) : (
               <div className="text-center py-8">
-                <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-600">Belum ada dokumen untuk tahun {selectedYear}</p>
-                <p className="text-sm text-gray-500 mt-1">
+                <FileText className="h-12 w-12 text-blue-400 mx-auto mb-4" />
+                <p className="text-blue-700">Belum ada dokumen untuk tahun {selectedYear}</p>
+                <p className="text-sm text-blue-600 mt-1">
                   Dokumen yang diupload akan muncul di sini
                 </p>
               </div>

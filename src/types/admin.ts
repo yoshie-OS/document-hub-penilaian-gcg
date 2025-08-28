@@ -16,6 +16,47 @@ export interface ChecklistAssignment {
   validationRules: string[];
 }
 
+// Area of Improvement (AOI) Types
+export interface AOIRecommendation {
+  id: number;
+  no: number;
+  rekomendasi: string;
+  pihakTerkait: string;
+  tingkatUrgensi: 1 | 2 | 3 | 4 | 5; // 1-5 bintang
+  jangkaWaktu: string;
+  tahun: number;
+  status: 'active' | 'completed' | 'archived';
+  createdAt: Date;
+  updatedAt: Date;
+  createdBy: string; // superadmin
+}
+
+export interface AOITracking {
+  id: number;
+  aoiId: number;
+  rups: boolean;
+  dewanKomisaris: boolean;
+  sekdekom: boolean;
+  komite: boolean;
+  direksi: boolean;
+  sekretarisPerusahaan: boolean;
+  notes?: string;
+  lastUpdated: Date;
+  updatedBy: string;
+}
+
+export interface AOITable {
+  id: number;
+  nama: string;
+  deskripsi: string;
+  tahun: number;
+  isActive: boolean;
+  createdAt: Date;
+  createdBy: string;
+  recommendations: AOIRecommendation[];
+  tracking: AOITracking[];
+}
+
 export interface DocumentSubmission {
   id: number;
   checklistId: number;

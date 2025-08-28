@@ -23,12 +23,13 @@ import { useSidebar } from '@/contexts/SidebarContext';
 import Sidebar from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
 import { 
-  AdminYearPanel, 
+  YearSelectorPanel, 
   AdminDocumentListPanel, 
   AdminStatisticsPanel, 
   AdminArchivePanel, 
   AdminHeaderPanel,
-  AdminNotificationPanel
+  AdminNotificationPanel,
+  AOIPanel
 } from '@/components/panels';
 import { AdminUploadDialog } from '@/components/dialogs';
 import { 
@@ -150,7 +151,7 @@ const DashboardAdmin: React.FC = () => {
             assignment.tahun === selectedYear && 
             assignment.subdirektorat === user.subdirektorat
           );
-        } catch (error) {
+    } catch (error) {
           console.error('Error parsing assignments:', error);
         }
       }
@@ -324,12 +325,13 @@ const DashboardAdmin: React.FC = () => {
             userSubdirektorat={user.subdirektorat}
           />
 
-                    {/* Admin Year Panel - Selalu tampil untuk navigasi */}
-          <AdminYearPanel
+                    {/* Year Selector Panel - Konsisten dengan menu lain */}
+          <YearSelectorPanel
             selectedYear={selectedYear}
             onYearChange={setSelectedYear}
             availableYears={availableYears}
-            currentYear={availableYears.length > 0 ? Math.max(...availableYears) : new Date().getFullYear()}
+            title="Tahun Buku"
+            description="Pilih tahun buku untuk mengakses dashboard admin"
           />
 
           {/* Conditional Display based on selected year */}
@@ -371,12 +373,17 @@ const DashboardAdmin: React.FC = () => {
                 selectedYear={selectedYear}
               />
 
-                            {/* Arsip Dokumen - Hanya tab Tahun Terkini */}
-              <AdminArchivePanel
-                selectedYear={selectedYear}
-                canUploadInCurrentYear={canUploadInCurrentYear}
-                isCurrentYear={true}
-              />
+                                              {/* Arsip Dokumen - Hanya tab Tahun Terkini */}
+                  <AdminArchivePanel
+                    selectedYear={selectedYear}
+                    canUploadInCurrentYear={canUploadInCurrentYear}
+                    isCurrentYear={true}
+                  />
+
+                  {/* Area of Improvement (AOI) Panel */}
+                  <AOIPanel
+                    selectedYear={selectedYear}
+                  />
                 </>
               ) : (
                         // Tahun Lama - Hanya tampilkan panel Arsip Dokumen

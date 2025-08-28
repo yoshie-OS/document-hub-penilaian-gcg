@@ -10,6 +10,7 @@ import { SidebarProvider } from './contexts/SidebarContext';
 import { YearProvider } from './contexts/YearContext';
 
 import { StrukturPerusahaanProvider } from './contexts/StrukturPerusahaanContext';
+import { AOIProvider } from './contexts/AOIContext';
 import { Toaster } from './components/ui/toaster';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/auth/Login';
@@ -20,6 +21,7 @@ import MonitoringUploadGCG from './pages/MonitoringUploadGCG';
 import ArsipDokumen from './pages/admin/ArsipDokumen';
 import DashboardAdmin from './pages/admin/DashboardAdmin';
 import PengaturanBaru from './pages/admin/PengaturanBaru';
+import AOIManagement from './pages/admin/AOIManagement';
 import NotFound from './pages/NotFound';
 import { useUser } from './contexts/UserContext';
 
@@ -146,6 +148,14 @@ const AppRoutes = () => {
           </SuperAdminRoute>
         } 
       />
+      <Route 
+        path="/admin/aoi-management" 
+        element={
+          <SuperAdminRoute>
+            <AOIManagement />
+          </SuperAdminRoute>
+        } 
+      />
       <Route path="/login" element={<Navigate to="/dashboard" replace />} />
       <Route path="/register" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<NotFound />} />
@@ -162,14 +172,16 @@ const App = () => {
           <ChecklistProvider>
             <FileUploadProvider>
               <DocumentMetadataProvider>
-                <YearProvider>
-                    <StrukturPerusahaanProvider>
-                      <SidebarProvider>
-                        <AppRoutes />
-                        <Toaster />
-                      </SidebarProvider>
-                    </StrukturPerusahaanProvider>
-                </YearProvider>
+                                  <YearProvider>
+                      <StrukturPerusahaanProvider>
+                        <AOIProvider>
+                          <SidebarProvider>
+                            <AppRoutes />
+                            <Toaster />
+                          </SidebarProvider>
+                        </AOIProvider>
+                      </StrukturPerusahaanProvider>
+                  </YearProvider>
               </DocumentMetadataProvider>
             </FileUploadProvider>
           </ChecklistProvider>

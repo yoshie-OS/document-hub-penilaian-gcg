@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { TrendingUp, FileText, CheckCircle, Upload, Plus, AlertTriangle } from 'lucide-react';
+import { TrendingUp, FileText, CheckCircle, Upload, Plus, AlertTriangle, BarChart3 } from 'lucide-react';
 interface ChecklistItem {
   id: number;
   aspek?: string; // Make aspek optional
@@ -109,12 +109,13 @@ const AdminStatisticsPanel: React.FC<AdminStatisticsPanelProps> = ({
   if (!selectedYear) return null;
 
   return (
-    <Card className="mb-6">
-      <CardHeader>
-        <CardTitle className="text-lg font-bold text-gray-900">
-          Statistik Progress Penugasan
+    <Card className="border-0 shadow-lg bg-gradient-to-r from-white to-blue-50 mb-6">
+      <CardHeader className="pb-4">
+        <CardTitle className="flex items-center space-x-2 text-blue-900">
+          <BarChart3 className="w-5 h-5 text-blue-600" />
+          <span>Statistik Progress Penugasan</span>
         </CardTitle>
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-blue-700 mt-2">
           Overview dokumen dan assessment dokumen GCG yang di-assign ke {userSubdirektorat} tahun {selectedYear}
         </p>
       </CardHeader>
@@ -122,7 +123,7 @@ const AdminStatisticsPanel: React.FC<AdminStatisticsPanelProps> = ({
         {/* Overall Progress Card */}
         {overallProgress && (
           <div className="mb-6">
-            <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-lg shadow-md p-4 text-white">
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg shadow-md p-4 text-white">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center space-x-3">
                   <div className="p-2 bg-white/20 rounded-md">
@@ -130,12 +131,12 @@ const AdminStatisticsPanel: React.FC<AdminStatisticsPanelProps> = ({
                   </div>
                   <div>
                     <h3 className="text-lg font-bold">{overallProgress.aspek}</h3>
-                    <p className="text-purple-100 text-sm">Progress Keseluruhan Tahun {selectedYear}</p>
+                    <p className="text-blue-100 text-sm">Progress Keseluruhan Tahun {selectedYear}</p>
                   </div>
                 </div>
                 <div className="text-right">
                   <div className="text-2xl font-bold">{overallProgress.uploadedCount}/{overallProgress.totalItems}</div>
-                  <div className="text-purple-100 text-sm">
+                  <div className="text-blue-100 text-sm">
                     {overallProgress.progress}% selesai
                   </div>
                 </div>
@@ -157,7 +158,7 @@ const AdminStatisticsPanel: React.FC<AdminStatisticsPanelProps> = ({
             const color = getAspectColor(aspect.aspek, aspect.progress);
             
             return (
-              <Card key={index} className="hover:shadow-md transition-shadow cursor-pointer">
+              <Card key={index} className="border-0 shadow-md hover:shadow-lg transition-all duration-200 bg-white">
                 <CardContent className="p-4">
                   <div className="flex items-center space-x-3 mb-3">
                     <div 
@@ -179,14 +180,15 @@ const AdminStatisticsPanel: React.FC<AdminStatisticsPanelProps> = ({
                         {aspect.progress}%
                       </span>
                     </div>
-                    <Progress 
-                      value={aspect.progress} 
-                      className="h-2"
-                      style={{ 
-                        '--progress-background': color,
-                        '--progress-foreground': color 
-                      } as React.CSSProperties}
-                    />
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="h-2 rounded-full transition-all duration-1000 ease-out"
+                        style={{ 
+                          width: `${aspect.progress}%`,
+                          backgroundColor: color
+                        }}
+                      />
+                    </div>
                     <div className="text-xs text-gray-500 text-center">
                       {aspect.uploadedCount} dari {aspect.totalItems} sudah terupload
                     </div>
@@ -199,11 +201,11 @@ const AdminStatisticsPanel: React.FC<AdminStatisticsPanelProps> = ({
 
         {aspectStats.length === 0 && (
           <div className="text-center py-8">
-            <div className="w-16 h-16 text-gray-400 mx-auto mb-4">
+            <div className="w-16 h-16 text-blue-400 mx-auto mb-4">
               <TrendingUp className="w-full h-full" />
             </div>
-            <p className="text-gray-600">Belum ada data statistik untuk tahun {selectedYear}</p>
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="text-blue-700">Belum ada data statistik untuk tahun {selectedYear}</p>
+            <p className="text-sm text-blue-600 mt-1">
               Mulai upload dokumen untuk melihat progress
             </p>
           </div>
