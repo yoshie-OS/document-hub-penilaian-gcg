@@ -13,7 +13,7 @@ interface AOIContextType {
   tracking: AOITracking[];
   
   // CRUD Operations for Tables
-  createAOITable: (table: Omit<AOITable, 'id' | 'createdAt' | 'createdBy'>) => void;
+  createAOITable: (table: Omit<AOITable, 'id' | 'createdAt' | 'createdBy' | 'recommendations' | 'tracking'>) => void;
   updateAOITable: (id: number, updates: Partial<AOITable>) => void;
   deleteAOITable: (id: number) => void;
   setActiveAOITable: (table: AOITable | null) => void;
@@ -108,7 +108,7 @@ export const AOIProvider: React.FC<AOIProviderProps> = ({ children }) => {
   }, [tracking]);
 
   // CRUD Operations for Tables
-  const createAOITable = (table: Omit<AOITable, 'id' | 'createdAt' | 'createdBy'>) => {
+  const createAOITable = (table: Omit<AOITable, 'id' | 'createdAt' | 'createdBy' | 'recommendations' | 'tracking'>) => {
     const newTable: AOITable = {
       ...table,
       id: Date.now(),
@@ -120,23 +120,7 @@ export const AOIProvider: React.FC<AOIProviderProps> = ({ children }) => {
     
     setAOITables(prev => [...prev, newTable]);
     
-    // Create initial tracking for all recommendations
-    if (table.recommendations && table.recommendations.length > 0) {
-      const newTracking: AOITracking[] = table.recommendations.map(rec => ({
-        id: Date.now() + Math.random(),
-        aoiId: newTable.id,
-        rups: false,
-        dewanKomisaris: false,
-        sekdekom: false,
-        komite: false,
-        direksi: false,
-        sekretarisPerusahaan: false,
-        lastUpdated: new Date(),
-        updatedBy: 'Super Admin'
-      }));
-      
-      setTracking(prev => [...prev, ...newTracking]);
-    }
+    // No initial recommendations/tracking upon table creation
   };
 
   const updateAOITable = (id: number, updates: Partial<AOITable>) => {
@@ -153,17 +137,22 @@ export const AOIProvider: React.FC<AOIProviderProps> = ({ children }) => {
 
   // CRUD Operations for Recommendations
   const addRecommendation = (recommendation: Omit<AOIRecommendation, 'id' | 'createdAt' | 'updatedAt' | 'createdBy'>) => {
+    // Auto generate next number within the same table
+    const tableRecs = recommendations.filter(r => r.aoiTableId === recommendation.aoiTableId);
+    const nextRecommendationNo = tableRecs.length + 1;
+
     const newRecommendation: AOIRecommendation = {
       ...recommendation,
+      no: nextRecommendationNo,
       id: Date.now(),
       createdAt: new Date(),
       updatedAt: new Date(),
-      createdBy: 'Super Admin' // TODO: Get from user context
+      createdBy: 'Super Admin'
     };
-    
+
     setRecommendations(prev => [...prev, newRecommendation]);
-    
-    // Create initial tracking for this recommendation
+
+    // Initial tracking per recommendation
     const newTracking: AOITracking = {
       id: Date.now() + Math.random(),
       aoiId: newRecommendation.id,
@@ -176,7 +165,7 @@ export const AOIProvider: React.FC<AOIProviderProps> = ({ children }) => {
       lastUpdated: new Date(),
       updatedBy: 'Super Admin'
     };
-    
+
     setTracking(prev => [...prev, newTracking]);
   };
 
@@ -212,7 +201,7 @@ export const AOIProvider: React.FC<AOIProviderProps> = ({ children }) => {
   };
 
   const getRecommendationsByTable = (tableId: number) => {
-    return recommendations.filter(rec => rec.id === tableId);
+    return recommendations.filter(rec => rec.aoiTableId === tableId);
   };
 
   const value: AOIContextType = {

@@ -19,9 +19,18 @@ export interface ChecklistAssignment {
 // Area of Improvement (AOI) Types
 export interface AOIRecommendation {
   id: number;
+  aoiTableId: number; // link to AOITable
+  jenis: 'REKOMENDASI' | 'SARAN';
   no: number;
   rekomendasi: string;
-  pihakTerkait: string;
+  saran: string;
+  pihakTerkait: string; // free text, with recommended options
+  pihakTerkaitTindakLanjut: {
+    direktorat: string;
+    subdirektorat: string;
+    divisi: string;
+  };
+  aspekAOI?: string; // Optional field
   tingkatUrgensi: 1 | 2 | 3 | 4 | 5; // 1-5 bintang
   jangkaWaktu: string;
   tahun: number;
@@ -53,6 +62,11 @@ export interface AOITable {
   isActive: boolean;
   createdAt: Date;
   createdBy: string;
+  // Target grouping info
+  targetType: 'direktorat' | 'subdirektorat' | 'divisi';
+  targetDirektorat?: string;
+  targetSubdirektorat?: string;
+  targetDivisi?: string;
   recommendations: AOIRecommendation[];
   tracking: AOITracking[];
 }

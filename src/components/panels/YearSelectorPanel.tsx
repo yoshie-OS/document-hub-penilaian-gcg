@@ -27,7 +27,8 @@ const YearSelectorPanel: React.FC<YearSelectorPanelProps> = ({
   const safeSelectedYear = selectedYear || null;
   
   // Sort years: newest added year first (most recent), then previous years in descending order
-  const sortedYears = [...availableYears].sort((a, b) => b - a);
+  const safeYears = Array.isArray(availableYears) ? availableYears : [];
+  const sortedYears = [...safeYears].sort((a, b) => b - a);
   
   // Get the most recent year (first in sorted array) and previous years
   const mostRecentYear = sortedYears[0]; // Tahun paling baru yang ditambahkan
@@ -46,7 +47,7 @@ const YearSelectorPanel: React.FC<YearSelectorPanelProps> = ({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {showYearCategories && availableYears.length > 0 ? (
+          {showYearCategories && safeYears.length > 0 ? (
             <>
               {/* Most Recent Year Section (Upload) */}
               {mostRecentYear && (
@@ -114,8 +115,8 @@ const YearSelectorPanel: React.FC<YearSelectorPanelProps> = ({
           ) : (
             /* Simple Year Selection (for backward compatibility) */
             <div className="flex flex-wrap gap-2">
-              {availableYears && availableYears.length > 0 ? (
-                availableYears.map((year) => (
+              {safeYears && safeYears.length > 0 ? (
+                safeYears.map((year) => (
                   <Button
                     key={year}
                     variant={safeSelectedYear === year ? 'default' : 'outline'}
@@ -139,7 +140,7 @@ const YearSelectorPanel: React.FC<YearSelectorPanelProps> = ({
           )}
 
           {/* No Years Available */}
-          {availableYears.length === 0 && (
+          {safeYears.length === 0 && (
             <div className="text-center py-6">
               <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
               <p className="text-sm text-gray-500">Belum ada tahun buku yang tersedia</p>

@@ -1,8 +1,9 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Star, FileText, Users, Calendar } from 'lucide-react';
+import { Star, FileText, Users, Calendar, CheckCircle, Upload, Download, RefreshCw } from 'lucide-react';
 import { useAOI } from '@/contexts/AOIContext';
 
 interface AOIPanelProps {
@@ -36,6 +37,76 @@ const AOIPanel: React.FC<AOIPanelProps> = ({ selectedYear, className = "" }) => 
     return tracking.find(track => track.aoiId === recommendationId);
   };
 
+  // Check if document exists for a recommendation (mock function - replace with actual logic)
+  const hasDocument = (recommendationId: number) => {
+    // TODO: Replace with actual document check logic
+    // This should check if there's a document uploaded for this recommendation
+    // For now, returning false to show only upload button
+    return false;
+  };
+
+  // Handle file upload
+  const handleUpload = (recommendationId: number) => {
+    // TODO: Implement file upload functionality
+    console.log('Upload file for recommendation:', recommendationId);
+  };
+
+  // Handle file re-upload
+  const handleReUpload = (recommendationId: number) => {
+    // TODO: Implement file re-upload functionality
+    console.log('Re-upload file for recommendation:', recommendationId);
+  };
+
+  // Handle file download
+  const handleDownload = (recommendationId: number) => {
+    // TODO: Implement file download functionality
+    console.log('Download file for recommendation:', recommendationId);
+  };
+
+  // Render action buttons based on document status
+  const renderActionButtons = (recommendationId: number) => {
+    const hasDoc = hasDocument(recommendationId);
+
+    return (
+      <div className="flex gap-2">
+        {/* Upload button - always visible */}
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => handleUpload(recommendationId)}
+          className="border-green-200 text-green-600 hover:bg-green-50"
+        >
+          <Upload className="w-3 h-3 mr-1" />
+          Upload
+        </Button>
+
+        {/* Re-upload and Download buttons - only visible when document exists */}
+        {hasDoc && (
+          <>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleReUpload(recommendationId)}
+              className="border-blue-200 text-blue-600 hover:bg-blue-50"
+            >
+              <RefreshCw className="w-3 h-3 mr-1" />
+              Re-upload
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleDownload(recommendationId)}
+              className="border-purple-200 text-purple-600 hover:bg-purple-50"
+            >
+              <Download className="w-3 h-3 mr-1" />
+              Download
+            </Button>
+          </>
+        )}
+      </div>
+    );
+  };
+
   if (yearTables.length === 0) {
     return (
       <Card className={`border-0 shadow-lg bg-gradient-to-r from-white to-blue-50 ${className}`}>
@@ -60,7 +131,7 @@ const AOIPanel: React.FC<AOIPanelProps> = ({ selectedYear, className = "" }) => 
           <span>Area of Improvement (AOI)</span>
         </CardTitle>
         <p className="text-sm text-blue-700 mt-2">
-          Rekomendasi perbaikan GCG dan tracking tindak lanjut untuk tahun {selectedYear}
+          Rekomendasi perbaikan GCG untuk tahun {selectedYear}
         </p>
       </CardHeader>
       <CardContent>
@@ -72,101 +143,55 @@ const AOIPanel: React.FC<AOIPanelProps> = ({ selectedYear, className = "" }) => 
             </div>
 
             {yearRecommendations.length > 0 ? (
-              <div className="border border-blue-200 rounded-lg overflow-hidden bg-white">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-blue-50">
-                      <TableHead className="text-blue-900 font-semibold w-16">NO</TableHead>
-                      <TableHead className="text-blue-900 font-semibold">Rekomendasi</TableHead>
-                      <TableHead className="text-blue-900 font-semibold">Pihak Terkait</TableHead>
-                      <TableHead className="text-blue-900 font-semibold w-32">Tingkat Urgensi</TableHead>
-                      <TableHead className="text-blue-900 font-semibold w-32">Jangka Waktu</TableHead>
-                      <TableHead className="text-blue-900 font-semibold w-48">Tracking Tindak Lanjut</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {yearRecommendations.map((rec) => {
-                      const track = getTracking(rec.id);
-                      return (
-                        <TableRow key={rec.id} className="hover:bg-blue-50/50">
-                          <TableCell className="font-medium text-center">{rec.no}</TableCell>
-                          <TableCell className="max-w-md">
-                            <div className="text-sm leading-relaxed">{rec.rekomendasi}</div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="text-sm">{rec.pihakTerkait}</div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex justify-center">
-                              {renderStars(rec.tingkatUrgensi)}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="text-sm text-center">{rec.jangkaWaktu}</div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="grid grid-cols-2 gap-1 text-xs">
-                              <div className="flex items-center space-x-1">
-                                <input
-                                  type="checkbox"
-                                  checked={track?.rups || false}
-                                  disabled
-                                  className="w-3 h-3"
-                                />
-                                <span>RUPS</span>
-                              </div>
-                              <div className="flex items-center space-x-1">
-                                <input
-                                  type="checkbox"
-                                  checked={track?.dewanKomisaris || false}
-                                  disabled
-                                  className="w-3 h-3"
-                                />
-                                <span>DEWAN KOMISARIS</span>
-                              </div>
-                              <div className="flex items-center space-x-1">
-                                <input
-                                  type="checkbox"
-                                  checked={track?.sekdekom || false}
-                                  disabled
-                                  className="w-3 h-3"
-                                />
-                                <span>SEKDEKOM</span>
-                              </div>
-                              <div className="flex items-center space-x-1">
-                                <input
-                                  type="checkbox"
-                                  checked={track?.komite || false}
-                                  disabled
-                                  className="w-3 h-3"
-                                />
-                                <span>KOMITE</span>
-                              </div>
-                              <div className="flex items-center space-x-1">
-                                <input
-                                  type="checkbox"
-                                  checked={track?.direksi || false}
-                                  disabled
-                                  className="w-3 h-3"
-                                />
-                                <span>DIREKSI</span>
-                              </div>
-                              <div className="flex items-center space-x-1">
-                                <input
-                                  type="checkbox"
-                                  checked={track?.sekretarisPerusahaan || false}
-                                  disabled
-                                  className="w-3 h-3"
-                                />
-                                <span>SEKRETARIS PERUSAHAAN</span>
-                              </div>
-                            </div>
-                          </TableCell>
+              <div className="space-y-8">
+                <div>
+                  <h4 className="text-md font-semibold text-blue-800 mb-4 flex items-center">
+                    <CheckCircle className="w-4 h-4 mr-2 text-green-600" />
+                    Rekomendasi & Saran
+                  </h4>
+                  <div className="border border-blue-200 rounded-lg overflow-hidden bg-white">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-blue-50">
+                          <TableHead className="text-blue-900 font-semibold w-16">NO</TableHead>
+                          <TableHead className="text-blue-900 font-semibold min-w-[400px]">REKOMENDASI</TableHead>
+                          <TableHead className="text-blue-900 font-semibold">PIHAK TERKAIT</TableHead>
+                          <TableHead className="text-blue-900 font-semibold w-32">TINGKAT URGENSI</TableHead>
+                          <TableHead className="text-blue-900 font-semibold w-32">ASPEK AOI</TableHead>
+                          <TableHead className="text-blue-900 font-semibold w-48">AKSI</TableHead>
                         </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {yearRecommendations
+                          .map((rec) => {
+                            const text = rec.jenis === 'REKOMENDASI' ? rec.rekomendasi : rec.saran;
+                            return (
+                              <TableRow key={rec.id} className="hover:bg-blue-50/50">
+                                <TableCell className="font-medium text-center">{rec.no || '-'}</TableCell>
+                                <TableCell className="min-w-[400px]">
+                                  <div className="text-sm leading-relaxed pr-4">{text || '-'}</div>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="text-sm font-medium text-blue-700">{rec.pihakTerkait || '-'}</div>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex justify-center">
+                                    {renderStars(rec.tingkatUrgensi || 0)}
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="text-sm text-center">{rec.aspekAOI || '-'}</div>
+                                </TableCell>
+                                <TableCell>
+                                  {renderActionButtons(rec.id)}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
               </div>
             ) : (
               <div className="text-center py-8 text-blue-600">
