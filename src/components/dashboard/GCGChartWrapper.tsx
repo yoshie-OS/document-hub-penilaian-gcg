@@ -13,6 +13,7 @@ interface PenilaianRow {
   skor: number;
   capaian: number;
   penjelasan: string;
+  isTotal?: boolean;
 }
 
 interface GCGChartWrapperProps {

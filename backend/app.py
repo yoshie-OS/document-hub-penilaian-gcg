@@ -518,9 +518,13 @@ def save_assessment():
             # Map frontend data structure to XLSX format
             row_id = row.get('id', row.get('no', ''))
             section = row.get('aspek', row.get('section', ''))
+            is_total = row.get('isTotal', False)
             
             # Determine Level and Type based on data structure
-            if str(row_id).isdigit():
+            if is_total:
+                level = "1"
+                row_type = "total"
+            elif str(row_id).isdigit():
                 level = "2"
                 row_type = "indicator"
             else:

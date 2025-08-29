@@ -1,9 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import DeskripsiAutocomplete from '@/components/DeskripsiAutocomplete';
 import Sidebar from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -28,7 +32,8 @@ import {
   AlertCircle,
   ArrowLeft,
   HelpCircle,
-  Trash2
+  Trash2,
+  Download
 } from 'lucide-react';
 
 // Convert number to Roman numeral
@@ -46,6 +51,7 @@ interface PenilaianRow {
   skor: number;
   capaian: number;
   penjelasan: string;
+  isTotal?: boolean;
 }
 
 const PenilaianGCG = () => {
@@ -66,6 +72,13 @@ const PenilaianGCG = () => {
   const [chartRefreshKey, setChartRefreshKey] = useState(0);
   const [auditor, setAuditor] = useState('');
   const [jenisAsesmen, setJenisAsesmen] = useState('');
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [exportOptions, setExportOptions] = useState({
+    donutCharts: true,
+    capaianAspek: true,
+    skorTahunan: true,
+    dataTable: true
+  });
   
   // State untuk data table
   const [tableData, setTableData] = useState<PenilaianRow[]>([]);
@@ -130,20 +143,73 @@ const PenilaianGCG = () => {
           if (yearData.length > 0) {
             console.log(`✅ Found ${yearData.length} existing rows for year ${year}`);
             
-            // Convert API data format to table format
-            const convertedData = yearData.map((item: any, index: number) => ({
-              id: `existing-${item.Tahun}-${item.Section}-${index}`,
-              aspek: item.Section,
-              deskripsi: item.Deskripsi || '',
-              jumlah_parameter: item.Jumlah_Parameter || 0,
-              bobot: item.Bobot || 0,
-              skor: item.Skor || 0,
-              capaian: item.Capaian || 0,
-              penjelasan: item.Penjelasan || ''
-            }));
+            // Check if this is a detailed format by looking for subtotal/header types
+            const hasSubtotalRows = yearData.some((item: any) => item.Type === 'subtotal');
+            const hasHeaderRows = yearData.some((item: any) => item.Type === 'header');
+            
+            let convertedData: any[] = [];
+            
+            if (hasSubtotalRows && hasHeaderRows) {
+              // DETAILED format: combine subtotal (numeric) + header (description) data
+              console.log(`📋 Processing DETAILED format with subtotal/header rows`);
+              
+              const subtotalRows = yearData.filter((item: any) => item.Type === 'subtotal');
+              const headerRows = yearData.filter((item: any) => item.Type === 'header');
+              const totalRows = yearData.filter((item: any) => item.Type === 'total');
+              
+              // Create rows from subtotal data + matching header descriptions
+              convertedData = subtotalRows.map((subtotalItem: any, index: number) => {
+                // Find matching header row by Section
+                const matchingHeader = headerRows.find((headerItem: any) => 
+                  headerItem.Section === subtotalItem.Section
+                );
+                
+                return {
+                  id: `detailed-${subtotalItem.Tahun}-${subtotalItem.Section}-${index}`,
+                  aspek: subtotalItem.Section,
+                  deskripsi: matchingHeader ? matchingHeader.Deskripsi : (subtotalItem.Deskripsi || ''),
+                  jumlah_parameter: subtotalItem.Jumlah_Parameter || 0,
+                  bobot: subtotalItem.Bobot || 0,
+                  skor: subtotalItem.Skor || 0,
+                  capaian: subtotalItem.Capaian || 0,
+                  penjelasan: subtotalItem.Penjelasan || '',
+                  isTotal: false
+                };
+              });
+              
+              // Add total rows if they exist
+              totalRows.forEach((totalItem: any, index: number) => {
+                convertedData.push({
+                  id: `total-${totalItem.Tahun}-${index}`,
+                  aspek: '',
+                  deskripsi: 'Total',
+                  jumlah_parameter: 0,
+                  bobot: totalItem.Bobot || 0,
+                  skor: totalItem.Skor || 0,
+                  capaian: totalItem.Capaian || 0,
+                  penjelasan: totalItem.Penjelasan || '',
+                  isTotal: true
+                });
+              });
+              
+            } else {
+              // BRIEF format: use data as-is
+              console.log(`📋 Processing BRIEF format`);
+              convertedData = yearData.map((item: any, index: number) => ({
+                id: `brief-${item.Tahun}-${item.Section}-${index}`,
+                aspek: item.Section,
+                deskripsi: item.Deskripsi || '',
+                jumlah_parameter: item.Jumlah_Parameter || 0,
+                bobot: item.Bobot || 0,
+                skor: item.Skor || 0,
+                capaian: item.Capaian || 0,
+                penjelasan: item.Penjelasan || '',
+                isTotal: item.Type === 'total' || false
+              }));
+            }
             
             setTableData(convertedData);
-            setSaveMessage(`📊 Loaded ${yearData.length} existing rows for year ${year}`);
+            setSaveMessage(`📊 Loaded ${convertedData.length} rows for year ${year} (${hasSubtotalRows && hasHeaderRows ? 'DETAILED' : 'BRIEF'} format)`);
             setTimeout(() => setSaveMessage(null), 3000);
             return;
           }
@@ -213,7 +279,7 @@ const PenilaianGCG = () => {
     
     console.log(`📋 Found ${aspectsData.length} aspects for year ${selectedYear}:`, aspectsData);
     
-    return aspectsData.map((aspect, index) => ({
+    const aspectRows = aspectsData.map((aspect, index) => ({
       id: `aspect-${aspect.id}`,
       aspek: toRoman(index + 1), // Use roman numerals for Aspek column
       deskripsi: aspect.nama, // Use aspect name for Deskripsi column
@@ -223,6 +289,21 @@ const PenilaianGCG = () => {
       capaian: 0,
       penjelasan: ''
     }));
+    
+    // Add total row at the end
+    const totalRow: PenilaianRow = {
+      id: 'total-row',
+      aspek: '',
+      deskripsi: 'Total',
+      jumlah_parameter: 0,
+      bobot: 0,
+      skor: 0,
+      capaian: 0,
+      penjelasan: '',
+      isTotal: true
+    };
+    
+    return [...aspectRows, totalRow];
   };
 
   // Auto-detect data format from existing data
@@ -371,6 +452,178 @@ const PenilaianGCG = () => {
     }
   };
 
+  // PDF Export functionality
+  const handleExportPDF = async () => {
+    try {
+      const pdf = new jsPDF('l', 'mm', 'a4');
+      let currentY = 20;
+      
+      // Add title
+      pdf.setFontSize(16);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('GCG Performance Report', 20, currentY);
+      
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`Year: ${selectedYear}`, 20, currentY + 10);
+      if (auditor) pdf.text(`Auditor: ${auditor}`, 20, currentY + 16);
+      if (jenisAsesmen) pdf.text(`Assessment Type: ${jenisAsesmen}`, 20, currentY + 22);
+      
+      currentY += 40;
+
+      // Export Donut Charts
+      if (exportOptions.donutCharts) {
+        const donutSection = document.querySelector('[class*="grid-cols-2"]');
+        if (donutSection) {
+          const canvas = await html2canvas(donutSection as HTMLElement, {
+            scale: 2,
+            useCORS: true,
+            allowTaint: false
+          });
+          
+          const imgData = canvas.toDataURL('image/png');
+          const imgWidth = 250;
+          const imgHeight = (canvas.height * imgWidth) / canvas.width;
+          
+          pdf.setFontSize(14);
+          pdf.setFont('helvetica', 'bold');
+          pdf.text('Average Achievement by Aspect', 20, currentY);
+          currentY += 10;
+          
+          pdf.addImage(imgData, 'PNG', 20, currentY, imgWidth, imgHeight);
+          currentY += imgHeight + 20;
+        }
+      }
+
+      // Export Capaian Aspek Charts
+      if (exportOptions.capaianAspek) {
+        // Revert to working version - target the main card
+        const chartCard = document.querySelector('[class*="min-h-fit"] .p-4');
+        
+        if (chartCard) {
+          // Add new page if needed
+          if (currentY > 200) {
+            pdf.addPage();
+            currentY = 20;
+          }
+          
+          console.log('Capturing Capaian Aspek element:', chartCard);
+          
+          const canvas = await html2canvas(chartCard as HTMLElement, {
+            scale: 1,
+            useCORS: true,
+            allowTaint: false,
+            logging: false,
+            backgroundColor: '#ffffff',
+            scrollX: 0,
+            scrollY: 0
+          });
+          
+          const imgData = canvas.toDataURL('image/png');
+          const imgWidth = 250;
+          const imgHeight = (canvas.height * imgWidth) / canvas.width;
+          
+          pdf.setFontSize(14);
+          pdf.setFont('helvetica', 'bold');
+          pdf.text('Capaian Aspek Charts', 20, currentY);
+          currentY += 10;
+          
+          // Crop the image - keep approximately half (middle section)
+          const croppedHeight = imgHeight * 0.50; // Keep middle 50%
+          const cropY = imgHeight * 0.25; // Start from 25% down
+          
+          pdf.addImage(imgData, 'PNG', 20, currentY, imgWidth, croppedHeight, 0, cropY);
+          currentY += croppedHeight + 20;
+        } else {
+          console.log('Capaian Aspek chart not found');
+        }
+      }
+
+      // Export Skor Tahunan Charts  
+      if (exportOptions.skorTahunan) {
+        // Revert to working version - target the main card
+        const chartCard = document.querySelector('[class*="min-h-fit"] .p-4');
+        
+        if (chartCard) {
+          // Add new page if needed
+          if (currentY > 200) {
+            pdf.addPage();
+            currentY = 20;
+          }
+          
+          console.log('Capturing Skor Tahunan element:', chartCard);
+          
+          // Wait a moment for chart to render
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          const canvas = await html2canvas(chartCard as HTMLElement, {
+            scale: 0.8,
+            useCORS: true,
+            allowTaint: false,
+            logging: false,
+            backgroundColor: '#ffffff',
+            scrollX: 0,
+            scrollY: 0
+          });
+          
+          const imgData = canvas.toDataURL('image/png');
+          const imgWidth = 250;
+          const imgHeight = (canvas.height * imgWidth) / canvas.width;
+          
+          pdf.setFontSize(14);
+          pdf.setFont('helvetica', 'bold');
+          pdf.text('Skor Tahunan Charts', 20, currentY);
+          currentY += 10;
+          
+          // Crop the image - keep approximately half (middle section)
+          const croppedHeight = imgHeight * 0.50; // Keep middle 50%
+          const cropY = imgHeight * 0.25; // Start from 25% down
+          
+          pdf.addImage(imgData, 'PNG', 20, currentY, imgWidth, croppedHeight, 0, cropY);
+          currentY += croppedHeight + 20;
+        } else {
+          console.log('Skor Tahunan chart not found');
+        }
+      }
+
+      // Export Data Table
+      if (exportOptions.dataTable && selectedYear) {
+        const tableSection = document.querySelector('table.min-w-\\[340px\\]');
+        if (tableSection) {
+          // Add new page if needed
+          if (currentY > 200) {
+            pdf.addPage();
+            currentY = 20;
+          }
+          
+          const canvas = await html2canvas(tableSection as HTMLElement, {
+            scale: 2,
+            useCORS: true,
+            allowTaint: false
+          });
+          
+          const imgData = canvas.toDataURL('image/png');
+          const imgWidth = 250;
+          const imgHeight = (canvas.height * imgWidth) / canvas.width;
+          
+          pdf.setFontSize(14);
+          pdf.setFont('helvetica', 'bold');
+          pdf.text(`Data Table - Year ${selectedYear}`, 20, currentY);
+          currentY += 10;
+          
+          pdf.addImage(imgData, 'PNG', 20, currentY, imgWidth, imgHeight);
+        }
+      }
+
+      // Download the PDF
+      pdf.save(`GCG_Performance_Report_${selectedYear}.pdf`);
+      
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Error generating PDF. Please try again.');
+    }
+  };
+
   // Use years configured in Pengaturan Baru -> Tahun Buku
   const years = useMemo(() => {
     // Use only availableYears from YearContext (managed in Pengaturan Baru)
@@ -432,7 +685,19 @@ const PenilaianGCG = () => {
 
   // Delete row from table
   const deleteRow = (rowId: string) => {
-    setTableData(tableData.filter(row => row.id !== rowId));
+    // Instead of removing the row, clear its values (except isTotal flag)
+    setTableData(tableData.map(row => {
+      if (row.id === rowId) {
+        return {
+          ...row,
+          bobot: 0,
+          skor: 0,
+          capaian: 0,
+          penjelasan: ''
+        };
+      }
+      return row;
+    }));
   };
 
   // Update aspect summary cell
@@ -964,9 +1229,16 @@ const PenilaianGCG = () => {
         
         <GCGChartWrapper key={chartRefreshKey} selectedYear={selectedYear} tableData={tableData} auditor={auditor} jenisAsesmen={jenisAsesmen} />
         
-        {/* Input/Edit Data Button - moved to bottom */}
+        {/* Action Buttons - moved to bottom */}
         {isSuperAdmin() && (
-          <div className="flex justify-center pt-4">
+          <div className="flex justify-center gap-4 pt-4">
+            <Button 
+              onClick={() => setShowExportDialog(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 text-sm"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Export PDF
+            </Button>
             <Button 
               onClick={() => {
                 setSelectedMethod('manual');
@@ -1841,35 +2113,40 @@ const PenilaianGCG = () => {
               </TableHeader>
               <TableBody>
                 {tableData.map((row) => (
-                  <TableRow key={row.id} className="hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50">
+                  <TableRow key={row.id} className={`hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 ${row.isTotal ? 'bg-yellow-50 border-t-2 border-yellow-300' : ''}`}>
                     {/* Aspek */}
                     <TableCell>
-                      <Input
-                        id={`main-${row.id}-aspek`}
-                        value={row.aspek}
-                        onChange={(e) => updateCell(row.id, 'aspek', e.target.value)}
-                        onKeyDown={(e) => handleKeyDown(e, row.id, 'aspek', 'main')}
-                        className="border-0 bg-transparent focus:bg-white focus:border focus:border-blue-300"
-                        placeholder="I, II, III..."
-                      />
+                      {row.isTotal ? (
+                        <div className="text-center font-bold text-yellow-800 py-2">
+                          Total
+                        </div>
+                      ) : (
+                        <Input
+                          id={`main-${row.id}-aspek`}
+                          value={row.aspek}
+                          onChange={(e) => updateCell(row.id, 'aspek', e.target.value)}
+                          onKeyDown={(e) => handleKeyDown(e, row.id, 'aspek', 'main')}
+                          className="border-0 bg-transparent focus:bg-white focus:border focus:border-blue-300"
+                          placeholder="I, II, III..."
+                        />
+                      )}
                     </TableCell>
                     
                     
-                    {/* Deskripsi - read-only for loaded indicators, editable for manual input */}
+                    {/* Deskripsi - always editable except for total row */}
                     <TableCell className="min-w-64">
-                      {row.deskripsi ? (
-                        <div className="text-sm text-gray-900 py-2 px-1">
-                          {row.deskripsi}
+                      {row.isTotal ? (
+                        <div className="text-sm font-bold text-yellow-800 py-2 px-1">
+                          Total
                         </div>
                       ) : (
-                        <DeskripsiAutocomplete
+                        <Input
                           id={`main-${row.id}-deskripsi`}
                           value={row.deskripsi}
-                          onChange={(value) => updateCell(row.id, 'deskripsi', value)}
+                          onChange={(e) => updateCell(row.id, 'deskripsi', e.target.value)}
                           onKeyDown={(e) => handleKeyDown(e, row.id, 'deskripsi', 'main')}
                           className="border-0 bg-transparent focus:bg-white focus:border focus:border-blue-300"
                           placeholder="Deskripsi penilaian..."
-                          filterType="header"
                         />
                       )}
                     </TableCell>
@@ -1986,7 +2263,7 @@ const PenilaianGCG = () => {
                             [fieldKey]: row.bobot.toString()
                           }));
                         }}
-                        className="border-0 bg-transparent focus:bg-white focus:border focus:border-blue-300 w-20"
+                        className={`border-0 bg-transparent focus:bg-white focus:border focus:border-blue-300 w-20 ${row.isTotal ? 'font-bold text-yellow-800' : ''}`}
                         placeholder="0.00"
                       />
                       {row.bobot < 0 && (
@@ -2047,7 +2324,7 @@ const PenilaianGCG = () => {
                             [fieldKey]: row.skor.toString()
                           }));
                         }}
-                        className="border-0 bg-transparent focus:bg-white focus:border focus:border-blue-300 w-20"
+                        className={`border-0 bg-transparent focus:bg-white focus:border focus:border-blue-300 w-20 ${row.isTotal ? 'font-bold text-yellow-800' : ''}`}
                         placeholder="0.00"
                       />
                     </TableCell>
@@ -2055,7 +2332,7 @@ const PenilaianGCG = () => {
                     {/* Capaian (Auto-calculated) */}
                     <TableCell>
                       <div className="text-center font-medium">
-                        <span className={`px-2 py-1 rounded-full text-xs ${
+                        <span className={`px-2 py-1 rounded-full text-xs ${row.isTotal ? 'font-bold bg-yellow-100 text-yellow-800' : 
                           // Special case: 0% depends on bobot sign
                           row.capaian === 0 ? (
                             row.bobot < 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
@@ -2096,7 +2373,7 @@ const PenilaianGCG = () => {
                             setTimeout(() => e.target.click(), 0);
                           }
                         }}
-                        className={`border-0 bg-transparent focus:bg-white focus:border focus:border-blue-300 text-center px-2 py-1 rounded-full text-xs font-medium ${
+                        className={`border-0 bg-transparent focus:bg-white focus:border focus:border-blue-300 text-center px-2 py-1 rounded-full text-xs font-medium ${row.isTotal ? 'font-bold text-yellow-800' : ''} ${
                           row.penjelasan === 'Sangat Baik' ? 'bg-green-100 text-green-800' :
                           row.penjelasan === 'Baik' ? 'bg-blue-100 text-blue-800' :
                           row.penjelasan === 'Cukup Baik' ? 'bg-yellow-100 text-yellow-800' :
@@ -2116,14 +2393,20 @@ const PenilaianGCG = () => {
                     
                     {/* Action */}
                     <TableCell>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => deleteRow(row.id)}
-                        className="text-red-600 border-red-200 hover:bg-red-50"
-                      >
-                        <Minus className="w-4 h-4" />
-                      </Button>
+                      {!row.isTotal ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => deleteRow(row.id)}
+                          className="text-red-600 border-red-200 hover:bg-red-50"
+                        >
+                          <Minus className="w-4 h-4" />
+                        </Button>
+                      ) : (
+                        <div className="text-center text-yellow-600 text-xs font-medium py-2">
+                          Total
+                        </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -2176,6 +2459,108 @@ const PenilaianGCG = () => {
           {currentStep === 'table' && renderTable()}
         </div>
       </div>
+
+      {/* Export Options Dialog */}
+      <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Export PDF Options</DialogTitle>
+            <DialogDescription>
+              Select which components to include in the PDF export
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="donut-charts"
+                checked={exportOptions.donutCharts}
+                onCheckedChange={(checked) => 
+                  setExportOptions(prev => ({ ...prev, donutCharts: checked as boolean }))
+                }
+              />
+              <label htmlFor="donut-charts" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                Donut Charts (Rata-rata Capaian)
+              </label>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="capaian-aspek"
+                checked={exportOptions.capaianAspek}
+                onCheckedChange={(checked) => 
+                  setExportOptions(prev => ({ ...prev, capaianAspek: checked as boolean }))
+                }
+              />
+              <label htmlFor="capaian-aspek" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                Capaian Aspek Charts
+              </label>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="skor-tahunan"
+                checked={exportOptions.skorTahunan}
+                onCheckedChange={(checked) => 
+                  setExportOptions(prev => ({ ...prev, skorTahunan: checked as boolean }))
+                }
+              />
+              <label htmlFor="skor-tahunan" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                Skor Tahunan Charts
+              </label>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="data-table"
+                checked={exportOptions.dataTable}
+                onCheckedChange={(checked) => 
+                  setExportOptions(prev => ({ ...prev, dataTable: checked as boolean }))
+                }
+              />
+              <label htmlFor="data-table" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                Data Table (Selected Year)
+              </label>
+            </div>
+            
+            <div className="flex items-center space-x-2 pt-2 border-t">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setExportOptions({ donutCharts: true, capaianAspek: true, skorTahunan: true, dataTable: true })}
+                className="text-xs"
+              >
+                Select All
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setExportOptions({ donutCharts: false, capaianAspek: false, skorTahunan: false, dataTable: false })}
+                className="text-xs"
+              >
+                Clear All
+              </Button>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowExportDialog(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={async () => {
+                setShowExportDialog(false);
+                await handleExportPDF();
+              }}
+              className="bg-blue-600 hover:bg-blue-700"
+              disabled={!exportOptions.donutCharts && !exportOptions.capaianAspek && !exportOptions.skorTahunan && !exportOptions.dataTable}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Export PDF
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       {showDeleteConfirm && (
