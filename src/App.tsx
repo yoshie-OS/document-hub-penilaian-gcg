@@ -11,6 +11,7 @@ import { YearProvider } from './contexts/YearContext';
 
 import { StrukturPerusahaanProvider } from './contexts/StrukturPerusahaanContext';
 import { AOIProvider } from './contexts/AOIContext';
+import { AOIDocumentProvider } from './contexts/AOIDocumentContext';
 import { Toaster } from './components/ui/toaster';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/auth/Login';
@@ -175,10 +176,12 @@ const App = () => {
                                   <YearProvider>
                       <StrukturPerusahaanProvider>
                         <AOIProvider>
-                          <SidebarProvider>
-                            <AppRoutes />
-                            <Toaster />
-                          </SidebarProvider>
+                          <AOIDocumentProvider>
+                            <SidebarProvider>
+                              <AppRoutes />
+                              <Toaster />
+                            </SidebarProvider>
+                          </AOIDocumentProvider>
                         </AOIProvider>
                       </StrukturPerusahaanProvider>
                   </YearProvider>

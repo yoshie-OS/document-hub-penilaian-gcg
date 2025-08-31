@@ -51,11 +51,11 @@ const DashboardMain = () => {
 
               {/* Advanced Analytics Panels - stacked (not side-by-side) */}
               <div className="space-y-6 mb-8">
-                {/* Performance Radar */}
-                <SpiderChart />
-
                 {/* Progress Panel */}
                 <MonthlyTrends />
+
+                {/* Performance Radar */}
+                <SpiderChart />
               </div>
 
             </>

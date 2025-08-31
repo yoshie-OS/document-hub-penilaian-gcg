@@ -569,7 +569,7 @@ const AOIManagement = () => {
                     {/* Table Actions */}
                     <div className="flex justify-between items-center mb-4">
                       <h4 className="text-lg font-semibold text-blue-900">
-                        Rekomendasi ({getTableRecommendations(table.id).length})
+                        Item AOI ({getTableRecommendations(table.id).length})
                       </h4>
                       <Dialog open={isRecommendationDialogOpen} onOpenChange={setIsRecommendationDialogOpen}>
                         <DialogTrigger asChild>
@@ -662,7 +662,7 @@ const AOIManagement = () => {
                               </div>
                             )}
                             <div>
-                              <Label>Organ Perusahaan yang menindak lanjuti</Label>
+                              <Label>Organ Perusahaan yang menindaklanjuti</Label>
                               <div className="grid grid-cols-2 gap-2">
                                 <Select
                                   onValueChange={(value) => setRecommendationForm(prev => ({ ...prev, pihakTerkait: value }))}
@@ -735,111 +735,123 @@ const AOIManagement = () => {
                       </Dialog>
                     </div>
 
-                    {/* Recommendations & Suggestions Tables per Group */}
-                    {getTableRecommendations(table.id).length > 0 ? (
-                      <div className="border border-blue-200 rounded-lg overflow-hidden bg-white shadow-sm">
-                        {/* Header informasi target dihapus sesuai permintaan */}
-                        <div className="flex flex-col gap-6">
-                          {/* Rekomendasi */}
-                          <div>
-                            <div className="px-4 py-2 bg-blue-100 text-blue-900 font-semibold">Rekomendasi</div>
-                            <div className="overflow-x-auto">
-                              <Table>
-                                <TableHeader>
-                                  <TableRow className="bg-blue-50">
-                                    <TableHead className="text-blue-900 font-semibold w-16 text-center">NO</TableHead>
-                                    <TableHead className="text-blue-900 font-semibold">ISI</TableHead>
-                                    <TableHead className="text-blue-900 font-semibold w-28 text-center">URGENSI</TableHead>
-                                    <TableHead className="text-blue-900 font-semibold w-40 text-center">ORGAN MENINDAKLANJUTI</TableHead>
-                                    <TableHead className="text-blue-900 font-semibold w-32 text-center">ASPEK</TableHead>
-                                    <TableHead className="text-blue-900 font-semibold w-28 text-center">AKSI</TableHead>
-                                  </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                  {getTableRecommendations(table.id).filter(r => r.jenis === 'REKOMENDASI').map((rec) => (
-                                    <TableRow key={rec.id} className="hover:bg-blue-50/50 border-b border-blue-100">
-                                      <TableCell className="font-medium text-center text-blue-900">{rec.no}</TableCell>
-                                      <TableCell>
-                                        <div className="text-sm leading-relaxed text-gray-800">{rec.rekomendasi || '-'}</div>
-                                        <div className="text-[10px] text-blue-700 mt-1">Pihak: {rec.pihakTerkait}</div>
-                                        <div className="text-[10px] text-gray-500">Dir: {rec.pihakTerkaitTindakLanjut?.direktorat || '-'} | Subdir: {rec.pihakTerkaitTindakLanjut?.subdirektorat || '-'} | Div: {rec.pihakTerkaitTindakLanjut?.divisi || '-'}</div>
-                                      </TableCell>
-                                      <TableCell>
-                                        <div className="flex justify-center">{renderStars(rec.tingkatUrgensi)}</div>
-                                      </TableCell>
-                                      <TableCell>
-                                        <div className="text-xs text-center">{rec.pihakTerkait || '-'}</div>
-                                      </TableCell>
-                                      <TableCell>
-                                        <div className="text-xs text-center">{rec.aspekAOI || '-'}</div>
-                                      </TableCell>
-                                      <TableCell>
-                                        <div className="flex gap-2 justify-center">
-                                          <Button size="sm" variant="outline" onClick={() => handleEditRecommendation(rec)} className="border-blue-200 text-blue-600 hover:bg-blue-50">
-                                            <Edit className="w-3 h-3 mr-1" />Edit
-                                          </Button>
-                                          <Button size="sm" variant="outline" onClick={() => handleDeleteRecommendation(rec.id)} className="border-red-200 text-red-600 hover:bg-red-50">
-                                            <Trash2 className="w-3 h-3 mr-1" />Hapus
-                                          </Button>
-                                        </div>
-                                      </TableCell>
-                                    </TableRow>
-                                  ))}
-                                </TableBody>
-                              </Table>
-                            </div>
-                          </div>
-                          {/* Saran */}
-                          <div>
-                            <div className="px-4 py-2 bg-yellow-100 text-yellow-900 font-semibold">Saran</div>
-                            <div className="overflow-x-auto">
-                              <Table>
-                                <TableHeader>
-                                  <TableRow className="bg-yellow-50">
-                                    <TableHead className="text-yellow-900 font-semibold w-16 text-center">NO</TableHead>
-                                    <TableHead className="text-yellow-900 font-semibold">ISI</TableHead>
-                                    <TableHead className="text-yellow-900 font-semibold w-28 text-center">URGENSI</TableHead>
-                                    <TableHead className="text-yellow-900 font-semibold w-40 text-center">ORGAN MENINDAKLANJUTI</TableHead>
-                                    <TableHead className="text-yellow-900 font-semibold w-32 text-center">ASPEK</TableHead>
-                                    <TableHead className="text-yellow-900 font-semibold w-28 text-center">AKSI</TableHead>
-                                  </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                  {getTableRecommendations(table.id).filter(r => r.jenis === 'SARAN').map((rec) => (
-                                    <TableRow key={rec.id} className="hover:bg-yellow-50/50 border-b border-yellow-100">
-                                      <TableCell className="font-medium text-center text-yellow-900">{rec.no}</TableCell>
-                                      <TableCell>
-                                        <div className="text-sm leading-relaxed text-gray-800">{rec.saran || '-'}</div>
-                                        <div className="text-[10px] text-blue-700 mt-1">Pihak: {rec.pihakTerkait}</div>
-                                        <div className="text-[10px] text-gray-500">Dir: {rec.pihakTerkaitTindakLanjut?.direktorat || '-'} | Subdir: {rec.pihakTerkaitTindakLanjut?.subdirektorat || '-'} | Div: {rec.pihakTerkaitTindakLanjut?.divisi || '-'}</div>
-                                      </TableCell>
-                                      <TableCell>
-                                        <div className="flex justify-center">{renderStars(rec.tingkatUrgensi)}</div>
-                                      </TableCell>
-                                      <TableCell>
-                                        <div className="text-xs text-center">{rec.pihakTerkait || '-'}</div>
-                                      </TableCell>
-                                      <TableCell>
-                                        <div className="text-xs text-center">{rec.aspekAOI || '-'}</div>
-                                      </TableCell>
-                                      <TableCell>
-                                        <div className="flex gap-2 justify-center">
-                                          <Button size="sm" variant="outline" onClick={() => handleEditRecommendation(rec)} className="border-blue-200 text-blue-600 hover:bg-blue-50">
-                                            <Edit className="w-3 h-3 mr-1" />Edit
-                                          </Button>
-                                          <Button size="sm" variant="outline" onClick={() => handleDeleteRecommendation(rec.id)} className="border-red-200 text-red-600 hover:bg-red-50">
-                                            <Trash2 className="w-3 h-3 mr-1" />Hapus
-                                          </Button>
-                                        </div>
-                                      </TableCell>
-                                    </TableRow>
-                                  ))}
-                                </TableBody>
-                              </Table>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                                         {/* Recommendations & Suggestions Tables per Group */}
+                     {getTableRecommendations(table.id).length > 0 ? (
+                       <div className="space-y-8">
+                         {/* Rekomendasi Section */}
+                         <div>
+                           <h4 className="text-md font-semibold text-blue-800 mb-4 flex items-center">
+                             <CheckCircle className="w-4 h-4 mr-2 text-green-600" />
+                             Rekomendasi ({getTableRecommendations(table.id).filter(r => r.jenis === 'REKOMENDASI').length})
+                           </h4>
+                           <div className="border border-blue-200 rounded-lg overflow-hidden bg-white shadow-sm">
+                             <div className="overflow-x-auto">
+                               <Table>
+                                 <TableHeader>
+                                   <TableRow className="bg-blue-50">
+                                     <TableHead className="text-blue-900 font-semibold w-16 text-center">NO</TableHead>
+                                     <TableHead className="text-blue-900 font-semibold">ISI</TableHead>
+                                     <TableHead className="text-blue-900 font-semibold w-28 text-center">URGENSI</TableHead>
+                                     <TableHead className="text-blue-900 font-semibold w-32 text-center">ASPEK</TableHead>
+                                     <TableHead className="text-blue-900 font-semibold w-40 text-center">
+                                       <div className="text-xs leading-tight">
+                                         ORGAN PERUSAHAAN<br />YANG MENINDAKLANJUTI
+                                       </div>
+                                     </TableHead>
+                                     <TableHead className="text-blue-900 font-semibold w-28 text-center">AKSI</TableHead>
+                                   </TableRow>
+                                 </TableHeader>
+                                 <TableBody>
+                                   {getTableRecommendations(table.id).filter(r => r.jenis === 'REKOMENDASI').map((rec) => (
+                                     <TableRow key={rec.id} className="hover:bg-blue-50/50 border-b border-blue-100">
+                                       <TableCell className="font-medium text-center text-blue-900">{rec.no}</TableCell>
+                                       <TableCell>
+                                         <div className="text-sm leading-relaxed text-gray-800">{rec.rekomendasi || '-'}</div>
+                                       </TableCell>
+                                       <TableCell className="text-center">
+                                         <div className="flex justify-center">{renderStars(rec.tingkatUrgensi)}</div>
+                                       </TableCell>
+                                       <TableCell className="text-center">
+                                         <div className="text-xs">{rec.aspekAOI || '-'}</div>
+                                       </TableCell>
+                                       <TableCell className="text-center">
+                                         <div className="text-xs">{rec.pihakTerkait || '-'}</div>
+                                       </TableCell>
+                                       <TableCell>
+                                         <div className="flex gap-2 justify-center">
+                                           <Button size="sm" variant="outline" onClick={() => handleEditRecommendation(rec)} className="border-blue-200 text-blue-600 hover:bg-blue-50">
+                                             <Edit className="w-3 h-3 mr-1" />Edit
+                                           </Button>
+                                           <Button size="sm" variant="outline" onClick={() => handleDeleteRecommendation(rec.id)} className="border-red-200 text-red-600 hover:bg-red-50">
+                                             <Trash2 className="w-3 h-3 mr-1" />Hapus
+                                           </Button>
+                                         </div>
+                                       </TableCell>
+                                     </TableRow>
+                                   ))}
+                                 </TableBody>
+                               </Table>
+                             </div>
+                           </div>
+                         </div>
+
+                         {/* Saran Section */}
+                         <div>
+                           <h4 className="text-md font-semibold text-yellow-800 mb-4 flex items-center">
+                             <CheckCircle className="w-4 h-4 mr-2 text-yellow-600" />
+                             Saran ({getTableRecommendations(table.id).filter(r => r.jenis === 'SARAN').length})
+                           </h4>
+                           <div className="border border-yellow-200 rounded-lg overflow-hidden bg-white shadow-sm">
+                             <div className="overflow-x-auto">
+                               <Table>
+                                 <TableHeader>
+                                   <TableRow className="bg-yellow-50">
+                                     <TableHead className="text-yellow-900 font-semibold w-16 text-center">NO</TableHead>
+                                     <TableHead className="text-yellow-900 font-semibold">ISI</TableHead>
+                                     <TableHead className="text-blue-900 font-semibold w-28 text-center">URGENSI</TableHead>
+                                     <TableHead className="text-blue-900 font-semibold w-32 text-center">ASPEK</TableHead>
+                                     <TableHead className="text-blue-900 font-semibold w-40 text-center">
+                                       <div className="text-xs leading-tight">
+                                         ORGAN PERUSAHAAN<br />YANG MENINDAKLANJUTI
+                                       </div>
+                                     </TableHead>
+                                     <TableHead className="text-blue-900 font-semibold w-28 text-center">AKSI</TableHead>
+                                   </TableRow>
+                                 </TableHeader>
+                                 <TableBody>
+                                   {getTableRecommendations(table.id).filter(r => r.jenis === 'SARAN').map((rec) => (
+                                     <TableRow key={rec.id} className="hover:bg-yellow-50/50 border-b border-yellow-100">
+                                       <TableCell className="font-medium text-center text-yellow-900">{rec.no}</TableCell>
+                                       <TableCell>
+                                         <div className="text-sm leading-relaxed text-gray-800">{rec.saran || '-'}</div>
+                                       </TableCell>
+                                       <TableCell className="text-center">
+                                         <div className="flex justify-center">{renderStars(rec.tingkatUrgensi)}</div>
+                                       </TableCell>
+                                       <TableCell className="text-center">
+                                         <div className="text-xs">{rec.aspekAOI || '-'}</div>
+                                       </TableCell>
+                                       <TableCell className="text-center">
+                                         <div className="text-xs">{rec.pihakTerkait || '-'}</div>
+                                       </TableCell>
+                                       <TableCell>
+                                         <div className="flex gap-2 justify-center">
+                                           <Button size="sm" variant="outline" onClick={() => handleEditRecommendation(rec)} className="border-blue-200 text-blue-600 hover:bg-blue-50">
+                                             <Edit className="w-3 h-3 mr-1" />Edit
+                                           </Button>
+                                           <Button size="sm" variant="outline" onClick={() => handleDeleteRecommendation(rec.id)} className="border-red-200 text-red-600 hover:bg-red-50">
+                                             <Trash2 className="w-3 h-3 mr-1" />Hapus
+                                           </Button>
+                                         </div>
+                                       </TableCell>
+                                     </TableRow>
+                                   ))}
+                                 </TableBody>
+                               </Table>
+                             </div>
+                           </div>
+                         </div>
+                       </div>
                     ) : (
                       <div className="text-center py-8 text-blue-600 bg-blue-50 rounded-lg border border-blue-200">
                         <FileText className="h-12 w-12 mx-auto mb-4 text-blue-400" />

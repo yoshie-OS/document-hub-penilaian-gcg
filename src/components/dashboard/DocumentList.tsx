@@ -618,28 +618,15 @@ Tahun: ${doc.year || new Date().getFullYear()}`);
               
               {/* Action Buttons */}
               <div className="flex items-center space-x-2 ml-4">
-                <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => setSelectedDocument(doc)}
-                      className="hover:bg-blue-50 hover:border-blue-200"
-                    >
-                      <Eye className="w-4 h-4 mr-1" />
-                      Detail
-                    </Button>
-                  </DialogTrigger>
-                  
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => handleDownloadDocument(doc)}
-                    className="hover:bg-green-50 hover:border-green-200"
-                  >
-                    <Download className="w-4 h-4 mr-1" />
-                    Unduh
-                  </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => handleDownloadDocument(doc)}
+                  className="hover:bg-green-50 hover:border-green-200"
+                >
+                  <Download className="w-4 h-4 mr-1" />
+                  Unduh
+                </Button>
                   
                   <Button 
                     variant="outline" 

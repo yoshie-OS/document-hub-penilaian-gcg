@@ -6,12 +6,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useFileUpload } from '@/contexts/FileUploadContext';
 import { useDocumentMetadata } from '@/contexts/DocumentMetadataContext';
 import { useUser } from '@/contexts/UserContext';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { useYear } from '@/contexts/YearContext';
 import { useStrukturPerusahaan } from '@/contexts/StrukturPerusahaanContext';
+import { useAOIDocument } from '@/contexts/AOIDocumentContext';
+import JSZip from 'jszip';
 import { 
   FileText, 
   Download,
@@ -23,7 +26,8 @@ import {
   Mail,
   Phone,
   FolderOpen,
-  Filter
+  Filter,
+  CheckCircle
 } from 'lucide-react';
 
 interface DocumentWithUser {
@@ -54,6 +58,7 @@ const ArsipDokumen = () => {
   const { documents } = useDocumentMetadata();
   const { user } = useUser();
   const { direktorat: direktoratData, subdirektorat: subDirektoratData, divisi: divisiData } = useStrukturPerusahaan();
+  const { getDocumentsByYear } = useAOIDocument();
 
   // Filter states
   const [selectedDirektorat, setSelectedDirektorat] = useState<string | null>(null);
@@ -64,6 +69,12 @@ const ArsipDokumen = () => {
   // Download states
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
+
+  // Get AOI documents for selected year
+  const aoiDocuments = useMemo(() => {
+    if (!selectedYear) return [];
+    return getDocumentsByYear(selectedYear);
+  }, [selectedYear, getDocumentsByYear]);
 
   // Get all documents with user information
   const allDocuments = useMemo(() => {
@@ -289,6 +300,33 @@ const ArsipDokumen = () => {
     document.body.removeChild(link);
   };
 
+  // Handle download AOI document
+  const handleDownloadAOI = (fileName: string) => {
+    // Create a mock file content for AOI documents
+    const mockContent = `Mock AOI file content for ${fileName}\n\nThis is a placeholder file for AOI documents.\nFile: ${fileName}\nType: AOI Document\nDate: ${new Date().toLocaleDateString('id-ID')}`;
+    
+    // Create blob and download
+    const blob = new Blob([mockContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    
+    // Trigger download
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // Clean up
+    URL.revokeObjectURL(url);
+  };
+
+  // Handle revision for AOI document
+  const handleRevisionAOI = (doc: any) => {
+    // Mock revision functionality
+    alert(`Revisi untuk dokumen AOI: ${doc.fileName}\n\nPengirim: ${doc.userId}\nDirektorat: ${doc.userDirektorat}\nSubdirektorat: ${doc.userSubdirektorat}\n\nFitur revisi akan diimplementasikan di masa depan.`);
+  };
+
   // Handle bulk download
   const handleBulkDownload = async (type: 'all' | 'direktorat' | 'aspect') => {
     setIsDownloading(true);
@@ -306,58 +344,80 @@ const ArsipDokumen = () => {
         });
       }, 100);
 
-      // Simulate download delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      clearInterval(progressInterval);
-      setDownloadProgress(100);
-
-      // Create download content based on type
-      let downloadContent = '';
+      // Get documents to download based on type
+      let documentsToDownload = [];
       let fileName = '';
 
       switch (type) {
         case 'all':
-          fileName = `arsip_dokumen_${selectedYear}_semua.csv`;
-          downloadContent = filteredDocuments.map(doc => 
-            `${doc.fileName},${doc.uploadedBy},${doc.userDirektorat},${doc.userSubdirektorat},${doc.userDivisi},${doc.aspect},${doc.checklistDescription},${new Date(doc.uploadDate).toLocaleDateString('id-ID')},${doc.status}`
-          ).join('\n');
+          documentsToDownload = filteredDocuments;
+          fileName = `arsip_dokumen_${selectedYear}_semua`;
           break;
         case 'direktorat':
           if (selectedDirektorat) {
-            fileName = `arsip_dokumen_${selectedYear}_${selectedDirektorat}.csv`;
-            const direktoratDocs = filteredDocuments.filter(doc => doc.userDirektorat === selectedDirektorat);
-            downloadContent = direktoratDocs.map(doc => 
-              `${doc.fileName},${doc.uploadedBy},${doc.userDirektorat},${doc.userSubdirektorat},${doc.userDivisi},${doc.aspect},${doc.checklistDescription},${new Date(doc.uploadDate).toLocaleDateString('id-ID')},${doc.status}`
-            ).join('\n');
+            documentsToDownload = filteredDocuments.filter(doc => doc.userDirektorat === selectedDirektorat);
+            fileName = `arsip_dokumen_${selectedYear}_${selectedDirektorat}`;
           }
           break;
         case 'aspect':
           if (selectedAspect) {
-            fileName = `arsip_dokumen_${selectedYear}_${selectedAspect}.csv`;
-            const aspectDocs = filteredDocuments.filter(doc => doc.aspect === selectedAspect);
-            downloadContent = aspectDocs.map(doc => 
-              `${doc.fileName},${doc.uploadedBy},${doc.userDirektorat},${doc.userSubdirektorat},${doc.userDivisi},${doc.aspect},${doc.checklistDescription},${new Date(doc.uploadDate).toLocaleDateString('id-ID')},${doc.status}`
-            ).join('\n');
+            documentsToDownload = filteredDocuments.filter(doc => doc.aspect === selectedAspect);
+            fileName = `arsip_dokumen_${selectedYear}_${selectedAspect}`;
           }
           break;
       }
 
-      // Create and download file
-      const blob = new Blob([downloadContent], { type: 'text/csv' });
-      const url = window.URL.createObjectURL(blob);
+      if (documentsToDownload.length === 0) {
+        alert('Tidak ada dokumen yang dapat didownload.');
+        return;
+      }
+
+      // Create ZIP file
+      const zip = new JSZip();
+      
+      // Add documents to ZIP
+      documentsToDownload.forEach((doc, index) => {
+        // Create mock file content for each document
+        const fileContent = `Mock file content for ${doc.fileName}\n\n` +
+          `File: ${doc.fileName}\n` +
+          `Uploaded by: ${doc.uploadedBy}\n` +
+          `Direktorat: ${doc.userDirektorat || 'N/A'}\n` +
+          `Subdirektorat: ${doc.userSubdirektorat || 'N/A'}\n` +
+          `Divisi: ${doc.userDivisi || 'N/A'}\n` +
+          `Aspect: ${doc.aspect || 'N/A'}\n` +
+          `Checklist Description: ${doc.checklistDescription || 'N/A'}\n` +
+          `Upload Date: ${new Date(doc.uploadDate).toLocaleDateString('id-ID')}\n` +
+          `Status: ${doc.status}\n\n` +
+          `This is a placeholder file for demonstration purposes.`;
+
+        // Add file to ZIP with proper folder structure
+        const folderPath = `${doc.userDirektorat || 'Unknown'}/${doc.userSubdirektorat || 'Unknown'}`;
+        zip.file(`${folderPath}/${doc.fileName}`, fileContent);
+        
+        // Update progress
+        setDownloadProgress(Math.round(((index + 1) / documentsToDownload.length) * 90));
+      });
+
+      // Generate ZIP file
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      
+      clearInterval(progressInterval);
+      setDownloadProgress(100);
+
+      // Download ZIP file
+      const url = window.URL.createObjectURL(zipBlob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = fileName;
+      a.download = `${fileName}.zip`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
 
-      alert(`Download berhasil! File ${fileName} berhasil diunduh.`);
+      alert(`Download berhasil! File ${fileName}.zip berhasil diunduh dengan ${documentsToDownload.length} dokumen.`);
     } catch (error) {
       console.error('Download error:', error);
-      alert('Terjadi kesalahan saat download file.');
+      alert('Terjadi kesalahan saat download file ZIP.');
     } finally {
       setIsDownloading(false);
       setDownloadProgress(0);
@@ -544,139 +604,322 @@ const ArsipDokumen = () => {
                 </CardContent>
               </Card>
 
-              {/* Documents List - Compact Single Grid Layout */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Archive className="h-5 w-5" />
-                    <span>Daftar Dokumen Tahun {selectedYear}</span>
+              {/* Documents List - Modern Card Grid Layout */}
+              <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-blue-50/30">
+                <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-t-lg">
+                  <CardTitle className="flex items-center space-x-3 text-white">
+                    <div className="p-2 bg-white/20 rounded-lg">
+                      <Archive className="h-6 w-6 text-white" />
+                    </div>
+                    <div>
+                      <span className="text-xl font-bold">Daftar Dokumen Tahun {selectedYear}</span>
+                      <div className="text-blue-100 text-sm font-normal mt-1">
+                        Total {filteredDocuments.length} dokumen ditemukan
+                      </div>
+                    </div>
                   </CardTitle>
-                  <CardDescription>
-                    Total {filteredDocuments.length} dokumen ditemukan
-                  </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-6">
                   {filteredDocuments.length > 0 ? (
-                    <div className="space-y-3">
+                    <div className="grid gap-4">
                       {filteredDocuments.map((doc) => (
-                        <div key={doc.id} className="group bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md hover:border-blue-300 transition-all duration-200">
-                          {/* Single Row Layout - All Information in One Line */}
-                          <div className="flex items-center justify-between space-x-4">
-                            {/* Left Side - File Info & User */}
-                            <div className="flex items-center space-x-4 flex-1 min-w-0">
-                              {/* File Icon & Name */}
-                              <div className="flex items-center space-x-3 min-w-0 flex-1">
-                                <div className="bg-blue-100 p-2 rounded-lg">
-                                  <FileText className="h-5 w-5 text-blue-600" />
+                        <div key={doc.id} className="group bg-white border border-gray-200 rounded-xl p-6 hover:shadow-xl hover:border-blue-400 hover:scale-[1.02] transition-all duration-300 transform">
+                          {/* Header Row */}
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center space-x-3">
+                              <div className="p-3 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl">
+                                <FileText className="h-6 w-6 text-blue-600" />
+                              </div>
+                              <div>
+                                <h3 className="text-lg font-bold text-gray-900 truncate max-w-md" title={doc.fileName}>
+                                  {doc.fileName}
+                                </h3>
+                                <div className="flex items-center space-x-2 mt-1">
+                                  <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs px-3 py-1">
+                                    {formatFileSize(doc.fileSize)}
+                                  </Badge>
+                                  <Badge className={`text-xs px-3 py-1 ${
+                                    doc.status === 'uploaded' 
+                                      ? 'bg-green-100 text-green-800 border-green-200' 
+                                      : 'bg-yellow-100 text-yellow-800 border-yellow-200'
+                                  }`}>
+                                    {doc.status === 'uploaded' ? 'Selesai' : 'Pending'}
+                                  </Badge>
                                 </div>
-                                <div className="min-w-0 flex-1">
-                                  <h3 className="text-sm font-semibold text-gray-900 truncate" title={doc.fileName}>
-                                    {doc.fileName}
-                                  </h3>
-                                  <div className="flex items-center space-x-2 mt-1">
-                                    <Badge variant="outline" className="text-xs px-2 py-1">
-                                      {formatFileSize(doc.fileSize)}
-                                    </Badge>
-                                    <Badge variant="secondary" className="text-xs px-2 py-1">
-                                      {doc.status}
-                                    </Badge>
-                                  </div>
-                                </div>
-                        </div>
+                              </div>
+                            </div>
+                            
+                            {/* Action Buttons */}
+                            <div className="flex items-center space-x-3">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleDownload(doc)}
+                                className="border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300 transition-colors"
+                              >
+                                <Download className="h-4 w-4 mr-2" />
+                                Download
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleRevision(doc)}
+                                className="border-orange-200 text-orange-600 hover:bg-orange-50 hover:border-orange-300 transition-colors"
+                              >
+                                <MessageSquare className="h-4 w-4 mr-2" />
+                                Revisi
+                              </Button>
+                            </div>
+                          </div>
 
-                              {/* User Info */}
-                              <div className="flex items-center space-x-3 min-w-0">
-                                <div className="flex items-center space-x-2">
-                                  <User className="h-4 w-4 text-gray-500" />
-                                  <span className="text-sm text-gray-700 font-medium truncate max-w-24" title={doc.uploadedBy}>
-                                    {doc.uploadedBy}
-                                  </span>
-                                </div>
+                          {/* Content Grid - All sections aligned in one row */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            {/* User Information */}
+                            <div className="space-y-3">
+                              <div className="flex items-center space-x-2">
+                                <User className="h-4 w-4 text-gray-500" />
+                                <span className="text-sm font-medium text-gray-700">Pengirim</span>
+                              </div>
+                              <div className="pl-6 space-y-1">
+                                <div className="text-sm font-semibold text-gray-900">{doc.uploadedBy}</div>
                                 {doc.userRole === 'admin' && (
-                          <div className="flex items-center space-x-2">
-                                    <Badge variant="outline" className="text-xs px-2 py-1 bg-blue-50 border-blue-200 text-blue-700">
+                                  <div className="space-y-1">
+                                    <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs px-2 py-1">
                                       {doc.userDirektorat}
                                     </Badge>
-                                    <Badge variant="outline" className="text-xs px-2 py-1 bg-purple-50 border-purple-200 text-purple-700">
+                                    <Badge variant="outline" className="bg-purple-50 border-purple-200 text-purple-700 text-xs px-2 py-1">
                                       {doc.userSubdirektorat}
                                     </Badge>
-                          </div>
-                            )}
-                          </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
 
-                              {/* Document Details */}
-                              <div className="flex items-center space-x-3 min-w-0">
-                                <Badge variant="outline" className="text-xs px-2 py-1 bg-orange-50 border-orange-200 text-orange-700 max-w-32 truncate" title={doc.aspect || 'Tidak Diberikan Aspek'}>
+                            {/* Document Details */}
+                            <div className="space-y-3">
+                              <div className="flex items-center space-x-2">
+                                <FileText className="h-4 w-4 text-gray-500" />
+                                <span className="text-sm font-medium text-gray-700">Detail Dokumen</span>
+                              </div>
+                              <div className="pl-6 space-y-1">
+                                <Badge variant="outline" className="bg-orange-50 border-orange-200 text-orange-700 text-xs px-2 py-1 max-w-full">
                                   {doc.aspect || 'Tidak Diberikan Aspek'}
                                 </Badge>
                                 <div className="flex items-center space-x-1 text-xs text-gray-500">
                                   <Calendar className="h-3 w-3" />
                                   <span>{new Date(doc.uploadDate).toLocaleDateString('id-ID')}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                            {/* Right Side - Contact & Actions */}
-                            <div className="flex items-center space-x-3 flex-shrink-0">
-                              {/* Contact Info */}
-                              {doc.userRole === 'admin' && (doc.userWhatsApp || doc.userEmail) && (
-                      <div className="flex items-center space-x-2">
-                                  {doc.userWhatsApp && (
-                                    <div className="flex items-center space-x-1 text-xs text-gray-500">
-                                      <Phone className="h-3 w-3 text-green-600" />
-                                      <span className="max-w-20 truncate" title={doc.userWhatsApp}>
-                                        {doc.userWhatsApp}
-                                      </span>
-                                    </div>
-                                  )}
-                                  {doc.userEmail && (
-                                    <div className="flex items-center space-x-1 text-xs text-gray-500">
-                                      <Mail className="h-3 w-3 text-blue-600" />
-                                      <span className="max-w-24 truncate" title={doc.userEmail}>
-                                        {doc.userEmail}
-                        </span>
-              </div>
-                                  )}
-            </div>
-                  )}
-
-                              {/* Action Buttons */}
-                      <div className="flex items-center space-x-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleDownload(doc)}
-                                  className="h-8 px-3 text-xs"
-                                >
-                                  <Download className="h-3 w-3 mr-1" />
-                                  Download
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleRevision(doc)}
-                                  className="h-8 px-3 text-xs"
-                                >
-                                  <MessageSquare className="h-3 w-3 mr-1" />
-                                  Revisi
-                                </Button>
+                                </div>
                               </div>
                             </div>
-          </div>
+
+                            {/* Dokumen GCG (sebelumnya Checklist GCG) */}
+                            <div className="space-y-3">
+                              <div className="flex items-center space-x-2">
+                                <CheckCircle className="h-4 w-4 text-gray-500" />
+                                <span className="text-sm font-medium text-gray-700">Dokumen GCG</span>
+                              </div>
+                              <div className="pl-6 space-y-1">
+                                {doc.checklistDescription ? (
+                                  <div className="text-sm text-gray-900">
+                                    <div className="font-medium text-indigo-600 mb-1">
+                                      Deskripsi:
+                                    </div>
+                                    <div className="text-xs text-gray-700 bg-indigo-50 p-2 rounded border border-indigo-100 max-w-full">
+                                      {doc.checklistDescription}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="text-sm text-gray-500 italic">
+                                    Deskripsi tidak tersedia
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Contact Information - Separate section */}
+                            <div className="space-y-3">
+                              <div className="flex items-center space-x-2">
+                                <Phone className="h-4 w-4 text-gray-500" />
+                                <span className="text-sm font-medium text-gray-700">Kontak</span>
+                              </div>
+                              <div className="pl-6 space-y-1">
+                                {doc.userRole === 'admin' && (doc.userWhatsApp || doc.userEmail) ? (
+                                  <div className="space-y-1">
+                                    {doc.userWhatsApp && (
+                                      <div className="flex items-center space-x-1 text-xs text-gray-600">
+                                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                        <span className="truncate max-w-24" title={doc.userWhatsApp}>
+                                          {doc.userWhatsApp}
+                                        </span>
+                                      </div>
+                                    )}
+                                    {doc.userEmail && (
+                                      <div className="flex items-center space-x-1 text-xs text-gray-600">
+                                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                        <span className="truncate max-w-32" title={doc.userEmail}>
+                                          {doc.userEmail}
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="text-sm text-gray-500 italic">
+                                    Kontak tidak tersedia
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+
+                          </div>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <div className="text-center py-12">
-                      <Archive className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                        Tidak Ada Dokumen
+                    <div className="text-center py-16">
+                      <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-blue-200 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <Archive className="h-10 w-10 text-blue-600" />
+                      </div>
+                      <h3 className="text-xl font-bold text-gray-900 mb-3">
+                        Belum Ada Dokumen
                       </h3>
-                      <p className="text-gray-600">
-                        Belum ada dokumen yang tersedia untuk tahun {selectedYear}
+                      <p className="text-gray-600 max-w-md mx-auto">
+                        Belum ada dokumen yang tersedia untuk tahun {selectedYear}. 
+                        Dokumen akan muncul di sini setelah diupload oleh admin.
                       </p>
                     </div>
                   )}
+                </CardContent>
+              </Card>
+
+            {/* Dokumen Tambahan dari AOI - Modern Card Layout */}
+            <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-purple-50/30">
+              <CardHeader className="bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-t-lg">
+                <CardTitle className="flex items-center space-x-3 text-white">
+                  <div className="p-2 bg-white/20 rounded-lg">
+                    <FileText className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <span className="text-xl font-bold">Dokumen Tambahan dari AOI</span>
+                    <div className="text-purple-100 text-sm font-normal mt-1">
+                      Total {aoiDocuments.length} dokumen AOI ditemukan
+                    </div>
+                  </div>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                {aoiDocuments.length > 0 ? (
+                  <div className="grid gap-4">
+                    {aoiDocuments.map((doc) => (
+                      <div key={doc.id} className="group bg-white border border-gray-200 rounded-xl p-6 hover:shadow-xl hover:border-purple-400 hover:scale-[1.02] transition-all duration-300 transform">
+                        {/* Header Row */}
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center space-x-3">
+                            <div className="p-3 bg-gradient-to-br from-purple-100 to-purple-200 rounded-xl">
+                              <FileText className="h-6 w-6 text-purple-600" />
+                            </div>
+                            <div>
+                              <h3 className="text-lg font-bold text-gray-900 truncate max-w-md" title={doc.fileName}>
+                                {doc.fileName}
+                              </h3>
+                              <div className="flex items-center space-x-2 mt-1">
+                                <Badge className={`text-xs px-3 py-1 ${
+                                  doc.aoiJenis === 'REKOMENDASI' 
+                                    ? 'bg-blue-100 text-blue-800 border-blue-200' 
+                                    : 'bg-green-100 text-green-800 border-green-200'
+                                }`}>
+                                  {doc.aoiJenis === 'REKOMENDASI' ? 'Rekomendasi' : 'Saran'} #{doc.aoiUrutan}
+                                </Badge>
+                                <Badge className="bg-purple-100 text-purple-800 border-purple-200 text-xs px-3 py-1">
+                                  AOI Document
+                                </Badge>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Action Buttons */}
+                          <div className="flex items-center space-x-3">
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              className="border-green-200 text-green-600 hover:bg-green-50 hover:border-green-300 transition-colors"
+                              onClick={() => handleDownloadAOI(doc.fileName)}
+                            >
+                              <Download className="h-4 w-4 mr-2" />
+                              Download
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              className="border-orange-200 text-orange-600 hover:bg-orange-50 hover:border-orange-300 transition-colors"
+                              onClick={() => handleRevisionAOI(doc)}
+                            >
+                              <MessageSquare className="h-4 w-4 mr-2" />
+                              Revisi
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Content Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {/* Pengirim Information */}
+                          <div className="space-y-3">
+                            <div className="flex items-center space-x-2">
+                              <User className="h-4 w-4 text-gray-500" />
+                              <span className="text-sm font-medium text-gray-700">Pengirim</span>
+                            </div>
+                            <div className="pl-6 space-y-1">
+                              <div className="space-y-1">
+                                <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs px-2 py-1">
+                                  {doc.userDirektorat}
+                                </Badge>
+                                <Badge variant="outline" className="bg-purple-50 border-purple-200 text-purple-700 text-xs px-2 py-1">
+                                  {doc.userSubdirektorat}
+                                </Badge>
+                                {doc.userDivisi && (
+                                  <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs px-2 py-1">
+                                    {doc.userDivisi}
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Document Details */}
+                          <div className="space-y-3">
+                            <div className="flex items-center space-x-2">
+                              <Calendar className="h-4 w-4 text-gray-500" />
+                              <span className="text-sm font-medium text-gray-700">Detail Dokumen</span>
+                            </div>
+                            <div className="pl-6 space-y-1">
+                              <div className="text-sm text-gray-600">
+                                <span className="font-medium">Tanggal Upload:</span>
+                                <div className="mt-1 text-xs text-gray-500">
+                                  {new Date(doc.uploadDate).toLocaleDateString('id-ID')}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-16">
+                    <div className="w-20 h-20 bg-gradient-to-br from-purple-100 to-purple-200 rounded-full flex items-center justify-center mx-auto mb-6">
+                      <FileText className="h-10 w-10 text-purple-600" />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900 mb-3">
+                      Belum Ada Dokumen AOI
+                    </h3>
+                    <p className="text-gray-600 max-w-md mx-auto">
+                      Belum ada dokumen tambahan dari AOI. 
+                      Dokumen yang diupload dari panel AOI akan muncul di sini.
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>

@@ -340,26 +340,15 @@ const AdminDocumentListPanel: React.FC<AdminDocumentListPanelProps> = ({
                             </Button>
                           )}
                           {item.status === 'completed' && item.uploadedFile && (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => onViewDocument(item.id)}
-                                className="border-blue-200 text-blue-600 hover:bg-blue-50"
-                              >
-                                <Eye className="w-4 w-4 mr-2" />
-                                Lihat
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => onDownloadDocument(item.id)}
-                                className="border-green-200 text-green-600 hover:bg-green-50"
-                              >
-                                <Download className="w-4 w-4 mr-2" />
-                                Download
-                              </Button>
-                            </>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => onDownloadDocument(item.id)}
+                              className="border-green-200 text-green-600 hover:bg-green-50"
+                            >
+                              <Download className="w-4 w-4 mr-2" />
+                              Download
+                            </Button>
                           )}
                         </div>
                       </TableCell>

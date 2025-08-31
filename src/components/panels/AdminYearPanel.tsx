@@ -53,7 +53,7 @@ const AdminYearPanel: React.FC<AdminYearPanelProps> = ({
                   className={`transition-all duration-200 ${
                     selectedYear === mostRecentYear 
                       ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                      : 'hover:bg-green-50 border-green-200 text-green-700 hover:border-green-300'
+                      : 'hover:bg-blue-50 border-blue-200 text-blue-700 hover:border-blue-300'
                   }`}
                 >
                   <span className="mr-2">{mostRecentYear}</span>

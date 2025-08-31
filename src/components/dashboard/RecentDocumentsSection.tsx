@@ -138,15 +138,6 @@ const RecentDocumentsSection: React.FC<RecentDocumentsSectionProps> = ({
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => onViewDocument(document)}
-                      className="text-blue-600 hover:text-blue-700"
-                    >
-                      <Eye className="w-4 h-4 mr-1" />
-                      Lihat
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
                       onClick={() => onDownloadDocument(document)}
                       className="text-green-600 hover:text-green-700"
                     >

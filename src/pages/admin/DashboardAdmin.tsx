@@ -28,14 +28,9 @@ import {
   AdminStatisticsPanel, 
   AdminArchivePanel, 
   AdminHeaderPanel,
-  AdminNotificationPanel,
   AOIPanel
 } from '@/components/panels';
 import { AdminUploadDialog } from '@/components/dialogs';
-import { 
-  mockNotifications,
-  getNotificationsBySubdirektorat
-} from '@/services/mockAdminData';
 
 interface DashboardStats {
   totalDocuments: number;
@@ -325,7 +320,7 @@ const DashboardAdmin: React.FC = () => {
             userSubdirektorat={user.subdirektorat}
           />
 
-                    {/* Year Selector Panel - Konsisten dengan menu lain */}
+          {/* Year Selector Panel - Konsisten dengan menu lain */}
           <YearSelectorPanel
             selectedYear={selectedYear}
             onYearChange={setSelectedYear}
@@ -337,30 +332,13 @@ const DashboardAdmin: React.FC = () => {
           {/* Conditional Display based on selected year */}
           {selectedYear === Math.max(...availableYears) ? (
             // Tahun Terkini (Paling Baru) - Tampilkan semua panel
-            <>
-                            {/* Statistik Progress Penugasan - UI sama dengan superadmin */}
+            <div className="space-y-6">
+              {/* Statistik Progress Penugasan - UI sama dengan superadmin */}
               <AdminStatisticsPanel 
-                      selectedYear={selectedYear}
+                selectedYear={selectedYear}
                 checklistItems={checklistItems}
                 userSubdirektorat={user.subdirektorat}
-                      isSidebarOpen={isSidebarOpen}
-              />
-
-              {/* Notification Panel */}
-              <AdminNotificationPanel
-                notifications={getNotificationsBySubdirektorat(user.subdirektorat)}
-                onNotificationClick={(notification) => {
-                  console.log('Notification clicked:', notification);
-                  // TODO: Implement notification action
-                }}
-                onMarkAsRead={(notificationId) => {
-                  console.log('Mark as read:', notificationId);
-                  // TODO: Implement mark as read
-                }}
-                onMarkAllAsRead={() => {
-                  console.log('Mark all as read');
-                  // TODO: Implement mark all as read
-                }}
+                isSidebarOpen={isSidebarOpen}
               />
 
               {/* Admin Document List Panel */}
@@ -373,20 +351,20 @@ const DashboardAdmin: React.FC = () => {
                 selectedYear={selectedYear}
               />
 
-                                              {/* Arsip Dokumen - Hanya tab Tahun Terkini */}
-                  <AdminArchivePanel
-                    selectedYear={selectedYear}
-                    canUploadInCurrentYear={canUploadInCurrentYear}
-                    isCurrentYear={true}
-                  />
+              {/* Area of Improvement (AOI) Panel */}
+              <AOIPanel
+                selectedYear={selectedYear}
+              />
 
-                  {/* Area of Improvement (AOI) Panel */}
-                  <AOIPanel
-                    selectedYear={selectedYear}
-                  />
-                </>
-              ) : (
-                        // Tahun Lama - Hanya tampilkan panel Arsip Dokumen
+              {/* Arsip Dokumen - Hanya tab Tahun Terkini */}
+              <AdminArchivePanel
+                selectedYear={selectedYear}
+                canUploadInCurrentYear={canUploadInCurrentYear}
+                isCurrentYear={true}
+              />
+            </div>
+          ) : (
+            // Tahun Lama - Hanya tampilkan panel Arsip Dokumen
             <AdminArchivePanel
               selectedYear={selectedYear}
               canUploadInCurrentYear={canUploadInCurrentYear}

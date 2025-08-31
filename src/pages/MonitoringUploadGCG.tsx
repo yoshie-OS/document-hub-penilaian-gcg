@@ -751,24 +751,7 @@ const MonitoringUploadGCG = () => {
                       </TableCell>
                       <TableCell>
                         <div className="flex space-x-2">
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => handleViewDocument(item.id)}
-                                disabled={!isChecklistUploaded(item.id)}
-                                className={`${
-                                  isChecklistUploaded(item.id)
-                                    ? 'border-blue-200 text-blue-600 hover:bg-blue-50'
-                                    : 'border-gray-200 text-gray-400 cursor-not-allowed'
-                                }`}
-                                title={
-                                  isChecklistUploaded(item.id)
-                                    ? 'Lihat dokumen di Dashboard'
-                                    : 'Dokumen belum diupload'
-                                }
-                              >
-                            <Eye className="w-4 h-4" />
-                          </Button>
+
                               <Button 
                                 variant="outline" 
                                 size="sm"
