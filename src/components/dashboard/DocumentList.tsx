@@ -416,7 +416,7 @@ ${senderName}
 ${senderEmail}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Dikirim dari GCG Document Hub
+                Dikirim dari Good Corporate Governance Documents Management System
 Tahun: ${doc.year || new Date().getFullYear()}`);
 
       // Open Gmail web directly (default behavior)

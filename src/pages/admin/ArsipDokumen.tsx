@@ -629,26 +629,26 @@ const ArsipDokumen = () => {
                             <div className="flex items-center space-x-3">
                               <div className="p-3 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl">
                                 <FileText className="h-6 w-6 text-blue-600" />
-                              </div>
+                                </div>
                               <div>
                                 <h3 className="text-lg font-bold text-gray-900 truncate max-w-md" title={doc.fileName}>
-                                  {doc.fileName}
-                                </h3>
-                                <div className="flex items-center space-x-2 mt-1">
+                                    {doc.fileName}
+                                  </h3>
+                                  <div className="flex items-center space-x-2 mt-1">
                                   <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs px-3 py-1">
-                                    {formatFileSize(doc.fileSize)}
-                                  </Badge>
+                                      {formatFileSize(doc.fileSize)}
+                                    </Badge>
                                   <Badge className={`text-xs px-3 py-1 ${
                                     doc.status === 'uploaded' 
                                       ? 'bg-green-100 text-green-800 border-green-200' 
                                       : 'bg-yellow-100 text-yellow-800 border-yellow-200'
                                   }`}>
                                     {doc.status === 'uploaded' ? 'Selesai' : 'Pending'}
-                                  </Badge>
+                                    </Badge>
+                                  </div>
                                 </div>
-                              </div>
-                            </div>
-                            
+                        </div>
+
                             {/* Action Buttons */}
                             <div className="flex items-center space-x-3">
                               <Button
@@ -676,10 +676,10 @@ const ArsipDokumen = () => {
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                             {/* User Information */}
                             <div className="space-y-3">
-                              <div className="flex items-center space-x-2">
-                                <User className="h-4 w-4 text-gray-500" />
+                                <div className="flex items-center space-x-2">
+                                  <User className="h-4 w-4 text-gray-500" />
                                 <span className="text-sm font-medium text-gray-700">Pengirim</span>
-                              </div>
+                                </div>
                               <div className="pl-6 space-y-1">
                                 <div className="text-sm font-semibold text-gray-900">{doc.uploadedBy}</div>
                                 {doc.userRole === 'admin' && (
@@ -690,12 +690,12 @@ const ArsipDokumen = () => {
                                     <Badge variant="outline" className="bg-purple-50 border-purple-200 text-purple-700 text-xs px-2 py-1">
                                       {doc.userSubdirektorat}
                                     </Badge>
-                                  </div>
-                                )}
+                          </div>
+                            )}
                               </div>
-                            </div>
+                          </div>
 
-                            {/* Document Details */}
+                              {/* Document Details */}
                             <div className="space-y-3">
                               <div className="flex items-center space-x-2">
                                 <FileText className="h-4 w-4 text-gray-500" />
@@ -708,9 +708,9 @@ const ArsipDokumen = () => {
                                 <div className="flex items-center space-x-1 text-xs text-gray-500">
                                   <Calendar className="h-3 w-3" />
                                   <span>{new Date(doc.uploadDate).toLocaleDateString('id-ID')}</span>
-                                </div>
-                              </div>
-                            </div>
+                        </div>
+                      </div>
+                    </div>
 
                             {/* Dokumen GCG (sebelumnya Checklist GCG) */}
                             <div className="space-y-3">
@@ -738,30 +738,30 @@ const ArsipDokumen = () => {
 
                             {/* Contact Information - Separate section */}
                             <div className="space-y-3">
-                              <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-2">
                                 <Phone className="h-4 w-4 text-gray-500" />
                                 <span className="text-sm font-medium text-gray-700">Kontak</span>
                               </div>
                               <div className="pl-6 space-y-1">
                                 {doc.userRole === 'admin' && (doc.userWhatsApp || doc.userEmail) ? (
                                   <div className="space-y-1">
-                                    {doc.userWhatsApp && (
+                                  {doc.userWhatsApp && (
                                       <div className="flex items-center space-x-1 text-xs text-gray-600">
                                         <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                                         <span className="truncate max-w-24" title={doc.userWhatsApp}>
-                                          {doc.userWhatsApp}
-                                        </span>
-                                      </div>
-                                    )}
-                                    {doc.userEmail && (
+                                        {doc.userWhatsApp}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {doc.userEmail && (
                                       <div className="flex items-center space-x-1 text-xs text-gray-600">
                                         <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                                         <span className="truncate max-w-32" title={doc.userEmail}>
-                                          {doc.userEmail}
-                                        </span>
-                                      </div>
-                                    )}
-                                  </div>
+                                        {doc.userEmail}
+                        </span>
+              </div>
+                                  )}
+            </div>
                                 ) : (
                                   <div className="text-sm text-gray-500 italic">
                                     Kontak tidak tersedia
@@ -771,7 +771,7 @@ const ArsipDokumen = () => {
                             </div>
 
 
-                          </div>
+          </div>
                         </div>
                       ))}
                     </div>
@@ -917,9 +917,9 @@ const ArsipDokumen = () => {
                     <p className="text-gray-600 max-w-md mx-auto">
                       Belum ada dokumen tambahan dari AOI. 
                       Dokumen yang diupload dari panel AOI akan muncul di sini.
-                    </p>
-                  </div>
-                )}
+                      </p>
+                    </div>
+                  )}
               </CardContent>
             </Card>
           </div>

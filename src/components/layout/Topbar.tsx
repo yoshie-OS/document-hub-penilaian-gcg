@@ -65,7 +65,7 @@ const Topbar = () => {
   const pageInfo = getPageInfo();
 
   return (
-    <div className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 fixed top-0 left-0 right-0 z-[60] shadow-sm">
+    <div className="h-16 bg-white border-b border-gray-200 flex items-center px-6 fixed top-0 left-0 right-0 z-[60] shadow-sm relative">
       {/* Left side - Logo, Title, and Hamburger */}
       <div className="flex items-center space-x-4">
         {/* Hamburger Menu */}
@@ -89,24 +89,24 @@ const Topbar = () => {
         >
           <div className="h-8 w-8 flex items-center justify-center">
             <img 
-              src="/aset/POSIND_2023_(with_wordmark).svg.png" 
-              alt="POSIND Logo" 
+              src="/logo.png" 
+              alt="POS Indonesia Logo" 
               className="w-full h-full object-contain"
             />
           </div>
           <div className="hidden md:block">
             <h1 className="text-xl font-bold text-gray-900">
-              GCG Document Hub
+              Good Corporate Governance Documents Management System
             </h1>
             <p className="text-xs text-gray-500">
-              Good Corporate Governance Management System
+              PT POS INDONESIA (PERSERO)
             </p>
           </div>
         </div>
       </div>
 
-      {/* Center - Breadcrumb Navigation */}
-      <div className="flex-1 flex justify-center">
+      {/* Center - Breadcrumb Navigation - Absolutely Centered */}
+      <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2">
         <div className="hidden lg:flex items-center space-x-2 text-sm text-gray-600">
           <Home className="w-4 h-4" />
           {pageInfo.breadcrumb.map((item, index) => (
@@ -124,7 +124,7 @@ const Topbar = () => {
       </div>
 
       {/* Right side */}
-      <div className="flex items-center space-x-4">
+      <div className="flex items-center space-x-4 ml-auto">
         {/* User Avatar - Hidden for Admin */}
         {user?.role !== 'admin' && (
           <div className="flex items-center space-x-3">

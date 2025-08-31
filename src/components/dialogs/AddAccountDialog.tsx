@@ -194,7 +194,7 @@ const AddAccountDialog: React.FC<AddAccountDialogProps> = ({
             <span>Tambah PIC Baru</span>
           </DialogTitle>
           <DialogDescription>
-            Buat akun PIC baru untuk pengguna sistem GCG Document Hub
+                            Buat akun PIC baru untuk pengguna sistem Good Corporate Governance Documents Management System
           </DialogDescription>
         </DialogHeader>
 
