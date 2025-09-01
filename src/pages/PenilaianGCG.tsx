@@ -73,12 +73,49 @@ const PenilaianGCG = () => {
   const [auditor, setAuditor] = useState('');
   const [jenisAsesmen, setJenisAsesmen] = useState('');
   const [showExportDialog, setShowExportDialog] = useState(false);
+  const [currentChartMode, setCurrentChartMode] = useState<'aspek' | 'tahun'>('aspek');
   const [exportOptions, setExportOptions] = useState({
     donutCharts: true,
     capaianAspek: true,
     skorTahunan: true,
     dataTable: true
   });
+  
+  // Update chart mode when export dialog opens
+  const handleOpenExportDialog = () => {
+    // Debug: find all switch elements
+    const allInputs = document.querySelectorAll('input');
+    const allSwitches = document.querySelectorAll('input[type="checkbox"]');
+    const chartModeInputs = document.querySelectorAll('input[id="chart-mode"]');
+    
+    console.log('All inputs found:', allInputs.length);
+    console.log('All checkbox inputs:', allSwitches.length);
+    console.log('Chart-mode inputs found:', chartModeInputs.length);
+    
+    // Try multiple selectors
+    let switchElement = document.querySelector('input[id="chart-mode"]') as HTMLInputElement;
+    
+    if (!switchElement) {
+      // Try alternative selectors
+      switchElement = document.querySelector('button[role="switch"]') as any;
+    }
+    
+    if (!switchElement) {
+      // Try finding by data attributes
+      switchElement = document.querySelector('[data-state]') as HTMLInputElement;
+    }
+    
+    console.log('Switch element found:', switchElement);
+    console.log('Switch checked state:', switchElement?.checked);
+    console.log('Switch data-state:', switchElement?.getAttribute?.('data-state'));
+    
+    // Check both checked property and data-state attribute
+    const isInSkorTahunanMode = switchElement?.checked || switchElement?.getAttribute?.('data-state') === 'checked' || false;
+    
+    setCurrentChartMode(isInSkorTahunanMode ? 'tahun' : 'aspek');
+    console.log('Export dialog opened, detected mode:', isInSkorTahunanMode ? 'Skor Tahunan' : 'Capaian Aspek');
+    setShowExportDialog(true);
+  };
   
   // State untuk data table
   const [tableData, setTableData] = useState<PenilaianRow[]>([]);
@@ -455,6 +492,12 @@ const PenilaianGCG = () => {
   // PDF Export functionality
   const handleExportPDF = async () => {
     try {
+      // Detect current chart mode from the switch
+      const switchElement = document.querySelector('input[id="chart-mode"]') as HTMLInputElement;
+      const isInSkorTahunanMode = switchElement?.checked || false;
+      
+      console.log('Current chart mode:', isInSkorTahunanMode ? 'Skor Tahunan' : 'Capaian Aspek');
+      
       const pdf = new jsPDF('l', 'mm', 'a4');
       let currentY = 20;
       
@@ -473,12 +516,13 @@ const PenilaianGCG = () => {
 
       // Export Donut Charts
       if (exportOptions.donutCharts) {
-        const donutSection = document.querySelector('[class*="grid-cols-2"]');
+        const donutSection = document.querySelector('.grid.grid-cols-2');
         if (donutSection) {
           const canvas = await html2canvas(donutSection as HTMLElement, {
             scale: 2,
             useCORS: true,
-            allowTaint: false
+            allowTaint: false,
+            backgroundColor: '#ffffff'
           });
           
           const imgData = canvas.toDataURL('image/png');
@@ -495,123 +539,268 @@ const PenilaianGCG = () => {
         }
       }
 
-      // Export Capaian Aspek Charts
+      // Export Capaian Aspek Charts (Multi-page: rows 1-2, 3-4, 5-6, etc.)
       if (exportOptions.capaianAspek) {
-        // Revert to working version - target the main card
-        const chartCard = document.querySelector('[class*="min-h-fit"] .p-4');
+        // Find all chart row containers
+        const chartRows = document.querySelectorAll('.flex.flex-col.items-center.w-full.gap-12 > div');
+        console.log('Found chart rows:', chartRows.length);
         
-        if (chartCard) {
-          // Add new page if needed
-          if (currentY > 200) {
-            pdf.addPage();
-            currentY = 20;
+        if (chartRows.length > 0) {
+          // Group rows into pairs: 1-2, 3-4, 5-6, etc.
+          for (let pageIndex = 0; pageIndex < Math.ceil(chartRows.length / 2); pageIndex++) {
+            const rowIndex1 = pageIndex * 2;
+            const rowIndex2 = pageIndex * 2 + 1;
+            
+            console.log(`Processing page ${pageIndex + 1}: rows ${rowIndex1 + 1}${rowIndex2 < chartRows.length ? `-${rowIndex2 + 1}` : ''}`);
+            
+            // Add new page for each row pair (except the first)
+            if (pageIndex > 0 || currentY > 200) {
+              pdf.addPage();
+              currentY = 20;
+            }
+            
+            // Create a temporary container for the row pair
+            const tempContainer = document.createElement('div');
+            tempContainer.style.position = 'absolute';
+            tempContainer.style.left = '-9999px';
+            tempContainer.style.top = '0';
+            tempContainer.style.backgroundColor = '#ffffff';
+            tempContainer.style.padding = '20px';
+            document.body.appendChild(tempContainer);
+            
+            // Clone the first row
+            const row1 = chartRows[rowIndex1] as HTMLElement;
+            const clonedRow1 = row1.cloneNode(true) as HTMLElement;
+            tempContainer.appendChild(clonedRow1);
+            
+            // Clone the second row if it exists
+            if (rowIndex2 < chartRows.length) {
+              const row2 = chartRows[rowIndex2] as HTMLElement;
+              const clonedRow2 = row2.cloneNode(true) as HTMLElement;
+              clonedRow2.style.marginTop = '48px'; // gap-12 equivalent
+              tempContainer.appendChild(clonedRow2);
+            }
+            
+            // Wait for elements to be ready
+            await new Promise(resolve => setTimeout(resolve, 200));
+            
+            // Capture the temporary container
+            const canvas = await html2canvas(tempContainer, {
+              scale: 1,
+              useCORS: true,
+              allowTaint: true,
+              backgroundColor: '#ffffff',
+              logging: false
+            });
+            
+            // Remove temporary container
+            document.body.removeChild(tempContainer);
+            
+            const imgData = canvas.toDataURL('image/png');
+            const pdfMaxWidth = 270;
+            const aspectRatio = canvas.width / canvas.height;
+            
+            let imgWidth = pdfMaxWidth;
+            let imgHeight = pdfMaxWidth / aspectRatio;
+            
+            if (imgHeight > 180) {
+              imgHeight = 180;
+              imgWidth = 180 * aspectRatio;
+            }
+            
+            // Add title
+            pdf.setFontSize(14);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text(`Capaian Aspek Charts (Page ${pageIndex + 1})`, 20, currentY);
+            currentY += 10;
+            
+            pdf.addImage(imgData, 'PNG', 20, currentY, imgWidth, imgHeight);
+            currentY += imgHeight + 20;
+            
+            console.log(`Page ${pageIndex + 1} exported: ${imgWidth}x${imgHeight}`);
           }
-          
-          console.log('Capturing Capaian Aspek element:', chartCard);
-          
-          const canvas = await html2canvas(chartCard as HTMLElement, {
-            scale: 1,
-            useCORS: true,
-            allowTaint: false,
-            logging: false,
-            backgroundColor: '#ffffff',
-            scrollX: 0,
-            scrollY: 0
-          });
-          
-          const imgData = canvas.toDataURL('image/png');
-          const imgWidth = 250;
-          const imgHeight = (canvas.height * imgWidth) / canvas.width;
-          
-          pdf.setFontSize(14);
-          pdf.setFont('helvetica', 'bold');
-          pdf.text('Capaian Aspek Charts', 20, currentY);
-          currentY += 10;
-          
-          // Crop the image - keep approximately half (middle section)
-          const croppedHeight = imgHeight * 0.50; // Keep middle 50%
-          const cropY = imgHeight * 0.25; // Start from 25% down
-          
-          pdf.addImage(imgData, 'PNG', 20, currentY, imgWidth, croppedHeight, 0, cropY);
-          currentY += croppedHeight + 20;
         } else {
-          console.log('Capaian Aspek chart not found');
+          console.log('Capaian Aspek chart rows not found');
         }
       }
 
       // Export Skor Tahunan Charts  
       if (exportOptions.skorTahunan) {
-        // Revert to working version - target the main card
-        const chartCard = document.querySelector('[class*="min-h-fit"] .p-4');
+        // First switch to Skor Tahunan mode if not already
+        const switchElement = document.querySelector('input[id="chart-mode"]') as HTMLInputElement;
+        if (switchElement && !switchElement.checked) {
+          switchElement.click();
+          // Wait for the chart to render in Skor Tahunan mode
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
         
-        if (chartCard) {
+        // Target the parent container of the SVG instead of the SVG directly
+        let chartContainer: HTMLElement | null = null;
+        
+        // First try to find the SVG, then get its parent
+        const svgElement = document.querySelector('svg.font-sans.mb-5');
+        if (svgElement) {
+          // Get the parent div that contains the SVG
+          chartContainer = svgElement.parentElement as HTMLElement;
+        }
+        
+        if (!chartContainer) {
+          // Fall back to finding the card content with SVG
+          const cardElements = document.querySelectorAll('.w-full.min-h-fit .p-4.min-h-fit');
+          chartContainer = Array.from(cardElements).find(el => 
+            el.querySelector('svg.font-sans.mb-5')
+          ) as HTMLElement;
+        }
+        
+        if (!chartContainer) {
+          // Last resort - find any card with an SVG
+          const cardElements = document.querySelectorAll('.w-full.min-h-fit .p-4.min-h-fit');
+          chartContainer = Array.from(cardElements).find(el => 
+            el.querySelector('svg')
+          ) as HTMLElement;
+        }
+        
+        console.log('Available SVGs:', document.querySelectorAll('svg'));
+        console.log('Chart container found:', chartContainer);
+        
+        if (chartContainer) {
           // Add new page if needed
           if (currentY > 200) {
             pdf.addPage();
             currentY = 20;
           }
           
-          console.log('Capturing Skor Tahunan element:', chartCard);
+          console.log('Capturing Skor Tahunan element:', chartContainer);
+          console.log('Element dimensions:', {
+            offsetWidth: chartContainer.offsetWidth,
+            offsetHeight: chartContainer.offsetHeight,
+            scrollWidth: chartContainer.scrollWidth,
+            scrollHeight: chartContainer.scrollHeight,
+            clientWidth: chartContainer.clientWidth,
+            clientHeight: chartContainer.clientHeight
+          });
           
-          // Wait a moment for chart to render
-          await new Promise(resolve => setTimeout(resolve, 500));
+          // Wait for chart to fully render
+          await new Promise(resolve => setTimeout(resolve, 800));
           
-          const canvas = await html2canvas(chartCard as HTMLElement, {
-            scale: 0.8,
+          const canvas = await html2canvas(chartContainer, {
+            scale: 2,
             useCORS: true,
-            allowTaint: false,
+            allowTaint: true,
             logging: false,
             backgroundColor: '#ffffff',
             scrollX: 0,
-            scrollY: 0
+            scrollY: 0,
+            width: chartContainer.scrollWidth || chartContainer.offsetWidth,
+            height: chartContainer.scrollHeight || chartContainer.offsetHeight,
+            // Better SVG handling
+            ignoreElements: (element) => {
+              // Skip elements that might cause issues
+              return element.tagName === 'SCRIPT' || element.tagName === 'STYLE';
+            }
           });
           
+          // NO CROPPING - Use the original canvas as-is
           const imgData = canvas.toDataURL('image/png');
-          const imgWidth = 250;
-          const imgHeight = (canvas.height * imgWidth) / canvas.width;
+          
+          console.log('Original canvas dimensions:', {
+            width: canvas.width,
+            height: canvas.height,
+            aspectRatio: canvas.width / canvas.height
+          });
+          
+          // Simple proportional sizing that maintains aspect ratio
+          const pdfMaxWidth = 270; // Max width for landscape PDF
+          const aspectRatio = canvas.width / canvas.height;
+          
+          let imgWidth = pdfMaxWidth;
+          let imgHeight = pdfMaxWidth / aspectRatio;
+          
+          // If too tall, scale down based on height
+          if (imgHeight > 120) {
+            imgHeight = 120;
+            imgWidth = 120 * aspectRatio;
+          }
+          
+          console.log('Final PDF dimensions:', { imgWidth, imgHeight, aspectRatio });
           
           pdf.setFontSize(14);
           pdf.setFont('helvetica', 'bold');
           pdf.text('Skor Tahunan Charts', 20, currentY);
           currentY += 10;
           
-          // Crop the image - keep approximately half (middle section)
-          const croppedHeight = imgHeight * 0.50; // Keep middle 50%
-          const cropY = imgHeight * 0.25; // Start from 25% down
-          
-          pdf.addImage(imgData, 'PNG', 20, currentY, imgWidth, croppedHeight, 0, cropY);
-          currentY += croppedHeight + 20;
+          pdf.addImage(imgData, 'PNG', 20, currentY, imgWidth, imgHeight);
+          currentY += imgHeight + 20;
         } else {
           console.log('Skor Tahunan chart not found');
         }
       }
 
-      // Export Data Table
+      // Export Data Table (Always on separate page)
       if (exportOptions.dataTable && selectedYear) {
-        const tableSection = document.querySelector('table.min-w-\\[340px\\]');
-        if (tableSection) {
-          // Add new page if needed
-          if (currentY > 200) {
-            pdf.addPage();
-            currentY = 20;
+        // Always add a new page for the data table
+        pdf.addPage();
+        currentY = 20;
+        
+        // Try multiple selectors to find the table
+        let tableSection = document.querySelector('.overflow-x-auto.w-full.flex.flex-col.items-center.justify-center.mb-2');
+        
+        if (!tableSection) {
+          // Try finding by table element directly
+          tableSection = document.querySelector('table.min-w-\\[340px\\]')?.parentElement?.parentElement;
+        }
+        
+        if (!tableSection) {
+          // Try finding the card containing the table
+          tableSection = document.querySelector('.w-full.min-h-fit .basis-\\[60\\%\\]');
+        }
+        
+        if (!tableSection) {
+          // Last resort - find any table
+          const table = document.querySelector('table');
+          if (table) {
+            // Find the closest card container
+            tableSection = table.closest('.w-full') || table.closest('div[class*="Card"]') || table.parentElement;
           }
+        }
+        
+        console.log('Data table element found:', tableSection);
+        
+        if (tableSection) {
+          // Wait for table to be fully rendered
+          await new Promise(resolve => setTimeout(resolve, 300));
           
           const canvas = await html2canvas(tableSection as HTMLElement, {
             scale: 2,
             useCORS: true,
-            allowTaint: false
+            allowTaint: true,
+            backgroundColor: '#ffffff',
+            logging: false
           });
           
           const imgData = canvas.toDataURL('image/png');
-          const imgWidth = 250;
-          const imgHeight = (canvas.height * imgWidth) / canvas.width;
+          const pdfMaxWidth = 270;
+          const aspectRatio = canvas.width / canvas.height;
+          
+          let imgWidth = pdfMaxWidth;
+          let imgHeight = pdfMaxWidth / aspectRatio;
+          
+          // If too tall, scale down
+          if (imgHeight > 200) {
+            imgHeight = 200;
+            imgWidth = 200 * aspectRatio;
+          }
           
           pdf.setFontSize(14);
           pdf.setFont('helvetica', 'bold');
           pdf.text(`Data Table - Year ${selectedYear}`, 20, currentY);
-          currentY += 10;
+          currentY += 15;
           
           pdf.addImage(imgData, 'PNG', 20, currentY, imgWidth, imgHeight);
+          
+          console.log(`Data table exported: ${imgWidth}x${imgHeight}`);
+        } else {
+          console.log('Data table not found - tried multiple selectors');
         }
       }
 
@@ -1204,7 +1393,7 @@ const PenilaianGCG = () => {
 
   // Method Selection Step
   const renderMethodSelection = () => (
-    <div className="space-y-8">
+    <div className="space-y-4">
 
       <div className="space-y-6">
         
@@ -1216,11 +1405,6 @@ const PenilaianGCG = () => {
             </p>
           </div>
         )}
-        
-        <div className="flex items-center space-x-4">
-
-
-        </div>
       </div>
 
       {/* Dashboard Section - Always visible frontpage */}
@@ -1233,7 +1417,7 @@ const PenilaianGCG = () => {
         {isSuperAdmin() && (
           <div className="flex justify-center gap-4 pt-4">
             <Button 
-              onClick={() => setShowExportDialog(true)}
+              onClick={handleOpenExportDialog}
               className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 text-sm"
             >
               <Download className="w-4 h-4 mr-2" />
@@ -2467,80 +2651,130 @@ const PenilaianGCG = () => {
             <DialogTitle>Export PDF Options</DialogTitle>
             <DialogDescription>
               Select which components to include in the PDF export
+              <br />
+              <span className="text-xs text-blue-600 font-medium">
+                Current mode: {currentChartMode === 'tahun' ? 'Skor Tahunan' : 'Capaian Aspek'}
+              </span>
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4 py-4">
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="donut-charts"
-                checked={exportOptions.donutCharts}
-                onCheckedChange={(checked) => 
-                  setExportOptions(prev => ({ ...prev, donutCharts: checked as boolean }))
-                }
-              />
-              <label htmlFor="donut-charts" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                Donut Charts (Rata-rata Capaian)
-              </label>
-            </div>
-            
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="capaian-aspek"
-                checked={exportOptions.capaianAspek}
-                onCheckedChange={(checked) => 
-                  setExportOptions(prev => ({ ...prev, capaianAspek: checked as boolean }))
-                }
-              />
-              <label htmlFor="capaian-aspek" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                Capaian Aspek Charts
-              </label>
-            </div>
-            
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="skor-tahunan"
-                checked={exportOptions.skorTahunan}
-                onCheckedChange={(checked) => 
-                  setExportOptions(prev => ({ ...prev, skorTahunan: checked as boolean }))
-                }
-              />
-              <label htmlFor="skor-tahunan" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                Skor Tahunan Charts
-              </label>
-            </div>
-            
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="data-table"
-                checked={exportOptions.dataTable}
-                onCheckedChange={(checked) => 
-                  setExportOptions(prev => ({ ...prev, dataTable: checked as boolean }))
-                }
-              />
-              <label htmlFor="data-table" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                Data Table (Selected Year)
-              </label>
-            </div>
-            
-            <div className="flex items-center space-x-2 pt-2 border-t">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setExportOptions({ donutCharts: true, capaianAspek: true, skorTahunan: true, dataTable: true })}
-                className="text-xs"
-              >
-                Select All
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setExportOptions({ donutCharts: false, capaianAspek: false, skorTahunan: false, dataTable: false })}
-                className="text-xs"
-              >
-                Clear All
-              </Button>
-            </div>
+            {(() => {              
+              if (currentChartMode === 'tahun') {
+                // Skor Tahunan mode - only show Skor Tahunan and Data Table options
+                return (
+                  <>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="skor-tahunan"
+                        checked={exportOptions.skorTahunan}
+                        onCheckedChange={(checked) => 
+                          setExportOptions(prev => ({ ...prev, skorTahunan: checked as boolean }))
+                        }
+                      />
+                      <label htmlFor="skor-tahunan" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                        Skor Tahunan Charts
+                      </label>
+                    </div>
+                    
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="data-table"
+                        checked={exportOptions.dataTable}
+                        onCheckedChange={(checked) => 
+                          setExportOptions(prev => ({ ...prev, dataTable: checked as boolean }))
+                        }
+                      />
+                      <label htmlFor="data-table" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                        Data Table (Selected Year)
+                      </label>
+                    </div>
+                    
+                    <div className="flex items-center space-x-2 pt-2 border-t">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setExportOptions(prev => ({ ...prev, skorTahunan: true, dataTable: true }))}
+                        className="text-xs"
+                      >
+                        Select All
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setExportOptions(prev => ({ ...prev, skorTahunan: false, dataTable: false }))}
+                        className="text-xs"
+                      >
+                        Clear All
+                      </Button>
+                    </div>
+                  </>
+                );
+              } else {
+                // Capaian Aspek mode - show Donut, Capaian Aspek, and Data Table options
+                return (
+                  <>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="donut-charts"
+                        checked={exportOptions.donutCharts}
+                        onCheckedChange={(checked) => 
+                          setExportOptions(prev => ({ ...prev, donutCharts: checked as boolean }))
+                        }
+                      />
+                      <label htmlFor="donut-charts" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                        Donut Charts (Rata-rata Capaian)
+                      </label>
+                    </div>
+                    
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="capaian-aspek"
+                        checked={exportOptions.capaianAspek}
+                        onCheckedChange={(checked) => 
+                          setExportOptions(prev => ({ ...prev, capaianAspek: checked as boolean }))
+                        }
+                      />
+                      <label htmlFor="capaian-aspek" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                        Capaian Aspek Charts
+                      </label>
+                    </div>
+                    
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="data-table"
+                        checked={exportOptions.dataTable}
+                        onCheckedChange={(checked) => 
+                          setExportOptions(prev => ({ ...prev, dataTable: checked as boolean }))
+                        }
+                      />
+                      <label htmlFor="data-table" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                        Data Table (Selected Year)
+                      </label>
+                    </div>
+                    
+                    <div className="flex items-center space-x-2 pt-2 border-t">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setExportOptions(prev => ({ ...prev, donutCharts: true, capaianAspek: true, dataTable: true }))}
+                        className="text-xs"
+                      >
+                        Select All
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setExportOptions(prev => ({ ...prev, donutCharts: false, capaianAspek: false, dataTable: false }))}
+                        className="text-xs"
+                      >
+                        Clear All
+                      </Button>
+                    </div>
+                  </>
+                );
+              }
+            })()}
           </div>
           
           <DialogFooter>
@@ -2553,7 +2787,13 @@ const PenilaianGCG = () => {
                 await handleExportPDF();
               }}
               className="bg-blue-600 hover:bg-blue-700"
-              disabled={!exportOptions.donutCharts && !exportOptions.capaianAspek && !exportOptions.skorTahunan && !exportOptions.dataTable}
+              disabled={(() => {                
+                if (currentChartMode === 'tahun') {
+                  return !exportOptions.skorTahunan && !exportOptions.dataTable;
+                } else {
+                  return !exportOptions.donutCharts && !exportOptions.capaianAspek && !exportOptions.dataTable;
+                }
+              })()}
             >
               <Download className="w-4 h-4 mr-2" />
               Export PDF

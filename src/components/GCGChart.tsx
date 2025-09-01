@@ -80,7 +80,7 @@ const YearlyScoreChart: React.FC<YearlyScoreChartProps> = ({ data, allYears, yea
   // chartAreaWidth dinamis sesuai jumlah tahun yang terfilter
   const filteredYearsCount = data.length;
   let chartAreaWidth = 1000;
-  if (filteredYearsCount > 15) chartAreaWidth = 1450;
+  if (filteredYearsCount > 15) chartAreaWidth = 1500;
   else if (filteredYearsCount > 10) chartAreaWidth = 1250;
   const yAxisPadding = 60;
   const barAreaHeight = 270; // tinggi area bar tetap
@@ -92,8 +92,7 @@ const YearlyScoreChart: React.FC<YearlyScoreChartProps> = ({ data, allYears, yea
   const scores = data.map(d => d.totalScore);
   let minScoreY = Math.floor(Math.min(...scores)) - 5;
   let maxScoreY = Math.ceil(Math.max(...scores)) + 2;
-  if (minScoreY < 0) minScoreY = 0;
-  if (maxScoreY > 100) maxScoreY = 100;
+  if (maxScoreY > 100) maxScoreY = 104.99;
 
   const barWidth = 40;
   const barSidePadding = 24; // padding kiri-kanan chart agar bar tidak mepet
@@ -129,7 +128,7 @@ const YearlyScoreChart: React.FC<YearlyScoreChartProps> = ({ data, allYears, yea
     <Card className="w-full min-h-fit">
       <CardContent className="p-4 min-h-fit flex flex-col items-center">
         {/* Switch + Filter tahun di atas grafik skor tahunan */}
-        <div className="flex flex-row items-center justify-center gap-2 mb-7">
+        <div className="flex flex-row items-center justify-center gap-2 mb-9">
           {setChartMode && (
             <div className="flex items-center space-x-2 mr-4">
               <Label htmlFor="chart-mode" className="text-sm">Capaian Aspek</Label>
@@ -167,8 +166,8 @@ const YearlyScoreChart: React.FC<YearlyScoreChartProps> = ({ data, allYears, yea
           {/* Label vertikal 'Skor' di samping sumbu Y */}
           <div style={{
             position: 'absolute',
-            left: -1, 
-            top: 130,
+            left: -10, 
+            top: 150,
             transform: 'rotate(-90deg)',
             transformOrigin: 'left top',
             fontSize: 13,
@@ -183,7 +182,6 @@ const YearlyScoreChart: React.FC<YearlyScoreChartProps> = ({ data, allYears, yea
           <svg width={chartAreaWidth} height={chartHeight} className="font-sans mb-5">
             {/* Sumbu Y dan grid */}
             <g className="text-xs text-muted-foreground" transform={`translate(${yAxisPadding - 10}, 0)`}>
-              <text x="-18" y="-18" textAnchor="middle" fontSize="12" fontStyle="italic" fill="#64748b">Capaian(%)</text>
               {/* Label angka sumbu Y dan grid (setiap 5 sesuai rentang) */}
               {(() => {
                 const labels = [];
@@ -417,17 +415,43 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, rawData = [], onBarCli
   let yearGap = 4; // default jarak antar tahun
 
   // Jika rentang tahun 1-5, buat bar lebih lebar
-  const numberOfYears = yearFilter ? yearFilter.end - yearFilter.start + 1 : 0;
-  if (chartMode === 'aspek' && numberOfYears > 0 && numberOfYears <= 5) {
-    // Semakin sedikit tahun, semakin lebar barnya
-    if (numberOfYears <= 2) {
-      barWidth = 45;
-      barGap = 10;
-      yearGap = 30;
-    } else { // 3 to 5 years
-      barWidth = 35;
-      barGap = 8;
-      yearGap = 24;
+  // Hitung jumlah tahun unik yang benar-benar ada dalam data terfilter
+  const filteredYearSet = new Set(filteredData.map(d => d.year));
+  const numberOfYears = filteredYearSet.size;
+  // Hitung jumlah bar total (jumlah aspek semua tahun yang terfilter)
+  const totalBars = filteredData.reduce((acc, yearData) => acc + (yearData.sections?.length ?? 0), 0);
+
+  // Aturan penentuan barWidth/barGap/yearGap
+  if (chartMode === 'aspek') {
+    if (numberOfYears > 5) {
+      // Aturan 1: tahun > 5, default
+      barWidth = 20;
+      barGap = 4;
+      yearGap = 4;
+    } else if (numberOfYears < 3) {
+      // Aturan 2: tahun < 3
+      if (totalBars <= 20) {
+        barWidth = 40;
+        barGap = 10;
+        yearGap = 30;
+      } else {
+        // Kembali ke default
+        barWidth = 20;
+        barGap = 4;
+        yearGap = 4;
+      }
+    } else if (numberOfYears < 6) {
+      // Aturan 3: tahun < 6
+      if (totalBars <= 30) {
+        barWidth = 30;
+        barGap = 8;
+        yearGap = 24;
+      } else {
+        // Kembali ke default
+        barWidth = 20;
+        barGap = 4;
+        yearGap = 4;
+      }
     }
   }
 
@@ -487,7 +511,7 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, rawData = [], onBarCli
       <CardContent className="p-4 min-h-fit">
         <div className="w-full min-h-fit">
           {/* Filter tahun dan switch selalu tampil di atas kedua grafik */}
-          <div className="flex flex-row items-center justify-center gap-2 mb-7">
+          <div className="flex flex-row items-center justify-center gap-2 mb-8">
             {setChartMode && (
               <div className="flex items-center space-x-2 mr-4">
                 <Label htmlFor="chart-mode" className="text-sm">Capaian Aspek</Label>
@@ -585,13 +609,27 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, rawData = [], onBarCli
                       };
                       const zeroY = getY(0);
 
+                      let totalChartWidth = 0;
+                      row.forEach((yearData, yearIdx) => {
+                          const yearWidth = barWidth * yearData.sections.length + barGap * (yearData.sections.length - 1);
+                          totalChartWidth += yearWidth;
+                          if (yearIdx > 0) {
+                              totalChartWidth += yearGap;
+                          }
+                      });
+
+                      const chartContainerWidth = 1100; // from maxWidth
+                      const chartStartX = (chartContainerWidth - totalChartWidth) / 2;
+
+                      const yAxisLeft = chartStartX + 32; // Adjust this offset as needed
+
                       return (
-                      <div key={rowIdx} className="relative w-full" style={{ paddingLeft: '160px' }}>
+                      <div key={rowIdx} className="relative w-full"style={{ paddingLeft: '60px' }}>
                         {/* Y-Axis positioned absolute to this container */}
                         <div style={{
                           position: 'absolute',
                           top: 0,
-                          left: -70,
+                          left: `${yAxisLeft}px`,
                           width: '40px',
                           height: `${chartHeight + 40}px`,
                           zIndex: 2,
@@ -599,7 +637,7 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, rawData = [], onBarCli
                         }}>
                           <div style={{
                             position: 'absolute',
-                            left: -145,
+                            left: -143,
                             top: '62%',
                             transform: 'translateY(-50%) rotate(-90deg)',
                             transformOrigin: 'left center',
@@ -623,7 +661,7 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, rawData = [], onBarCli
 
                         {/* Chart content */}
                         <div className="flex flex-col items-center w-full">
-                          <div className="flex flex-row items-baseline justify-start gap-5" style={{ marginLeft: '-100px', minHeight: '320px' }}>
+                          <div className="flex flex-row items-baseline justify-center gap-5" style={{ minHeight: '320px' }}>
                             {row.map((yearData, yearIdx) => {
                               const yearWidth = barWidth * yearData.sections.length + barGap * (yearData.sections.length - 1);
                               const hoverBoxWidth = yearWidth + 26;
@@ -644,7 +682,7 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, rawData = [], onBarCli
                                   style={{
                                     position: 'absolute',
                                     left: hoverBoxLeft,
-                                    top: -10,
+                                    top: -12,
                                     width: `${hoverBoxWidth}px`,
                                     height: '340px',
                                     background: 'transparent',
