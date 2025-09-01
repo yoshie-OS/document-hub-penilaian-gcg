@@ -203,7 +203,8 @@ const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
               checklistItem.id,
               checklistItem.deskripsi,
               checklistItem.aspek || 'Tidak Diberikan Aspek',
-              user?.subdirektorat
+              user?.subdirektorat,
+              formData.notes // Tambahkan catatan
             );
           } else {
             // For new upload: add new file
@@ -213,7 +214,8 @@ const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
               checklistItem.id,
               checklistItem.deskripsi,
               checklistItem.aspek || 'Tidak Diberikan Aspek',
-              user?.subdirektorat
+              user?.subdirektorat,
+              formData.notes // Tambahkan catatan
             );
           }
 
@@ -234,7 +236,8 @@ const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
             uploadedBy: user?.name || 'Unknown Admin',
             checklistId: checklistItem.id,
             checklistDescription: checklistItem.deskripsi,
-            aspect: checklistItem.aspek || 'Tidak Diberikan Aspek'
+            aspect: checklistItem.aspek || 'Tidak Diberikan Aspek',
+            catatan: formData.notes // Tambahkan catatan ke metadata
           });
         }
 

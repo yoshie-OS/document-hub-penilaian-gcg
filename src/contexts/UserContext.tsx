@@ -1,178 +1,186 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { userAPI } from '@/services/api';
 
-export type UserRole = "superadmin" | "admin";
 export interface User {
-  id: number;
-  email: string;
-  password: string;
-  role: UserRole;
+  id: string;
   name: string;
-  direktorat?: string;
-  subDirektorat?: string; // mempertahankan casing historis jika ada penggunaan lama
-  subdirektorat?: string; // normalisasi baru
-  divisi?: string;
+  email: string;
+  role: 'superadmin' | 'admin' | 'user';
+  direktorat: string;
+  subdirektorat: string;
+  divisi: string;
+  createdAt: string;
+  status: 'active' | 'inactive';
 }
 
 interface UserContextType {
   user: User | null;
-  login: (email: string, password: string) => boolean;
+  login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
-  isSuperAdmin: () => boolean;
-  isAdmin: () => boolean;
-  canModifySuperAdmin: (userId: number) => boolean;
+  isLoading: boolean;
+  error: string | null;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
-export const UserProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
-
-  // Inisialisasi user dari localStorage - FRESH START dengan Super Admin default
-  useEffect(() => {
-    console.log('UserContext: Initializing...');
-    
-    // Check if super admin exists, if not create one
-    const users: User[] = JSON.parse(localStorage.getItem("users") || "[]");
-    console.log('UserContext: Current users in localStorage:', users);
-    
-    const superAdminExists = users.some(u => u.role === 'superadmin');
-    console.log('UserContext: Super admin exists:', superAdminExists);
-    
-    if (!superAdminExists) {
-      const defaultSuperAdmin: User = {
-        id: 1,
-        email: 'arsippostgcg@gmail.com',
-        password: 'postarsipGCG.',
-        role: 'superadmin',
-        name: 'Super Administrator',
-        direktorat: 'Direksi',
-        subdirektorat: 'Direksi Utama',
-        divisi: 'Direksi'
-      };
-      
-      const updatedUsers = [...users, defaultSuperAdmin];
-      localStorage.setItem("users", JSON.stringify(updatedUsers));
-      console.log('UserContext: Created default super admin account with arsippostgcg@gmail.com');
-      console.log('UserContext: Updated users list:', updatedUsers);
-    }
-    
-      // Load current user if exists
-  const currentUser = localStorage.getItem("currentUser");
-  if (currentUser) {
-    try {
-      const parsed = JSON.parse(currentUser);
-      setUser(parsed);
-      console.log('UserContext: Loaded current user from localStorage:', parsed);
-    } catch (error) {
-      console.error('UserContext: Error parsing currentUser', error);
-      localStorage.removeItem("currentUser");
-      setUser(null);
-    }
-  } else {
-    console.log('UserContext: No current user found in localStorage');
+export const useUser = () => {
+  const context = useContext(UserContext);
+  if (context === undefined) {
+    throw new Error('useUser must be used within a UserProvider');
   }
-}, []);
+  return context;
+};
 
-// Listen for year data cleanup events
-useEffect(() => {
-  const handleYearDataCleaned = (event: CustomEvent) => {
-    if (event.detail?.type === 'yearRemoved') {
-      const removedYear = event.detail.year;
-      console.log(`UserContext: Year ${removedYear} data cleaned up, refreshing users`);
-      
-      // Refresh users data from localStorage
-      const usersData = localStorage.getItem('users');
-      if (usersData) {
-        try {
-          const parsed = JSON.parse(usersData);
-          // Note: We don't have a setUsers function, but the cleanup is handled in YearContext
-          console.log(`UserContext: Users data refreshed after year ${removedYear} cleanup`);
-        } catch (error) {
-          console.error('UserContext: Error refreshing users after year cleanup', error);
+interface UserProviderProps {
+  children: ReactNode;
+}
+
+export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Check for existing user session on mount
+  useEffect(() => {
+    const checkExistingSession = async () => {
+      try {
+        const storedUser = localStorage.getItem('user');
+        const authToken = localStorage.getItem('authToken');
+        
+        if (storedUser && authToken) {
+          const userData = JSON.parse(storedUser);
+          setUser(userData);
         }
+      } catch (err) {
+        console.error('Error checking existing session:', err);
+        // Clear invalid data
+        localStorage.removeItem('user');
+        localStorage.removeItem('authToken');
+      } finally {
+        setIsLoading(false);
       }
-    }
-  };
+    };
 
-  window.addEventListener('yearDataCleaned', handleYearDataCleaned as EventListener);
-  
-  return () => {
-    window.removeEventListener('yearDataCleaned', handleYearDataCleaned as EventListener);
-  };
-}, []);
+    checkExistingSession();
+  }, []);
 
-  const login = (email: string, password: string) => {
-    const users: User[] = JSON.parse(localStorage.getItem("users") || "[]");
-    console.log('Login attempt:', { email, password, usersCount: users.length });
-    
-    const found = users.find(
-      (u) => u.email === email && u.password === password
-    );
-    
-    if (found) {
-      console.log('User found:', found);
-      // Normalisasi field nama organisasi
-      const normalized: User = {
-        ...found,
-        subdirektorat: (found as any).subdirektorat || (found as any).subDirektorat || '',
-        subDirektorat: (found as any).subDirektorat || (found as any).subdirektorat || ''
-      };
-      setUser(normalized);
-      localStorage.setItem("currentUser", JSON.stringify(normalized));
+  const login = async (email: string, password: string): Promise<boolean> => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Try API login first
+      try {
+        const userData = await userAPI.login(email, password);
+        setUser(userData);
+        return true;
+      } catch (apiError) {
+        console.warn('API login failed, falling back to local data:', apiError);
+        
+        // Check local users first (from PengaturanBaru)
+        const localUsers = localStorage.getItem('users');
+        if (localUsers) {
+          try {
+            const users = JSON.parse(localUsers);
+            const localUser = users.find((u: any) => u.email === email && u.password === password);
+            if (localUser) {
+              const { password: _, ...userWithoutPassword } = localUser;
+              // Convert id to string to match interface
+              const userData = {
+                ...userWithoutPassword,
+                id: String(userWithoutPassword.id),
+                createdAt: userWithoutPassword.createdAt || new Date().toISOString(),
+                status: 'active' as const
+              };
+              setUser(userData);
+              localStorage.setItem('user', JSON.stringify(userData));
+              localStorage.setItem('authToken', `local-${userData.id}`);
+              return true;
+            }
+          } catch (parseError) {
+            console.warn('Failed to parse local users:', parseError);
+          }
+        }
+        
+        // Fallback to mock data for demo purposes
+        const mockUsers = [
+          {
+            id: '1',
+            name: 'Super Admin',
+            email: 'superadmin@posindonesia.co.id',
+            password: 'admin123',
+            role: 'superadmin' as const,
+            direktorat: 'DIREKTORAT UTAMA',
+            subdirektorat: 'SUB DIREKTORAT UTAMA',
+            divisi: 'DIVISI UTAMA',
+            createdAt: '2024-01-01T00:00:00.000Z',
+            status: 'active' as const
+          },
+          {
+            id: '2',
+            name: 'Admin GCG',
+            email: 'admin@posindonesia.co.id',
+            password: 'admin123',
+            role: 'admin' as const,
+            direktorat: 'DIREKTORAT BISNIS JASA KEUANGAN',
+            subdirektorat: 'SUB DIREKTORAT GOVERNMENT AND CORPORATE BUSINESS',
+            divisi: 'PENYALURAN DANA',
+            createdAt: '2024-01-01T00:00:00.000Z',
+            status: 'active' as const
+          },
+          {
+            id: '3',
+            name: 'User Regular',
+            email: 'user@posindonesia.co.id',
+            password: 'user123',
+            role: 'user' as const,
+            direktorat: 'DIREKTORAT BISNIS JASA KEUANGAN',
+            subdirektorat: 'SUB DIREKTORAT GOVERNMENT AND CORPORATE BUSINESS',
+            divisi: 'PENYALURAN DANA',
+            createdAt: '2024-01-01T00:00:00.000Z',
+            status: 'active' as const
+          }
+        ];
+
+        const mockUser = mockUsers.find(u => u.email === email && u.password === password);
+        if (mockUser) {
+          const { password: _, ...userWithoutPassword } = mockUser;
+          setUser(userWithoutPassword);
+          localStorage.setItem('user', JSON.stringify(userWithoutPassword));
+          localStorage.setItem('authToken', `mock-${userWithoutPassword.id}`);
       return true;
     }
     
-    console.log('User not found for:', email);
+        throw new Error('Invalid credentials');
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Login failed';
+      setError(errorMessage);
     return false;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem("currentUser");
+    setError(null);
+    localStorage.removeItem('user');
+    localStorage.removeItem('authToken');
+    userAPI.logout();
   };
 
-  // Helper functions untuk role checking
-  const isSuperAdmin = () => {
-    return user?.role === 'superadmin';
-  };
-
-  const isAdmin = () => {
-    return user?.role === 'admin';
-  };
-
-
-
-  // Check if user can modify super admin (only super admin can modify super admin)
-  const canModifySuperAdmin = (userId: number) => {
-    if (!user) return false;
-    if (user.role === 'superadmin') return true;
-    
-    // Get target user
-    const users: User[] = JSON.parse(localStorage.getItem("users") || "[]");
-    const targetUser = users.find(u => u.id === userId);
-    
-    // Non-super admin cannot modify super admin
-    if (targetUser?.role === 'superadmin') return false;
-    
-    return true;
+  const value: UserContextType = {
+    user,
+    login,
+    logout,
+    isLoading,
+    error
   };
 
   return (
-    <UserContext.Provider value={{ 
-      user, 
-      login, 
-      logout, 
-      isSuperAdmin, 
-      isAdmin, 
-      canModifySuperAdmin 
-    }}>
+    <UserContext.Provider value={value}>
       {children}
     </UserContext.Provider>
   );
-};
-
-export const useUser = () => {
-  const ctx = useContext(UserContext);
-  if (!ctx) throw new Error("useUser must be used within UserProvider");
-  return ctx;
 }; 

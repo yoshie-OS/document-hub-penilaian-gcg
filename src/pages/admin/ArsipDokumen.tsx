@@ -14,6 +14,7 @@ import { useSidebar } from '@/contexts/SidebarContext';
 import { useYear } from '@/contexts/YearContext';
 import { useStrukturPerusahaan } from '@/contexts/StrukturPerusahaanContext';
 import { useAOIDocument } from '@/contexts/AOIDocumentContext';
+import { CatatanDialog } from '@/components/dialogs/CatatanDialog';
 import JSZip from 'jszip';
 import { 
   FileText, 
@@ -27,7 +28,8 @@ import {
   Phone,
   FolderOpen,
   Filter,
-  CheckCircle
+  CheckCircle,
+  Trash2
 } from 'lucide-react';
 
 interface DocumentWithUser {
@@ -41,6 +43,7 @@ interface DocumentWithUser {
   aspect?: string;
   status: 'uploaded' | 'pending';
   subdirektorat?: string;
+  catatan?: string; // Tambahkan field catatan
   // User information
   uploadedBy: string;
   userRole: 'superadmin' | 'admin';
@@ -69,6 +72,14 @@ const ArsipDokumen = () => {
   // Download states
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
+  
+  // State untuk CatatanDialog
+  const [isCatatanDialogOpen, setIsCatatanDialogOpen] = useState(false);
+  const [selectedDocumentForCatatan, setSelectedDocumentForCatatan] = useState<{
+    catatan?: string;
+    title?: string;
+    fileName?: string;
+  } | null>(null);
 
   // Get AOI documents for selected year
   const aoiDocuments = useMemo(() => {
@@ -200,6 +211,7 @@ const ArsipDokumen = () => {
           aspect: file.aspect,
           status: file.status,
           subdirektorat: file.subdirektorat,
+          catatan: file.catatan, // Tambahkan catatan dari file
           uploadedBy,
           userRole,
           userDirektorat,
@@ -300,6 +312,31 @@ const ArsipDokumen = () => {
     document.body.removeChild(link);
   };
 
+  // Handle delete document
+  const handleDelete = (doc: DocumentWithUser) => {
+    if (confirm(`Apakah Anda yakin ingin menghapus dokumen "${doc.fileName}"?\n\nDokumen ini akan dihapus secara permanen dari sistem.`)) {
+      try {
+        // Delete from FileUploadContext
+        const currentFiles = JSON.parse(localStorage.getItem('uploadedFiles') || '[]');
+        const updatedFiles = currentFiles.filter((file: any) => file.id !== doc.id);
+        localStorage.setItem('uploadedFiles', JSON.stringify(updatedFiles));
+        
+        // Delete from DocumentMetadataContext
+        const currentMetadata = JSON.parse(localStorage.getItem('documentMetadata') || '[]');
+        const updatedMetadata = currentMetadata.filter((meta: any) => meta.id !== doc.id);
+        localStorage.setItem('documentMetadata', JSON.stringify(updatedMetadata));
+        
+        // Trigger page refresh to update UI
+        window.location.reload();
+        
+        alert('Dokumen berhasil dihapus!');
+      } catch (error) {
+        console.error('Error deleting document:', error);
+        alert('Gagal menghapus dokumen. Silakan coba lagi.');
+      }
+    }
+  };
+
   // Handle download AOI document
   const handleDownloadAOI = (fileName: string) => {
     // Create a mock file content for AOI documents
@@ -325,6 +362,36 @@ const ArsipDokumen = () => {
   const handleRevisionAOI = (doc: any) => {
     // Mock revision functionality
     alert(`Revisi untuk dokumen AOI: ${doc.fileName}\n\nPengirim: ${doc.userId}\nDirektorat: ${doc.userDirektorat}\nSubdirektorat: ${doc.userSubdirektorat}\n\nFitur revisi akan diimplementasikan di masa depan.`);
+  };
+
+  // Handle delete AOI document
+  const handleDeleteAOI = (doc: any) => {
+    if (confirm(`Apakah Anda yakin ingin menghapus dokumen AOI "${doc.fileName}"?\n\nDokumen ini akan dihapus secara permanen dari sistem.`)) {
+      try {
+        // Delete from AOIDocumentContext
+        const currentAOIDocs = JSON.parse(localStorage.getItem('aoiDocuments') || '[]');
+        const updatedAOIDocs = currentAOIDocs.filter((aoiDoc: any) => aoiDoc.id !== doc.id);
+        localStorage.setItem('aoiDocuments', JSON.stringify(updatedAOIDocs));
+        
+        // Trigger page refresh to update UI
+        window.location.reload();
+        
+        alert('Dokumen AOI berhasil dihapus!');
+      } catch (error) {
+        console.error('Error deleting AOI document:', error);
+        alert('Gagal menghapus dokumen AOI. Silakan coba lagi.');
+      }
+    }
+  };
+
+  // Handle show catatan
+  const handleShowCatatan = (document: any) => {
+    setSelectedDocumentForCatatan({
+      catatan: document.catatan,
+      title: document.checklistDescription || document.fileName,
+      fileName: document.fileName
+    });
+    setIsCatatanDialogOpen(true);
   };
 
   // Handle bulk download
@@ -614,7 +681,7 @@ const ArsipDokumen = () => {
                     <div>
                       <span className="text-xl font-bold">Daftar Dokumen Tahun {selectedYear}</span>
                       <div className="text-blue-100 text-sm font-normal mt-1">
-                        Total {filteredDocuments.length} dokumen ditemukan
+                    Total {filteredDocuments.length} dokumen ditemukan
                       </div>
                     </div>
                   </CardTitle>
@@ -631,7 +698,7 @@ const ArsipDokumen = () => {
                                 <FileText className="h-6 w-6 text-blue-600" />
                                 </div>
                               <div>
-                                <h3 className="text-lg font-bold text-gray-900 truncate max-w-md" title={doc.fileName}>
+                                <h3 className="text-lg font-bold text-gray-900 truncate max-w-[300px]" title={doc.fileName}>
                                     {doc.fileName}
                                   </h3>
                                   <div className="flex items-center space-x-2 mt-1">
@@ -660,6 +727,19 @@ const ArsipDokumen = () => {
                                 <Download className="h-4 w-4 mr-2" />
                                 Download
                               </Button>
+                              
+                              {/* Tombol Catatan */}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleShowCatatan(doc)}
+                                className="border-green-200 text-green-600 hover:bg-green-50 hover:border-green-300 transition-colors"
+                                title="Lihat catatan dokumen"
+                              >
+                                <FileText className="h-4 w-4 mr-2" />
+                                Catatan
+                              </Button>
+                              
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -668,6 +748,15 @@ const ArsipDokumen = () => {
                               >
                                 <MessageSquare className="h-4 w-4 mr-2" />
                                 Revisi
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleDelete(doc)}
+                                className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 transition-colors"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Hapus
                               </Button>
                             </div>
                           </div>
@@ -714,7 +803,7 @@ const ArsipDokumen = () => {
 
                             {/* Dokumen GCG (sebelumnya Checklist GCG) */}
                             <div className="space-y-3">
-                              <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-2">
                                 <CheckCircle className="h-4 w-4 text-gray-500" />
                                 <span className="text-sm font-medium text-gray-700">Dokumen GCG</span>
                               </div>
@@ -765,8 +854,8 @@ const ArsipDokumen = () => {
                                 ) : (
                                   <div className="text-sm text-gray-500 italic">
                                     Kontak tidak tersedia
-                                  </div>
-                                )}
+            </div>
+                  )}
                               </div>
                             </div>
 
@@ -819,7 +908,7 @@ const ArsipDokumen = () => {
                               <FileText className="h-6 w-6 text-purple-600" />
                             </div>
                             <div>
-                              <h3 className="text-lg font-bold text-gray-900 truncate max-w-md" title={doc.fileName}>
+                              <h3 className="text-lg font-bold text-gray-900 truncate max-w-[300px]" title={doc.fileName}>
                                 {doc.fileName}
                               </h3>
                               <div className="flex items-center space-x-2 mt-1">
@@ -836,29 +925,38 @@ const ArsipDokumen = () => {
                               </div>
                             </div>
                           </div>
-                          
-                          {/* Action Buttons */}
+
+                              {/* Action Buttons */}
                           <div className="flex items-center space-x-3">
-                            <Button 
-                              size="sm" 
+                                <Button
+                                  size="sm"
                               variant="outline" 
                               className="border-green-200 text-green-600 hover:bg-green-50 hover:border-green-300 transition-colors"
                               onClick={() => handleDownloadAOI(doc.fileName)}
-                            >
+                                >
                               <Download className="h-4 w-4 mr-2" />
-                              Download
-                            </Button>
-                            <Button 
-                              size="sm" 
+                                  Download
+                                </Button>
+                                <Button
+                                  size="sm"
                               variant="outline" 
                               className="border-orange-200 text-orange-600 hover:bg-orange-50 hover:border-orange-300 transition-colors"
                               onClick={() => handleRevisionAOI(doc)}
-                            >
+                                >
                               <MessageSquare className="h-4 w-4 mr-2" />
-                              Revisi
-                            </Button>
-                          </div>
-                        </div>
+                                  Revisi
+                                </Button>
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 transition-colors"
+                              onClick={() => handleDeleteAOI(doc)}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Hapus
+                                </Button>
+                              </div>
+                            </div>
 
                         {/* Content Grid */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -902,18 +1000,18 @@ const ArsipDokumen = () => {
                           </div>
 
                           
+          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
+                      ))}
+                    </div>
+                  ) : (
                   <div className="text-center py-16">
                     <div className="w-20 h-20 bg-gradient-to-br from-purple-100 to-purple-200 rounded-full flex items-center justify-center mx-auto mb-6">
                       <FileText className="h-10 w-10 text-purple-600" />
                     </div>
                     <h3 className="text-xl font-bold text-gray-900 mb-3">
                       Belum Ada Dokumen AOI
-                    </h3>
+                      </h3>
                     <p className="text-gray-600 max-w-md mx-auto">
                       Belum ada dokumen tambahan dari AOI. 
                       Dokumen yang diupload dari panel AOI akan muncul di sini.
@@ -944,6 +1042,15 @@ const ArsipDokumen = () => {
           )}
         </div>
       </div>
+
+      {/* Catatan Dialog */}
+      <CatatanDialog
+        isOpen={isCatatanDialogOpen}
+        onClose={() => setIsCatatanDialogOpen(false)}
+        catatan={selectedDocumentForCatatan?.catatan}
+        documentTitle={selectedDocumentForCatatan?.title}
+        fileName={selectedDocumentForCatatan?.fileName}
+      />
     </>
   );
 };

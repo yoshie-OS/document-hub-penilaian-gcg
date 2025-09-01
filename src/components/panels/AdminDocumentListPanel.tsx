@@ -296,12 +296,15 @@ const AdminDocumentListPanel: React.FC<AdminDocumentListPanelProps> = ({
                       <TableCell className="py-4">
                         {getStatusDisplay(item.status)}
                       </TableCell>
-                      <TableCell className="py-4">
+                      <TableCell className="py-4 max-w-xs">
                         {item.status === 'completed' && item.uploadedFile ? (
                           <div className="space-y-1">
                             <div className="flex items-center space-x-2">
-                              <FileText className="w-4 w-4 text-blue-600" />
-                              <span className="text-sm font-medium text-gray-900 truncate" title={item.uploadedFile.fileName}>
+                              <FileText className="w-4 w-4 text-blue-600 flex-shrink-0" />
+                              <span 
+                                className="text-sm font-medium text-gray-900 truncate block max-w-[200px]" 
+                                title={item.uploadedFile.fileName}
+                              >
                                 {item.uploadedFile.fileName}
                               </span>
                             </div>

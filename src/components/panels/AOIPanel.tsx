@@ -14,14 +14,14 @@ interface AOIPanelProps {
 }
 
 const AOIPanel: React.FC<AOIPanelProps> = ({ selectedYear, className = "" }) => {
-  const { aoiTables, recommendations, tracking } = useAOI();
+  const { aoiTables, aoiRecommendations, aoiTracking } = useAOI();
   const { user } = useUser();
   const { uploadDocument, getDocumentsByRecommendation } = useAOIDocument();
 
   if (!selectedYear || !user) return null;
 
   // Get AOI tables for selected year that are relevant to the current admin user
-  const yearTables = aoiTables.filter(table => {
+  const yearTables = (aoiTables || []).filter(table => {
     if (table.tahun !== selectedYear) return false;
     
     // Check if the table targets the user's organizational level
@@ -45,17 +45,24 @@ const AOIPanel: React.FC<AOIPanelProps> = ({ selectedYear, className = "" }) => 
 
   // Get recommendations for the relevant tables
   const relevantTableIds = yearTables.map(table => table.id);
-  const yearRecommendations = recommendations.filter(rec => 
-    rec.tahun === selectedYear && relevantTableIds.includes(rec.aoiTableId)
+  const yearRecommendations = (aoiRecommendations || []).filter(rec => 
+    relevantTableIds.includes(rec.aoiTableId)
   );
 
   // Render star rating
-  const renderStars = (rating: number) => {
+  const renderStars = (rating: string) => {
+    const ratingMap: Record<string, number> = {
+      'RENDAH': 1,
+      'SEDANG': 3,
+      'TINGGI': 5
+    };
+    const starCount = ratingMap[rating] || 0;
+    
     return Array.from({ length: 5 }, (_, i) => (
       <Star
         key={i}
         className={`w-4 h-4 ${
-          i < rating ? 'text-yellow-500 fill-current' : 'text-gray-300'
+          i < starCount ? 'text-yellow-500 fill-current' : 'text-gray-300'
         }`}
       />
     ));
@@ -63,7 +70,7 @@ const AOIPanel: React.FC<AOIPanelProps> = ({ selectedYear, className = "" }) => 
 
   // Get tracking for a recommendation
   const getTracking = (recommendationId: number) => {
-    return tracking.find(track => track.aoiId === recommendationId);
+    return aoiTracking.find(track => track.aoiRecommendationId === recommendationId);
   };
 
   // Check if document exists for a recommendation
@@ -83,7 +90,7 @@ const AOIPanel: React.FC<AOIPanelProps> = ({ selectedYear, className = "" }) => 
         const file = target.files[0];
         try {
           // Get recommendation details for jenis and urutan
-          const recommendation = recommendations.find(rec => rec.id === recommendationId);
+          const recommendation = aoiRecommendations.find(rec => rec.id === recommendationId);
           if (recommendation) {
             await uploadDocument(
               file,
@@ -119,7 +126,7 @@ const AOIPanel: React.FC<AOIPanelProps> = ({ selectedYear, className = "" }) => 
         const file = target.files[0];
         try {
           // Get recommendation details for jenis and urutan
-          const recommendation = recommendations.find(rec => rec.id === recommendationId);
+          const recommendation = aoiRecommendations.find(rec => rec.id === recommendationId);
           if (recommendation) {
             await uploadDocument(
               file,
@@ -269,11 +276,11 @@ const AOIPanel: React.FC<AOIPanelProps> = ({ selectedYear, className = "" }) => 
                             <TableRow key={rec.id} className="hover:bg-blue-50/50">
                               <TableCell className="font-medium text-center">{rec.no || '-'}</TableCell>
                               <TableCell className="min-w-[400px]">
-                                <div className="text-sm leading-relaxed pr-4">{rec.rekomendasi || '-'}</div>
+                                <div className="text-sm leading-relaxed pr-4">{rec.isi || '-'}</div>
                               </TableCell>
                               <TableCell className="text-center">
                                 <div className="flex justify-center">
-                                  {renderStars(rec.tingkatUrgensi || 0)}
+                                  {renderStars(rec.tingkatUrgensi || 'SEDANG')}
                                 </div>
                               </TableCell>
                               <TableCell className="text-center">
@@ -321,11 +328,11 @@ const AOIPanel: React.FC<AOIPanelProps> = ({ selectedYear, className = "" }) => 
                             <TableRow key={rec.id} className="hover:bg-yellow-50/50">
                               <TableCell className="font-medium text-center">{rec.no || '-'}</TableCell>
                               <TableCell className="min-w-[400px]">
-                                <div className="text-sm leading-relaxed pr-4">{rec.saran || '-'}</div>
+                                <div className="text-sm leading-relaxed pr-4">{rec.isi || '-'}</div>
                               </TableCell>
                               <TableCell className="text-center">
                                 <div className="flex justify-center">
-                                  {renderStars(rec.tingkatUrgensi || 0)}
+                                  {renderStars(rec.tingkatUrgensi || 'SEDANG')}
                                 </div>
                               </TableCell>
                               <TableCell className="text-center">

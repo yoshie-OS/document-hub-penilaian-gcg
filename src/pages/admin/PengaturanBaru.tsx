@@ -15,7 +15,7 @@ import { Separator } from '@/components/ui/separator';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { useYear } from '@/contexts/YearContext';
 import { useStrukturPerusahaan } from '@/contexts/StrukturPerusahaanContext';
-import { useUser, UserRole } from '@/contexts/UserContext';
+import { useUser } from '@/contexts/UserContext';
 import { useChecklist, ChecklistGCG } from '@/contexts/ChecklistContext';
 import { useToast } from '@/hooks/use-toast';
 import { ActionButton } from '@/components/panels';
@@ -571,7 +571,7 @@ const PengaturanBaru = () => {
     name: '',
     email: '',
     password: '',
-    role: 'admin' as UserRole,
+    role: 'admin' as 'superadmin' | 'admin' | 'user',
     direktorat: '',
     subdirektorat: '',
     divisi: '',
@@ -864,7 +864,7 @@ const PengaturanBaru = () => {
           tahun: toYear,
           email: 'superadmin@posindonesia.co.id',
           password: 'superadmin123',
-          role: 'superadmin' as UserRole,
+          role: 'superadmin' as 'superadmin' | 'admin' | 'user',
           name: 'Super Administrator',
           direktorat: 'Direksi',
           subdirektorat: 'Direksi Utama',
@@ -881,7 +881,7 @@ const PengaturanBaru = () => {
           tahun: toYear,
           email: 'superadmin@posindonesia.co.id',
           password: 'superadmin123',
-          role: 'superadmin' as UserRole,
+          role: 'superadmin' as 'superadmin' | 'admin' | 'user',
           name: 'Super Administrator',
           direktorat: 'Direksi',
           subdirektorat: 'Direksi Utama',

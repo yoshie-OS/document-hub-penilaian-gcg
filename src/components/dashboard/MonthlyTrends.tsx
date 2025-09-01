@@ -24,7 +24,7 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
   const { selectedYear } = useYear();
   const { getFilesByYear } = useFileUpload();
   const { checklist } = useChecklist();
-  const { subdirektorat: strukturSubdirektorat } = useStrukturPerusahaan();
+  const { subdirektorat: strukturSubdirektorat, divisi } = useStrukturPerusahaan();
 
   // Data progres per subdirektorat (berdasarkan dokumen yang diupload) - REAL-TIME
   const chartData = useMemo(() => {
@@ -49,6 +49,16 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
       }
     }
 
+    // Debug logging untuk memahami data yang masuk
+    console.log('=== DEBUG MONTHLY TRENDS ===');
+    console.log('Selected Year:', selectedYear);
+    console.log('Year Checklist:', yearChecklist);
+    console.log('Year Files:', yearFiles);
+    console.log('Year Assignments:', yearAssignments);
+    console.log('Struktur Subdirektorat:', strukturSubdirektorat);
+    console.log('Divisi:', divisi);
+    console.log('==========================');
+
     // Gunakan daftar subdirektorat dari StrukturPerusahaanContext untuk tahun terpilih
     const subdirs: string[] = (strukturSubdirektorat || [])
       .map((s) => s?.nama)
@@ -65,8 +75,18 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
       const cleanName = subName.replace(/^\s*Sub\s*Direktorat\s*/i, '').trim();
       
       // Hitung target dari assignments untuk subdirektorat ini
-      // Target = total checklist items yang diassign ke subdirektorat ini
-      const subdirAssignments = yearAssignments.filter(a => a.subdirektorat === subName);
+      // Target = total checklist items yang diassign ke divisi yang berada di bawah subdirektorat ini
+      const subdirAssignments = yearAssignments.filter(a => {
+        // Cari divisi yang berada di bawah subdirektorat ini
+        // Gunakan struktur data yang benar: divisi memiliki subdirektoratId
+        const divisiUnderSubdir = divisi.filter(d => {
+          const subdir = strukturSubdirektorat.find(s => s.id === d.subdirektoratId);
+          return subdir && subdir.nama === subName;
+        });
+        
+        // Assignment ke divisi yang berada di bawah subdirektorat ini
+        return a.divisi && divisiUnderSubdir.some(d => d.nama === a.divisi);
+      });
       const target = subdirAssignments.length;
       
       // Hitung progress dari dokumen yang sudah diupload untuk subdirektorat ini
@@ -76,15 +96,24 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
         uploadedChecklistIds.has(assignment.checklistId)
       ).length;
       
-      // Breakdown per aspek (bukan divisi) untuk lebih relevan
-      const aspectCounts: Record<string, number> = {};
+      // Breakdown per divisi yang berada di bawah subdirektorat ini
+      const divisiCounts: Record<string, number> = {};
       yearFiles.forEach(file => {
-        if (file.subdirektorat === subName && file.aspect) {
-          const aspect = file.aspect.trim() || 'Tidak Diberikan Aspek';
-          aspectCounts[aspect] = (aspectCounts[aspect] || 0) + 1;
+        // Cari divisi yang berada di bawah subdirektorat ini
+        const divisiUnderSubdir = divisi.filter(d => {
+          const subdir = strukturSubdirektorat.find(s => s.id === d.subdirektoratId);
+          return subdir && subdir.nama === subName;
+        });
+        
+        // Hitung berdasarkan file.division (field yang benar)
+        if (file.division) {
+          const matchingDivisi = divisiUnderSubdir.find(d => d.nama === file.division);
+          if (matchingDivisi) {
+            divisiCounts[matchingDivisi.nama] = (divisiCounts[matchingDivisi.nama] || 0) + 1;
+          }
         }
       });
-      const aspects = Object.entries(aspectCounts)
+      const divisions = Object.entries(divisiCounts)
         .sort((a, b) => b[1] - a[1])
         .map(([name, count]) => ({ name, count }));
       
@@ -98,11 +127,18 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
       else status = 'pending';
       
       console.log(`Progress for ${subName}:`, {
+        subName,
         target,
         progress,
         percent,
         status,
-        assignments: subdirAssignments.length
+        assignments: subdirAssignments.length,
+        divisiUnderSubdir: divisi.filter(d => {
+          const subdir = strukturSubdirektorat.find(s => s.id === d.subdirektoratId);
+          return subdir && subdir.nama === subName;
+        }).map(d => d.nama),
+        yearAssignments: yearAssignments.length,
+        yearFiles: yearFiles.length
       });
       
       return {
@@ -110,7 +146,7 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
         percent,
         progress,
         target,
-        divisions: aspects, // Gunakan aspects sebagai divisions untuk konsistensi
+        divisions: divisions, // Breakdown per divisi yang berada di bawah subdirektorat
         status
       };
     }).filter(Boolean); // Filter out null values
@@ -433,24 +469,24 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
                     </span>
                   </div>
 
-                  {/* Breakdown per Aspek */}
+                  {/* Breakdown per Divisi */}
                   {data.divisions.length > 0 && (
                     <div className="border-t pt-3">
-                      <div className="text-xs font-medium text-gray-600 mb-2">Breakdown per Aspek:</div>
+                      <div className="text-xs font-medium text-gray-600 mb-2">Breakdown per Divisi:</div>
                       <div className="space-y-1">
-                        {data.divisions.slice(0, 3).map((aspect, aspectIndex) => (
-                          <div key={aspectIndex} className="flex items-center justify-between text-xs">
-                            <span className="text-gray-600 truncate max-w-[80px]" title={aspect.name}>
-                              {aspect.name}
+                        {data.divisions.slice(0, 3).map((divisi, divisiIndex) => (
+                          <div key={divisiIndex} className="flex items-center justify-between text-xs">
+                            <span className="text-gray-600 truncate max-w-[80px]" title={divisi.name}>
+                              {divisi.name}
                             </span>
                             <Badge variant="outline" className="text-xs px-2 py-0">
-                              {aspect.count}
+                              {divisi.count}
                             </Badge>
                           </div>
                         ))}
                         {data.divisions.length > 3 && (
                           <div className="text-xs text-gray-500 text-center">
-                            +{data.divisions.length - 3} aspek lainnya
+                            +{data.divisions.length - 3} divisi lainnya
                           </div>
                         )}
                       </div>

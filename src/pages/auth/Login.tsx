@@ -1,11 +1,31 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useUser } from '@/contexts/UserContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { useUser } from '@/contexts/UserContext';
-import { Shield, Eye, EyeOff, Mail, Lock, ArrowRight, Building2, Users, FileText, CheckCircle, Globe, Award, Zap } from 'lucide-react';
+import { 
+  Bell, 
+  Mail, 
+  HelpCircle,
+  User,
+  Menu,
+  X,
+  ChevronRight,
+  Home,
+  Shield,
+  Eye,
+  EyeOff,
+  ArrowRight,
+  Building2,
+  Users,
+  FileText,
+  CheckCircle,
+  Globe,
+  Award,
+  Zap
+} from 'lucide-react';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -22,15 +42,20 @@ const Login = () => {
     setIsLoading(true);
     
     // Simulate loading
-    setTimeout(() => {
-      const success = login(email, password);
-      
-      if (success) {
-        navigate('/dashboard');
-      } else {
-        setError('Email atau password salah');
+    setTimeout(async () => {
+      try {
+        const success = await login(email, password);
+        
+        if (success) {
+          navigate('/dashboard');
+        } else {
+          setError('Email atau password salah');
+        }
+      } catch (err) {
+        setError('Terjadi kesalahan saat login');
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     }, 1000);
   };
 
@@ -203,7 +228,7 @@ const Login = () => {
                       Password
                     </Label>
                     <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-400 w-5 h-5" />
+                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-400 w-5 h-5" />
                       <Input
                         id="password"
                         type={showPassword ? "text" : "password"}
@@ -221,9 +246,9 @@ const Login = () => {
                         onClick={() => setShowPassword(!showPassword)}
                       >
                         {showPassword ? (
-                          <EyeOff className="h-5 w-5" />
+                          <EyeOff className="w-5 h-5" />
                         ) : (
-                          <Eye className="h-5 w-5" />
+                          <Eye className="w-5 h-5" />
                         )}
                       </Button>
                     </div>
@@ -256,27 +281,17 @@ const Login = () => {
                 </form>
 
                 {/* Demo Account Info */}
-                                  <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <h4 className="text-sm font-medium text-blue-900 mb-2 flex items-center space-x-2">
-                      <CheckCircle className="w-4 h-4" />
-                      <span>Super Admin Account</span>
-                    </h4>
-                    <div className="space-y-1 text-sm text-blue-800">
-                      <p><span className="font-medium">Email:</span> arsippostgcg@gmail.com</p>
-                      <p><span className="font-medium">Password:</span> postarsipGCG.</p>
-                    </div>
-                    <div className="mt-3 pt-3 border-t border-blue-200">
-                      <button
-                        onClick={() => {
-                          localStorage.clear();
-                          window.location.reload();
-                        }}
-                        className="text-xs text-blue-600 hover:text-blue-800 underline"
-                        >
-                        Reset Data (jika login bermasalah)
-                      </button>
-                    </div>
+                <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <h4 className="text-sm font-medium text-blue-900 mb-2 flex items-center space-x-2">
+                    <CheckCircle className="w-4 h-4" />
+                    <span>Demo Credentials</span>
+                  </h4>
+                  <div className="space-y-1 text-sm text-blue-800">
+                    <p><span className="font-medium">Super Admin:</span> superadmin@posindonesia.co.id / admin123</p>
+                    <p><span className="font-medium">Admin:</span> admin@posindonesia.co.id / admin123</p>
+                    <p><span className="font-medium">User:</span> user@posindonesia.co.id / user123</p>
                   </div>
+                </div>
 
                 {/* Register Link */}
                 <div className="mt-6 text-center">
@@ -293,7 +308,7 @@ const Login = () => {
             {/* Footer */}
             <div className="mt-8 text-center text-sm text-blue-500">
               <p>© 2024 POS Indonesia. All rights reserved.</p>
-                              <p className="mt-1">Sistem Manajemen Dokumen Good Corporate Governance</p>
+              <p className="mt-1">Sistem Manajemen Dokumen Good Corporate Governance</p>
             </div>
           </div>
         </div>

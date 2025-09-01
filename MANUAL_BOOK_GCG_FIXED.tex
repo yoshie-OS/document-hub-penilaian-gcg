@@ -1,0 +1,198 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english,indonesian]{babel}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{xcolor}
+\usepackage{float}
+
+% Page setup
+\geometry{left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm}
+
+% Hyperlink setup
+\hypersetup{colorlinks=true,linkcolor=blue,filecolor=magenta,urlcolor=blue,citecolor=blue}
+
+% Header and footer setup
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\textbf{Manual Book Aplikasi GCG}}
+\fancyhead[R]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% Title formatting
+\titleformat{\section}{\Large\bfseries\color{blue}}{\thesection}{1em}{}
+\titleformat{\subsection}{\large\bfseries\color{darkgray}}{\thesubsection}{1em}{}
+\titleformat{\subsubsection}{\normalsize\bfseries}{\thesubsubsection}{1em}{}
+
+% Custom colors
+\definecolor{lightblue}{RGB}{173,216,230}
+\definecolor{darkblue}{RGB}{0,0,139}
+\definecolor{darkgray}{RGB}{64,64,64}
+
+\begin{document}
+
+% Title page
+\begin{titlepage}
+\centering
+\vspace*{2cm}
+{\Huge\bfseries\color{darkblue} MANUAL BOOK APLIKASI\\[0.5cm] GOOD CORPORATE GOVERNANCE (GCG)\\[0.5cm] DOCUMENTS MANAGEMENT SYSTEM}
+\vspace{2cm}
+\includegraphics[width=0.3\textwidth]{placeholder_logo.png}
+\vspace{2cm}
+{\Large\bfseries Panduan Penggunaan Lengkap}
+\vspace{1cm}
+{\large Untuk Super Admin, Admin, dan User}
+\vfill
+{\large \textbf{Dibuat oleh:} Tim Pengembangan Aplikasi GCG}
+\vspace{0.5cm}
+{\large \textbf{Versi:} 1.0}
+\vspace{0.5cm}
+{\large \textbf{Tanggal:} Desember 2024}
+\vspace{0.5cm}
+{\large \textbf{Status:} Final}
+\vspace{1cm}
+\end{titlepage}
+
+% Table of contents
+\tableofcontents
+\newpage
+
+% Introduction
+\section{Pendahuluan}
+\subsection{Deskripsi Aplikasi}
+Aplikasi Good Corporate Governance (GCG) Documents Management System adalah sistem manajemen dokumen yang dirancang untuk mengelola dokumen-dokumen terkait tata kelola perusahaan yang baik.
+
+\subsection{Tujuan Manual}
+Manual ini dibuat untuk membantu pengguna memahami cara menggunakan aplikasi GCG secara efektif dan efisien.
+
+% Application Structure
+\section{Struktur Aplikasi}
+\subsection{Hierarki Pengguna}
+\begin{verbatim}
+Super Admin (Level Tertinggi)
+├── Pengaturan Baru
+├── Dashboard
+├── Monitoring & Upload GCG
+├── Arsip Dokumen
+├── Performa GCG
+└── AOI Management
+
+Admin (Level Menengah)
+└── Dashboard
+
+User (Level Dasar)
+└── Dashboard
+\end{verbatim}
+
+\subsection{Fitur Utama}
+\begin{itemize}
+\item Manajemen dokumen GCG
+\item Monitoring upload dokumen
+\item Pengaturan aspek dan checklist
+\item Manajemen AOI (Area of Improvement)
+\item Arsip dokumen
+\item Dashboard statistik
+\end{itemize}
+
+% Login and Authentication
+\section{Login dan Autentikasi}
+\subsection{Langkah Login}
+\begin{enumerate}
+\item \textbf{Buka Browser} dan akses URL aplikasi
+\item \textbf{Halaman Login} akan muncul
+\item \textbf{Masukkan kredensial}: Email/Username dan Password
+\item \textbf{Klik tombol "Login"}
+\item \textbf{Sistem akan memverifikasi} dan mengarahkan ke dashboard sesuai role
+\end{enumerate}
+
+\subsection{Placeholder Gambar}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{placeholder_login.png}
+\caption{Halaman Login - Form login dengan field email dan password}
+\label{fig:login}
+\end{figure}
+
+\subsection{Catatan Keamanan}
+\begin{itemize}
+\item Jangan bagikan kredensial login
+\item Logout setelah selesai menggunakan aplikasi
+\item Gunakan password yang kuat
+\end{itemize}
+
+% Super Admin Menu
+\section{Menu Super Admin}
+\subsection{Pengaturan Baru}
+\subsubsection{Deskripsi}
+Menu ini berfungsi untuk mengatur konfigurasi dasar sistem, termasuk manajemen tahun buku, struktur perusahaan, dan checklist GCG.
+
+\subsubsection{Fitur Utama}
+\begin{itemize}
+\item \textbf{Manajemen Tahun Buku}: Menambah, mengedit, dan menghapus tahun buku
+\item \textbf{Struktur Perusahaan}: Mengatur hierarki direktorat, subdirektorat, dan divisi
+\item \textbf{Checklist GCG}: Membuat dan mengatur checklist dokumen yang diperlukan
+\item \textbf{Manajemen Aspek}: Mengatur aspek-aspek GCG yang akan dimonitor
+\end{itemize}
+
+\subsection{Dashboard}
+\subsubsection{Deskripsi}
+Dashboard Super Admin menampilkan overview statistik dan performa sistem secara keseluruhan.
+
+\subsection{Monitoring \& Upload GCG}
+\subsubsection{Deskripsi}
+Menu ini berfungsi untuk memonitor status upload dokumen GCG dari berbagai subdirektorat dan melakukan upload dokumen.
+
+\subsection{Arsip Dokumen}
+\subsubsection{Deskripsi}
+Menu ini berfungsi untuk mengarsipkan dan mengelola dokumen GCG yang telah diupload.
+
+\subsection{Performa GCG}
+\subsubsection{Deskripsi}
+Menu ini menampilkan analisis performa GCG dalam bentuk grafik dan statistik.
+
+\subsection{AOI Management}
+\subsubsection{Deskripsi}
+Menu ini berfungsi untuk mengelola Area of Improvement (AOI) dan rekomendasi perbaikan.
+
+% Admin Menu
+\section{Menu Admin}
+\subsection{Dashboard Admin}
+\subsubsection{Deskripsi}
+Dashboard Admin menampilkan informasi dan statistik dokumen sesuai dengan subdirektorat yang ditugaskan.
+
+% General Features
+\section{Fitur Umum}
+\subsection{Manajemen Profil}
+\subsection{Logout}
+\subsection{Responsive Design}
+
+% Troubleshooting
+\section{Troubleshooting}
+\subsection{Masalah Umum dan Solusi}
+\subsubsection{Tidak Bisa Login}
+\textbf{Gejala}: Error saat memasukkan username/password\\
+\textbf{Solusi}: Pastikan username dan password benar, periksa koneksi internet, clear cache browser.
+
+\subsubsection{File Upload Gagal}
+\textbf{Gejala}: File tidak bisa diupload\\
+\textbf{Solusi}: Periksa ukuran file (maksimal 10MB), pastikan format file didukung.
+
+% Conclusion
+\section{Kesimpulan}
+Manual book ini telah menjelaskan secara lengkap cara menggunakan aplikasi GCG Documents Management System.
+
+\subsection{Tips Penggunaan}
+\begin{itemize}
+\item \textbf{Baca manual} sebelum menggunakan aplikasi
+\item \textbf{Simpan dokumen} secara teratur
+\item \textbf{Backup data} penting secara berkala
+\item \textbf{Update password} secara berkala
+\item \textbf{Logout} setelah selesai menggunakan aplikasi
+\end{itemize}
+
+\end{document}

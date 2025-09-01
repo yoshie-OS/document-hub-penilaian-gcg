@@ -24,6 +24,7 @@ export interface DocumentMetadata {
   // Additional Metadata
   status: string;
   confidentiality: string;
+  catatan?: string; // Catatan optional dari user saat upload
   
   // Year and Upload Information
   year: number;
