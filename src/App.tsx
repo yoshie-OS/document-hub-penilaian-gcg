@@ -10,6 +10,8 @@ import { SidebarProvider } from './contexts/SidebarContext';
 import { YearProvider } from './contexts/YearContext';
 
 import { StrukturPerusahaanProvider } from './contexts/StrukturPerusahaanContext';
+import { AOIProvider } from './contexts/AOIContext';
+import { AOIDocumentProvider } from './contexts/AOIDocumentContext';
 import { Toaster } from './components/ui/toaster';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/auth/Login';
@@ -19,8 +21,9 @@ import DocumentManagement from './pages/DocumentManagement';
 import PenilaianGCG from './pages/PenilaianGCG';
 import MonitoringUploadGCG from './pages/MonitoringUploadGCG';
 import ArsipDokumen from './pages/admin/ArsipDokumen';
-import DokumenGCG from './pages/admin/DokumenGCG';
+import DashboardAdmin from './pages/admin/DashboardAdmin';
 import PengaturanBaru from './pages/admin/PengaturanBaru';
+import AOIManagement from './pages/admin/AOIManagement';
 import NotFound from './pages/NotFound';
 import { useUser } from './contexts/UserContext';
 
@@ -74,22 +77,22 @@ const AppRoutes = () => {
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         
-        {/* Dashboard - All users go to DashboardMain for now */}
+        {/* Dashboard - Super Admin goes to DashboardMain, Admin goes to DashboardAdmin */}
         <Route 
           path="/dashboard" 
           element={
             <ProtectedRoute>
-              <DashboardMain />
+              {user?.role === 'admin' ? <Navigate to="/admin/dashboard" replace /> : <DashboardMain />}
             </ProtectedRoute>
           } 
         />
 
-        {/* Admin Dashboard Route - Redirect to main dashboard */}
+        {/* Admin Dashboard Route */}
         <Route 
           path="/admin/dashboard" 
           element={
             <AdminRoute>
-              <Navigate to="/dashboard" replace />
+              <DashboardAdmin />
             </AdminRoute>
           } 
         />
@@ -143,10 +146,10 @@ const AppRoutes = () => {
         } 
       />
       <Route 
-        path="/admin/checklist-gcg" 
+        path="/admin/aoi-management" 
         element={
           <SuperAdminRoute>
-            <DokumenGCG />
+            <AOIManagement />
           </SuperAdminRoute>
         } 
       />
@@ -166,14 +169,18 @@ const App = () => {
           <ChecklistProvider>
             <FileUploadProvider>
               <DocumentMetadataProvider>
-                <YearProvider>
-                    <StrukturPerusahaanProvider>
-                      <SidebarProvider>
-                        <AppRoutes />
-                        <Toaster />
-                      </SidebarProvider>
-                    </StrukturPerusahaanProvider>
-                </YearProvider>
+                                  <YearProvider>
+                      <StrukturPerusahaanProvider>
+                        <AOIProvider>
+                          <AOIDocumentProvider>
+                            <SidebarProvider>
+                              <AppRoutes />
+                              <Toaster />
+                            </SidebarProvider>
+                          </AOIDocumentProvider>
+                        </AOIProvider>
+                      </StrukturPerusahaanProvider>
+                  </YearProvider>
               </DocumentMetadataProvider>
             </FileUploadProvider>
           </ChecklistProvider>

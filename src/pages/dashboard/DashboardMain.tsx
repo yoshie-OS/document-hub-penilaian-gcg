@@ -33,7 +33,7 @@ const DashboardMain = () => {
           {/* Header */}
           <PageHeaderPanel
             title="Dashboard"
-            subtitle={selectedYear ? `Statistik GCG Document Hub - Tahun ${selectedYear}` : "Selamat datang di GCG Document Hub"}
+            subtitle={selectedYear ? `Statistik Good Corporate Governance Documents Management System - Tahun ${selectedYear}` : "Selamat datang di Good Corporate Governance Documents Management System"}
           />
 
           {/* Year Selector */}
@@ -51,11 +51,11 @@ const DashboardMain = () => {
 
               {/* Advanced Analytics Panels - stacked (not side-by-side) */}
               <div className="space-y-6 mb-8">
-                {/* Performance Radar */}
-                <SpiderChart />
-
                 {/* Progress Panel */}
                 <MonthlyTrends />
+
+                {/* Performance Radar */}
+                <SpiderChart />
               </div>
 
             </>

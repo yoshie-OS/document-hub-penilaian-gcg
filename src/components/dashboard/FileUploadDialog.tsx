@@ -36,6 +36,7 @@ interface FileUploadDialogProps {
   checklistDescription?: string;
   aspect?: string;
   trigger?: React.ReactNode;
+  onUploadSuccess?: () => void; // Add callback for refresh
   prefillData?: {
     checklistId?: number;
     aspek?: string;
@@ -413,7 +414,7 @@ const OrganizationalSection = memo(({
                 <SelectItem key={direktorat} value={direktorat}>{direktorat}</SelectItem>
               ))
             ) : (
-              <SelectItem value="" disabled>Tidak ada data direktorat</SelectItem>
+                              <SelectItem value="no-data" disabled>Tidak ada data direktorat</SelectItem>
             )}
           </OptimizedSelect>
           {userRole === 'admin' && (
@@ -436,7 +437,7 @@ const OrganizationalSection = memo(({
                 <SelectItem key={subdirektorat} value={subdirektorat}>{subdirektorat}</SelectItem>
               ))
             ) : (
-              <SelectItem value="" disabled>Tidak ada data subdirektorat</SelectItem>
+                              <SelectItem value="no-data" disabled>Tidak ada data subdirektorat</SelectItem>
             )}
           </OptimizedSelect>
           {userRole === 'admin' && (
@@ -460,7 +461,7 @@ const OrganizationalSection = memo(({
                   <SelectItem key={division} value={division}>{division}</SelectItem>
                 ))
               ) : (
-                <SelectItem value="" disabled>Tidak ada data divisi</SelectItem>
+                <SelectItem value="no-data" disabled>Tidak ada data divisi</SelectItem>
               )}
             </OptimizedSelect>
             {userRole !== 'admin' && (
@@ -673,6 +674,7 @@ const FileUploadDialog: React.FC<FileUploadDialogProps> = ({
   checklistDescription,
   aspect,
   trigger,
+  onUploadSuccess,
   prefillData
 }) => {
   const { user } = useUser();
@@ -1162,14 +1164,16 @@ const FileUploadDialog: React.FC<FileUploadDialogProps> = ({
         description: "Dokumen berhasil diupload dan metadata telah disimpan",
       });
       
-      // Dispatch events to notify other components
-      window.dispatchEvent(new CustomEvent('fileUploaded'));
-      window.dispatchEvent(new CustomEvent('documentsUpdated'));
-      window.dispatchEvent(new CustomEvent('assignmentsUpdated'));
-      
-      // Dispatch additional events for better synchronization
-      window.dispatchEvent(new CustomEvent('uploadedFilesChanged'));
-      window.dispatchEvent(new CustomEvent('checklistAssignmentsChanged'));
+      // Dispatch events to notify other components with delay to ensure context is updated
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('fileUploaded'));
+        window.dispatchEvent(new CustomEvent('documentsUpdated'));
+        window.dispatchEvent(new CustomEvent('assignmentsUpdated'));
+        
+        // Dispatch additional events for better synchronization
+        window.dispatchEvent(new CustomEvent('uploadedFilesChanged'));
+        window.dispatchEvent(new CustomEvent('checklistAssignmentsChanged'));
+      }, 200); // Increased delay to ensure context is fully updated
       
       // Force localStorage update to trigger storage event (backup)
       const currentFiles = localStorage.getItem('uploadedFiles');
@@ -1215,6 +1219,11 @@ const FileUploadDialog: React.FC<FileUploadDialogProps> = ({
       
       // Close dialog
       onOpenChange(false);
+      
+      // Trigger refresh callback if provided
+      if (onUploadSuccess) {
+        onUploadSuccess();
+      }
     } catch (error) {
       console.error('Upload error:', error);
       toast({
