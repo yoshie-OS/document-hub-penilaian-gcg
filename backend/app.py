@@ -1476,6 +1476,26 @@ def delete_uploaded_file(file_id):
         print(f"Error deleting uploaded file: {e}")
         return jsonify({'error': f'Failed to delete uploaded file: {str(e)}'}), 500
 
+@app.route('/api/aoiTables', methods=['GET'])
+def get_aoi_tables():
+    """Get all AOI tables - placeholder endpoint"""
+    try:
+        # Return empty list for now - this can be expanded later
+        return jsonify([]), 200
+    except Exception as e:
+        print(f"Error getting AOI tables: {e}")
+        return jsonify({'error': f'Failed to get AOI tables: {str(e)}'}), 500
+
+@app.route('/api/users', methods=['GET'])
+def get_users():
+    """Get all users - placeholder endpoint"""
+    try:
+        # Return empty list for now - this can be expanded later
+        return jsonify([]), 200
+    except Exception as e:
+        print(f"Error getting users: {e}")
+        return jsonify({'error': f'Failed to get users: {str(e)}'}), 500
+
 @app.route('/api/upload-gcg-file', methods=['POST'])
 def upload_gcg_file():
     """
@@ -1516,10 +1536,14 @@ def upload_gcg_file():
         except ValueError:
             return jsonify({'error': 'Invalid year format'}), 400
         
-        # Generate unique file path in Supabase
+        # Generate unique file path in Supabase with PIC structure: year/PIC/data
         file_id = str(uuid.uuid4())
         file_extension = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else 'bin'
-        supabase_file_path = f"gcg-documents/{year_int}/{file_id}_{secure_filename(file.filename)}"
+        
+        # Clean subdirektorat name for use in file path
+        pic_name = secure_filename(subdirektorat) if subdirektorat else 'UNKNOWN_PIC'
+        
+        supabase_file_path = f"gcg-documents/{year_int}/{pic_name}/{file_id}_{secure_filename(file.filename)}"
         
         # Upload file to Supabase storage
         file_data = file.read()
@@ -1578,7 +1602,7 @@ def upload_gcg_file():
             'fileSize': len(file_data),
             'uploadDate': datetime.now().isoformat(),
             'year': year_int,
-            'checklistId': int(checklist_id) if checklist_id else None,
+            'checklistId': int(float(checklist_id)) if checklist_id else None,
             'checklistDescription': checklist_description,
             'aspect': aspect,
             'subdirektorat': subdirektorat,
@@ -1592,24 +1616,32 @@ def upload_gcg_file():
             files_data = storage_service.read_excel('uploaded-files.xlsx')
             if files_data is None:
                 files_data = pd.DataFrame()
-        except:
+        except Exception as db_error:
+            print(f"🔧 DEBUG: Error reading uploaded-files.xlsx: {db_error}")
             files_data = pd.DataFrame()
         
         new_row = pd.DataFrame([file_record])
         files_data = pd.concat([files_data, new_row], ignore_index=True)
         
         # Save to storage
-        success = storage_service.write_excel(files_data, 'uploaded-files.xlsx')
-        
-        if success:
-            print(f"🔧 DEBUG: File record saved successfully")
-            return jsonify({
-                'success': True, 
-                'file': file_record,
-                'message': 'File uploaded successfully to Supabase'
-            }), 201
-        else:
-            return jsonify({'error': 'File uploaded but failed to save record'}), 500
+        try:
+            success = storage_service.write_excel(files_data, 'uploaded-files.xlsx')
+            
+            if success:
+                print(f"🔧 DEBUG: File record saved successfully")
+                return jsonify({
+                    'success': True, 
+                    'file': file_record,
+                    'message': 'File uploaded successfully to Supabase'
+                }), 201
+            else:
+                print(f"🔧 DEBUG: storage_service.write_excel returned False")
+                return jsonify({'error': 'File uploaded but failed to save record'}), 500
+        except Exception as save_error:
+            print(f"🔧 DEBUG: Exception saving to storage: {save_error}")
+            import traceback
+            print(f"🔧 DEBUG: Full save traceback: {traceback.format_exc()}")
+            return jsonify({'error': f'File uploaded but failed to save record: {str(save_error)}'}), 500
         
     except Exception as e:
         print(f"🔧 DEBUG: Exception in upload_gcg_file: {e}")

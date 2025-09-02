@@ -286,7 +286,9 @@ const MonitoringUploadGCG = () => {
     if (!selectedYear) return false;
     const yearFiles = getFilesByYear(selectedYear);
     console.log('MonitoringUploadGCG: isChecklistUploaded called for checklistId:', checklistId, 'yearFiles:', yearFiles);
-    return yearFiles.some(file => file.checklistId === checklistId);
+    // Convert both to integers for comparison to handle decimal vs integer mismatch
+    const checklistIdInt = Math.floor(checklistId);
+    return yearFiles.some(file => file.checklistId === checklistIdInt);
   }, [getFilesByYear, selectedYear]);
 
   // Get uploaded document for dokumen GCG - menggunakan data yang sama dengan DashboardStats
@@ -295,7 +297,9 @@ const MonitoringUploadGCG = () => {
     const yearFiles = getFilesByYear(selectedYear);
     console.log('MonitoringUploadGCG: getUploadedDocument called for checklistId:', checklistId, 'yearFiles:', yearFiles);
     
-    const foundFile = yearFiles.find(file => file.checklistId === checklistId);
+    // Convert to integer for comparison to handle decimal vs integer mismatch
+    const checklistIdInt = Math.floor(checklistId);
+    const foundFile = yearFiles.find(file => file.checklistId === checklistIdInt);
     if (foundFile) {
       console.log('MonitoringUploadGCG: Found file:', {
         fileName: foundFile.fileName,

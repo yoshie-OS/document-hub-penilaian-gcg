@@ -18,7 +18,6 @@ import {
 import { useUser } from '@/contexts/UserContext';
 import { useToast } from '@/hooks/use-toast';
 import { useFileUpload } from '@/contexts/FileUploadContext';
-import { useDocumentMetadata } from '@/contexts/DocumentMetadataContext';
 
 interface AdminUploadDialogProps {
   isOpen: boolean;
@@ -51,7 +50,6 @@ const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
   const { user } = useUser();
   const { toast } = useToast();
   const { uploadFile, reUploadFile } = useFileUpload();
-  const { addDocument } = useDocumentMetadata();
   
   // Form state
   const [formData, setFormData] = useState<UploadFormData>({
@@ -197,7 +195,7 @@ const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
         if (checklistItem && selectedFile) {
           if (isReUpload) {
             // For re-upload: remove old file and add new one
-            reUploadFile(
+            await reUploadFile(
               selectedFile,
               checklistItem.tahun || new Date().getFullYear(),
               checklistItem.id,
@@ -208,7 +206,7 @@ const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
             );
           } else {
             // For new upload: add new file
-            uploadFile(
+            await uploadFile(
               selectedFile,
               checklistItem.tahun || new Date().getFullYear(),
               checklistItem.id,
@@ -219,26 +217,6 @@ const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
             );
           }
 
-          // Also save metadata to DocumentMetadataContext for proper identification
-          addDocument({
-            title: formData.fileName || selectedFile.name,
-            documentNumber: `DOC-${Date.now()}`,
-            documentDate: new Date().toISOString().split('T')[0],
-            description: formData.description || checklistItem.deskripsi,
-            direktorat: user?.direktorat || 'N/A',
-            subdirektorat: user?.subdirektorat || 'N/A',
-            division: user?.divisi || 'N/A',
-            fileName: selectedFile.name,
-            fileSize: selectedFile.size,
-            status: 'uploaded',
-            confidentiality: 'internal',
-            year: checklistItem.tahun || new Date().getFullYear(),
-            uploadedBy: user?.name || 'Unknown Admin',
-            checklistId: checklistItem.id,
-            checklistDescription: checklistItem.deskripsi,
-            aspect: checklistItem.aspek || 'Tidak Diberikan Aspek',
-            catatan: formData.notes // Tambahkan catatan ke metadata
-          });
         }
 
        // Show success message
@@ -264,9 +242,10 @@ const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
        }
 
     } catch (error) {
+      console.error('Upload error in AdminUploadDialog:', error);
       toast({
         title: "Upload gagal",
-        description: "Terjadi kesalahan saat upload dokumen",
+        description: error instanceof Error ? error.message : "Terjadi kesalahan saat upload dokumen",
         variant: "destructive"
       });
       setIsUploading(false);

@@ -53,7 +53,7 @@ export const FileUploadProvider: React.FC<{ children: ReactNode }> = ({ children
   // Fetch files from backend API
   const fetchFiles = async (): Promise<UploadedFile[]> => {
     try {
-      const response = await fetch('/api/uploaded-files');
+      const response = await fetch('http://localhost:5000/api/uploaded-files');
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -64,14 +64,6 @@ export const FileUploadProvider: React.FC<{ children: ReactNode }> = ({ children
       }));
     } catch (error) {
       console.error('Error fetching uploaded files:', error);
-      // Fallback to localStorage for offline functionality
-      const savedFiles = localStorage.getItem('uploadedFiles');
-      if (savedFiles) {
-        return JSON.parse(savedFiles).map((file: any) => ({
-          ...file,
-          uploadDate: new Date(file.uploadDate)
-        }));
-      }
       return [];
     }
   };
@@ -105,9 +97,10 @@ export const FileUploadProvider: React.FC<{ children: ReactNode }> = ({ children
       if (subdirektorat) formData.append('subdirektorat', subdirektorat);
       if (catatan) formData.append('catatan', catatan);
 
-      const response = await fetch('/api/upload-gcg-file', {
+      const response = await fetch('http://localhost:5000/api/upload-gcg-file', {
         method: 'POST',
         body: formData,
+        signal: AbortSignal.timeout(60000), // 60 second timeout
       });
 
       if (!response.ok) {
@@ -120,55 +113,22 @@ export const FileUploadProvider: React.FC<{ children: ReactNode }> = ({ children
         // Refresh the files list to get updated data from backend
         const updatedFiles = await fetchFiles();
         setUploadedFiles(updatedFiles);
-        
-        // Also update localStorage as fallback
-        const newFile: UploadedFile = {
-          id: result.file.id,
-          fileName: result.file.fileName,
-          fileSize: result.file.fileSize,
-          uploadDate: new Date(result.file.uploadDate),
-          year: result.file.year,
-          checklistId: result.file.checklistId,
-          checklistDescription: result.file.checklistDescription,
-          aspect: result.file.aspect || 'Tidak Diberikan Aspek',
-          status: 'uploaded',
-          subdirektorat: result.file.subdirektorat,
-          catatan: result.file.catatan
-        };
-        
-        const currentFiles = localStorage.getItem('uploadedFiles');
-        const filesList = currentFiles ? JSON.parse(currentFiles) : [];
-        filesList.push(newFile);
-        localStorage.setItem('uploadedFiles', JSON.stringify(filesList));
       } else {
         throw new Error(result.error || 'Upload failed');
       }
     } catch (error) {
       console.error('File upload error:', error);
-      // Fallback to localStorage only for offline functionality
-      const newFile: UploadedFile = {
-        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-        fileName: file.name,
-        fileSize: file.size,
-        uploadDate: new Date(),
-        year: year,
-        checklistId,
-        checklistDescription,
-        aspect: aspect || 'Tidak Diberikan Aspek',
-        status: 'pending', // Mark as pending since backend upload failed
-        subdirektorat,
-        catatan
-      };
-      
-      setUploadedFiles(prev => [...prev, newFile]);
-      
-      // Save to localStorage as fallback
-      const currentFiles = localStorage.getItem('uploadedFiles');
-      const filesList = currentFiles ? JSON.parse(currentFiles) : [];
-      filesList.push(newFile);
-      localStorage.setItem('uploadedFiles', JSON.stringify(filesList));
-      
-      throw error; // Re-throw so calling code can handle the error
+      if (error instanceof Error) {
+        if (error.name === 'TimeoutError') {
+          throw new Error('Upload timeout - Supabase upload took too long. Please try again.');
+        } else if (error.name === 'AbortError') {
+          throw new Error('Upload cancelled - Request was aborted.');
+        } else {
+          throw new Error(`Upload failed: ${error.message}`);
+        }
+      } else {
+        throw new Error('Upload failed: Unknown error occurred');
+      }
     }
   };
 
@@ -192,7 +152,7 @@ export const FileUploadProvider: React.FC<{ children: ReactNode }> = ({ children
 
   const deleteFile = async (fileId: string) => {
     try {
-      const response = await fetch(`/api/uploaded-files/${fileId}`, {
+      const response = await fetch(`http://localhost:5000/api/uploaded-files/${fileId}`, {
         method: 'DELETE',
       });
 
@@ -206,27 +166,11 @@ export const FileUploadProvider: React.FC<{ children: ReactNode }> = ({ children
         // Refresh the files list to get updated data from backend
         const updatedFiles = await fetchFiles();
         setUploadedFiles(updatedFiles);
-        
-        // Also update localStorage
-        const currentFiles = localStorage.getItem('uploadedFiles');
-        if (currentFiles) {
-          const filesList = JSON.parse(currentFiles);
-          const filteredFiles = filesList.filter((file: any) => file.id !== fileId);
-          localStorage.setItem('uploadedFiles', JSON.stringify(filteredFiles));
-        }
       } else {
         throw new Error(result.error || 'Delete failed');
       }
     } catch (error) {
       console.error('File delete error:', error);
-      // Fallback to localStorage only
-      setUploadedFiles(prev => prev.filter(file => file.id !== fileId));
-      const currentFiles = localStorage.getItem('uploadedFiles');
-      if (currentFiles) {
-        const filesList = JSON.parse(currentFiles);
-        const updatedFiles = filesList.filter((file: any) => file.id !== fileId);
-        localStorage.setItem('uploadedFiles', JSON.stringify(updatedFiles));
-      }
       throw error;
     }
   };
@@ -244,15 +188,6 @@ export const FileUploadProvider: React.FC<{ children: ReactNode }> = ({ children
       setUploadedFiles(files);
     } catch (error) {
       console.error('Error refreshing files:', error);
-      // Fallback to localStorage
-      const savedFiles = localStorage.getItem('uploadedFiles');
-      if (savedFiles) {
-        const parsedFiles = JSON.parse(savedFiles).map((file: any) => ({
-          ...file,
-          uploadDate: new Date(file.uploadDate)
-        }));
-        setUploadedFiles(parsedFiles);
-      }
     }
   };
 

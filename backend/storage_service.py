@@ -121,21 +121,32 @@ class StorageService:
             with open(temp_path, 'rb') as f:
                 file_data = f.read()
             
-            # Upload (this will overwrite if file exists)
-            response = self.supabase.storage.from_(self.bucket_name).upload(
-                path=file_path,
-                file=file_data,
-                file_options={"content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}
-            )
-            
-            # If upload fails due to existing file, try update instead
-            if hasattr(response, 'error') and response.error:
-                if "already exists" in str(response.error):
+            # Try to upload, if file exists use update instead
+            try:
+                response = self.supabase.storage.from_(self.bucket_name).upload(
+                    path=file_path,
+                    file=file_data,
+                    file_options={"content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}
+                )
+                
+                # Check for upload errors
+                if hasattr(response, 'error') and response.error:
+                    raise Exception(f"Upload error: {response.error}")
+                    
+            except Exception as upload_error:
+                if "already exists" in str(upload_error) or "Duplicate" in str(upload_error):
+                    # File exists, try update instead
                     response = self.supabase.storage.from_(self.bucket_name).update(
                         path=file_path,
                         file=file_data,
                         file_options={"content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}
                     )
+                    
+                    # Check for update errors
+                    if hasattr(response, 'error') and response.error:
+                        raise Exception(f"Update error: {response.error}")
+                else:
+                    raise upload_error
             
             print(f"📤 Uploaded Excel file: {file_path}")
             return True
