@@ -11,12 +11,13 @@ export interface UploadedFile {
   aspect?: string;
   status: 'uploaded' | 'pending';
   subdirektorat?: string;
+  catatan?: string; // Catatan optional dari user saat upload
 }
 
 interface FileUploadContextType {
   uploadedFiles: UploadedFile[];
-  uploadFile: (file: File, year: number, checklistId?: number, checklistDescription?: string, aspect?: string, subdirektorat?: string) => void;
-  reUploadFile: (file: File, year: number, checklistId?: number, checklistDescription?: string, aspect?: string, subdirektorat?: string) => void;
+  uploadFile: (file: File, year: number, checklistId?: number, checklistDescription?: string, aspect?: string, subdirektorat?: string, catatan?: string) => void;
+  reUploadFile: (file: File, year: number, checklistId?: number, checklistDescription?: string, aspect?: string, subdirektorat?: string, catatan?: string) => void;
   deleteFile: (fileId: string) => void;
   deleteFileByFileName: (fileName: string) => void;
   refreshFiles: () => void;
@@ -69,7 +70,7 @@ export const FileUploadProvider: React.FC<{ children: ReactNode }> = ({ children
     };
   }, []);
 
-  const uploadFile = (file: File, year: number, checklistId?: number, checklistDescription?: string, aspect?: string, subdirektorat?: string) => {
+  const uploadFile = (file: File, year: number, checklistId?: number, checklistDescription?: string, aspect?: string, subdirektorat?: string, catatan?: string) => {
     const newFile: UploadedFile = {
       id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
       fileName: file.name,
@@ -80,13 +81,14 @@ export const FileUploadProvider: React.FC<{ children: ReactNode }> = ({ children
       checklistDescription,
       aspect: aspect || 'Tidak Diberikan Aspek',
       status: 'uploaded',
-      subdirektorat
+      subdirektorat,
+      catatan
     };
 
     setUploadedFiles(prev => [...prev, newFile]);
   };
 
-  const reUploadFile = (file: File, year: number, checklistId?: number, checklistDescription?: string, aspect?: string, subdirektorat?: string) => {
+  const reUploadFile = (file: File, year: number, checklistId?: number, checklistDescription?: string, aspect?: string, subdirektorat?: string, catatan?: string) => {
     // Remove existing file with same checklistId
     setUploadedFiles(prev => prev.filter(existingFile => existingFile.checklistId !== checklistId));
     
@@ -101,7 +103,8 @@ export const FileUploadProvider: React.FC<{ children: ReactNode }> = ({ children
       checklistDescription,
       aspect: aspect || 'Tidak Diberikan Aspek',
       status: 'uploaded',
-      subdirektorat
+      subdirektorat,
+      catatan
     };
 
     setUploadedFiles(prev => [...prev, newFile]);

@@ -14,7 +14,9 @@ interface SpiderChartProps {
 interface ChecklistAssignment {
   id: number;
   checklistId: number;
-  subdirektorat: string;
+  divisi?: string;
+  subdirektorat?: string;
+  assignmentType: 'divisi' | 'subdirektorat';
   aspek: string;
   deskripsi: string;
   tahun: number;
@@ -130,7 +132,7 @@ const SpiderChart: React.FC<SpiderChartProps> = ({ className }) => {
       const subOptions = (subdirektorat || []).map(s => s.nama).filter(Boolean) as string[];
       const subDirektoratDistribution = subOptions.map(subName => {
         const subDirAssignments = aspectAssignments.filter(assignment => 
-          assignment.subdirektorat === subName
+          assignment.assignmentType === 'subdirektorat' && assignment.subdirektorat === subName
         );
         
         // Calculate percentage based on total available items, not just assigned items
@@ -151,7 +153,7 @@ const SpiderChart: React.FC<SpiderChartProps> = ({ className }) => {
       let filteredAssignments = aspectAssignments;
       if (selectedSubDirektorat) {
         filteredAssignments = aspectAssignments.filter(assignment => 
-          assignment.subdirektorat === selectedSubDirektorat
+          assignment.assignmentType === 'subdirektorat' && assignment.subdirektorat === selectedSubDirektorat
         );
       }
 
@@ -167,7 +169,11 @@ const SpiderChart: React.FC<SpiderChartProps> = ({ className }) => {
       const progress = totalAssigned > 0 ? (completedCount / totalAssigned) * 100 : 0;
 
       // Get unique sub-direktorats assigned to this aspect
-      const assignedSubDirektorats = [...new Set(filteredAssignments.map(a => a.subdirektorat))];
+      const assignedSubDirektorats = [...new Set(
+        filteredAssignments
+          .filter(a => a.assignmentType === 'subdirektorat' && a.subdirektorat)
+          .map(a => a.subdirektorat)
+      )];
 
       return {
         ...aspect,
@@ -460,10 +466,10 @@ const SpiderChart: React.FC<SpiderChartProps> = ({ className }) => {
                       .filter(sd => sd.subDirektorat === selectedSubDirektorat)
                       .map((subDir, sdIndex) => (
                         <div key={sdIndex} className="flex items-center justify-between text-xs">
-                          <span className="text-gray-600 truncate">
+                          <span className="text-gray-600 text-left flex-1 mr-2" title={subDir.label}>
                             {subDir.label.replace(/^\s*Sub\s*Direktorat\s*/i, '')}
                           </span>
-                          <div className="flex items-center space-x-2">
+                          <div className="flex items-center space-x-2 flex-shrink-0">
                             <span className="text-gray-500">{subDir.count} item</span>
                             <Badge variant="secondary" className="text-xs">
                               {subDir.percentage}% dari {subDir.totalAvailable} item
@@ -480,10 +486,10 @@ const SpiderChart: React.FC<SpiderChartProps> = ({ className }) => {
                       .slice(0, 3) // Show only top 3
                       .map((subDir, sdIndex) => (
                         <div key={sdIndex} className="flex items-center justify-between text-xs">
-                          <span className="text-gray-600 truncate">
+                          <span className="text-gray-600 text-left flex-1 mr-2" title={subDir.label}>
                             {subDir.label.replace(/^\s*Sub\s*Direktorat\s*/i, '')}
                           </span>
-                          <div className="flex items-center space-x-2">
+                          <div className="flex items-center space-x-2 flex-shrink-0">
                             <span className="text-gray-500">{subDir.count} item</span>
                             <Badge variant="secondary" className="text-xs">
                               {subDir.percentage}% dari {subDir.totalAvailable} item

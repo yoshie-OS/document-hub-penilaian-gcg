@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 import { useChecklist } from '@/contexts/ChecklistContext';
 import { useSidebar } from '@/contexts/SidebarContext';
@@ -15,6 +16,7 @@ import { useYear } from '@/contexts/YearContext';
 
 import { useToast } from '@/hooks/use-toast';
 import { AdminUploadDialog } from '@/components/dialogs';
+import { CatatanDialog } from '@/components/dialogs/CatatanDialog';
 import { YearSelectorPanel, PageHeaderPanel } from '@/components/panels';
 import YearStatisticsPanel from '@/components/dashboard/YearStatisticsPanel';
 
@@ -30,6 +32,7 @@ import {
   Search,
   Download,
   Plus,
+  User,
 } from 'lucide-react';
 
 const MonitoringUploadGCG = () => {
@@ -47,7 +50,7 @@ const MonitoringUploadGCG = () => {
 
   const [selectedAspek, setSelectedAspek] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
-  const [selectedPenjelasan, setSelectedPenjelasan] = useState<string>('all');
+  const [selectedPIC, setSelectedPIC] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>('');
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
@@ -58,6 +61,14 @@ const MonitoringUploadGCG = () => {
   } | null>(null);
   // Force re-render state untuk memastikan data terupdate
   const [forceUpdate, setForceUpdate] = useState(0);
+  
+  // State untuk CatatanDialog
+  const [isCatatanDialogOpen, setIsCatatanDialogOpen] = useState(false);
+  const [selectedDocumentForCatatan, setSelectedDocumentForCatatan] = useState<{
+    catatan?: string;
+    title?: string;
+    fileName?: string;
+  } | null>(null);
   
   // Ensure all years have dokumen GCG data when component mounts
   useEffect(() => {
@@ -244,6 +255,32 @@ const MonitoringUploadGCG = () => {
     return [...new Set(yearChecklist.map(item => item.aspek))];
   }, [checklist, selectedYear]);
 
+  // Get unique PIC values for filter
+  const picValues = useMemo(() => {
+    if (!selectedYear) return [];
+    
+    try {
+      const assignmentsData = localStorage.getItem('checklistAssignments');
+      if (!assignmentsData) return [];
+      
+      const assignments = JSON.parse(assignmentsData);
+      const yearAssignments = assignments.filter((assignment: any) => assignment.tahun === selectedYear);
+      
+      // Get both divisi and subdirektorat assignments
+      const allPICs = yearAssignments.flatMap((assignment: any) => [
+        assignment.divisi,
+        assignment.subdirektorat
+      ]).filter(Boolean);
+      
+      const uniquePICs = Array.from(new Set(allPICs)).sort();
+      
+      return uniquePICs;
+    } catch (error) {
+      console.error('Error getting PIC values:', error);
+      return [];
+    }
+  }, [selectedYear]);
+
   // Check if dokumen GCG item is uploaded - menggunakan data yang sama dengan DashboardStats
   const isChecklistUploaded = useCallback((checklistId: number) => {
     if (!selectedYear) return false;
@@ -257,10 +294,41 @@ const MonitoringUploadGCG = () => {
     if (!selectedYear) return null;
     const yearFiles = getFilesByYear(selectedYear);
     console.log('MonitoringUploadGCG: getUploadedDocument called for checklistId:', checklistId, 'yearFiles:', yearFiles);
-    return yearFiles.find(file => file.checklistId === checklistId);
+    
+    const foundFile = yearFiles.find(file => file.checklistId === checklistId);
+    if (foundFile) {
+      console.log('MonitoringUploadGCG: Found file:', {
+        fileName: foundFile.fileName,
+        catatan: foundFile.catatan,
+        catatanType: typeof foundFile.catatan,
+        catatanLength: foundFile.catatan?.length
+      });
+    }
+    
+    return foundFile;
   }, [getFilesByYear, selectedYear]);
 
-  // Filter dokumen GCG berdasarkan aspek dan status - menggunakan data yang sama dengan DashboardStats
+  // Get assignment data for checklist item
+  const getAssignmentData = useCallback((checklistId: number) => {
+    if (!selectedYear) return null;
+    
+    try {
+      const assignmentsData = localStorage.getItem('checklistAssignments');
+      if (!assignmentsData) return null;
+      
+      const assignments = JSON.parse(assignmentsData);
+      const assignment = assignments.find((assignment: any) => 
+        assignment.checklistId === checklistId && assignment.tahun === selectedYear
+      );
+      
+      return assignment || null;
+    } catch (error) {
+      console.error('Error getting assignment data:', error);
+      return null;
+    }
+  }, [selectedYear]);
+
+  // Filter dokumen GCG berdasarkan aspek, status, dan PIC - menggunakan data yang sama dengan DashboardStats
   const filteredChecklist = useMemo(() => {
     if (!selectedYear) return [];
     
@@ -278,6 +346,17 @@ const MonitoringUploadGCG = () => {
       filtered = filtered.filter(item => item.status === selectedStatus);
     }
 
+    // Filter by PIC
+    if (selectedPIC !== 'all') {
+      filtered = filtered.filter(item => {
+        const assignmentData = getAssignmentData(item.id);
+        if (!assignmentData) return false;
+        
+        // Check both divisi and subdirektorat assignments
+        return assignmentData.divisi === selectedPIC || assignmentData.subdirektorat === selectedPIC;
+      });
+    }
+
     if (debouncedSearchTerm) {
       filtered = filtered.filter(item => 
         item.deskripsi.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
@@ -285,7 +364,7 @@ const MonitoringUploadGCG = () => {
     }
 
     return filtered;
-  }, [checklist, selectedAspek, selectedStatus, selectedYear, debouncedSearchTerm, isChecklistUploaded, forceUpdate]);
+  }, [checklist, selectedAspek, selectedStatus, selectedPIC, selectedYear, debouncedSearchTerm, isChecklistUploaded, getAssignmentData, forceUpdate]);
 
   // Navigate to dashboard with document highlight
   const handleViewDocument = useCallback((checklistId: number) => {
@@ -345,6 +424,33 @@ const MonitoringUploadGCG = () => {
       });
     }
   }, [getUploadedDocument, toast]);
+
+  // Handle show catatan
+  const handleShowCatatan = useCallback((checklistId: number) => {
+    const uploadedDocument = getUploadedDocument(checklistId);
+    const checklistItem = checklist.find(item => item.id === checklistId);
+    
+    console.log('MonitoringUploadGCG: handleShowCatatan called for checklistId:', checklistId);
+    console.log('MonitoringUploadGCG: uploadedDocument:', uploadedDocument);
+    console.log('MonitoringUploadGCG: catatan value:', uploadedDocument?.catatan);
+    console.log('MonitoringUploadGCG: catatan type:', typeof uploadedDocument?.catatan);
+    console.log('MonitoringUploadGCG: catatan length:', uploadedDocument?.catatan?.length);
+    
+    // Debug: Check localStorage directly
+    const localStorageFiles = JSON.parse(localStorage.getItem('uploadedFiles') || '[]');
+    const localFile = localStorageFiles.find((f: any) => f.checklistId === checklistId);
+    console.log('MonitoringUploadGCG: localStorage file:', localFile);
+    console.log('MonitoringUploadGCG: localStorage catatan:', localFile?.catatan);
+    
+    if (uploadedDocument) {
+      setSelectedDocumentForCatatan({
+        catatan: uploadedDocument.catatan,
+        title: checklistItem?.deskripsi,
+        fileName: uploadedDocument.fileName
+      });
+      setIsCatatanDialogOpen(true);
+    }
+  }, [getUploadedDocument, checklist]);
 
   // Get aspect icon - konsisten dengan dashboard
   const getAspectIcon = useCallback((aspekName: string) => {
@@ -658,6 +764,27 @@ const MonitoringUploadGCG = () => {
                   </div>
                 </div>
 
+                  {/* PIC Filter */}
+                  <div className="flex-1 min-w-0">
+                    <label className="text-sm font-semibold text-gray-700 mb-2 block flex items-center">
+                      <User className="w-4 h-4 mr-2 text-green-600" />
+                      Filter PIC
+                    </label>
+                    <Select value={selectedPIC} onValueChange={setSelectedPIC}>
+                      <SelectTrigger className="w-full border-green-200 focus:border-green-500 focus:ring-green-500">
+                        <SelectValue placeholder="Pilih PIC" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Semua PIC</SelectItem>
+                        {picValues.map((pic: string) => (
+                          <SelectItem key={pic} value={pic}>
+                            {pic}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                       {/* Reset Filter */}
                       <div className="flex-shrink-0">
                   <Button 
@@ -665,7 +792,8 @@ const MonitoringUploadGCG = () => {
                     onClick={() => {
                       setSelectedAspek('all');
                       setSelectedStatus('all');
-                        setSearchTerm('');
+                      setSelectedPIC('all');
+                      setSearchTerm('');
                     }}
                           size="sm"
                           className="border-gray-300 text-gray-600 hover:bg-gray-50"
@@ -684,7 +812,8 @@ const MonitoringUploadGCG = () => {
                     <TableRow className="bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-100">
                       <TableHead className="text-indigo-900 font-semibold">No</TableHead>
                       <TableHead className="text-indigo-900 font-semibold">Aspek</TableHead>
-                                                  <TableHead className="text-indigo-900 font-semibold">Deskripsi Dokumen GCG</TableHead>
+                      <TableHead className="text-indigo-900 font-semibold">Deskripsi Dokumen GCG</TableHead>
+                      <TableHead className="text-indigo-900 font-semibold">PIC</TableHead>
                       <TableHead className="text-indigo-900 font-semibold">Status</TableHead>
                       <TableHead className="text-indigo-900 font-semibold">File</TableHead>
                       <TableHead className="text-indigo-900 font-semibold">Aksi</TableHead>
@@ -694,6 +823,17 @@ const MonitoringUploadGCG = () => {
                     {filteredChecklist.map((item, index) => {
                       const IconComponent = getAspectIcon(item.aspek);
                       const uploadedDocument = getUploadedDocument(item.id);
+                      const assignmentData = getAssignmentData(item.id);
+                      
+                      // Debug logging for assignment data
+                      if (assignmentData) {
+                        console.log('MonitoringUploadGCG: Assignment data for item', item.id, ':', {
+                          divisi: assignmentData.divisi,
+                          subdirektorat: assignmentData.subdirektorat,
+                          assignmentType: assignmentData.assignmentType,
+                          fullData: assignmentData
+                        });
+                      }
                       
                       return (
                         <TableRow key={item.id} className="hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 transition-colors duration-200">
@@ -715,6 +855,32 @@ const MonitoringUploadGCG = () => {
                           {item.deskripsi}
                         </div>
                       </TableCell>
+                      <TableCell className="max-w-xs">
+                        {assignmentData ? (
+                          <div className="space-y-1">
+                            <div className="flex items-center space-x-2">
+                              <div className="p-1.5 rounded-md bg-green-100">
+                                <User className="w-3 h-3 text-green-600" />
+                              </div>
+                              <span className="text-xs font-medium text-green-700">
+                                {assignmentData.divisi || assignmentData.subdirektorat}
+                              </span>
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              Assigned: {new Date(assignmentData.assignedAt).toLocaleDateString('id-ID')}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center space-x-2">
+                            <div className="p-1.5 rounded-md bg-gray-100">
+                              <User className="w-3 h-3 text-gray-400" />
+                            </div>
+                            <span className="text-xs text-gray-500 italic">
+                              Belum di-assign
+                            </span>
+                          </div>
+                        )}
+                      </TableCell>
                       <TableCell>
                             {item.status === 'uploaded' ? (
                               <span className="flex items-center text-green-600 text-sm font-medium">
@@ -728,26 +894,26 @@ const MonitoringUploadGCG = () => {
                               </span>
                             )}
                       </TableCell>
-                      <TableCell>
-                            {uploadedDocument ? (
-                              <div className="space-y-1">
-                                <div className="flex items-center space-x-2">
-                                  <FileText className="w-4 h-4 text-blue-600" />
-                                  <span className="text-sm font-medium text-gray-900 truncate" title={uploadedDocument.fileName}>
-                                    {uploadedDocument.fileName}
-                                  </span>
-                                </div>
-                                <div className="text-xs text-gray-500">
-                                  Nama File: {uploadedDocument.fileName}
-                                </div>
-                                <div className="text-xs text-gray-500">
-                                  Tanggal Upload: {new Date(uploadedDocument.uploadDate).toLocaleDateString('id-ID')}
-                                </div>
-                              </div>
+                      <TableCell className="max-w-xs">
+                        {uploadedDocument ? (
+                          <div className="space-y-1">
+                            <div className="flex items-center space-x-2">
+                              <FileText className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                              <span 
+                                className="text-sm font-medium text-gray-900 truncate block max-w-[200px]" 
+                                title={uploadedDocument.fileName}
+                              >
+                                {uploadedDocument.fileName}
+                              </span>
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {new Date(uploadedDocument.uploadDate).toLocaleDateString('id-ID')}
+                            </div>
+                          </div>
                         ) : (
-                              <div className="text-sm text-gray-400 italic">
-                                Belum ada file
-                              </div>
+                          <div className="text-sm text-gray-400 italic">
+                            Belum ada file
+                          </div>
                         )}
                       </TableCell>
                       <TableCell>
@@ -771,6 +937,19 @@ const MonitoringUploadGCG = () => {
                               >
                                 <Download className="w-4 h-4" />
                               </Button>
+                              
+                              {/* Tombol Catatan - hanya muncul jika dokumen sudah diupload */}
+                              {isChecklistUploaded(item.id) && (
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={() => handleShowCatatan(item.id)}
+                                  className="border-blue-200 text-blue-600 hover:bg-blue-50"
+                                  title="Lihat catatan dokumen"
+                                >
+                                  <FileText className="w-4 h-4" />
+                                </Button>
+                              )}
                               <Button 
                                 variant="outline" 
                                 size="sm"
@@ -846,6 +1025,15 @@ const MonitoringUploadGCG = () => {
         </div>
       </div>
 
+      {/* Catatan Dialog */}
+      <CatatanDialog
+        isOpen={isCatatanDialogOpen}
+        onClose={() => setIsCatatanDialogOpen(false)}
+        catatan={selectedDocumentForCatatan?.catatan}
+        documentTitle={selectedDocumentForCatatan?.title}
+        fileName={selectedDocumentForCatatan?.fileName}
+      />
+
       {/* File Upload Dialog */}
       <AdminUploadDialog
         isOpen={isUploadDialogOpen}
@@ -853,12 +1041,23 @@ const MonitoringUploadGCG = () => {
         checklistItem={selectedChecklistItem}
         isReUpload={false}
         onUploadSuccess={() => {
-          // Force refresh using the same mechanism as admin dashboard
-          if (selectedYear) {
-            setTimeout(() => {
-              setSelectedYear(selectedYear);
-            }, 100);
-          }
+          // Dispatch custom event for real-time updates without page restart
+          console.log('MonitoringUploadGCG: Upload success, dispatching refresh event');
+          window.dispatchEvent(new CustomEvent('fileUploaded', {
+            detail: { 
+              type: 'fileUploaded', 
+              year: selectedYear,
+              timestamp: new Date().toISOString()
+            }
+          }));
+          
+          window.dispatchEvent(new CustomEvent('uploadedFilesChanged', {
+            detail: { 
+              type: 'uploadedFilesChanged', 
+              year: selectedYear,
+              timestamp: new Date().toISOString()
+            }
+          }));
         }}
       />
     </div>

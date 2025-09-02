@@ -1,11 +1,32 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useUser } from '@/contexts/UserContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { useUser } from '@/contexts/UserContext';
-import { Shield, Eye, EyeOff, Mail, Lock, ArrowRight, Building2, Users, FileText, CheckCircle, Globe, Award, Zap } from 'lucide-react';
+import gedungPosImage from '@/assets/gedung pos.jpg';
+import { 
+  Bell, 
+  Mail, 
+  HelpCircle,
+  User,
+  Menu,
+  X,
+  ChevronRight,
+  Home,
+  Shield,
+  Eye,
+  EyeOff,
+  ArrowRight,
+  Building2,
+  Users,
+  FileText,
+  CheckCircle,
+  Globe,
+  Award,
+  Zap
+} from 'lucide-react';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -22,15 +43,20 @@ const Login = () => {
     setIsLoading(true);
     
     // Simulate loading
-    setTimeout(() => {
-      const success = login(email, password);
-      
-      if (success) {
-        navigate('/dashboard');
-      } else {
-        setError('Email atau password salah');
+    setTimeout(async () => {
+      try {
+        const success = await login(email, password);
+        
+        if (success) {
+          navigate('/dashboard');
+        } else {
+          setError('Email atau password salah');
+        }
+      } catch (err) {
+        setError('Terjadi kesalahan saat login');
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     }, 1000);
   };
 
@@ -38,8 +64,8 @@ const Login = () => {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-amber-50 to-emerald-50">
       {/* Navigation Header */}
       <nav className="bg-white/80 backdrop-blur-md border-b border-blue-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
+        <div className="px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center h-16">
             <div className="flex items-center space-x-4">
               <div className="h-10 w-10 flex items-center justify-center">
                 <img 
@@ -52,20 +78,6 @@ const Login = () => {
                 <h1 className="text-xl font-bold text-blue-900">Good Corporate Governance Documents Management System</h1>
                 <p className="text-sm text-blue-600">PT POS INDONESIA (PERSERO)</p>
               </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <Link 
-                to="/register" 
-                className="text-blue-600 hover:text-blue-800 font-medium transition-colors"
-              >
-                Daftar
-              </Link>
-              <Link 
-                to="/login" 
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Masuk
-              </Link>
             </div>
           </div>
         </div>
@@ -156,7 +168,7 @@ const Login = () => {
         </div>
 
         {/* Right Side - Login Form */}
-        <div className="flex-1 flex items-center justify-center p-6">
+        <div className="flex-1 flex items-center justify-center p-6 bg-cover bg-left bg-no-repeat" style={{ backgroundImage: `url(${gedungPosImage})` }}>
           <div className="w-full max-w-md">
             {/* Mobile Header */}
             <div className="lg:hidden text-center mb-8">
@@ -172,7 +184,7 @@ const Login = () => {
             </div>
 
             {/* Login Form */}
-            <Card className="border-0 shadow-2xl bg-white/90 backdrop-blur-sm">
+            <Card className="border-0 shadow-2xl bg-white/95 backdrop-blur-md">
               <CardContent className="p-8">
                 <div className="text-center mb-8">
                   <h2 className="text-2xl font-bold text-blue-900 mb-2">Masuk ke Sistem</h2>
@@ -203,7 +215,7 @@ const Login = () => {
                       Password
                     </Label>
                     <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-400 w-5 h-5" />
+                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-400 w-5 h-5" />
                       <Input
                         id="password"
                         type={showPassword ? "text" : "password"}
@@ -221,9 +233,9 @@ const Login = () => {
                         onClick={() => setShowPassword(!showPassword)}
                       >
                         {showPassword ? (
-                          <EyeOff className="h-5 w-5" />
+                          <EyeOff className="w-5 h-5" />
                         ) : (
-                          <Eye className="h-5 w-5" />
+                          <Eye className="w-5 h-5" />
                         )}
                       </Button>
                     </div>
@@ -256,44 +268,26 @@ const Login = () => {
                 </form>
 
                 {/* Demo Account Info */}
-                                  <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <h4 className="text-sm font-medium text-blue-900 mb-2 flex items-center space-x-2">
-                      <CheckCircle className="w-4 h-4" />
-                      <span>Super Admin Account</span>
-                    </h4>
-                    <div className="space-y-1 text-sm text-blue-800">
-                      <p><span className="font-medium">Email:</span> arsippostgcg@gmail.com</p>
-                      <p><span className="font-medium">Password:</span> postarsipGCG.</p>
-                    </div>
-                    <div className="mt-3 pt-3 border-t border-blue-200">
-                      <button
-                        onClick={() => {
-                          localStorage.clear();
-                          window.location.reload();
-                        }}
-                        className="text-xs text-blue-600 hover:text-blue-800 underline"
-                        >
-                        Reset Data (jika login bermasalah)
-                      </button>
-                    </div>
+                <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <h4 className="text-sm font-medium text-blue-900 mb-2 flex items-center space-x-2">
+                    <CheckCircle className="w-4 h-4" />
+                    <span>Demo Credentials</span>
+                  </h4>
+                  <div className="space-y-1 text-sm text-blue-800">
+                    <p><span className="font-medium">Super Admin:</span> superadmin@posindonesia.co.id / admin123</p>
+                    <p><span className="font-medium">Admin:</span> admin@posindonesia.co.id / admin123</p>
+                    <p><span className="font-medium">User:</span> user@posindonesia.co.id / user123</p>
                   </div>
-
-                {/* Register Link */}
-                <div className="mt-6 text-center">
-                  <p className="text-sm text-blue-600">
-                    Belum punya akun?{' '}
-                    <Link to="/register" className="text-blue-600 hover:text-blue-700 font-medium">
-                      Daftar sebagai User
-                    </Link>
-                  </p>
                 </div>
+
+
               </CardContent>
             </Card>
 
             {/* Footer */}
-            <div className="mt-8 text-center text-sm text-blue-500">
+            <div className="mt-8 text-center text-sm text-white">
               <p>© 2024 POS Indonesia. All rights reserved.</p>
-                              <p className="mt-1">Sistem Manajemen Dokumen Good Corporate Governance</p>
+              <p className="mt-1">Sistem Manajemen Dokumen Good Corporate Governance</p>
             </div>
           </div>
         </div>

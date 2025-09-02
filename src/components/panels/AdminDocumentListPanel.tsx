@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -57,12 +57,38 @@ const AdminDocumentListPanel: React.FC<AdminDocumentListPanelProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedAspect, setSelectedAspect] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
+  const [forceUpdate, setForceUpdate] = useState(0);
+
+  // Event listeners for real-time updates
+  useEffect(() => {
+    const handleFileUpload = () => {
+      console.log('AdminDocumentListPanel: File upload event received, forcing update');
+      setForceUpdate(prev => prev + 1);
+    };
+
+    const handleDataUpdate = () => {
+      console.log('AdminDocumentListPanel: Data update event received, forcing update');
+      setForceUpdate(prev => prev + 1);
+    };
+
+    // Listen to all relevant events for real-time updates
+    window.addEventListener('fileUploaded', handleFileUpload);
+    window.addEventListener('uploadedFilesChanged', handleDataUpdate);
+    window.addEventListener('documentsUpdated', handleDataUpdate);
+
+    return () => {
+      window.removeEventListener('fileUploaded', handleFileUpload);
+      window.removeEventListener('uploadedFilesChanged', handleDataUpdate);
+      window.removeEventListener('documentsUpdated', handleDataUpdate);
+    };
+  }, []);
 
   // Debug logging
   console.log('AdminDocumentListPanel props:', {
     checklistItems,
     selectedYear,
-    itemsCount: checklistItems?.length
+    itemsCount: checklistItems?.length,
+    forceUpdate
   });
 
   // Safety check for checklistItems
@@ -296,12 +322,15 @@ const AdminDocumentListPanel: React.FC<AdminDocumentListPanelProps> = ({
                       <TableCell className="py-4">
                         {getStatusDisplay(item.status)}
                       </TableCell>
-                      <TableCell className="py-4">
+                      <TableCell className="py-4 max-w-xs">
                         {item.status === 'completed' && item.uploadedFile ? (
                           <div className="space-y-1">
                             <div className="flex items-center space-x-2">
-                              <FileText className="w-4 w-4 text-blue-600" />
-                              <span className="text-sm font-medium text-gray-900 truncate" title={item.uploadedFile.fileName}>
+                              <FileText className="w-4 w-4 text-blue-600 flex-shrink-0" />
+                              <span 
+                                className="text-sm font-medium text-gray-900 truncate block max-w-[200px]" 
+                                title={item.uploadedFile.fileName}
+                              >
                                 {item.uploadedFile.fileName}
                               </span>
                             </div>

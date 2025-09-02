@@ -1,0 +1,597 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english,indonesian]{babel}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{xcolor}
+\usepackage{float}
+
+% Page setup
+\geometry{left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm}
+
+% Hyperlink setup
+\hypersetup{colorlinks=true,linkcolor=blue,filecolor=magenta,urlcolor=blue,citecolor=blue}
+
+% Header and footer setup
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\textbf{Manual Book Admin - Aplikasi GCG}}
+\fancyhead[R]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% Title formatting
+\titleformat{\section}{\Large\bfseries\color{blue}}{\thesection}{1em}{}
+\titleformat{\subsection}{\large\bfseries\color{darkgray}}{\thesubsection}{1em}{}
+\titleformat{\subsubsection}{\normalsize\bfseries}{\thesubsubsection}{1em}{}
+
+% Custom colors
+\definecolor{lightblue}{RGB}{173,216,230}
+\definecolor{darkblue}{RGB}{0,0,139}
+\definecolor{darkgray}{RGB}{64,64,64}
+
+\begin{document}
+
+% Title page
+\begin{titlepage}
+\centering
+\vspace*{2cm}
+{\Huge\bfseries\color{darkblue} MANUAL BOOK ADMIN\\[0.5cm] GOOD CORPORATE GOVERNANCE (GCG)\\[0.5cm] DOCUMENTS MANAGEMENT SYSTEM}
+\vspace{2cm}
+\includegraphics[width=0.3\textwidth]{placeholder_logo.png}
+\vspace{2cm}
+{\Large\bfseries Panduan Penggunaan untuk Admin}
+\vspace{1cm}
+{\large Mengelola Dokumen GCG Subdirektorat}
+\vfill
+{\large \textbf{Dibuat oleh:} Tim Pengembangan Aplikasi GCG}
+\vspace{0.5cm}
+{\large \textbf{Versi:} 1.0}
+\vspace{0.5cm}
+{\large \textbf{Tanggal:} Desember 2024}
+\vspace{0.5cm}
+{\large \textbf{Status:} Final}
+\vspace{1cm}
+\end{titlepage}
+
+% Table of contents
+\tableofcontents
+\newpage
+
+% Introduction
+\section{Pendahuluan}
+
+\subsection{Deskripsi Aplikasi}
+Aplikasi Good Corporate Governance (GCG) Documents Management System adalah sistem manajemen dokumen yang dirancang untuk mengelola dokumen-dokumen terkait tata kelola perusahaan yang baik. Sebagai Admin, Anda bertanggung jawab untuk mengelola dokumen GCG sesuai dengan subdirektorat yang ditugaskan.
+
+\subsection{Tujuan Manual}
+Manual ini dibuat khusus untuk Admin yang bertanggung jawab mengelola dokumen GCG untuk subdirektorat tertentu, termasuk upload dokumen, monitoring progress, dan manajemen dokumen pribadi.
+
+\subsection{Hak Akses Admin}
+Sebagai Admin, Anda memiliki akses ke:
+\begin{itemize}
+\item Dashboard Admin (overview personal)
+\item Upload Dokumen (untuk subdirektorat yang ditugaskan)
+\item Monitoring Progress (dokumen pribadi)
+\item Manajemen Profil
+\end{itemize}
+
+\subsection{Perbedaan dengan Super Admin}
+\begin{itemize}
+\item \textbf{Admin}: Hanya dapat mengelola dokumen untuk subdirektorat yang ditugaskan
+\item \textbf{Super Admin}: Dapat mengelola seluruh sistem dan semua subdirektorat
+\item \textbf{Admin}: Tidak dapat mengubah konfigurasi sistem
+\item \textbf{Super Admin}: Dapat mengubah semua konfigurasi sistem
+\end{itemize}
+
+% Login and Authentication
+\section{Login dan Autentikasi}
+
+\subsection{Langkah Login}
+\begin{enumerate}
+\item \textbf{Buka Browser} dan akses URL aplikasi
+\item \textbf{Halaman Login} akan muncul
+\item \textbf{Masukkan kredensial Admin}: Email/Username dan Password
+\item \textbf{Klik tombol "Login"}
+\item \textbf{Sistem akan memverifikasi} dan mengarahkan ke Dashboard Admin
+\end{enumerate}
+
+\subsection{Placeholder Gambar}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{placeholder_login.png}
+\caption{Halaman Login - Form login dengan field email dan password}
+\label{fig:login}
+\end{figure}
+
+\subsection{Catatan Keamanan}
+\begin{itemize}
+\item Jangan bagikan kredensial Admin
+\item Logout setelah selesai menggunakan aplikasi
+\item Gunakan password yang kuat dan unik
+\item Laporkan jika ada aktivitas mencurigakan
+\item Hanya upload dokumen yang sesuai dengan subdirektorat yang ditugaskan
+\end{itemize}
+
+% Admin Menu
+\section{Menu Admin}
+
+\subsection{Dashboard Admin}
+
+\subsubsection{Deskripsi}
+Dashboard Admin menampilkan informasi dan statistik dokumen sesuai dengan subdirektorat yang ditugaskan. Dashboard ini memberikan overview personal tentang progress upload dokumen, checklist yang harus diselesaikan, dan statistik performa individual.
+
+\subsubsection{Fitur Utama}
+\begin{itemize}
+\item \textbf{Statistik Pribadi}: Statistik dokumen yang diupload oleh admin
+\item \textbf{Daftar Dokumen}: Daftar dokumen yang telah diupload
+\item \textbf{Upload Dokumen}: Fitur untuk mengupload dokumen baru
+\item \textbf{Progress Tracking}: Melacak progress upload dokumen
+\item \textbf{Notifikasi}: Alert untuk dokumen yang harus diupload
+\item \textbf{Quick Actions}: Akses cepat ke fitur utama
+\end{itemize}
+
+\subsubsection{Langkah Penggunaan Detail}
+\begin{enumerate}
+\item \textbf{Klik menu "Dashboard"} di sidebar (akan otomatis ke Dashboard Admin)
+\item \textbf{Pilih tahun buku} dari dropdown tahun di bagian atas
+\item \textbf{Lihat statistik pribadi}:
+\begin{itemize}
+\item Total dokumen yang harus diupload untuk subdirektorat Anda
+\item Jumlah dokumen yang sudah diupload
+\item Jumlah dokumen yang masih pending
+\item Persentase completion rate personal
+\item Progress chart individual
+\end{itemize}
+\item \textbf{Lihat daftar dokumen} yang telah diupload:
+\begin{itemize}
+\item Tabel dokumen dengan status terbaru
+\item Filter berdasarkan status dan tanggal
+\item Akses cepat untuk download atau edit
+\end{itemize}
+\item \textbf{Upload dokumen baru}:
+\begin{itemize}
+\item Klik tombol "Upload Dokumen" di bagian Quick Actions
+\item Pilih checklist yang ingin diupload
+\item Ikuti proses upload yang akan dijelaskan di bagian selanjutnya
+\end{itemize}
+\item \textbf{Download dokumen} jika diperlukan:
+\begin{itemize}
+\item Klik ikon download pada dokumen yang ingin diunduh
+\item File akan terunduh dengan nama asli
+\end{itemize}
+\end{enumerate}
+
+\subsubsection{Interpretasi Data Dashboard}
+\begin{itemize}
+\item \textbf{Completion Rate}: Persentase dokumen yang sudah diupload untuk subdirektorat Anda
+\item \textbf{Green Status}: Dokumen sudah diupload dan diverifikasi
+\item \textbf{Yellow Status}: Dokumen sedang dalam proses review
+\item \textbf{Red Status}: Dokumen belum diupload atau terlambat
+\item \textbf{Progress Bar}: Menunjukkan progress upload dokumen
+\end{itemize}
+
+\subsubsection{Placeholder Gambar}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{placeholder_dashboard_admin.png}
+\caption{Dashboard Admin - Statistik pribadi, tombol upload, dan daftar dokumen}
+\label{fig:dashboard_admin}
+\end{figure}
+
+\subsection{Upload Dokumen}
+
+\subsubsection{Deskripsi}
+Fitur upload dokumen memungkinkan Admin untuk mengunggah dokumen GCG sesuai dengan checklist yang telah ditentukan untuk subdirektorat yang ditugaskan.
+
+\subsubsection{Fitur Utama}
+\begin{itemize}
+\item \textbf{Pilih Checklist}: Memilih dokumen yang akan diupload
+\item \textbf{Upload File}: Mengunggah file dokumen
+\item \textbf{Validasi File}: Memverifikasi format dan ukuran file
+\item \textbf{Status Tracking}: Melacak status upload
+\item \textbf{Preview File}: Melihat preview file sebelum upload
+\end{itemize}
+
+\subsubsection{Langkah Penggunaan Detail}
+\begin{enumerate}
+\item \textbf{Klik tombol "Upload Dokumen"} di Dashboard Admin
+\item \textbf{Dialog upload akan terbuka} dengan informasi:
+\begin{itemize}
+\item Daftar checklist yang tersedia untuk subdirektorat Anda
+\item Status setiap checklist (Sudah diupload/Belum diupload)
+\item Format file yang diperbolehkan
+\item Ukuran file maksimal
+\end{itemize}
+\item \textbf{Pilih checklist} yang ingin diupload:
+\begin{itemize}
+\item Klik pada checklist yang ingin diupload
+\item Pastikan checklist belum diupload sebelumnya
+\item Baca deskripsi checklist dengan teliti
+\end{itemize}
+\item \textbf{Pilih file} dokumen yang akan diupload:
+\begin{itemize}
+\item Klik tombol "Browse" atau "Choose File"
+\item Pilih file dari komputer (PDF, DOC, DOCX)
+\item Pastikan ukuran file maksimal 10MB
+\item Pastikan nama file tidak mengandung karakter khusus
+\end{itemize}
+\item \textbf{Verifikasi file}:
+\begin{itemize}
+\item Sistem akan menampilkan preview file
+\item Periksa nama file dan ukuran
+\item Pastikan file sesuai dengan checklist
+\item Pastikan file tidak corrupt atau rusak
+\end{itemize}
+\item \textbf{Klik "Upload"} untuk memulai proses upload
+\item \textbf{Tunggu proses upload} selesai:
+\begin{itemize}
+\item Progress bar akan menampilkan status upload
+\item Jangan tutup browser selama proses upload
+\item Sistem akan memvalidasi file setelah upload
+\end{itemize}
+\item \textbf{Konfirmasi upload} berhasil:
+\begin{itemize}
+\item Notifikasi sukses akan muncul
+\item Status dokumen berubah menjadi "Review"
+\item File akan tersedia untuk download
+\item Progress chart akan terupdate
+\end{itemize}
+\end{enumerate}
+
+\subsubsection{Tips Upload Dokumen}
+\begin{itemize}
+\item \textbf{Format File}: Gunakan format PDF untuk dokumen resmi
+\item \textbf{Nama File}: Gunakan nama file yang deskriptif dan konsisten
+\item \textbf{Ukuran File}: Pastikan file tidak melebihi 10MB
+\item \textbf{Kualitas File}: Pastikan file tidak blur atau rusak
+\item \textbf{Backup File}: Simpan salinan file di komputer lokal
+\item \textbf{Upload Tepat Waktu}: Upload dokumen sesuai jadwal yang ditentukan
+\end{itemize}
+
+\subsubsection{Placeholder Gambar}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.7\textwidth]{placeholder_dialog_upload_admin.png}
+\caption{Dialog Upload Dokumen Admin - Form upload dengan pilihan checklist}
+\label{fig:dialog_upload_admin}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{placeholder_progress_upload.png}
+\caption{Progress Upload - Progress bar dan status upload dokumen}
+\label{fig:progress_upload}
+\end{figure}
+
+\subsection{Monitoring Progress}
+
+\subsubsection{Deskripsi}
+Fitur monitoring progress memungkinkan Admin untuk melacak status dan progress upload dokumen yang telah dilakukan.
+
+\subsubsection{Fitur Utama}
+\begin{itemize}
+\item \textbf{Status Dokumen}: Melihat status setiap dokumen yang diupload
+\item \textbf{Progress Chart}: Visualisasi progress upload
+\item \textbf{History Upload}: Riwayat upload dokumen
+\item \textbf{Filter Status}: Menyaring dokumen berdasarkan status
+\item \textbf{Export Progress}: Mengunduh laporan progress
+\end{itemize}
+
+\subsubsection{Langkah Penggunaan Detail}
+\begin{enumerate}
+\item \textbf{Lihat status dokumen} di Dashboard Admin:
+\begin{itemize}
+\item Status "Pending": Dokumen belum diupload
+\item Status "Review": Dokumen sedang dalam proses validasi
+\item Status "Approved": Dokumen telah disetujui
+\item Status "Rejected": Dokumen ditolak dengan alasan
+\end{itemize}
+\item \textbf{Lihat progress chart}:
+\begin{itemize}
+\item Grafik batang menunjukkan progress per aspek GCG
+\item Grafik pie menunjukkan distribusi status dokumen
+\item Progress bar menunjukkan completion rate
+\end{itemize}
+\item \textbf{Filter dokumen} berdasarkan status:
+\begin{itemize}
+\item Klik filter dropdown
+\item Pilih status yang ingin dilihat
+\item Tabel akan menampilkan dokumen sesuai filter
+\end{itemize}
+\item \textbf{Lihat history upload}:
+\begin{itemize}
+\item Klik tab "History" di Dashboard
+\item Lihat riwayat upload dokumen
+\item Lihat tanggal upload dan status terbaru
+\end{itemize}
+\item \textbf{Export progress report}:
+\begin{itemize}
+\item Klik tombol "Export Progress"
+\item Pilih format file (PDF, Excel)
+\item Laporan akan terunduh otomatis
+\end{itemize}
+\end{enumerate}
+
+\subsubsection{Placeholder Gambar}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{placeholder_monitoring_progress.png}
+\caption{Monitoring Progress - Chart progress dan status dokumen}
+\label{fig:monitoring_progress}
+\end{figure}
+
+% General Features
+\section{Fitur Umum}
+
+\subsection{Manajemen Profil}
+
+\subsubsection{Deskripsi}
+Fitur manajemen profil memungkinkan Admin untuk mengelola informasi pribadi, mengubah password, dan mengatur preferensi akun.
+
+\subsubsection{Langkah Penggunaan}
+\begin{enumerate}
+\item \textbf{Klik nama pengguna} di pojok kanan atas halaman
+\item \textbf{Pilih "Profil"} dari dropdown menu yang muncul
+\item \textbf{Edit informasi} yang diperlukan:
+\begin{itemize}
+\item Nama lengkap
+\item Email
+\item Nomor telepon
+\item Subdirektorat yang ditugaskan
+\item Divisi (jika ada)
+\item Foto profil (opsional)
+\end{itemize}
+\item \textbf{Ubah password} jika diperlukan:
+\begin{itemize}
+\item Masukkan password lama
+\item Masukkan password baru
+\item Konfirmasi password baru
+\item Klik "Ubah Password"
+\end{itemize}
+\item \textbf{Klik "Simpan"} untuk menyimpan perubahan
+\item \textbf{Sistem akan menampilkan notifikasi} sukses
+\end{enumerate}
+
+\subsubsection{Informasi yang Dapat Diubah}
+\begin{itemize}
+\item \textbf{Informasi Pribadi}: Nama, email, nomor telepon
+\item \textbf{Informasi Profesional}: Subdirektorat, divisi
+\item \textbf{Preferensi}: Bahasa, timezone, notifikasi
+\item \textbf{Keamanan}: Password, pertanyaan keamanan
+\end{itemize}
+
+\subsubsection{Placeholder Gambar}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\textwidth]{placeholder_menu_profil.png}
+\caption{Menu Profil - Dropdown menu dengan opsi profil, pengaturan, dan logout}
+\label{fig:menu_profil}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.7\textwidth]{placeholder_form_profil.png}
+\caption{Form Profil - Form edit informasi profil dan password}
+\label{fig:form_profil}
+\end{figure}
+
+\subsection{Logout}
+
+\subsubsection{Deskripsi}
+Fitur logout memungkinkan Admin untuk keluar dari sistem dengan aman dan mengakhiri sesi login.
+
+\subsubsection{Langkah Penggunaan}
+\begin{enumerate}
+\item \textbf{Klik nama pengguna} di pojok kanan atas halaman
+\item \textbf{Pilih "Logout"} dari dropdown menu
+\item \textbf{Konfirmasi logout} di dialog yang muncul
+\item \textbf{Sistem akan mengarahkan} ke halaman login
+\item \textbf{Sesi akan berakhir} dan data sementara akan dihapus
+\end{enumerate}
+
+\subsection{Responsive Design}
+
+\subsubsection{Fitur Mobile}
+\begin{itemize}
+\item \textbf{Sidebar Collapsible}: Sidebar dapat di-collapse di layar kecil
+\item \textbf{Touch Friendly}: Tombol dan menu yang mudah disentuh
+\item \textbf{Adaptive Layout}: Layout yang menyesuaikan ukuran layar
+\item \textbf{Mobile Navigation}: Menu hamburger untuk navigasi mobile
+\item \textbf{Responsive Tables}: Tabel yang dapat di-scroll horizontal
+\end{itemize}
+
+\subsubsection{Fitur Desktop}
+\begin{itemize}
+\item \textbf{Full Sidebar}: Sidebar selalu terbuka di layar besar
+\item \textbf{Hover Effects}: Efek hover pada tombol dan menu
+\item \textbf{Keyboard Navigation}: Navigasi menggunakan keyboard
+\item \textbf{Multi-window Support}: Dapat membuka multiple tab
+\item \textbf{Drag and Drop}: Upload file dengan drag and drop
+\end{itemize}
+
+% Troubleshooting
+\section{Troubleshooting}
+
+\subsection{Masalah Umum dan Solusi}
+
+\subsubsection{Tidak Bisa Login}
+\textbf{Gejala}: Error saat memasukkan username/password\\
+\textbf{Kemungkinan Penyebab}:
+\begin{itemize}
+\item Username atau password salah
+\item Akun terkunci karena terlalu banyak percobaan login
+\item Koneksi internet bermasalah
+\item Browser cache corrupt
+\item Server sedang maintenance
+\end{itemize}
+\textbf{Solusi}:
+\begin{enumerate}
+\item Pastikan username dan password benar
+\item Periksa koneksi internet
+\item Clear cache browser (Ctrl+F5)
+\item Coba browser lain
+\item Hubungi Super Admin jika masalah berlanjut
+\end{enumerate}
+
+\subsubsection{File Upload Gagal}
+\textbf{Gejala}: File tidak bisa diupload\\
+\textbf{Kemungkinan Penyebab}:
+\begin{itemize}
+\item Ukuran file terlalu besar
+\item Format file tidak didukung
+\item Koneksi internet terputus
+\item Server storage penuh
+\item File corrupt atau rusak
+\end{itemize}
+\textbf{Solusi}:
+\begin{enumerate}
+\item Periksa ukuran file (maksimal 10MB)
+\item Pastikan format file didukung (PDF, DOC, DOCX)
+\item Periksa koneksi internet
+\item Coba upload file lain
+\item Kompres file jika terlalu besar
+\item Hubungi Super Admin jika masalah berlanjut
+\end{enumerate}
+
+\subsubsection{Dokumen Tidak Muncul di Dashboard}
+\textbf{Gejala}: Dokumen yang diupload tidak muncul di dashboard\\
+\textbf{Kemungkinan Penyebab}:
+\begin{itemize}
+\item Upload belum selesai
+\item Browser cache
+\item Session expired
+\item Server sync delay
+\end{itemize}
+\textbf{Solusi}:
+\begin{enumerate}
+\item Tunggu beberapa saat untuk sync
+\item Refresh halaman (F5)
+\item Logout dan login kembali
+\item Clear browser cache
+\item Periksa tahun buku yang dipilih
+\end{enumerate}
+
+\subsubsection{Status Dokumen Tidak Berubah}
+\textbf{Gejala}: Status dokumen tetap "Review" padahal sudah lama\\
+\textbf{Kemungkinan Penyebab}:
+\begin{itemize}
+\item Dokumen sedang dalam proses validasi
+\item Super Admin belum melakukan review
+\item Ada masalah dengan dokumen
+\end{itemize}
+\textbf{Solusi}:
+\begin{enumerate}
+\item Tunggu proses validasi selesai
+\item Hubungi Super Admin untuk konfirmasi
+\item Periksa kualitas dokumen yang diupload
+\item Upload ulang jika diperlukan
+\end{enumerate}
+
+\subsection{Kontak Support}
+Jika mengalami masalah yang tidak dapat diselesaikan:
+\begin{itemize}
+\item \textbf{Email}: support@gcg-system.com
+\item \textbf{Telepon}: (021) 1234-5678
+\item \textbf{WhatsApp}: +62 812-3456-7890
+\item \textbf{Jam Operasional}: Senin - Jumat, 08:00 - 17:00 WIB
+\item \textbf{Super Admin}: Hubungi Super Admin untuk masalah teknis
+\end{itemize}
+
+% Conclusion
+\section{Kesimpulan}
+
+Manual book ini telah menjelaskan secara lengkap cara menggunakan aplikasi GCG Documents Management System sebagai Admin. Dengan mengikuti panduan ini, Admin diharapkan dapat:
+
+\begin{enumerate}
+\item \textbf{Mengelola dokumen} GCG untuk subdirektorat yang ditugaskan
+\item \textbf{Mengupload dokumen} sesuai dengan checklist yang ditentukan
+\item \textbf{Memantau progress} upload dokumen pribadi
+\item \textbf{Mengelola profil} dan preferensi akun
+\item \textbf{Mengatasi masalah} umum yang mungkin terjadi
+\end{enumerate}
+
+\subsection{Tips Penggunaan Admin}
+\begin{itemize}
+\item \textbf{Upload tepat waktu}: Upload dokumen sesuai jadwal yang ditentukan
+\item \textbf{Format file yang benar}: Gunakan format PDF untuk dokumen resmi
+\item \textbf{Nama file yang jelas}: Gunakan nama file yang deskriptif
+\item \textbf{Backup dokumen}: Simpan salinan dokumen di komputer lokal
+\item \textbf{Periksa status}: Rutin cek status dokumen yang diupload
+\item \textbf{Komunikasi}: Laporkan masalah ke Super Admin jika diperlukan
+\end{itemize}
+
+\subsection{Best Practices Admin}
+\begin{itemize}
+\item \textbf{Dokumen Management}: Kelola dokumen dengan sistem yang terorganisir
+\item \textbf{Quality Control}: Pastikan kualitas dokumen yang diupload
+\item \textbf{Timely Upload}: Upload dokumen sesuai jadwal yang ditentukan
+\item \textbf{Communication}: Berkomunikasi dengan Super Admin jika ada masalah
+\item \textbf{Data Backup}: Selalu backup dokumen penting
+\item \textbf{Security}: Jaga keamanan akses dan data
+\end{itemize}
+
+\subsection{Peran dan Tanggung Jawab Admin}
+\begin{itemize}
+\item \textbf{Upload Dokumen}: Mengupload dokumen GCG sesuai checklist
+\item \textbf{Quality Assurance}: Memastikan kualitas dokumen yang diupload
+\item \textbf{Progress Reporting}: Melaporkan progress upload ke Super Admin
+\item \textbf{Data Management}: Mengelola dokumen dengan baik
+\item \textbf{Compliance}: Memastikan dokumen sesuai dengan standar GCG
+\end{itemize}
+
+% Appendix
+\appendix
+\section{Glossary}
+\begin{description}
+\item[GCG] Good Corporate Governance - Tata kelola perusahaan yang baik
+\item[Admin] Pengguna dengan hak akses terbatas untuk subdirektorat tertentu
+\item[Checklist] Daftar dokumen yang harus diupload untuk setiap aspek GCG
+\item[Upload] Proses mengunggah dokumen ke sistem
+\item[Download] Proses mengunduh dokumen dari sistem
+\item[Validasi] Proses verifikasi kelengkapan dan format dokumen
+\item[Review] Proses peninjauan dokumen oleh Super Admin
+\item[Approved] Status dokumen yang telah disetujui
+\item[Pending] Status dokumen yang belum diupload
+\item[Progress] Kemajuan upload dokumen
+\end{description}
+
+\section{FAQ (Frequently Asked Questions)}
+
+\subsection{Pertanyaan Umum Admin}
+\begin{enumerate}
+\item \textbf{Q: Bagaimana cara mengupload dokumen?}\\
+A: Klik tombol "Upload Dokumen" di Dashboard, pilih checklist, lalu pilih file yang akan diupload.
+
+\item \textbf{Q: Format file apa saja yang didukung?}\\
+A: Sistem mendukung format PDF, DOC, dan DOCX dengan ukuran maksimal 10MB.
+
+\item \textbf{Q: Bagaimana cara melihat status dokumen?}\\
+A: Status dokumen dapat dilihat di Dashboard Admin atau tab "History".
+
+\item \textbf{Q: Apa yang harus dilakukan jika upload gagal?}\\
+A: Periksa ukuran file, format file, dan koneksi internet. Jika masih gagal, hubungi Super Admin.
+
+\item \textbf{Q: Bagaimana cara mengubah password?}\\
+A: Klik nama pengguna di pojok kanan atas, pilih "Profil", lalu klik "Ubah Password".
+
+\item \textbf{Q: Bagaimana cara mengunduh dokumen yang sudah diupload?}\\
+A: Klik ikon download pada dokumen yang ingin diunduh di Dashboard Admin.
+
+\item \textbf{Q: Apa yang harus dilakukan jika status dokumen tetap "Review"?}\\
+A: Tunggu proses validasi selesai atau hubungi Super Admin untuk konfirmasi.
+
+\item \textbf{Q: Bagaimana cara melihat progress upload?}\\
+A: Progress upload dapat dilihat di Dashboard Admin melalui progress chart dan statistik.
+\end{enumerate}
+
+\section{Changelog}
+\begin{itemize}
+\item \textbf{Versi 1.0 (Desember 2024)}: Manual book Admin pertama dengan fitur lengkap
+\end{itemize}
+
+\end{document}

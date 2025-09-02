@@ -1,0 +1,293 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english,indonesian]{babel}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{color}
+\usepackage{float}
+
+% Page setup
+\geometry{
+    left=2.5cm,
+    right=2.5cm,
+    top=2.5cm,
+    bottom=2.5cm
+}
+
+% Hyperlink setup
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,
+    urlcolor=blue,
+    citecolor=blue
+}
+
+% Header and footer setup
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\textbf{Manual Book Aplikasi GCG}}
+\fancyhead[R]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% Title formatting
+\titleformat{\section}{\Large\bfseries\color{blue}}{\thesection}{1em}{}
+\titleformat{\subsection}{\large\bfseries\color{darkgray}}{\thesubsection}{1em}{}
+\titleformat{\subsubsection}{\normalsize\bfseries}{\thesubsubsection}{1em}{}
+
+% Custom colors
+\definecolor{lightblue}{RGB}{173,216,230}
+\definecolor{darkblue}{RGB}{0,0,139}
+\definecolor{darkgray}{RGB}{64,64,64}
+
+\begin{document}
+
+% Title page
+\begin{titlepage}
+    \centering
+    \vspace*{2cm}
+    
+    {\Huge\bfseries\color{darkblue} MANUAL BOOK APLIKASI\\[0.5cm] GOOD CORPORATE GOVERNANCE (GCG)\\[0.5cm] DOCUMENTS MANAGEMENT SYSTEM}
+    
+    \vspace{2cm}
+    
+    \includegraphics[width=0.3\textwidth]{placeholder_logo.png}
+    
+    \vspace{2cm}
+    
+    {\Large\bfseries Panduan Penggunaan Lengkap}
+    
+    \vspace{1cm}
+    
+    {\large Untuk Super Admin, Admin, dan User}
+    
+    \vfill
+    
+    {\large \textbf{Dibuat oleh:} Tim Pengembangan Aplikasi GCG}
+    
+    \vspace{0.5cm}
+    
+    {\large \textbf{Versi:} 1.0}
+    
+    \vspace{0.5cm}
+    
+    {\large \textbf{Tanggal:} Desember 2024}
+    
+    \vspace{0.5cm}
+    
+    {\large \textbf{Status:} Final}
+    
+    \vspace{1cm}
+    
+\end{titlepage}
+
+% Table of contents
+\tableofcontents
+\newpage
+
+% Introduction
+\section{Pendahuluan}
+
+\subsection{Deskripsi Aplikasi}
+Aplikasi Good Corporate Governance (GCG) Documents Management System adalah sistem manajemen dokumen yang dirancang untuk mengelola dokumen-dokumen terkait tata kelola perusahaan yang baik. Aplikasi ini memiliki dua level pengguna utama:
+
+\begin{itemize}
+    \item \textbf{Super Admin}: Memiliki akses penuh ke semua fitur dan pengaturan sistem
+    \item \textbf{Admin}: Memiliki akses terbatas untuk mengelola dokumen sesuai dengan direktorat/subdirektorat yang ditugaskan
+\end{itemize}
+
+\subsection{Tujuan Manual}
+Manual ini dibuat untuk membantu pengguna memahami cara menggunakan aplikasi GCG secara efektif dan efisien.
+
+\newpage
+
+% Application Structure
+\section{Struktur Aplikasi}
+
+\subsection{Hierarki Pengguna}
+\begin{verbatim}
+Super Admin (Level Tertinggi)
+├── Pengaturan Baru
+├── Dashboard
+├── Monitoring & Upload GCG
+├── Arsip Dokumen
+├── Performa GCG
+└── AOI Management
+
+Admin (Level Menengah)
+└── Dashboard
+
+User (Level Dasar)
+└── Dashboard
+\end{verbatim}
+
+\subsection{Fitur Utama}
+\begin{itemize}
+    \item Manajemen dokumen GCG
+    \item Monitoring upload dokumen
+    \item Pengaturan aspek dan checklist
+    \item Manajemen AOI (Area of Improvement)
+    \item Arsip dokumen
+    \item Dashboard statistik
+\end{itemize}
+
+\newpage
+
+% Login and Authentication
+\section{Login dan Autentikasi}
+
+\subsection{Langkah Login}
+\begin{enumerate}
+    \item \textbf{Buka Browser} dan akses URL aplikasi
+    \item \textbf{Halaman Login} akan muncul
+    \item \textbf{Masukkan kredensial}:
+    \begin{itemize}
+        \item Email/Username
+        \item Password
+    \end{itemize}
+    \item \textbf{Klik tombol "Login"}
+    \item \textbf{Sistem akan memverifikasi} dan mengarahkan ke dashboard sesuai role
+\end{enumerate}
+
+\subsection{Placeholder Gambar}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{placeholder_login.png}
+    \caption{Halaman Login - Form login dengan field email dan password}
+    \label{fig:login}
+\end{figure}
+
+\subsection{Catatan Keamanan}
+\begin{itemize}
+    \item Jangan bagikan kredensial login
+    \item Logout setelah selesai menggunakan aplikasi
+    \item Gunakan password yang kuat
+\end{itemize}
+
+\newpage
+
+% Super Admin Menu
+\section{Menu Super Admin}
+
+\subsection{Pengaturan Baru}
+
+\subsubsection{Deskripsi}
+Menu ini berfungsi untuk mengatur konfigurasi dasar sistem, termasuk manajemen tahun buku, struktur perusahaan, dan checklist GCG.
+
+\subsubsection{Fitur Utama}
+\begin{itemize}
+    \item \textbf{Manajemen Tahun Buku}: Menambah, mengedit, dan menghapus tahun buku
+    \item \textbf{Struktur Perusahaan}: Mengatur hierarki direktorat, subdirektorat, dan divisi
+    \item \textbf{Checklist GCG}: Membuat dan mengatur checklist dokumen yang diperlukan
+    \item \textbf{Manajemen Aspek}: Mengatur aspek-aspek GCG yang akan dimonitor
+\end{itemize}
+
+\subsubsection{Langkah Penggunaan}
+
+\paragraph{A. Manajemen Tahun Buku}
+\begin{enumerate}
+    \item \textbf{Klik menu "Pengaturan Baru"}
+    \item \textbf{Pilih tab "Tahun Buku"}
+    \item \textbf{Untuk menambah tahun baru}:
+    \begin{itemize}
+        \item Klik tombol "Tambah Tahun Baru"
+        \item Masukkan tahun (contoh: 2024)
+        \item Klik "Simpan"
+    \end{itemize}
+    \item \textbf{Untuk mengedit tahun}:
+    \begin{itemize}
+        \item Klik ikon edit pada tahun yang ingin diubah
+        \item Ubah tahun sesuai kebutuhan
+        \item Klik "Simpan"
+    \end{itemize}
+    \item \textbf{Untuk menghapus tahun}:
+    \begin{itemize}
+        \item Klik ikon hapus pada tahun yang ingin dihapus
+        \item Konfirmasi penghapusan
+    \end{itemize}
+\end{enumerate}
+
+\paragraph{B. Struktur Perusahaan}
+\begin{enumerate}
+    \item \textbf{Pilih tab "Struktur Perusahaan"}
+    \item \textbf{Manajemen Direktorat}:
+    \begin{itemize}
+        \item Klik "Tambah Direktorat" untuk menambah direktorat baru
+        \item Isi nama direktorat dan tahun aktif
+        \item Klik "Simpan"
+    \end{itemize}
+    \item \textbf{Manajemen Subdirektorat}:
+    \begin{itemize}
+        \item Pilih direktorat dari dropdown
+        \item Klik "Tambah Subdirektorat"
+        \item Isi nama subdirektorat
+        \item Klik "Simpan"
+    \end{itemize}
+    \item \textbf{Manajemen Divisi}:
+    \begin{itemize}
+        \item Pilih subdirektorat dari dropdown
+        \item Klik "Tambah Divisi"
+        \item Isi nama divisi
+        \item Klik "Simpan"
+    \end{itemize}
+\end{enumerate}
+
+\paragraph{C. Checklist GCG}
+\begin{enumerate}
+    \item \textbf{Pilih tab "Checklist GCG"}
+    \item \textbf{Untuk menambah checklist baru}:
+    \begin{itemize}
+        \item Klik "Tambah Checklist"
+        \item Pilih tahun buku
+        \item Pilih aspek GCG
+        \item Isi deskripsi checklist
+        \item Klik "Simpan"
+    \end{itemize}
+    \item \textbf{Untuk mengedit checklist}:
+    \begin{itemize}
+        \item Klik ikon edit pada checklist yang ingin diubah
+        \item Ubah informasi sesuai kebutuhan
+        \item Klik "Simpan"
+    \end{itemize}
+    \item \textbf{Untuk menghapus checklist}:
+    \begin{itemize}
+        \item Klik ikon hapus pada checklist yang ingin dihapus
+        \item Konfirmasi penghapusan
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{Placeholder Gambar}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{placeholder_pengaturan_baru.png}
+    \caption{Halaman Pengaturan Baru - 4 tab utama: Tahun Buku, Struktur Perusahaan, Checklist GCG, dan Manajemen Aspek}
+    \label{fig:pengaturan_baru}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{placeholder_tahun_buku.png}
+    \caption{Tab Tahun Buku - Tabel tahun buku dengan tombol tambah, edit, dan hapus}
+    \label{fig:tahun_buku}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{placeholder_struktur_perusahaan.png}
+    \caption{Tab Struktur Perusahaan - Hierarki direktorat, subdirektorat, dan divisi}
+    \label{fig:struktur_perusahaan}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{placeholder_checklist_gcg.png}
+    \caption{Tab Checklist GCG - Tabel checklist dengan tombol tambah, edit, dan hapus}
+    \label{fig:checklist_gcg}
+\end{figure}
+
+\end{document}

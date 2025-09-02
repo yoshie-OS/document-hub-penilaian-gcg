@@ -1129,7 +1129,9 @@ const FileUploadDialog: React.FC<FileUploadDialogProps> = ({
           formData.year,
           formData.selectedChecklistId || undefined,
           formData.description || selectedChecklist?.deskripsi || '',
-          formData.documentCategory || selectedChecklist?.aspek || ''
+          formData.documentCategory || selectedChecklist?.aspek || '',
+          userSubdirektorat,
+          formData.description // Use description as catatan for superadmin
         );
       }
       
@@ -1151,7 +1153,8 @@ const FileUploadDialog: React.FC<FileUploadDialogProps> = ({
           uploadedBy: user?.name || 'Unknown',
           checklistId: formData.selectedChecklistId,
           checklistDescription: formData.description,
-          aspect: selectedChecklist?.aspek || 'GCG'
+          aspect: selectedChecklist?.aspek || 'GCG',
+          catatan: formData.description // Add catatan field for superadmin
         };
         
         console.log('🔵 FileUploadDialog: Calling addDocument with:', documentData);

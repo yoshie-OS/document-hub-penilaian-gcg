@@ -23,14 +23,14 @@ interface ChecklistItem {
 interface AdminStatisticsPanelProps {
   selectedYear: number | null;
   checklistItems: ChecklistItem[];
-  userSubdirektorat: string;
+  userDivisi: string;
   isSidebarOpen: boolean;
 }
 
 const AdminStatisticsPanel: React.FC<AdminStatisticsPanelProps> = ({
   selectedYear,
   checklistItems,
-  userSubdirektorat,
+  userDivisi,
   isSidebarOpen
 }) => {
   // Calculate statistics for aspects
@@ -116,7 +116,7 @@ const AdminStatisticsPanel: React.FC<AdminStatisticsPanelProps> = ({
           <span>Statistik Progress Penugasan</span>
         </CardTitle>
         <p className="text-sm text-blue-700 mt-2">
-          Overview dokumen dan assessment dokumen GCG yang di-assign ke {userSubdirektorat} tahun {selectedYear}
+                      Overview dokumen dan assessment dokumen GCG yang di-assign ke {userDivisi} tahun {selectedYear}
         </p>
       </CardHeader>
       <CardContent>
