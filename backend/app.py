@@ -537,7 +537,6 @@ def save_assessment():
                 'Section': section,
                 'No': row_id,
                 'Deskripsi': row.get('deskripsi', ''),
-                'Jumlah_Parameter': row.get('jumlah_parameter', ''),
                 'Bobot': row.get('bobot', ''),
                 'Skor': row.get('skor', ''),
                 'Capaian': row.get('capaian', ''),
@@ -575,7 +574,6 @@ def save_assessment():
                     'Section': section,
                     'No': '',
                     'Deskripsi': summary_row.get('deskripsi', ''),
-                    'Jumlah_Parameter': '',
                     'Bobot': '',
                     'Skor': '',
                     'Capaian': '',
@@ -594,7 +592,6 @@ def save_assessment():
                     'Section': section,
                     'No': '',
                     'Deskripsi': f'JUMLAH {section}',
-                    'Jumlah_Parameter': '',
                     'Bobot': summary_row.get('bobot', ''),
                     'Skor': summary_row.get('skor', ''),
                     'Capaian': summary_row.get('capaian', ''),
@@ -621,12 +618,11 @@ def save_assessment():
                 print(f"🔧 DEBUG: Processing separate totalData: {total_data}")
                 
                 total_row = {
-                    'Level': "1",
+                    'Level': "4",
                     'Type': 'total',
                     'Section': 'TOTAL',
                     'No': '',
                     'Deskripsi': 'TOTAL',
-                    'Jumlah_Parameter': total_data.get('jumlah_parameter', ''),
                     'Bobot': total_data.get('bobot', ''),
                     'Skor': total_data.get('skor', ''),
                     'Capaian': total_data.get('capaian', ''),
@@ -781,7 +777,7 @@ def delete_year_data():
                 print(f"SUCCESS: Updated output.xlsx with {len(df_sorted)} rows (deleted {deleted_count} rows for year {year_to_delete})")
             else:
                 # If no data remains, create an empty file with just headers
-                empty_df = pd.DataFrame(columns=['Level', 'Type', 'Section', 'No', 'Deskripsi', 'Jumlah_Parameter', 
+                empty_df = pd.DataFrame(columns=['Level', 'Type', 'Section', 'No', 'Deskripsi', 
                                                'Bobot', 'Skor', 'Capaian', 'Penjelasan', 'Tahun', 'Penilai', 
                                                'Jenis_Asesmen', 'Export_Date'])
                 empty_df.to_excel(output_xlsx_path, index=False)

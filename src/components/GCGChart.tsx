@@ -317,12 +317,21 @@ const YearlyScoreChart: React.FC<YearlyScoreChartProps> = ({ data, allYears, yea
                         </thead>
                         <tbody>
                           {sortedSections.map(section => {
-                            // Ambil penjelasan (Level 3)
-                            const penjelasanRow = inputData.find(row =>
+                            // Ambil penjelasan - try Level 2 first, then fallback to any level for this section
+                            let penjelasanRow = inputData.find(row =>
                               Number(row.Tahun) === selectedYear &&
                               String(row.Section) === section.romanNumeral &&
-                              Number(row.Level) === 3
+                              Number(row.Level) === 2
                             );
+                            
+                            // Fallback: look for any row with penjelasan for this section
+                            if (!penjelasanRow || !penjelasanRow.Penjelasan) {
+                              penjelasanRow = inputData.find(row =>
+                                Number(row.Tahun) === selectedYear &&
+                                String(row.Section) === section.romanNumeral &&
+                                row.Penjelasan && row.Penjelasan.trim() !== ''
+                              );
+                            }
                             const penjelasan = penjelasanRow?.Penjelasan ?? '-';
                             // Ambil deskripsi (Level 1, mapped from Type='header')
                             const deskripsiRow = inputData.find(row =>
@@ -897,12 +906,21 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, rawData = [], onBarCli
                               </thead>
                               <tbody>
                                 {(Array.isArray(sortedSections) ? sortedSections : []).map(section => {
-                                  // Cari penjelasan dari inputData (Level 3)
-                                  const penjelasanRow = inputData.find(row =>
+                                  // Cari penjelasan - try Level 2 first, then fallback to any level for this section
+                                  let penjelasanRow = inputData.find(row =>
                                     Number(row.Tahun) === selectedYear &&
                                     String(row.Section) === section.romanNumeral &&
-                                    Number(row.Level) === 3
+                                    Number(row.Level) === 2
                                   );
+                                  
+                                  // Fallback: look for any row with penjelasan for this section
+                                  if (!penjelasanRow || !penjelasanRow.Penjelasan) {
+                                    penjelasanRow = inputData.find(row =>
+                                      Number(row.Tahun) === selectedYear &&
+                                      String(row.Section) === section.romanNumeral &&
+                                      row.Penjelasan && row.Penjelasan.trim() !== ''
+                                    );
+                                  }
                                   const penjelasan = penjelasanRow?.Penjelasan ?? '-';
                                   // Cari deskripsi dari inputData (Level 1, mapped from Type='header')
                                   const deskripsiRow = inputData.find(row =>
