@@ -57,14 +57,14 @@ const AOIManagement = () => {
 
   // State untuk form table
   const [tableForm, setTableForm] = useState({
+    nama: '',
     deskripsi: '',
     tahun: selectedYear || new Date().getFullYear(),
-    isActive: true,
+    targetType: 'divisi' as 'direktorat' | 'subdirektorat' | 'divisi',
     targetDirektorat: '',
     targetSubdirektorat: '',
     targetDivisi: '',
-    recommendations: [],
-    tracking: []
+    status: 'active' as 'active' | 'inactive'
   });
 
   // State untuk form recommendation
@@ -72,19 +72,13 @@ const AOIManagement = () => {
     no: 1,
     aoiTableId: 0,
     jenis: 'REKOMENDASI' as 'REKOMENDASI' | 'SARAN',
-    rekomendasi: '',
-    saran: '',
-    pihakTerkait: 'DIREKSI' as 'RUPS' | 'DEWAN KOMISARIS' | 'SEKDEKOM' | 'KOMITE' | 'DIREKSI' | 'SEKRETARIS PERUSAHAAN',
-    pihakTerkaitTindakLanjut: {
-      direktorat: '',
-      subdirektorat: '',
-      divisi: ''
-    },
+    isi: '',
+    tingkatUrgensi: 'TINGGI' as 'RENDAH' | 'SEDANG' | 'TINGGI' | 'SANGAT_TINGGI' | 'KRITIS',
     aspekAOI: '',
-    tingkatUrgensi: 3 as 1 | 2 | 3 | 4 | 5,
-    jangkaWaktu: '',
+    pihakTerkait: 'DIREKSI',
+    organPerusahaan: 'DIREKSI',
     tahun: selectedYear || new Date().getFullYear(),
-    status: 'active' as 'active' | 'completed' | 'archived'
+    status: 'active' as 'active' | 'inactive'
   });
 
   // Filter tables berdasarkan tahun
@@ -135,7 +129,7 @@ const AOIManagement = () => {
       nama: autoName,
       deskripsi: tableForm.deskripsi,
       tahun: selectedYear,
-      isActive: tableForm.isActive,
+      status: tableForm.status,
       targetType: computedTargetType as 'direktorat' | 'subdirektorat' | 'divisi',
       targetDirektorat: tableForm.targetDirektorat,
       targetSubdirektorat: tableForm.targetSubdirektorat,
@@ -158,16 +152,16 @@ const AOIManagement = () => {
       });
     }
 
-    // Reset form
-    setTableForm({ 
-      deskripsi: '', 
+        // Reset form
+    setTableForm({
+      nama: '',
+      deskripsi: '',
       tahun: selectedYear || new Date().getFullYear(),
-      isActive: true,
+      targetType: 'divisi',
       targetDirektorat: '',
       targetSubdirektorat: '',
       targetDivisi: '',
-      recommendations: [],
-      tracking: []
+      status: 'active'
     });
     setEditingTable(null);
     setIsTableDialogOpen(false);
@@ -177,15 +171,10 @@ const AOIManagement = () => {
   const handleRecommendationSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    const isRekomendasi = recommendationForm.jenis === 'REKOMENDASI';
-    const hasText = isRekomendasi
-      ? !!recommendationForm.rekomendasi.trim()
-      : !!recommendationForm.saran.trim();
-
-    if (!hasText || !recommendationForm.aoiTableId) {
+    if (!recommendationForm.isi.trim() || !recommendationForm.aoiTableId) {
       toast({
         title: "Data tidak lengkap",
-        description: "Isi teks sesuai jenis dan pastikan tabel dipilih",
+        description: "Isi teks dan pastikan tabel dipilih",
         variant: "destructive"
       });
       return;
@@ -210,17 +199,11 @@ const AOIManagement = () => {
       no: 1,
       aoiTableId: 0,
       jenis: 'REKOMENDASI',
-      rekomendasi: '',
-      saran: '',
-      pihakTerkait: 'DIREKSI',
-      pihakTerkaitTindakLanjut: {
-        direktorat: '',
-        subdirektorat: '',
-        divisi: ''
-      },
+      isi: '',
+      tingkatUrgensi: 'TINGGI',
       aspekAOI: '',
-      tingkatUrgensi: 3,
-      jangkaWaktu: '',
+      pihakTerkait: 'DIREKSI',
+      organPerusahaan: 'DIREKSI',
       tahun: selectedYear || new Date().getFullYear(),
       status: 'active'
     });
@@ -232,14 +215,14 @@ const AOIManagement = () => {
   const handleEditTable = (table: any) => {
     setEditingTable(table);
     setTableForm({
+      nama: table.nama,
       deskripsi: table.deskripsi,
       tahun: table.tahun,
-      isActive: table.isActive,
+      targetType: table.targetType,
       targetDirektorat: table.targetDirektorat || '',
       targetSubdirektorat: table.targetSubdirektorat || '',
       targetDivisi: table.targetDivisi || '',
-      recommendations: table.recommendations || [],
-      tracking: table.tracking || []
+      status: table.status
     });
     setIsTableDialogOpen(true);
   };
@@ -249,13 +232,13 @@ const AOIManagement = () => {
     setEditingRecommendation(recommendation);
     setRecommendationForm({
       no: recommendation.no,
-      rekomendasi: recommendation.rekomendasi,
-      saran: recommendation.saran,
-      pihakTerkait: recommendation.pihakTerkait,
-      pihakTerkaitTindakLanjut: recommendation.pihakTerkaitTindakLanjut,
-      aspekAOI: recommendation.aspekAOI,
+      aoiTableId: recommendation.aoiTableId,
+      jenis: recommendation.jenis,
+      isi: recommendation.isi,
       tingkatUrgensi: recommendation.tingkatUrgensi,
-      jangkaWaktu: recommendation.jangkaWaktu,
+      aspekAOI: recommendation.aspekAOI,
+      pihakTerkait: recommendation.pihakTerkait,
+      organPerusahaan: recommendation.organPerusahaan,
       tahun: recommendation.tahun,
       status: recommendation.status
     });
@@ -296,12 +279,21 @@ const AOIManagement = () => {
   };
 
   // Render star rating
-  const renderStars = (rating: number) => {
+  const renderStars = (rating: string) => {
+    const ratingMap: Record<string, number> = {
+      'RENDAH': 1,
+      'SEDANG': 2,
+      'TINGGI': 3,
+      'SANGAT_TINGGI': 4,
+      'KRITIS': 5
+    };
+    const starCount = ratingMap[rating] || 0;
+    
     return Array.from({ length: 5 }, (_, i) => (
       <Star
         key={i}
         className={`w-4 h-4 ${
-          i < rating ? 'text-yellow-500 fill-current' : 'text-gray-300'
+          i < starCount ? 'text-yellow-500 fill-current' : 'text-gray-300'
         }`}
       />
     ));
@@ -463,13 +455,11 @@ const AOIManagement = () => {
                           nama: '', 
                           deskripsi: '', 
                           tahun: selectedYear || new Date().getFullYear(),
-                          isActive: true,
+                          status: 'active',
                           targetType: 'direktorat',
                           targetDirektorat: '',
                           targetSubdirektorat: '',
-                          targetDivisi: '',
-                          recommendations: [],
-                          tracking: []
+                          targetDivisi: ''
                         });
                       }}
                     >
@@ -622,50 +612,38 @@ const AOIManagement = () => {
                               <div>
                                 <Label htmlFor="tingkatUrgensi">Tingkat Urgensi</Label>
                                 <Select
-                                  value={recommendationForm.tingkatUrgensi.toString()}
-                                  onValueChange={(value) => setRecommendationForm(prev => ({ ...prev, tingkatUrgensi: parseInt(value) as 1 | 2 | 3 | 4 | 5 }))}
+                                  value={recommendationForm.tingkatUrgensi}
+                                  onValueChange={(value) => setRecommendationForm(prev => ({ ...prev, tingkatUrgensi: value as 'RENDAH' | 'SEDANG' | 'TINGGI' | 'SANGAT_TINGGI' | 'KRITIS' }))}
                                 >
                                   <SelectTrigger>
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    <SelectItem value="1">1 ⭐ (Rendah)</SelectItem>
-                                    <SelectItem value="2">2 ⭐⭐ (Sedang)</SelectItem>
-                                    <SelectItem value="3">3 ⭐⭐⭐ (Tinggi)</SelectItem>
-                                    <SelectItem value="4">4 ⭐⭐⭐⭐ (Sangat Tinggi)</SelectItem>
-                                    <SelectItem value="5">5 ⭐⭐⭐⭐⭐ (Kritis)</SelectItem>
+                                    <SelectItem value="RENDAH">⭐ Rendah</SelectItem>
+                                    <SelectItem value="SEDANG">⭐⭐ Sedang</SelectItem>
+                                    <SelectItem value="TINGGI">⭐⭐⭐ Tinggi</SelectItem>
+                                    <SelectItem value="SANGAT_TINGGI">⭐⭐⭐⭐ Sangat Tinggi</SelectItem>
+                                    <SelectItem value="KRITIS">⭐⭐⭐⭐⭐ Kritis</SelectItem>
                                   </SelectContent>
                                 </Select>
                               </div>
                             </div>
-                            {recommendationForm.jenis === 'REKOMENDASI' ? (
-                              <div>
-                                <Label htmlFor="rekomendasi">Rekomendasi</Label>
-                                <Textarea
-                                  id="rekomendasi"
-                                  value={recommendationForm.rekomendasi}
-                                  onChange={(e) => setRecommendationForm(prev => ({ ...prev, rekomendasi: e.target.value }))}
-                                  placeholder="Deskripsi rekomendasi perbaikan"
-                                  rows={3}
-                                />
-                              </div>
-                            ) : (
-                              <div>
-                                <Label htmlFor="saran">Saran</Label>
-                                <Textarea
-                                  id="saran"
-                                  value={recommendationForm.saran}
-                                  onChange={(e) => setRecommendationForm(prev => ({ ...prev, saran: e.target.value }))}
-                                  placeholder="Saran perbaikan"
-                                  rows={3}
-                                />
-                              </div>
-                            )}
+                            <div>
+                              <Label htmlFor="isi">Isi {recommendationForm.jenis}</Label>
+                              <Textarea
+                                id="isi"
+                                value={recommendationForm.isi}
+                                onChange={(e) => setRecommendationForm(prev => ({ ...prev, isi: e.target.value }))}
+                                placeholder={`Deskripsi ${recommendationForm.jenis.toLowerCase()} perbaikan`}
+                                rows={3}
+                              />
+                            </div>
                             <div>
                               <Label>Organ Perusahaan yang menindaklanjuti</Label>
                               <div className="grid grid-cols-2 gap-2">
                                 <Select
-                                  onValueChange={(value) => setRecommendationForm(prev => ({ ...prev, pihakTerkait: value }))}
+                                  value={recommendationForm.pihakTerkait}
+                                  onValueChange={(value) => setRecommendationForm(prev => ({ ...prev, pihakTerkait: value, organPerusahaan: value }))}
                                 >
                                   <SelectTrigger>
                                     <SelectValue placeholder="Pilih (opsional)" />
@@ -680,8 +658,8 @@ const AOIManagement = () => {
                                   </SelectContent>
                                 </Select>
                                 <Input
-                                  value={recommendationForm.pihakTerkait}
-                                  onChange={(e) => setRecommendationForm(prev => ({ ...prev, pihakTerkait: e.target.value }))}
+                                  value={recommendationForm.organPerusahaan}
+                                  onChange={(e) => setRecommendationForm(prev => ({ ...prev, organPerusahaan: e.target.value }))}
                                   placeholder="Atau ketik manual (opsional)"
                                 />
                               </div>
@@ -708,17 +686,11 @@ const AOIManagement = () => {
                                     no: 1,
                                     aoiTableId: 0,
                                     jenis: 'REKOMENDASI',
-                                    rekomendasi: '',
-                                    saran: '',
-                                    pihakTerkait: 'DIREKSI',
-                                    pihakTerkaitTindakLanjut: {
-                                      direktorat: '',
-                                      subdirektorat: '',
-                                      divisi: ''
-                                    },
+                                    isi: '',
+                                    tingkatUrgensi: 'TINGGI',
                                     aspekAOI: '',
-                                    tingkatUrgensi: 3,
-                                    jangkaWaktu: '',
+                                    pihakTerkait: 'DIREKSI',
+                                    organPerusahaan: 'DIREKSI',
                                     tahun: selectedYear || new Date().getFullYear(),
                                     status: 'active'
                                   });
@@ -766,7 +738,7 @@ const AOIManagement = () => {
                                      <TableRow key={rec.id} className="hover:bg-blue-50/50 border-b border-blue-100">
                                        <TableCell className="font-medium text-center text-blue-900">{rec.no}</TableCell>
                                        <TableCell>
-                                         <div className="text-sm leading-relaxed text-gray-800">{rec.rekomendasi || '-'}</div>
+                                         <div className="text-sm leading-relaxed text-gray-800">{rec.isi || '-'}</div>
                                        </TableCell>
                                        <TableCell className="text-center">
                                          <div className="flex justify-center">{renderStars(rec.tingkatUrgensi)}</div>
@@ -823,7 +795,7 @@ const AOIManagement = () => {
                                      <TableRow key={rec.id} className="hover:bg-yellow-50/50 border-b border-yellow-100">
                                        <TableCell className="font-medium text-center text-yellow-900">{rec.no}</TableCell>
                                        <TableCell>
-                                         <div className="text-sm leading-relaxed text-gray-800">{rec.saran || '-'}</div>
+                                         <div className="text-sm leading-relaxed text-gray-800">{rec.isi || '-'}</div>
                                        </TableCell>
                                        <TableCell className="text-center">
                                          <div className="flex justify-center">{renderStars(rec.tingkatUrgensi)}</div>

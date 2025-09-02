@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,22 @@ const AOIPanel: React.FC<AOIPanelProps> = ({ selectedYear, className = "" }) => 
   const { aoiTables, aoiRecommendations, aoiTracking } = useAOI();
   const { user } = useUser();
   const { uploadDocument, getDocumentsByRecommendation } = useAOIDocument();
+  const [forceUpdate, setForceUpdate] = useState(0);
+
+  // Event listeners for real-time updates
+  useEffect(() => {
+    const handleAOIDocumentUpload = () => {
+      console.log('AOIPanel: AOI document upload event received, forcing update');
+      setForceUpdate(prev => prev + 1);
+    };
+
+    // Listen to AOI document upload events
+    window.addEventListener('aoiDocumentUploaded', handleAOIDocumentUpload);
+
+    return () => {
+      window.removeEventListener('aoiDocumentUploaded', handleAOIDocumentUpload);
+    };
+  }, []);
 
   if (!selectedYear || !user) return null;
 
@@ -53,8 +69,10 @@ const AOIPanel: React.FC<AOIPanelProps> = ({ selectedYear, className = "" }) => 
   const renderStars = (rating: string) => {
     const ratingMap: Record<string, number> = {
       'RENDAH': 1,
-      'SEDANG': 3,
-      'TINGGI': 5
+      'SEDANG': 2,
+      'TINGGI': 3,
+      'SANGAT_TINGGI': 4,
+      'KRITIS': 5
     };
     const starCount = ratingMap[rating] || 0;
     
@@ -103,8 +121,15 @@ const AOIPanel: React.FC<AOIPanelProps> = ({ selectedYear, className = "" }) => 
               user.divisi || '',
               selectedYear
             );
-            // Refresh the component to show updated state
-            window.location.reload();
+            // Dispatch custom event for real-time updates
+            window.dispatchEvent(new CustomEvent('aoiDocumentUploaded', {
+              detail: { 
+                type: 'aoiDocumentUploaded', 
+                recommendationId: recommendationId,
+                year: selectedYear,
+                timestamp: new Date().toISOString()
+              }
+            }));
           }
         } catch (error) {
           console.error('Error uploading document:', error);
@@ -139,8 +164,15 @@ const AOIPanel: React.FC<AOIPanelProps> = ({ selectedYear, className = "" }) => 
               user.divisi || '',
               selectedYear
             );
-            // Refresh the component to show updated state
-            window.location.reload();
+            // Dispatch custom event for real-time updates
+            window.dispatchEvent(new CustomEvent('aoiDocumentUploaded', {
+              detail: { 
+                type: 'aoiDocumentUploaded', 
+                recommendationId: recommendationId,
+                year: selectedYear,
+                timestamp: new Date().toISOString()
+              }
+            }));
           }
         } catch (error) {
           console.error('Error re-uploading document:', error);

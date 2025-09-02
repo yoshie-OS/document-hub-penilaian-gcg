@@ -23,7 +23,7 @@ interface AOIDocumentContextType {
   getDocumentsByRecommendation: (aoiRecommendationId: number) => AOIDocument[];
   getDocumentsByYear: (tahun: number) => AOIDocument[];
   getDocumentsByUser: (userId: string) => AOIDocument[];
-  deleteDocument: (documentId: string) => void;
+  deleteDocument: (aoiRecommendationId: number) => void;
   updateDocument: (documentId: string, updates: Partial<AOIDocument>) => void;
 }
 
@@ -95,10 +95,18 @@ export const AOIDocumentProvider: React.FC<AOIDocumentProviderProps> = ({ childr
       tahun
     };
 
-    setDocuments(prev => [...prev, newDocument]);
+    // Check if document already exists for this recommendation
+    setDocuments(prev => {
+      // Remove existing document for the same recommendation
+      const filteredDocs = prev.filter(doc => doc.aoiRecommendationId !== aoiRecommendationId);
+      // Add new document
+      return [...filteredDocs, newDocument];
+    });
     
     // Simulate file upload delay
     await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    console.log('AOIDocumentContext: Document uploaded/replaced for recommendation', aoiRecommendationId);
     
     return newDocument;
   }, []);
@@ -107,23 +115,27 @@ export const AOIDocumentProvider: React.FC<AOIDocumentProviderProps> = ({ childr
     return documents.filter(doc => doc.aoiRecommendationId === aoiRecommendationId);
   }, [documents]);
 
-  const getDocumentsByYear = useCallback((tahun: number): AOIDocument[] => {
-    return documents.filter(doc => doc.tahun === tahun);
+  const getDocumentsByYear = useCallback((year: number): AOIDocument[] => {
+    return documents.filter(doc => doc.tahun === year);
   }, [documents]);
 
   const getDocumentsByUser = useCallback((userId: string): AOIDocument[] => {
     return documents.filter(doc => doc.userId === userId);
   }, [documents]);
 
-  const deleteDocument = useCallback((documentId: string) => {
-    setDocuments(prev => prev.filter(doc => doc.id !== documentId));
-  }, []);
-
-  const updateDocument = useCallback((documentId: string, updates: Partial<AOIDocument>) => {
+  const updateDocument = useCallback((documentId: string, updates: Partial<AOIDocument>): void => {
     setDocuments(prev => prev.map(doc => 
       doc.id === documentId ? { ...doc, ...updates } : doc
     ));
+    console.log('AOIDocumentContext: Document updated', documentId);
   }, []);
+
+  const deleteDocument = useCallback((aoiRecommendationId: number): void => {
+    setDocuments(prev => prev.filter(doc => doc.aoiRecommendationId !== aoiRecommendationId));
+    console.log('AOIDocumentContext: Document deleted for recommendation', aoiRecommendationId);
+  }, []);
+
+
 
   const value: AOIDocumentContextType = {
     documents,

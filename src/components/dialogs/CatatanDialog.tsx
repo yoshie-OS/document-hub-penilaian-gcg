@@ -18,6 +18,16 @@ export const CatatanDialog: React.FC<CatatanDialogProps> = ({
   documentTitle,
   fileName
 }) => {
+  // Debug logging
+  console.log('CatatanDialog: Received props:', {
+    catatan,
+    catatanType: typeof catatan,
+    catatanLength: catatan?.length,
+    catatanTrimmed: catatan?.trim(),
+    documentTitle,
+    fileName
+  });
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
@@ -41,7 +51,7 @@ export const CatatanDialog: React.FC<CatatanDialogProps> = ({
         </DialogHeader>
         
         <div className="space-y-4">
-          {catatan ? (
+          {catatan && catatan.trim() ? (
             <div className="bg-gray-50 p-4 rounded-lg border">
               <div className="text-sm text-gray-600 mb-2">Catatan dari pengunggah:</div>
               <div className="text-gray-800 whitespace-pre-wrap">{catatan}</div>

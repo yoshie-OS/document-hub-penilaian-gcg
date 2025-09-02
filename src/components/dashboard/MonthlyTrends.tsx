@@ -556,7 +556,7 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
                               <div className="flex items-center justify-between text-xs">
                                 <span className="text-gray-600 text-left flex-1 mr-2" title={divisi.name}>
                                   {divisi.name}
-                                </span>
+                            </span>
                                 <div className="flex items-center space-x-1 flex-shrink-0">
                                   <span className="text-blue-600 font-semibold">{divisi.progress}</span>
                                   <span className="text-gray-400">/</span>
@@ -576,8 +576,8 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
                               <div className="text-xs text-center text-gray-500">
                                 {divisi.percent}% selesai
                               </div>
-                            </div>
-                          ))}
+                          </div>
+                        ))}
                         </div>
                       ) : (
                         // Collapsed view - tampilkan summary saja
@@ -593,8 +593,8 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
                               {data.divisions.filter(d => d.percent < 100).length} belum selesai
                             </div>
                           </div>
-                        </div>
-                      )}
+                          </div>
+                        )}
                     </div>
                   )}
                 </div>

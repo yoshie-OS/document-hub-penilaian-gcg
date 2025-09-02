@@ -102,6 +102,16 @@ const ArsipDokumen = () => {
       console.log('Year Documents (DocumentMetadataContext):', yearDocuments);
       console.log('All Documents (DocumentMetadataContext):', documents);
       
+      // Debug: Check catatan in files
+      yearFiles.forEach((file, index) => {
+        console.log(`File ${index}:`, {
+          fileName: file.fileName,
+          catatan: file.catatan,
+          catatanType: typeof file.catatan,
+          catatanLength: file.catatan?.length
+        });
+      });
+      
       // Check localStorage for uploaded files
       const localStorageFiles = JSON.parse(localStorage.getItem('uploadedFiles') || '[]');
       const yearLocalStorageFiles = selectedYear ? localStorageFiles.filter((f: any) => f.year === selectedYear) : [];
@@ -386,6 +396,17 @@ const ArsipDokumen = () => {
 
   // Handle show catatan
   const handleShowCatatan = (document: any) => {
+    console.log('ArsipDokumen: handleShowCatatan called for document:', document);
+    console.log('ArsipDokumen: catatan value:', document.catatan);
+    console.log('ArsipDokumen: catatan type:', typeof document.catatan);
+    console.log('ArsipDokumen: catatan length:', document.catatan?.length);
+    
+    // Debug: Check localStorage directly
+    const localStorageFiles = JSON.parse(localStorage.getItem('uploadedFiles') || '[]');
+    const localStorageMetadata = JSON.parse(localStorage.getItem('documentMetadata') || '[]');
+    console.log('ArsipDokumen: localStorage files:', localStorageFiles);
+    console.log('ArsipDokumen: localStorage metadata:', localStorageMetadata);
+    
     setSelectedDocumentForCatatan({
       catatan: document.catatan,
       title: document.checklistDescription || document.fileName,

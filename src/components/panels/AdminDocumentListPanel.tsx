@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -57,12 +57,38 @@ const AdminDocumentListPanel: React.FC<AdminDocumentListPanelProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedAspect, setSelectedAspect] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
+  const [forceUpdate, setForceUpdate] = useState(0);
+
+  // Event listeners for real-time updates
+  useEffect(() => {
+    const handleFileUpload = () => {
+      console.log('AdminDocumentListPanel: File upload event received, forcing update');
+      setForceUpdate(prev => prev + 1);
+    };
+
+    const handleDataUpdate = () => {
+      console.log('AdminDocumentListPanel: Data update event received, forcing update');
+      setForceUpdate(prev => prev + 1);
+    };
+
+    // Listen to all relevant events for real-time updates
+    window.addEventListener('fileUploaded', handleFileUpload);
+    window.addEventListener('uploadedFilesChanged', handleDataUpdate);
+    window.addEventListener('documentsUpdated', handleDataUpdate);
+
+    return () => {
+      window.removeEventListener('fileUploaded', handleFileUpload);
+      window.removeEventListener('uploadedFilesChanged', handleDataUpdate);
+      window.removeEventListener('documentsUpdated', handleDataUpdate);
+    };
+  }, []);
 
   // Debug logging
   console.log('AdminDocumentListPanel props:', {
     checklistItems,
     selectedYear,
-    itemsCount: checklistItems?.length
+    itemsCount: checklistItems?.length,
+    forceUpdate
   });
 
   // Safety check for checklistItems

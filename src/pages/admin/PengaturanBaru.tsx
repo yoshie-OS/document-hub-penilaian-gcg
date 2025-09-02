@@ -160,27 +160,9 @@ const AssignmentDropdown = ({
       a.assignmentType !== assignmentType
     );
     
-    if (!otherTypeAssignment) return false;
-    
-    // Cek apakah assignment yang ada memiliki hubungan organisasi yang sama
-    // Jika ada hubungan organisasi, tidak perlu di-lock
-    if (assignmentType === 'divisi' && otherTypeAssignment.assignmentType === 'subdirektorat') {
-      // Cek apakah ada divisi yang berada di bawah subdirektorat yang sudah di-assign
-      const hasRelatedDivisi = divisi.some(d => 
-        d.subdirektoratId === subdirektorat.find(s => s.nama === otherTypeAssignment.subdirektorat)?.id
-      );
-      return !hasRelatedDivisi;
-    } else if (assignmentType === 'subdirektorat' && otherTypeAssignment.assignmentType === 'divisi') {
-      // Cek apakah subdirektorat yang dipilih adalah parent dari divisi yang sudah di-assign
-      const divisiData = divisi.find(d => d.nama === otherTypeAssignment.divisi);
-      const hasRelatedSubdirektorat = subdirektorat.some(s => 
-        s.id === divisiData?.subdirektoratId
-      );
-      return !hasRelatedSubdirektorat;
-    }
-    
-    return true;
-  }, [assignments, item.id, selectedYear, assignmentType, divisi, subdirektorat]);
+    // Jika ada assignment dengan tipe yang berbeda, maka terkunci
+    return !!otherTypeAssignment;
+  }, [assignments, item.id, selectedYear, assignmentType]);
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -1974,35 +1956,13 @@ const PengaturanBaru = () => {
     );
     
     if (existingAssignment) {
-      // Cek apakah assignment yang ada memiliki hubungan organisasi yang sama
-      let hasOrganizationalRelationship = false;
-      
-      if (assignmentType === 'divisi' && existingAssignment.assignmentType === 'subdirektorat') {
-        // Cek apakah divisi yang dipilih berada di bawah subdirektorat yang sudah di-assign
-        const divisiData = divisi.find(d => d.nama === targetName);
-        const subdirektoratData = subdirektorat.find(s => s.nama === existingAssignment.subdirektorat);
-        
-        if (divisiData && subdirektoratData && divisiData.subdirektoratId === subdirektoratData.id) {
-          hasOrganizationalRelationship = true;
-        }
-      } else if (assignmentType === 'subdirektorat' && existingAssignment.assignmentType === 'divisi') {
-        // Cek apakah subdirektorat yang dipilih adalah parent dari divisi yang sudah di-assign
-        const subdirektoratData = subdirektorat.find(s => s.nama === targetName);
-        const divisiData = divisi.find(d => d.nama === existingAssignment.divisi);
-        
-        if (subdirektoratData && divisiData && divisiData.subdirektoratId === subdirektoratData.id) {
-          hasOrganizationalRelationship = true;
-        }
-      }
-      
-      if (!hasOrganizationalRelationship) {
-        toast({
-          title: "Assignment Terkunci",
-          description: `Dokumen ini sudah di-assign ke ${existingAssignment.assignmentType === 'divisi' ? 'divisi' : 'subdirektorat'}. Tidak bisa di-assign ke ${assignmentType === 'divisi' ? 'divisi' : 'subdirektorat'} yang berbeda.`,
-          variant: "destructive",
-        });
-        return;
-      }
+      // Jika sudah ada assignment dengan tipe yang berbeda, maka terkunci
+      toast({
+        title: "Assignment Terkunci",
+        description: `Dokumen ini sudah di-assign ke ${existingAssignment.assignmentType === 'divisi' ? 'divisi' : 'subdirektorat'}. Tidak bisa di-assign ke ${assignmentType === 'divisi' ? 'divisi' : 'subdirektorat'}. Gunakan opsi "Tidak Memilih (Reset)" untuk mereset assignment.`,
+        variant: "destructive",
+      });
+      return;
     }
 
     const newAssignment: ChecklistAssignment = {

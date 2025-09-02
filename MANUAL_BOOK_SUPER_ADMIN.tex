@@ -1,0 +1,876 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english,indonesian]{babel}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{xcolor}
+\usepackage{float}
+
+% Page setup
+\geometry{left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm}
+
+% Hyperlink setup
+\hypersetup{colorlinks=true,linkcolor=blue,filecolor=magenta,urlcolor=blue,citecolor=blue}
+
+% Header and footer setup
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\textbf{Manual Book Super Admin - Aplikasi GCG}}
+\fancyhead[R]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% Title formatting
+\titleformat{\section}{\Large\bfseries\color{blue}}{\thesection}{1em}{}
+\titleformat{\subsection}{\large\bfseries\color{darkgray}}{\thesubsection}{1em}{}
+\titleformat{\subsubsection}{\normalsize\bfseries}{\thesubsubsection}{1em}{}
+
+% Custom colors
+\definecolor{lightblue}{RGB}{173,216,230}
+\definecolor{darkblue}{RGB}{0,0,139}
+\definecolor{darkgray}{RGB}{64,64,64}
+
+\begin{document}
+
+% Title page
+\begin{titlepage}
+\centering
+\vspace*{2cm}
+{\Huge\bfseries\color{darkblue} MANUAL BOOK SUPER ADMIN\\[0.5cm] GOOD CORPORATE GOVERNANCE (GCG)\\[0.5cm] DOCUMENTS MANAGEMENT SYSTEM}
+\vspace{2cm}
+\includegraphics[width=0.3\textwidth]{placeholder_logo.png}
+\vspace{2cm}
+{\Large\bfseries Panduan Penggunaan Lengkap untuk Super Admin}
+\vspace{1cm}
+{\large Mengelola Sistem GCG secara Menyeluruh}
+\vfill
+{\large \textbf{Dibuat oleh:} Tim Pengembangan Aplikasi GCG}
+\vspace{0.5cm}
+{\large \textbf{Versi:} 1.0}
+\vspace{0.5cm}
+{\large \textbf{Tanggal:} Desember 2024}
+\vspace{0.5cm}
+{\large \textbf{Status:} Final}
+\vspace{1cm}
+\end{titlepage}
+
+% Table of contents
+\tableofcontents
+\newpage
+
+% Introduction
+\section{Pendahuluan}
+
+\subsection{Deskripsi Aplikasi}
+Aplikasi Good Corporate Governance (GCG) Documents Management System adalah sistem manajemen dokumen yang dirancang untuk mengelola dokumen-dokumen terkait tata kelola perusahaan yang baik. Sebagai Super Admin, Anda memiliki akses penuh untuk mengelola seluruh sistem.
+
+\subsection{Tujuan Manual}
+Manual ini dibuat khusus untuk Super Admin yang bertanggung jawab mengelola sistem GCG secara menyeluruh, termasuk konfigurasi sistem, monitoring, dan administrasi.
+
+\subsection{Hak Akses Super Admin}
+Sebagai Super Admin, Anda memiliki akses ke:
+\begin{itemize}
+\item Pengaturan Baru (konfigurasi sistem)
+\item Dashboard (overview sistem)
+\item Monitoring \& Upload GCG
+\item Arsip Dokumen
+\item Performa GCG
+\item AOI Management
+\end{itemize}
+
+% Login and Authentication
+\section{Login dan Autentikasi}
+
+\subsection{Langkah Login}
+\begin{enumerate}
+\item \textbf{Buka Browser} dan akses URL aplikasi
+\item \textbf{Halaman Login} akan muncul
+\item \textbf{Masukkan kredensial Super Admin}: Email/Username dan Password
+\item \textbf{Klik tombol "Login"}
+\item \textbf{Sistem akan memverifikasi} dan mengarahkan ke dashboard Super Admin
+\end{enumerate}
+
+\subsection{Placeholder Gambar}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{placeholder_login.png}
+\caption{Halaman Login - Form login dengan field email dan password}
+\label{fig:login}
+\end{figure}
+
+\subsection{Catatan Keamanan}
+\begin{itemize}
+\item Jangan bagikan kredensial Super Admin
+\item Logout setelah selesai menggunakan aplikasi
+\item Gunakan password yang kuat dan unik
+\item Laporkan jika ada aktivitas mencurigakan
+\end{itemize}
+
+% Super Admin Menu
+\section{Menu Super Admin}
+
+\subsection{Pengaturan Baru}
+
+\subsubsection{Deskripsi}
+Menu ini berfungsi untuk mengatur konfigurasi dasar sistem, termasuk manajemen tahun buku, struktur perusahaan, dan checklist GCG. Menu ini merupakan fondasi dari seluruh sistem dan harus dikonfigurasi terlebih dahulu sebelum menggunakan fitur lainnya.
+
+\subsubsection{Fitur Utama}
+\begin{itemize}
+\item \textbf{Manajemen Tahun Buku}: Menambah, mengedit, dan menghapus tahun buku
+\item \textbf{Struktur Perusahaan}: Mengatur hierarki direktorat, subdirektorat, dan divisi
+\item \textbf{Checklist GCG}: Membuat dan mengatur checklist dokumen yang diperlukan
+\item \textbf{Manajemen Aspek}: Mengatur aspek-aspek GCG yang akan dimonitor
+\end{itemize}
+
+\subsubsection{Langkah Penggunaan Detail}
+
+\paragraph{A. Manajemen Tahun Buku}
+\begin{enumerate}
+\item \textbf{Klik menu "Pengaturan Baru"} di sidebar
+\item \textbf{Pilih tab "Tahun Buku"} di bagian atas halaman
+\item \textbf{Untuk menambah tahun baru}:
+\begin{itemize}
+\item Klik tombol "Tambah Tahun Baru" (ikon +)
+\item Masukkan tahun dalam format 4 digit (contoh: 2024)
+\item Pastikan tahun belum pernah ada sebelumnya
+\item Klik tombol "Simpan" untuk menyimpan
+\item Sistem akan menampilkan notifikasi sukses
+\end{itemize}
+\item \textbf{Untuk mengedit tahun}:
+\begin{itemize}
+\item Klik ikon edit (pensil) pada tahun yang ingin diubah
+\item Ubah tahun sesuai kebutuhan
+\item Klik "Simpan" untuk menyimpan perubahan
+\item Sistem akan memvalidasi perubahan
+\end{itemize}
+\item \textbf{Untuk menghapus tahun}:
+\begin{itemize}
+\item Klik ikon hapus (tong sampah) pada tahun yang ingin dihapus
+\item Konfirmasi penghapusan di dialog yang muncul
+\item \textbf{PERINGATAN}: Penghapusan tahun akan menghapus semua data terkait
+\end{itemize}
+\end{enumerate}
+
+\paragraph{B. Struktur Perusahaan}
+\begin{enumerate}
+\item \textbf{Pilih tab "Struktur Perusahaan"}
+\item \textbf{Manajemen Direktorat}:
+\begin{itemize}
+\item Klik "Tambah Direktorat" untuk menambah direktorat baru
+\item Isi nama direktorat (contoh: "Direktorat Keuangan")
+\item Pilih tahun aktif dari dropdown
+\item Klik "Simpan" untuk menyimpan
+\item Direktorat akan muncul di daftar
+\end{itemize}
+\item \textbf{Manajemen Subdirektorat}:
+\begin{itemize}
+\item Pilih direktorat dari dropdown "Pilih Direktorat"
+\item Klik "Tambah Subdirektorat"
+\item Isi nama subdirektorat (contoh: "Subdirektorat Akuntansi")
+\item Klik "Simpan" untuk menyimpan
+\item Subdirektorat akan terhubung dengan direktorat yang dipilih
+\end{itemize}
+\item \textbf{Manajemen Divisi}:
+\begin{itemize}
+\item Pilih subdirektorat dari dropdown "Pilih Subdirektorat"
+\item Klik "Tambah Divisi"
+\item Isi nama divisi (contoh: "Divisi Pelaporan")
+\item Klik "Simpan" untuk menyimpan
+\item Divisi akan terhubung dengan subdirektorat yang dipilih
+\end{itemize}
+\end{enumerate}
+
+\paragraph{C. Checklist GCG}
+\begin{enumerate}
+\item \textbf{Pilih tab "Checklist GCG"}
+\item \textbf{Untuk menambah checklist baru}:
+\begin{itemize}
+\item Klik "Tambah Checklist"
+\item Pilih tahun buku dari dropdown
+\item Pilih aspek GCG dari dropdown (Transparansi, Akuntabilitas, Responsibilitas, Independensi, Fairness)
+\item Isi deskripsi checklist yang detail
+\item Klik "Simpan" untuk menyimpan
+\item Checklist akan muncul di tabel
+\end{itemize}
+\item \textbf{Untuk mengedit checklist}:
+\begin{itemize}
+\item Klik ikon edit pada checklist yang ingin diubah
+\item Ubah informasi sesuai kebutuhan
+\item Klik "Simpan" untuk menyimpan perubahan
+\end{itemize}
+\item \textbf{Untuk menghapus checklist}:
+\begin{itemize}
+\item Klik ikon hapus pada checklist yang ingin dihapus
+\item Konfirmasi penghapusan
+\item \textbf{PERINGATAN}: Penghapusan akan mempengaruhi data upload dokumen
+\end{itemize}
+\end{enumerate}
+
+\subsubsection{Placeholder Gambar}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{placeholder_pengaturan_baru.png}
+\caption{Halaman Pengaturan Baru - 4 tab utama: Tahun Buku, Struktur Perusahaan, Checklist GCG, dan Manajemen Aspek}
+\label{fig:pengaturan_baru}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{placeholder_tahun_buku.png}
+\caption{Tab Tahun Buku - Tabel tahun buku dengan tombol tambah, edit, dan hapus}
+\label{fig:tahun_buku}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{placeholder_struktur_perusahaan.png}
+\caption{Tab Struktur Perusahaan - Hierarki direktorat, subdirektorat, dan divisi}
+\label{fig:struktur_perusahaan}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{placeholder_checklist_gcg.png}
+\caption{Tab Checklist GCG - Tabel checklist dengan tombol tambah, edit, dan hapus}
+\label{fig:checklist_gcg}
+\end{figure}
+
+\subsection{Dashboard}
+
+\subsubsection{Deskripsi}
+Dashboard Super Admin menampilkan overview statistik dan performa sistem secara keseluruhan. Dashboard ini memberikan gambaran komprehensif tentang status dokumen GCG, progress upload, dan analisis performa dari semua direktorat dan subdirektorat.
+
+\subsubsection{Fitur Utama}
+\begin{itemize}
+\item \textbf{Statistik Dokumen}: Total dokumen, dokumen selesai, dan dokumen pending
+\item \textbf{Grafik Performa}: Visualisasi data dalam bentuk chart dan grafik
+\item \textbf{Trend Bulanan}: Perkembangan upload dokumen per bulan
+\item \textbf{Spider Chart}: Radar chart untuk aspek GCG
+\item \textbf{Perbandingan Direktorat}: Analisis performa antar direktorat
+\item \textbf{Alert dan Notifikasi}: Peringatan untuk dokumen yang belum diupload
+\end{itemize}
+
+\subsubsection{Langkah Penggunaan Detail}
+\begin{enumerate}
+\item \textbf{Klik menu "Dashboard"} di sidebar
+\item \textbf{Pilih tahun buku} dari dropdown tahun di bagian atas
+\item \textbf{Lihat statistik utama}:
+\begin{itemize}
+\item Total dokumen yang harus diupload
+\item Jumlah dokumen yang sudah diupload
+\item Jumlah dokumen yang masih pending
+\item Persentase completion rate
+\end{itemize}
+\item \textbf{Analisis grafik performa}:
+\begin{itemize}
+\item Grafik batang untuk perbandingan direktorat
+\item Grafik garis untuk trend bulanan
+\item Spider chart untuk aspek GCG
+\item Grafik pie untuk distribusi status dokumen
+\end{itemize}
+\item \textbf{Filter data}:
+\begin{itemize}
+\item Filter berdasarkan direktorat
+\item Filter berdasarkan periode waktu
+\item Filter berdasarkan status dokumen
+\end{itemize}
+\item \textbf{Export data}:
+\begin{itemize}
+\item Klik tombol "Export" untuk mengunduh laporan
+\item Pilih format file (PDF, Excel, CSV)
+\item Data akan terunduh otomatis
+\end{itemize}
+\end{enumerate}
+
+\subsubsection{Interpretasi Data}
+\begin{itemize}
+\item \textbf{Completion Rate}: Persentase dokumen yang sudah diupload
+\item \textbf{Green Status}: Dokumen sudah diupload dan diverifikasi
+\item \textbf{Yellow Status}: Dokumen sedang dalam proses review
+\item \textbf{Red Status}: Dokumen belum diupload atau terlambat
+\item \textbf{Spider Chart}: Semakin besar area, semakin baik performa aspek GCG
+\end{itemize}
+
+\subsubsection{Placeholder Gambar}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{placeholder_dashboard_superadmin.png}
+\caption{Dashboard Super Admin - Statistik dokumen, grafik performa, dan chart}
+\label{fig:dashboard_superadmin}
+\end{figure}
+
+\subsection{Monitoring \& Upload GCG}
+
+\subsubsection{Deskripsi}
+Menu ini berfungsi untuk memonitor status upload dokumen GCG dari berbagai subdirektorat dan melakukan upload dokumen. Menu ini merupakan pusat kontrol untuk mengawasi progress upload dokumen dan memastikan semua checklist GCG telah terpenuhi sesuai dengan jadwal yang ditentukan.
+
+\subsubsection{Fitur Utama}
+\begin{itemize}
+\item \textbf{Monitoring Status}: Melihat status upload dokumen per subdirektorat
+\item \textbf{Upload Dokumen}: Mengunggah dokumen GCG
+\item \textbf{Filter dan Pencarian}: Mencari dokumen berdasarkan kriteria tertentu
+\item \textbf{Download Dokumen}: Mengunduh dokumen yang telah diupload
+\item \textbf{Validasi Dokumen}: Memverifikasi kelengkapan dan format dokumen
+\item \textbf{Notifikasi}: Alert untuk dokumen yang belum diupload
+\end{itemize}
+
+\subsubsection{Langkah Penggunaan Detail}
+
+\paragraph{A. Monitoring Status}
+\begin{enumerate}
+\item \textbf{Klik menu "Monitoring \& Upload GCG"} di sidebar
+\item \textbf{Pilih tahun buku} dari dropdown di bagian atas
+\item \textbf{Lihat tabel status} dokumen per subdirektorat:
+\begin{itemize}
+\item Kolom "Subdirektorat": Nama subdirektorat
+\item Kolom "Aspek GCG": Jenis aspek (Transparansi, Akuntabilitas, dll)
+\item Kolom "Checklist": Deskripsi dokumen yang diperlukan
+\item Kolom "Status": Status upload (Selesai/Pending/Review)
+\item Kolom "Tanggal Upload": Waktu dokumen diupload
+\item Kolom "Aksi": Tombol untuk upload/download
+\end{itemize}
+\item \textbf{Gunakan filter} untuk melihat dokumen berdasarkan:
+\begin{itemize}
+\item Aspek GCG (dropdown filter)
+\item Status (Selesai/Pending/Review)
+\item Subdirektorat (dropdown filter)
+\item Periode waktu (date picker)
+\end{itemize}
+\item \textbf{Gunakan pencarian} untuk mencari dokumen tertentu:
+\begin{itemize}
+\item Ketik kata kunci di search box
+\item Pencarian akan mencari di nama file, deskripsi, dan subdirektorat
+\item Hasil pencarian akan ditampilkan secara real-time
+\end{itemize}
+\end{enumerate}
+
+\paragraph{B. Upload Dokumen}
+\begin{enumerate}
+\item \textbf{Klik tombol "Upload Dokumen"} pada checklist yang ingin diupload
+\item \textbf{Dialog upload akan terbuka} dengan informasi:
+\begin{itemize}
+\item Nama checklist
+\item Aspek GCG
+\item Subdirektorat target
+\item Format file yang diperbolehkan
+\end{itemize}
+\item \textbf{Pilih file} dokumen yang akan diupload:
+\begin{itemize}
+\item Klik tombol "Browse" atau "Choose File"
+\item Pilih file dari komputer (PDF, DOC, DOCX)
+\item Pastikan ukuran file maksimal 10MB
+\item Pastikan nama file tidak mengandung karakter khusus
+\end{itemize}
+\item \textbf{Verifikasi file}:
+\begin{itemize}
+\item Sistem akan menampilkan preview file
+\item Periksa nama file dan ukuran
+\item Pastikan file sesuai dengan checklist
+\end{itemize}
+\item \textbf{Klik "Upload"} untuk memulai proses upload
+\item \textbf{Tunggu proses upload} selesai:
+\begin{itemize}
+\item Progress bar akan menampilkan status upload
+\item Jangan tutup browser selama proses upload
+\item Sistem akan memvalidasi file setelah upload
+\end{itemize}
+\item \textbf{Konfirmasi upload} berhasil:
+\begin{itemize}
+\item Notifikasi sukses akan muncul
+\item Status dokumen berubah menjadi "Review"
+\item File akan tersedia untuk download
+\end{itemize}
+\end{enumerate}
+
+\paragraph{C. Download Dokumen}
+\begin{enumerate}
+\item \textbf{Klik ikon download} pada dokumen yang ingin diunduh
+\item \textbf{Pilih lokasi penyimpanan} di komputer
+\item \textbf{Konfirmasi download} di browser
+\item \textbf{File akan terunduh} dengan nama asli
+\end{enumerate}
+
+\paragraph{D. Validasi dan Review}
+\begin{enumerate}
+\item \textbf{Status "Review"}}: Dokumen sedang dalam proses validasi
+\item \textbf{Status "Approved"}: Dokumen telah disetujui
+\item \textbf{Status "Rejected"}: Dokumen ditolak dengan alasan
+\item \textbf{Status "Pending"}: Dokumen belum diupload
+\end{enumerate}
+
+\subsubsection{Tips dan Best Practices}
+\begin{itemize}
+\item \textbf{Upload tepat waktu}: Upload dokumen sesuai jadwal yang ditentukan
+\item \textbf{Format file yang benar}: Gunakan format PDF untuk dokumen resmi
+\item \textbf{Nama file yang jelas}: Gunakan nama file yang deskriptif
+\item \textbf{Backup dokumen}: Simpan salinan dokumen di komputer lokal
+\item \textbf{Periksa status}: Rutin cek status dokumen yang diupload
+\end{itemize}
+
+\subsubsection{Placeholder Gambar}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{placeholder_monitoring_upload.png}
+\caption{Halaman Monitoring \& Upload GCG - Tabel status dokumen dengan tombol upload dan download}
+\label{fig:monitoring_upload}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.7\textwidth]{placeholder_dialog_upload.png}
+\caption{Dialog Upload Dokumen - Form upload file dengan tombol browse dan upload}
+\label{fig:dialog_upload}
+\end{figure}
+
+\subsection{Arsip Dokumen}
+
+\subsubsection{Deskripsi}
+Menu ini berfungsi untuk mengarsipkan dan mengelola dokumen GCG yang telah diupload. Arsip dokumen menyediakan akses mudah untuk mencari, mengunduh, dan mengelola dokumen-dokumen yang telah disetujui dan diverifikasi.
+
+\subsubsection{Fitur Utama}
+\begin{itemize}
+\item \textbf{Arsip Dokumen}: Menyimpan dokumen dalam arsip terorganisir
+\item \textbf{Pencarian Arsip}: Mencari dokumen dalam arsip
+\item \textbf{Filter Arsip}: Menyaring dokumen berdasarkan kriteria
+\item \textbf{Download Arsip}: Mengunduh dokumen dari arsip
+\item \textbf{Export Batch}: Mengunduh multiple dokumen sekaligus
+\item \textbf{Metadata Dokumen}: Informasi detail tentang dokumen
+\end{itemize}
+
+\subsubsection{Langkah Penggunaan Detail}
+\begin{enumerate}
+\item \textbf{Klik menu "Arsip Dokumen"} di sidebar
+\item \textbf{Pilih tahun buku} dari dropdown di bagian atas
+\item \textbf{Gunakan filter} untuk menyaring dokumen:
+\begin{itemize}
+\item Direktorat (dropdown filter)
+\item Subdirektorat (dropdown filter)
+\item Aspek GCG (dropdown filter)
+\item Periode upload (date range picker)
+\item Status dokumen (Approved/Review/All)
+\end{itemize}
+\item \textbf{Gunakan pencarian} untuk mencari dokumen tertentu:
+\begin{itemize}
+\item Ketik kata kunci di search box
+\item Pencarian akan mencari di nama file, deskripsi, dan metadata
+\item Hasil pencarian akan ditampilkan secara real-time
+\end{itemize}
+\item \textbf{Lihat detail dokumen} dengan mengklik nama file:
+\begin{itemize}
+\item Nama file asli
+\item Ukuran file
+\item Tanggal upload
+\item Subdirektorat pengupload
+\item Status validasi
+\item Hash file untuk verifikasi
+\end{itemize}
+\item \textbf{Download dokumen}:
+\begin{itemize}
+\item Klik ikon download pada dokumen yang ingin diunduh
+\item Pilih lokasi penyimpanan di komputer
+\item File akan terunduh dengan nama asli
+\end{itemize}
+\item \textbf{Download batch}:
+\begin{itemize}
+\item Centang checkbox pada dokumen yang ingin diunduh
+\item Klik tombol "Download Selected"
+\item Sistem akan membuat file ZIP
+\item File ZIP akan terunduh otomatis
+\end{itemize}
+\end{enumerate}
+
+\subsubsection{Placeholder Gambar}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{placeholder_arsip_dokumen.png}
+\caption{Halaman Arsip Dokumen - Tabel arsip dengan filter dan tombol download}
+\label{fig:arsip_dokumen}
+\end{figure}
+
+\subsection{Performa GCG}
+
+\subsubsection{Deskripsi}
+Menu ini menampilkan analisis performa GCG dalam bentuk grafik dan statistik. Menu ini memberikan insight mendalam tentang pencapaian GCG perusahaan, trend performa, dan analisis komparatif antar periode.
+
+\subsubsection{Fitur Utama}
+\begin{itemize}
+\item \textbf{Grafik Performa}: Visualisasi performa GCG
+\item \textbf{Statistik Detail}: Data statistik yang mendalam
+\item \textbf{Analisis Trend}: Analisis perkembangan performa
+\item \textbf{Perbandingan Periode}: Komparasi antar tahun
+\item \textbf{Benchmarking}: Perbandingan dengan standar industri
+\item \textbf{Export Laporan}: Unduh laporan performa
+\end{itemize}
+
+\subsubsection{Langkah Penggunaan Detail}
+\begin{enumerate}
+\item \textbf{Klik menu "Performa GCG"} di sidebar
+\item \textbf{Pilih periode} yang ingin dianalisis:
+\begin{itemize}
+\item Tahun buku (dropdown)
+\item Periode bulanan (date picker)
+\item Periode kustom (date range)
+\end{itemize}
+\item \textbf{Lihat grafik} dan statistik yang ditampilkan:
+\begin{itemize}
+\item Grafik batang untuk perbandingan aspek GCG
+\item Grafik garis untuk trend performa
+\item Grafik pie untuk distribusi pencapaian
+\item Tabel statistik detail
+\end{itemize}
+\item \textbf{Analisis trend} dan performa:
+\begin{itemize}
+\item Identifikasi aspek yang perlu diperbaiki
+\item Lihat progress dari periode sebelumnya
+\item Bandingkan dengan target yang ditetapkan
+\end{itemize}
+\item \textbf{Export laporan}:
+\begin{itemize}
+\item Klik tombol "Export Report"
+\item Pilih format (PDF, Excel, PowerPoint)
+\item Laporan akan terunduh otomatis
+\end{itemize}
+\end{enumerate}
+
+\subsubsection{Placeholder Gambar}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{placeholder_performa_gcg.png}
+\caption{Halaman Performa GCG - Grafik performa dan statistik detail}
+\label{fig:performa_gcg}
+\end{figure}
+
+\subsection{AOI Management}
+
+\subsubsection{Deskripsi}
+Menu ini berfungsi untuk mengelola Area of Improvement (AOI) dan rekomendasi perbaikan. AOI Management membantu mengidentifikasi, melacak, dan mengelola area-area yang perlu diperbaiki dalam implementasi GCG.
+
+\subsubsection{Fitur Utama}
+\begin{itemize}
+\item \textbf{Manajemen AOI}: Membuat dan mengelola tabel AOI
+\item \textbf{Rekomendasi}: Menambah dan mengelola rekomendasi perbaikan
+\item \textbf{Tracking}: Melacak status implementasi rekomendasi
+\item \textbf{Prioritas}: Mengatur tingkat prioritas rekomendasi
+\item \textbf{Timeline}: Melacak jangka waktu implementasi
+\item \textbf{Reporting}: Generate laporan AOI
+\end{itemize}
+
+\subsubsection{Langkah Penggunaan Detail}
+
+\paragraph{A. Manajemen Tabel AOI}
+\begin{enumerate}
+\item \textbf{Klik menu "AOI Management"} di sidebar
+\item \textbf{Pilih tahun buku} dari dropdown
+\item \textbf{Untuk menambah tabel AOI baru}:
+\begin{itemize}
+\item Klik "Tambah Tabel AOI"
+\item Isi deskripsi tabel yang detail
+\item Pilih target direktorat, subdirektorat, dan divisi
+\item Tentukan kategori AOI (Critical/High/Medium/Low)
+\item Klik "Simpan" untuk menyimpan
+\end{itemize}
+\item \textbf{Untuk mengedit tabel}:
+\begin{itemize}
+\item Klik ikon edit pada tabel yang ingin diubah
+\item Ubah informasi sesuai kebutuhan
+\item Klik "Simpan" untuk menyimpan perubahan
+\end{itemize}
+\item \textbf{Untuk menghapus tabel}:
+\begin{itemize}
+\item Klik ikon hapus pada tabel yang ingin dihapus
+\item Konfirmasi penghapusan
+\item \textbf{PERINGATAN}: Penghapusan akan menghapus semua rekomendasi terkait
+\end{itemize}
+\end{enumerate}
+
+\paragraph{B. Manajemen Rekomendasi}
+\begin{enumerate}
+\item \textbf{Klik pada tabel AOI} yang ingin dikelola
+\item \textbf{Untuk menambah rekomendasi}:
+\begin{itemize}
+\item Klik "Tambah Rekomendasi"
+\item Isi detail rekomendasi:
+\begin{itemize}
+\item Nomor urut (otomatis)
+\item Jenis (Rekomendasi/Saran/Perbaikan)
+\item Deskripsi rekomendasi yang detail
+\item Pihak terkait (RUPS/DEWAN KOMISARIS/SEKDEKOM/KOMITE/DIREKSI/SEKRETARIS PERUSAHAAN)
+\item Pihak tindak lanjut (direktorat, subdirektorat, divisi)
+\item Aspek AOI yang terkait
+\item Tingkat urgensi (1-5, dengan 5 paling urgent)
+\item Jangka waktu implementasi
+\item Target completion date
+\end{itemize}
+\item Klik "Simpan" untuk menyimpan
+\end{itemize}
+\item \textbf{Untuk mengedit rekomendasi}:
+\begin{itemize}
+\item Klik ikon edit pada rekomendasi yang ingin diubah
+\item Ubah informasi sesuai kebutuhan
+\item Update status implementasi jika diperlukan
+\item Klik "Simpan" untuk menyimpan perubahan
+\end{itemize}
+\item \textbf{Untuk menghapus rekomendasi}:
+\begin{itemize}
+\item Klik ikon hapus pada rekomendasi yang ingin dihapus
+\item Konfirmasi penghapusan
+\end{itemize}
+\end{enumerate}
+
+\paragraph{C. Tracking dan Monitoring}
+\begin{enumerate}
+\item \textbf{Status Tracking}:
+\begin{itemize}
+\item "Open": Rekomendasi baru, belum dimulai
+\item "In Progress": Sedang dalam proses implementasi
+\item "Completed": Sudah selesai diimplementasi
+\item "On Hold": Ditunda sementara
+\item "Cancelled": Dibatalkan
+\end{itemize}
+\item \textbf{Progress Monitoring}:
+\begin{itemize}
+\item Lihat progress bar untuk setiap rekomendasi
+\item Update progress secara berkala
+\item Upload bukti implementasi jika diperlukan
+\end{itemize}
+\end{enumerate}
+
+\subsubsection{Placeholder Gambar}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{placeholder_aoi_management.png}
+\caption{Halaman AOI Management - Tabel AOI dengan tombol tambah, edit, dan hapus}
+\label{fig:aoi_management}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.7\textwidth]{placeholder_dialog_rekomendasi.png}
+\caption{Dialog Tambah Rekomendasi - Form rekomendasi dengan field lengkap}
+\label{fig:dialog_rekomendasi}
+\end{figure}
+
+% General Features
+\section{Fitur Umum}
+
+\subsection{Manajemen Profil}
+
+\subsubsection{Deskripsi}
+Fitur manajemen profil memungkinkan Super Admin untuk mengelola informasi pribadi, mengubah password, dan mengatur preferensi akun.
+
+\subsubsection{Langkah Penggunaan}
+\begin{enumerate}
+\item \textbf{Klik nama pengguna} di pojok kanan atas halaman
+\item \textbf{Pilih "Profil"} dari dropdown menu yang muncul
+\item \textbf{Edit informasi} yang diperlukan:
+\begin{itemize}
+\item Nama lengkap
+\item Email
+\item Nomor telepon
+\item Direktorat/Subdirektorat/Divisi
+\item Foto profil (opsional)
+\end{itemize}
+\item \textbf{Ubah password} jika diperlukan:
+\begin{itemize}
+\item Masukkan password lama
+\item Masukkan password baru
+\item Konfirmasi password baru
+\item Klik "Ubah Password"
+\end{itemize}
+\item \textbf{Klik "Simpan"} untuk menyimpan perubahan
+\item \textbf{Sistem akan menampilkan notifikasi} sukses
+\end{enumerate}
+
+\subsubsection{Placeholder Gambar}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\textwidth]{placeholder_menu_profil.png}
+\caption{Menu Profil - Dropdown menu dengan opsi profil, pengaturan, dan logout}
+\label{fig:menu_profil}
+\end{figure}
+
+\subsection{Logout}
+
+\subsubsection{Deskripsi}
+Fitur logout memungkinkan Super Admin untuk keluar dari sistem dengan aman dan mengakhiri sesi login.
+
+\subsubsection{Langkah Penggunaan}
+\begin{enumerate}
+\item \textbf{Klik nama pengguna} di pojok kanan atas halaman
+\item \textbf{Pilih "Logout"} dari dropdown menu
+\item \textbf{Konfirmasi logout} di dialog yang muncul
+\item \textbf{Sistem akan mengarahkan} ke halaman login
+\item \textbf{Sesi akan berakhir} dan data sementara akan dihapus
+\end{enumerate}
+
+% Troubleshooting
+\section{Troubleshooting}
+
+\subsection{Masalah Umum dan Solusi}
+
+\subsubsection{Tidak Bisa Login}
+\textbf{Gejala}: Error saat memasukkan username/password\\
+\textbf{Kemungkinan Penyebab}:
+\begin{itemize}
+\item Username atau password salah
+\item Akun terkunci karena terlalu banyak percobaan login
+\item Koneksi internet bermasalah
+\item Browser cache corrupt
+\item Server sedang maintenance
+\end{itemize}
+\textbf{Solusi}:
+\begin{enumerate}
+\item Pastikan username dan password benar
+\item Periksa koneksi internet
+\item Clear cache browser (Ctrl+F5)
+\item Coba browser lain
+\item Hubungi administrator sistem jika masalah berlanjut
+\end{enumerate}
+
+\subsubsection{File Upload Gagal}
+\textbf{Gejala}: File tidak bisa diupload\\
+\textbf{Kemungkinan Penyebab}:
+\begin{itemize}
+\item Ukuran file terlalu besar
+\item Format file tidak didukung
+\item Koneksi internet terputus
+\item Server storage penuh
+\item File corrupt atau rusak
+\end{itemize}
+\textbf{Solusi}:
+\begin{enumerate}
+\item Periksa ukuran file (maksimal 10MB)
+\item Pastikan format file didukung (PDF, DOC, DOCX)
+\item Periksa koneksi internet
+\item Coba upload file lain
+\item Kompres file jika terlalu besar
+\item Hubungi administrator jika masalah berlanjut
+\end{enumerate}
+
+\subsubsection{Halaman Tidak Muncul}
+\textbf{Gejala}: Halaman kosong atau error\\
+\textbf{Kemungkinan Penyebab}:
+\begin{itemize}
+\item Koneksi internet lambat
+\item Browser cache corrupt
+\item JavaScript disabled
+\item Server sedang maintenance
+\item Firewall memblokir akses
+\end{itemize}
+\textbf{Solusi}:
+\begin{enumerate}
+\item Refresh halaman (F5)
+\item Clear cache browser
+\item Periksa koneksi internet
+\item Enable JavaScript di browser
+\item Logout dan login kembali
+\item Coba browser lain
+\end{enumerate}
+
+\subsubsection{Data Tidak Terupdate}
+\textbf{Gejala}: Perubahan data tidak muncul\\
+\textbf{Kemungkinan Penyebab}:
+\begin{itemize}
+\item Browser cache
+\item Session expired
+\item Data belum tersimpan
+\item Server sync delay
+\end{itemize}
+\textbf{Solusi}:
+\begin{enumerate}
+\item Refresh halaman
+\item Periksa tahun buku yang dipilih
+\item Logout dan login kembali
+\item Clear browser cache
+\item Tunggu beberapa saat untuk sync
+\end{enumerate}
+
+\subsection{Kontak Support}
+Jika mengalami masalah yang tidak dapat diselesaikan:
+\begin{itemize}
+\item \textbf{Email}: support@gcg-system.com
+\item \textbf{Telepon}: (021) 1234-5678
+\item \textbf{WhatsApp}: +62 812-3456-7890
+\item \textbf{Jam Operasional}: Senin - Jumat, 08:00 - 17:00 WIB
+\end{itemize}
+
+% Conclusion
+\section{Kesimpulan}
+
+Manual book ini telah menjelaskan secara lengkap cara menggunakan aplikasi GCG Documents Management System sebagai Super Admin. Dengan mengikuti panduan ini, Super Admin diharapkan dapat:
+
+\begin{enumerate}
+\item \textbf{Mengelola sistem} secara menyeluruh dan efektif
+\item \textbf{Mengkonfigurasi} pengaturan dasar sistem
+\item \textbf{Memantau progress} upload dokumen dari semua subdirektorat
+\item \textbf{Menganalisis performa} GCG perusahaan
+\item \textbf{Mengelola AOI} dan rekomendasi perbaikan
+\item \textbf{Mengarsipkan dokumen} dengan terorganisir
+\end{enumerate}
+
+\subsection{Tips Penggunaan Super Admin}
+\begin{itemize}
+\item \textbf{Konfigurasi awal}: Pastikan semua pengaturan dasar sudah benar sebelum memulai
+\item \textbf{Monitoring berkala}: Rutin cek progress upload dokumen
+\item \textbf{Backup data}: Selalu backup data penting secara berkala
+\item \textbf{Update sistem}: Pastikan sistem selalu up-to-date
+\item \textbf{Komunikasi}: Berikan panduan yang jelas kepada Admin
+\item \textbf{Security}: Jaga keamanan akses Super Admin
+\end{itemize}
+
+\subsection{Best Practices Super Admin}
+\begin{itemize}
+\item \textbf{System Configuration}: Konfigurasi sistem dengan hati-hati dan teliti
+\item \textbf{Data Management}: Kelola data dengan sistem yang terorganisir
+\item \textbf{User Management}: Kelola user dan permission dengan tepat
+\item \textbf{Monitoring}: Pantau sistem secara berkala dan proaktif
+\item \textbf{Documentation}: Dokumentasikan semua perubahan dan konfigurasi
+\item \textbf{Training}: Berikan training yang memadai kepada Admin
+\end{itemize}
+
+% Appendix
+\appendix
+\section{Glossary}
+\begin{description}
+\item[GCG] Good Corporate Governance - Tata kelola perusahaan yang baik
+\item[AOI] Area of Improvement - Area yang perlu diperbaiki
+\item[Super Admin] Pengguna dengan hak akses penuh ke semua fitur sistem
+\item[Checklist] Daftar dokumen yang harus diupload untuk setiap aspek GCG
+\item[Upload] Proses mengunggah dokumen ke sistem
+\item[Download] Proses mengunduh dokumen dari sistem
+\item[Validasi] Proses verifikasi kelengkapan dan format dokumen
+\item[Arsip] Penyimpanan dokumen yang telah disetujui
+\item[Monitoring] Proses pemantauan status dan progress
+\item[Analytics] Analisis data dan statistik performa
+\end{description}
+
+\section{FAQ (Frequently Asked Questions)}
+
+\subsection{Pertanyaan Umum Super Admin}
+\begin{enumerate}
+\item \textbf{Q: Bagaimana cara mengatur tahun buku baru?}\\
+A: Klik menu "Pengaturan Baru", pilih tab "Tahun Buku", lalu klik "Tambah Tahun Baru".
+
+\item \textbf{Q: Bagaimana cara melihat progress upload semua subdirektorat?}\\
+A: Klik menu "Monitoring \& Upload GCG" untuk melihat status upload secara real-time.
+
+\item \textbf{Q: Bagaimana cara mengunduh laporan performa?}\\
+A: Di halaman "Performa GCG", klik tombol "Export Report" dan pilih format yang diinginkan.
+
+\item \textbf{Q: Bagaimana cara mengelola rekomendasi AOI?}\\
+A: Klik menu "AOI Management", pilih tabel AOI, lalu klik "Tambah Rekomendasi".
+
+\item \textbf{Q: Bagaimana cara mengarsipkan dokumen yang sudah disetujui?}\\
+A: Dokumen otomatis masuk ke arsip setelah status berubah menjadi "Approved".
+\end{enumerate}
+
+\section{Changelog}
+\begin{itemize}
+\item \textbf{Versi 1.0 (Desember 2024)}: Manual book Super Admin pertama dengan fitur lengkap
+\end{itemize}
+
+\end{document}

@@ -265,7 +265,14 @@ const MonitoringUploadGCG = () => {
       
       const assignments = JSON.parse(assignmentsData);
       const yearAssignments = assignments.filter((assignment: any) => assignment.tahun === selectedYear);
-      const uniquePICs = Array.from(new Set(yearAssignments.map((assignment: any) => assignment.divisi))).filter(Boolean).sort();
+      
+      // Get both divisi and subdirektorat assignments
+      const allPICs = yearAssignments.flatMap((assignment: any) => [
+        assignment.divisi,
+        assignment.subdirektorat
+      ]).filter(Boolean);
+      
+      const uniquePICs = Array.from(new Set(allPICs)).sort();
       
       return uniquePICs;
     } catch (error) {
@@ -287,7 +294,18 @@ const MonitoringUploadGCG = () => {
     if (!selectedYear) return null;
     const yearFiles = getFilesByYear(selectedYear);
     console.log('MonitoringUploadGCG: getUploadedDocument called for checklistId:', checklistId, 'yearFiles:', yearFiles);
-    return yearFiles.find(file => file.checklistId === checklistId);
+    
+    const foundFile = yearFiles.find(file => file.checklistId === checklistId);
+    if (foundFile) {
+      console.log('MonitoringUploadGCG: Found file:', {
+        fileName: foundFile.fileName,
+        catatan: foundFile.catatan,
+        catatanType: typeof foundFile.catatan,
+        catatanLength: foundFile.catatan?.length
+      });
+    }
+    
+    return foundFile;
   }, [getFilesByYear, selectedYear]);
 
   // Get assignment data for checklist item
@@ -332,7 +350,10 @@ const MonitoringUploadGCG = () => {
     if (selectedPIC !== 'all') {
       filtered = filtered.filter(item => {
         const assignmentData = getAssignmentData(item.id);
-        return assignmentData && assignmentData.divisi === selectedPIC;
+        if (!assignmentData) return false;
+        
+        // Check both divisi and subdirektorat assignments
+        return assignmentData.divisi === selectedPIC || assignmentData.subdirektorat === selectedPIC;
       });
     }
 
@@ -408,6 +429,18 @@ const MonitoringUploadGCG = () => {
   const handleShowCatatan = useCallback((checklistId: number) => {
     const uploadedDocument = getUploadedDocument(checklistId);
     const checklistItem = checklist.find(item => item.id === checklistId);
+    
+    console.log('MonitoringUploadGCG: handleShowCatatan called for checklistId:', checklistId);
+    console.log('MonitoringUploadGCG: uploadedDocument:', uploadedDocument);
+    console.log('MonitoringUploadGCG: catatan value:', uploadedDocument?.catatan);
+    console.log('MonitoringUploadGCG: catatan type:', typeof uploadedDocument?.catatan);
+    console.log('MonitoringUploadGCG: catatan length:', uploadedDocument?.catatan?.length);
+    
+    // Debug: Check localStorage directly
+    const localStorageFiles = JSON.parse(localStorage.getItem('uploadedFiles') || '[]');
+    const localFile = localStorageFiles.find((f: any) => f.checklistId === checklistId);
+    console.log('MonitoringUploadGCG: localStorage file:', localFile);
+    console.log('MonitoringUploadGCG: localStorage catatan:', localFile?.catatan);
     
     if (uploadedDocument) {
       setSelectedDocumentForCatatan({
@@ -792,6 +825,16 @@ const MonitoringUploadGCG = () => {
                       const uploadedDocument = getUploadedDocument(item.id);
                       const assignmentData = getAssignmentData(item.id);
                       
+                      // Debug logging for assignment data
+                      if (assignmentData) {
+                        console.log('MonitoringUploadGCG: Assignment data for item', item.id, ':', {
+                          divisi: assignmentData.divisi,
+                          subdirektorat: assignmentData.subdirektorat,
+                          assignmentType: assignmentData.assignmentType,
+                          fullData: assignmentData
+                        });
+                      }
+                      
                       return (
                         <TableRow key={item.id} className="hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 transition-colors duration-200">
                           <TableCell className="font-medium text-gray-700">
@@ -820,7 +863,7 @@ const MonitoringUploadGCG = () => {
                                 <User className="w-3 h-3 text-green-600" />
                               </div>
                               <span className="text-xs font-medium text-green-700">
-                                {assignmentData.divisi}
+                                {assignmentData.divisi || assignmentData.subdirektorat}
                               </span>
                             </div>
                             <div className="text-xs text-gray-500">
@@ -998,12 +1041,23 @@ const MonitoringUploadGCG = () => {
         checklistItem={selectedChecklistItem}
         isReUpload={false}
         onUploadSuccess={() => {
-          // Force refresh using the same mechanism as admin dashboard
-          if (selectedYear) {
-            setTimeout(() => {
-              setSelectedYear(selectedYear);
-            }, 100);
-          }
+          // Dispatch custom event for real-time updates without page restart
+          console.log('MonitoringUploadGCG: Upload success, dispatching refresh event');
+          window.dispatchEvent(new CustomEvent('fileUploaded', {
+            detail: { 
+              type: 'fileUploaded', 
+              year: selectedYear,
+              timestamp: new Date().toISOString()
+            }
+          }));
+          
+          window.dispatchEvent(new CustomEvent('uploadedFilesChanged', {
+            detail: { 
+              type: 'uploadedFilesChanged', 
+              year: selectedYear,
+              timestamp: new Date().toISOString()
+            }
+          }));
         }}
       />
     </div>
