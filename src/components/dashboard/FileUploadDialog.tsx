@@ -1124,7 +1124,7 @@ const FileUploadDialog: React.FC<FileUploadDialogProps> = ({
           aspect: formData.documentCategory || selectedChecklist?.aspek || ''
         });
         
-        uploadFile(
+        await uploadFile(
           selectedFile,
           formData.year,
           formData.selectedChecklistId || undefined,

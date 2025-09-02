@@ -1348,7 +1348,7 @@ def cleanup_orphaned_data():
             'message': f'Successfully cleaned up {orphaned_count} orphaned entries',
             'orphaned_count': orphaned_count,
             'xlsx_years': sorted(list(xlsx_years)),
-            'xlsx_exists': output_xlsx_path.exists(),
+            'xlsx_exists': storage_service.file_exists('web-output/output.xlsx'),
             'assessments_exists': assessments_path.exists()
         })
         
@@ -1359,6 +1359,263 @@ def cleanup_orphaned_data():
             'error': str(e),
             'message': 'Failed to cleanup orphaned data'
         }), 500
+
+
+@app.route('/api/uploaded-files', methods=['GET'])
+def get_uploaded_files():
+    """Get all uploaded files from Supabase storage."""
+    try:
+        # Get year filter from query parameters
+        year = request.args.get('year')
+        
+        # Read uploaded files data from storage
+        files_data = storage_service.read_excel('uploaded-files.xlsx')
+        
+        if files_data is None:
+            # Return empty list if no files exist yet
+            return jsonify({'files': []}), 200
+        
+        # Convert DataFrame to list of dictionaries
+        files_list = files_data.to_dict('records')
+        
+        # Filter by year if provided
+        if year:
+            try:
+                year_int = int(year)
+                files_list = [f for f in files_list if f.get('year') == year_int]
+            except ValueError:
+                return jsonify({'error': 'Invalid year parameter'}), 400
+        
+        return jsonify({'files': files_list}), 200
+        
+    except Exception as e:
+        print(f"Error getting uploaded files: {e}")
+        return jsonify({'error': f'Failed to get uploaded files: {str(e)}'}), 500
+
+@app.route('/api/uploaded-files', methods=['POST'])
+def create_uploaded_file():
+    """Add a new uploaded file record to Supabase storage."""
+    try:
+        data = request.get_json()
+        
+        # Validate required fields
+        required_fields = ['fileName', 'fileSize', 'year', 'uploadDate']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'error': f'Missing required field: {field}'}), 400
+        
+        # Read existing files data
+        try:
+            files_data = storage_service.read_excel('uploaded-files.xlsx')
+            if files_data is None:
+                # Create new DataFrame if no data exists
+                files_data = pd.DataFrame()
+        except:
+            files_data = pd.DataFrame()
+        
+        # Generate unique ID
+        new_id = str(uuid.uuid4())
+        
+        # Create new file record
+        new_file = {
+            'id': new_id,
+            'fileName': data['fileName'],
+            'fileSize': data['fileSize'],
+            'uploadDate': data['uploadDate'],
+            'year': data['year'],
+            'checklistId': data.get('checklistId'),
+            'checklistDescription': data.get('checklistDescription'),
+            'aspect': data.get('aspect', 'Tidak Diberikan Aspek'),
+            'subdirektorat': data.get('subdirektorat'),
+            'catatan': data.get('catatan'),
+            'status': 'uploaded'
+        }
+        
+        # Add to DataFrame
+        new_row = pd.DataFrame([new_file])
+        files_data = pd.concat([files_data, new_row], ignore_index=True)
+        
+        # Save to storage
+        success = storage_service.write_excel(files_data, 'uploaded-files.xlsx')
+        
+        if success:
+            return jsonify({'success': True, 'file': new_file}), 201
+        else:
+            return jsonify({'error': 'Failed to save file to storage'}), 500
+            
+    except Exception as e:
+        print(f"Error creating uploaded file: {e}")
+        return jsonify({'error': f'Failed to create uploaded file: {str(e)}'}), 500
+
+@app.route('/api/uploaded-files/<file_id>', methods=['DELETE'])
+def delete_uploaded_file(file_id):
+    """Delete an uploaded file record from Supabase storage."""
+    try:
+        # Read existing files data
+        files_data = storage_service.read_excel('uploaded-files.xlsx')
+        
+        if files_data is None:
+            return jsonify({'error': 'No files data found'}), 404
+        
+        # Find and remove the file
+        initial_count = len(files_data)
+        files_data = files_data[files_data['id'] != file_id]
+        
+        if len(files_data) == initial_count:
+            return jsonify({'error': 'File not found'}), 404
+        
+        # Save updated data
+        success = storage_service.write_excel(files_data, 'uploaded-files.xlsx')
+        
+        if success:
+            return jsonify({'success': True}), 200
+        else:
+            return jsonify({'error': 'Failed to save changes to storage'}), 500
+            
+    except Exception as e:
+        print(f"Error deleting uploaded file: {e}")
+        return jsonify({'error': f'Failed to delete uploaded file: {str(e)}'}), 500
+
+@app.route('/api/upload-gcg-file', methods=['POST'])
+def upload_gcg_file():
+    """
+    Upload a GCG document file directly to Supabase storage.
+    This endpoint is specifically for the monitoring upload feature.
+    """
+    try:
+        print(f"🔧 DEBUG: GCG file upload request received")
+        print(f"🔧 DEBUG: Request files: {list(request.files.keys())}")
+        print(f"🔧 DEBUG: Request form: {dict(request.form)}")
+        
+        # Check if file is present
+        if 'file' not in request.files:
+            print(f"🔧 DEBUG: No file in request")
+            return jsonify({'error': 'No file provided'}), 400
+        
+        file = request.files['file']
+        print(f"🔧 DEBUG: File received: {file.filename}")
+        
+        if file.filename == '':
+            print(f"🔧 DEBUG: Empty filename")
+            return jsonify({'error': 'No file selected'}), 400
+        
+        # Get metadata from form
+        year = request.form.get('year')
+        checklist_id = request.form.get('checklistId')
+        checklist_description = request.form.get('checklistDescription', '')
+        aspect = request.form.get('aspect', '')
+        subdirektorat = request.form.get('subdirektorat', '')
+        catatan = request.form.get('catatan', '')
+        
+        # Validate required fields
+        if not year:
+            return jsonify({'error': 'Year is required'}), 400
+        
+        try:
+            year_int = int(year)
+        except ValueError:
+            return jsonify({'error': 'Invalid year format'}), 400
+        
+        # Generate unique file path in Supabase
+        file_id = str(uuid.uuid4())
+        file_extension = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else 'bin'
+        supabase_file_path = f"gcg-documents/{year_int}/{file_id}_{secure_filename(file.filename)}"
+        
+        # Upload file to Supabase storage
+        file_data = file.read()
+        
+        # Determine content type
+        content_type_map = {
+            'pdf': 'application/pdf',
+            'doc': 'application/msword',
+            'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'xls': 'application/vnd.ms-excel',
+            'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'ppt': 'application/vnd.ms-powerpoint',
+            'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+        }
+        content_type = content_type_map.get(file_extension, 'application/octet-stream')
+        
+        # Upload to Supabase using storage service
+        try:
+            from supabase import create_client
+            supabase_url = os.getenv('SUPABASE_URL')
+            supabase_key = os.getenv('SUPABASE_KEY')
+            bucket_name = os.getenv('SUPABASE_BUCKET')
+            
+            supabase = create_client(supabase_url, supabase_key)
+            
+            # Try to upload
+            response = supabase.storage.from_(bucket_name).upload(
+                path=supabase_file_path,
+                file=file_data,
+                file_options={"content-type": content_type}
+            )
+            
+            # If upload fails due to existing file, try update
+            if hasattr(response, 'error') and response.error:
+                if "already exists" in str(response.error):
+                    print(f"🔧 DEBUG: File exists, trying update...")
+                    response = supabase.storage.from_(bucket_name).update(
+                        path=supabase_file_path,
+                        file=file_data,
+                        file_options={"content-type": content_type}
+                    )
+                else:
+                    print(f"🔧 DEBUG: Upload error: {response.error}")
+                    return jsonify({'error': f'Failed to upload file to storage: {response.error}'}), 500
+            
+            print(f"🔧 DEBUG: File uploaded successfully to: {supabase_file_path}")
+            
+        except Exception as upload_error:
+            print(f"🔧 DEBUG: Upload exception: {upload_error}")
+            return jsonify({'error': f'Failed to upload file: {str(upload_error)}'}), 500
+        
+        # Create file record
+        file_record = {
+            'id': file_id,
+            'fileName': file.filename,
+            'fileSize': len(file_data),
+            'uploadDate': datetime.now().isoformat(),
+            'year': year_int,
+            'checklistId': int(checklist_id) if checklist_id else None,
+            'checklistDescription': checklist_description,
+            'aspect': aspect,
+            'subdirektorat': subdirektorat,
+            'catatan': catatan,
+            'status': 'uploaded',
+            'supabaseFilePath': supabase_file_path
+        }
+        
+        # Add to uploaded files database
+        try:
+            files_data = storage_service.read_excel('uploaded-files.xlsx')
+            if files_data is None:
+                files_data = pd.DataFrame()
+        except:
+            files_data = pd.DataFrame()
+        
+        new_row = pd.DataFrame([file_record])
+        files_data = pd.concat([files_data, new_row], ignore_index=True)
+        
+        # Save to storage
+        success = storage_service.write_excel(files_data, 'uploaded-files.xlsx')
+        
+        if success:
+            print(f"🔧 DEBUG: File record saved successfully")
+            return jsonify({
+                'success': True, 
+                'file': file_record,
+                'message': 'File uploaded successfully to Supabase'
+            }), 201
+        else:
+            return jsonify({'error': 'File uploaded but failed to save record'}), 500
+        
+    except Exception as e:
+        print(f"🔧 DEBUG: Exception in upload_gcg_file: {e}")
+        import traceback
+        print(f"🔧 DEBUG: Full traceback: {traceback.format_exc()}")
+        return jsonify({'error': f'Failed to upload GCG file: {str(e)}'}), 500
 
 
 if __name__ == '__main__':
