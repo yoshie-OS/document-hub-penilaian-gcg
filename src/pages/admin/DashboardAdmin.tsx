@@ -20,6 +20,7 @@ import { useDocumentMetadata } from '@/contexts/DocumentMetadataContext';
 import { useChecklist } from '@/contexts/ChecklistContext';
 import { useFileUpload } from '@/contexts/FileUploadContext';
 import { useSidebar } from '@/contexts/SidebarContext';
+import { useStrukturPerusahaan } from '@/contexts/StrukturPerusahaanContext';
 import Sidebar from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
 import { 
@@ -46,6 +47,7 @@ const DashboardAdmin: React.FC = () => {
   const { checklist, getChecklistByYear } = useChecklist();
   const { getFilesByYear } = useFileUpload();
   const { isSidebarOpen } = useSidebar();
+  const { divisi, subdirektorat } = useStrukturPerusahaan();
 
   // Get current year for upload restrictions - use the most recent year from available years
   const currentYear = availableYears.length > 0 ? Math.max(...availableYears).toString() : new Date().getFullYear().toString();
@@ -135,18 +137,34 @@ const DashboardAdmin: React.FC = () => {
         return [];
       }
       
-      // Get assignments untuk tahun dan subdirektorat admin
+            // Get assignments untuk tahun dan subdirektorat admin
       const storedAssignments = localStorage.getItem('checklistAssignments');
       let adminAssignments: any[] = [];
       
       if (storedAssignments) {
         try {
           const allAssignments = JSON.parse(storedAssignments);
-          adminAssignments = allAssignments.filter((assignment: any) => 
-            assignment.tahun === selectedYear && 
-            assignment.subdirektorat === user.subdirektorat
-          );
-    } catch (error) {
+          adminAssignments = allAssignments.filter((assignment: any) => {
+            if (assignment.tahun !== selectedYear) return false;
+            
+            // Assignment langsung ke subdirektorat admin
+            if (assignment.assignmentType === 'subdirektorat' && assignment.subdirektorat === user.subdirektorat) {
+              return true;
+            }
+            
+            // Assignment ke divisi yang berada di bawah subdirektorat admin
+            if (assignment.assignmentType === 'divisi' && assignment.divisi) {
+              // Cari divisi yang berada di bawah subdirektorat admin
+              const divisiUnderSubdir = divisi.filter(d => {
+                const subdir = subdirektorat.find(s => s.id === d.subdirektoratId);
+                return subdir && subdir.nama === user.subdirektorat;
+              });
+              return divisiUnderSubdir.some(d => d.nama === assignment.divisi);
+            }
+            
+            return false;
+          });
+        } catch (error) {
           console.error('Error parsing assignments:', error);
         }
       }
