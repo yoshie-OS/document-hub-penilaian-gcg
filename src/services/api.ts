@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:3002/api';
+const API_BASE_URL = 'http://localhost:5000/api';
 
 // Generic API helper
 const apiCall = async (endpoint: string, options: RequestInit = {}) => {
@@ -278,7 +278,7 @@ export const strukturAPI = {
 };
 
 // Health check
-export const healthCheck = () => fetch('http://localhost:3002/health').then(res => res.json());
+export const healthCheck = () => fetch('http://localhost:5000/health').then(res => res.json());
 
 export default {
   userAPI,

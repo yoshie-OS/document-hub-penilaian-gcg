@@ -18,6 +18,13 @@ from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import pandas as pd
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Import storage service
+from storage_service import storage_service
 
 # Project root for subprocess calls to the working core system
 project_root = str(Path(__file__).parent.parent.parent)
@@ -479,13 +486,12 @@ def save_assessment():
         assessment_id = f"{data.get('year', 'unknown')}_{data.get('auditor', 'unknown')}_{str(uuid.uuid4())[:8]}"
         saved_at = datetime.now().isoformat()
         
-        output_xlsx_path = Path(__file__).parent.parent / 'web-output' / 'output.xlsx'
-        
         # Load existing XLSX data and COMPLETELY REPLACE year's data (including deletions)
         all_rows = []
-        if output_xlsx_path.exists():
+        existing_df = storage_service.read_excel('web-output/output.xlsx')
+        
+        if existing_df is not None:
             try:
-                existing_df = pd.read_excel(output_xlsx_path)
                 current_year = data.get('year')
                 
                 print(f"🔧 DEBUG: Loading existing XLSX with {len(existing_df)} rows")
@@ -676,10 +682,12 @@ def save_assessment():
             # Apply custom sorting
             df_sorted = df_unique.loc[df_unique.apply(sort_key, axis=1).sort_values().index]
             
-            # Create directory and save XLSX
-            os.makedirs(output_xlsx_path.parent, exist_ok=True)
-            df_sorted.to_excel(output_xlsx_path, index=False)
-            print(f"SUCCESS: Saved to output.xlsx with {len(df_sorted)} rows (sorted: year->aspek->no->type) at: {output_xlsx_path}")
+            # Save XLSX using storage service
+            success = storage_service.write_excel(df_sorted, 'web-output/output.xlsx')
+            if success:
+                print(f"SUCCESS: Saved to output.xlsx with {len(df_sorted)} rows (sorted: year->aspek->no->type)")
+            else:
+                print(f"ERROR: Failed to save output.xlsx")
             
         return jsonify({
             'success': True,
@@ -716,17 +724,16 @@ def delete_year_data():
         
         print(f"🗑️ DEBUG: Received delete request for year: {year_to_delete}")
         
-        output_xlsx_path = Path(__file__).parent.parent / 'web-output' / 'output.xlsx'
+        # Load existing XLSX data
+        existing_df = storage_service.read_excel('web-output/output.xlsx')
         
-        if not output_xlsx_path.exists():
+        if existing_df is None:
             return jsonify({
                 'success': False,
                 'error': 'No data file exists to delete from'
             }), 404
         
-        # Load existing XLSX data
         try:
-            existing_df = pd.read_excel(output_xlsx_path)
             print(f"🔧 DEBUG: Loading existing XLSX with {len(existing_df)} rows")
             print(f"🔧 DEBUG: Year to delete: {year_to_delete}")
             print(f"🔧 DEBUG: Existing years in file: {existing_df['Tahun'].unique().tolist()}")
@@ -773,15 +780,21 @@ def delete_year_data():
                 
                 # Apply sorting
                 df_sorted = filtered_df.loc[filtered_df.apply(sort_key, axis=1).sort_values().index]
-                df_sorted.to_excel(output_xlsx_path, index=False)
-                print(f"SUCCESS: Updated output.xlsx with {len(df_sorted)} rows (deleted {deleted_count} rows for year {year_to_delete})")
+                success = storage_service.write_excel(df_sorted, 'web-output/output.xlsx')
+                if success:
+                    print(f"SUCCESS: Updated output.xlsx with {len(df_sorted)} rows (deleted {deleted_count} rows for year {year_to_delete})")
+                else:
+                    print(f"ERROR: Failed to update output.xlsx after deletion")
             else:
                 # If no data remains, create an empty file with just headers
                 empty_df = pd.DataFrame(columns=['Level', 'Type', 'Section', 'No', 'Deskripsi', 
                                                'Bobot', 'Skor', 'Capaian', 'Penjelasan', 'Tahun', 'Penilai', 
                                                'Jenis_Asesmen', 'Export_Date'])
-                empty_df.to_excel(output_xlsx_path, index=False)
-                print(f"SUCCESS: Created empty output.xlsx file (all data deleted)")
+                success = storage_service.write_excel(empty_df, 'web-output/output.xlsx')
+                if success:
+                    print(f"SUCCESS: Created empty output.xlsx file (all data deleted)")
+                else:
+                    print(f"ERROR: Failed to create empty output.xlsx file")
             
         except Exception as e:
             print(f"ERROR: Could not process XLSX file: {e}")
@@ -811,17 +824,15 @@ def load_assessment_by_year(year):
     Load assessment data for a specific year from output.xlsx
     """
     try:
-        output_xlsx_path = Path(__file__).parent.parent / 'web-output' / 'output.xlsx'
+        # Read XLSX data
+        df = storage_service.read_excel('web-output/output.xlsx')
         
-        if not output_xlsx_path.exists():
+        if df is None:
             return jsonify({
                 'success': False,
                 'data': [],
                 'message': f'No saved data found for year {year}'
             })
-        
-        # Read XLSX data
-        df = pd.read_excel(output_xlsx_path)
         
         # Filter for the requested year
         year_df = df[df['Tahun'] == year]
@@ -930,17 +941,15 @@ def get_dashboard_data():
     Get all assessment data from output.xlsx for dashboard visualization
     """
     try:
-        output_xlsx_path = Path(__file__).parent.parent / 'web-output' / 'output.xlsx'
+        # Read XLSX data
+        df = storage_service.read_excel('web-output/output.xlsx')
         
-        if not output_xlsx_path.exists():
+        if df is None:
             return jsonify({
                 'success': False,
                 'data': [],
                 'message': 'No dashboard data available. Please save some assessments first.'
             })
-        
-        # Read XLSX data
-        df = pd.read_excel(output_xlsx_path)
         
         print(f"🔧 DEBUG: Dashboard loading {len(df)} rows from output.xlsx")
         print(f"🔧 DEBUG: Years in file: {df['Tahun'].unique().tolist()}")
@@ -1016,17 +1025,15 @@ def get_aspek_data():
     Get hybrid data (subtotal + header) for aspek summary table
     """
     try:
-        output_xlsx_path = Path(__file__).parent.parent / 'web-output' / 'output.xlsx'
+        # Read XLSX data
+        df = storage_service.read_excel('web-output/output.xlsx')
         
-        if not output_xlsx_path.exists():
+        if df is None:
             return jsonify({
                 'success': False,
                 'data': [],
                 'message': 'No data available'
             })
-        
-        # Read XLSX data
-        df = pd.read_excel(output_xlsx_path)
         
         # Create hybrid data: subtotal numeric data + header descriptions
         subtotal_rows = df[df['Type'] == 'subtotal']
@@ -1076,13 +1083,12 @@ def _cleanup_orphaned_data_internal():
     """
     Internal helper function to clean up orphaned data (without returning HTTP response)
     """
-    output_xlsx_path = Path(__file__).parent.parent / 'web-output' / 'output.xlsx'
     assessments_path = Path(__file__).parent.parent / 'web-output' / 'assessments.json'
     
     # Get years that exist in output.xlsx
     xlsx_years = set()
-    if output_xlsx_path.exists():
-        df = pd.read_excel(output_xlsx_path)
+    df = storage_service.read_excel('web-output/output.xlsx')
+    if df is not None:
         xlsx_years = set(df['Tahun'].unique())
     
     # Clean up assessments.json
@@ -1115,23 +1121,21 @@ def get_indicator_data():
     Get pure indicator data for detailed bottom table
     """
     try:
-        output_xlsx_path = Path(__file__).parent.parent / 'web-output' / 'output.xlsx'
-        
         # Auto-cleanup orphaned data before proceeding
         try:
             _cleanup_orphaned_data_internal()
         except Exception as cleanup_error:
             print(f"WARNING: Auto-cleanup failed: {cleanup_error}")
         
-        if not output_xlsx_path.exists():
+        # Read XLSX data
+        df = storage_service.read_excel('web-output/output.xlsx')
+        
+        if df is None:
             return jsonify({
                 'success': False,
                 'data': [],
                 'message': 'No data available'
             })
-        
-        # Read XLSX data
-        df = pd.read_excel(output_xlsx_path)
         
         # Filter only indicator rows
         indicator_rows = df[df['Type'] == 'indicator']
@@ -1173,18 +1177,16 @@ def get_gcg_chart_data():
     Returns data with Level hierarchy as expected by processGCGData function
     """
     try:
-        output_xlsx_path = Path(__file__).parent.parent / 'web-output' / 'output.xlsx'
+        # Read XLSX data
+        df = storage_service.read_excel('web-output/output.xlsx')
         
-        if not output_xlsx_path.exists():
-            print(f"WARNING: output.xlsx not found at {output_xlsx_path}")
+        if df is None:
+            print(f"WARNING: output.xlsx not found or empty")
             return jsonify({
                 'success': True,
                 'data': [],
                 'message': 'No chart data available. Please save some assessments first.'
             })
-        
-        # Read XLSX data
-        df = pd.read_excel(output_xlsx_path)
         
         print(f"INFO: GCG Chart Data: Loading {len(df)} rows from output.xlsx")
         
@@ -1302,13 +1304,12 @@ def cleanup_orphaned_data():
     Clean up orphaned entries in assessments.json that don't exist in output.xlsx
     """
     try:
-        output_xlsx_path = Path(__file__).parent.parent / 'web-output' / 'output.xlsx'
         assessments_path = Path(__file__).parent.parent / 'web-output' / 'assessments.json'
         
         # Get years that exist in output.xlsx
         xlsx_years = set()
-        if output_xlsx_path.exists():
-            df = pd.read_excel(output_xlsx_path)
+        df = storage_service.read_excel('web-output/output.xlsx')
+        if df is not None:
             xlsx_years = set(df['Tahun'].unique())
             print(f"INFO: Found years in output.xlsx: {sorted(xlsx_years)}")
         else:

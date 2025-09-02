@@ -23,3 +23,24 @@ dist-ssr
 *.sln
 *.sw?
 BLACKBOX.md
+
+# Environment variables (contains Supabase credentials)
+.env
+
+# Local data storage (now using Supabase)
+web-output/
+backend/uploads/
+backend/outputs/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# Test files
+test_supabase.py
