@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 import { useChecklist } from '@/contexts/ChecklistContext';
 import { useSidebar } from '@/contexts/SidebarContext';
@@ -736,35 +737,19 @@ const MonitoringUploadGCG = () => {
                       <User className="w-4 h-4 mr-2 text-green-600" />
                       Filter PIC
                     </label>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        variant={selectedPIC === 'all' ? "default" : "outline"}
-                        onClick={() => setSelectedPIC('all')}
-                        size="sm"
-                        className={selectedPIC === 'all' 
-                          ? 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700' 
-                          : 'border-green-200 text-green-600 hover:bg-green-50'
-                        }
-                      >
-                        Semua PIC
-                      </Button>
-                      {picValues.map((pic: string) => (
-                        <Button
-                          key={pic}
-                          variant={selectedPIC === pic ? "default" : "outline"}
-                          onClick={() => setSelectedPIC(pic)}
-                          size="sm"
-                          className={`text-xs flex items-center space-x-2 ${
-                            selectedPIC === pic 
-                              ? 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700' 
-                              : 'border-green-200 text-green-600 hover:bg-green-50'
-                          }`}
-                        >
-                          <User className={`w-3 h-3 ${selectedPIC === pic ? 'text-white' : 'text-green-600'}`} />
-                          <span>{pic}</span>
-                        </Button>
-                      ))}
-                    </div>
+                    <Select value={selectedPIC} onValueChange={setSelectedPIC}>
+                      <SelectTrigger className="w-full border-green-200 focus:border-green-500 focus:ring-green-500">
+                        <SelectValue placeholder="Pilih PIC" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Semua PIC</SelectItem>
+                        {picValues.map((pic: string) => (
+                          <SelectItem key={pic} value={pic}>
+                            {pic}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                       {/* Reset Filter */}

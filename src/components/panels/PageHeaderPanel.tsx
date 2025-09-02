@@ -34,6 +34,8 @@ interface PageHeaderPanelProps {
   showFilters?: boolean;
   onFilterClick?: () => void;
   className?: string;
+  sticky?: boolean;
+  stickyOffset?: number;
 }
 
 const PageHeaderPanel: React.FC<PageHeaderPanelProps> = ({
@@ -46,7 +48,9 @@ const PageHeaderPanel: React.FC<PageHeaderPanelProps> = ({
   onSearch,
   showFilters = false,
   onFilterClick,
-  className = ""
+  className = "",
+  sticky = false,
+  stickyOffset = 80
 }) => {
   const [searchValue, setSearchValue] = React.useState('');
 
@@ -67,7 +71,8 @@ const PageHeaderPanel: React.FC<PageHeaderPanelProps> = ({
   };
 
   return (
-    <div className={`mb-8 ${className}`}>
+    <div className={`mb-8 ${className} ${sticky ? 'sticky bg-white/95 backdrop-blur-sm border-b border-gray-200 shadow-sm' : ''}`} 
+         style={sticky ? { top: `${stickyOffset}px`, zIndex: 50 } : {}}>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex-1">
           <div className="flex items-center gap-3">

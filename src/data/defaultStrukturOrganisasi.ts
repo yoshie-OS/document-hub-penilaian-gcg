@@ -713,3 +713,6 @@ export const getStrukturOrganisasiSummary = () => {
                    DEFAULT_STRUKTUR_ORGANISASI.regional.length
   };
 };
+
+
+

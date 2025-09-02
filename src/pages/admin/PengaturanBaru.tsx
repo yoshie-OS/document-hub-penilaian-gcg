@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Sidebar from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,6 +24,7 @@ import { ActionButton } from '@/components/panels';
 import { Toaster } from '@/components/ui/toaster';
 import { Calendar, Building2, Users, FileText, Settings, Plus, CheckCircle, Trash2, Edit, Copy, Eye, EyeOff, X, Briefcase, Building, UserCheck, FileCheck, ChevronRight, ArrowRight, Target, ChevronUp, RefreshCw } from 'lucide-react';
 import { PageHeaderPanel } from '@/components/panels';
+import { DEFAULT_STRUKTUR_ORGANISASI, getStrukturOrganisasiSummary } from '../../data/defaultStrukturOrganisasi';
 
 // Helper functions untuk password
 const generatePassword = () => {
@@ -68,18 +69,44 @@ const AssignmentDropdown = ({
   item, 
   onAssign, 
   isSuperAdmin,
-  currentAssignmentLabel
+  currentAssignmentLabel,
+  assignmentType,
+  assignments,
+  selectedYear
 }: { 
   item: { id: number; aspek: string; deskripsi: string }; 
-  onAssign: (checklistId: number, subdirektorat: string, aspek: string, deskripsi: string) => void;
+  onAssign: (checklistId: number, targetName: string, aspek: string, deskripsi: string) => void;
   isSuperAdmin: boolean;
   currentAssignmentLabel?: string | null;
+  assignmentType: 'divisi' | 'subdirektorat';
+  assignments: ChecklistAssignment[];
+  selectedYear: number | null;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const { subdirektorat } = useStrukturPerusahaan();
-  const optionNames = (subdirektorat || []).map(s => s.nama).filter((n): n is string => !!n && n.trim() !== '');
+  const { divisi, subdirektorat } = useStrukturPerusahaan();
+  
+  // Filter dan sort berdasarkan assignment type
+  const optionNames = useMemo(() => {
+    const source = assignmentType === 'divisi' ? divisi : subdirektorat;
+    const names = (source || [])
+      .map(d => d.nama)
+      .filter((n): n is string => !!n && n.trim() !== '')
+      .sort((a, b) => a.localeCompare(b, 'id', { sensitivity: 'base' })); // Sort A-Z dengan locale Indonesia
+    
+    return names;
+  }, [assignmentType, divisi, subdirektorat]);
+
+  // Filter berdasarkan search term
+  const filteredOptions = useMemo(() => {
+    if (!searchTerm.trim()) return optionNames;
+    
+    return optionNames.filter(name => 
+      name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [optionNames, searchTerm]);
 
   const handleAssign = async (value: string) => {
     setIsLoading(true);
@@ -88,9 +115,21 @@ const AssignmentDropdown = ({
       await new Promise(resolve => setTimeout(resolve, 10));
       onAssign(item.id, value, item.aspek, item.deskripsi);
       setIsOpen(false);
+      setSearchTerm(''); // Reset search term setelah assign
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleToggleDropdown = () => {
+    if (!isOpen) {
+      setSearchTerm(''); // Reset search term saat dropdown dibuka
+    }
+    setIsOpen(!isOpen);
+  };
+
+  const clearSearch = () => {
+    setSearchTerm('');
   };
 
   // Handle click outside
@@ -112,21 +151,68 @@ const AssignmentDropdown = ({
 
   if (!isSuperAdmin) return null;
 
+  // Cek apakah dokumen terkunci karena sudah di-assign dengan tipe yang berbeda
+  const isLocked = useMemo(() => {
+    // Cari assignment dengan tipe yang berbeda
+    const otherTypeAssignment = assignments.find(a => 
+      a.checklistId === item.id && 
+      a.tahun === selectedYear && 
+      a.assignmentType !== assignmentType
+    );
+    
+    if (!otherTypeAssignment) return false;
+    
+    // Cek apakah assignment yang ada memiliki hubungan organisasi yang sama
+    // Jika ada hubungan organisasi, tidak perlu di-lock
+    if (assignmentType === 'divisi' && otherTypeAssignment.assignmentType === 'subdirektorat') {
+      // Cek apakah ada divisi yang berada di bawah subdirektorat yang sudah di-assign
+      const hasRelatedDivisi = divisi.some(d => 
+        d.subdirektoratId === subdirektorat.find(s => s.nama === otherTypeAssignment.subdirektorat)?.id
+      );
+      return !hasRelatedDivisi;
+    } else if (assignmentType === 'subdirektorat' && otherTypeAssignment.assignmentType === 'divisi') {
+      // Cek apakah subdirektorat yang dipilih adalah parent dari divisi yang sudah di-assign
+      const divisiData = divisi.find(d => d.nama === otherTypeAssignment.divisi);
+      const hasRelatedSubdirektorat = subdirektorat.some(s => 
+        s.id === divisiData?.subdirektoratId
+      );
+      return !hasRelatedSubdirektorat;
+    }
+    
+    return true;
+  }, [assignments, item.id, selectedYear, assignmentType, divisi, subdirektorat]);
+
   return (
     <div className="relative" ref={dropdownRef}>
       <Button
         variant="outline"
         size="sm"
-        onClick={() => setIsOpen(!isOpen)}
-        disabled={isLoading}
-        className={`w-56 justify-between disabled:opacity-50 ${currentAssignmentLabel ? 'border-blue-300 bg-blue-50 text-blue-700' : ''}`}
-      >
-        <span className="truncate text-left">
+          onClick={handleToggleDropdown}
+          disabled={isLoading || isLocked}
+          className={`w-64 justify-between disabled:opacity-50 ${
+            isLocked 
+              ? 'border-red-300 bg-red-50 text-red-700 cursor-not-allowed' 
+              : currentAssignmentLabel 
+                ? 'border-blue-300 bg-blue-50 text-blue-700' 
+                : ''
+          }`}
+        >
+        <span className="text-left flex-1 mr-2 min-w-0">
+          <span className="block truncate" title={isLoading 
+            ? 'Assigning...'
+            : isLocked
+              ? `Terkunci (${assignmentType === 'divisi' ? 'Divisi' : 'Subdirektorat'})`
+              : currentAssignmentLabel 
+                ? `Ditugaskan ke: ${currentAssignmentLabel}`
+                : `Tugas ${assignmentType === 'divisi' ? 'Divisi' : 'Subdirektorat'}`}>
           {isLoading 
             ? 'Assigning...'
+              : isLocked
+                ? `Terkunci (${assignmentType === 'divisi' ? 'Divisi' : 'Subdirektorat'})`
             : currentAssignmentLabel 
-              ? `Assigned: ${currentAssignmentLabel}`
-              : 'Assign ke Subdirektorat'}
+                  ? `Ditugaskan ke: ${currentAssignmentLabel}`
+                  : `Tugas ${assignmentType === 'divisi' ? 'Divisi' : 'Subdirektorat'}`}
+          </span>
         </span>
         <svg
           className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
@@ -139,23 +225,73 @@ const AssignmentDropdown = ({
       </Button>
       
       {isOpen && (
-        <div className="absolute z-50 mt-1 w-56 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
+        <div className="absolute z-50 mt-1 w-64 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
+          {/* Search Input */}
+          <div className="sticky top-0 bg-white border-b border-gray-200 p-2">
+            <div className="relative">
+              <Input
+                type="text"
+                placeholder={`Cari ${assignmentType === 'divisi' ? 'divisi' : 'subdirektorat'}...`}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="h-8 text-sm pr-8"
+                autoFocus
+              />
+              {searchTerm && (
+                <button
+                  onClick={clearSearch}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  title="Clear search"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          </div>
+          
           <div className="py-1">
-            {optionNames.length === 0 ? (
-              <div className="px-4 py-2 text-sm text-gray-500">Belum ada subdirektorat</div>
+            {filteredOptions.length === 0 ? (
+              <div className="px-4 py-2 text-sm text-gray-500">
+                {searchTerm.trim() 
+                  ? `Tidak ada ${assignmentType === 'divisi' ? 'divisi' : 'subdirektorat'} yang cocok` 
+                  : `Belum ada ${assignmentType === 'divisi' ? 'divisi' : 'subdirektorat'}`}
+              </div>
             ) : (
-              optionNames.map((name) => (
+              filteredOptions.map((name) => (
                 <button
                   key={name}
                   onClick={() => handleAssign(name)}
                   disabled={isLoading}
                   className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {name.replace(/^\s*Sub\s*Direktorat\s*/i, '')}
+                  {name}
                 </button>
               ))
             )}
           </div>
+          
+          {/* Footer dengan info jumlah */}
+          {filteredOptions.length > 0 && (
+            <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-3 py-2 text-xs text-gray-500">
+              {searchTerm.trim() 
+                ? `${filteredOptions.length} dari ${optionNames.length} ${assignmentType === 'divisi' ? 'divisi' : 'subdirektorat'}`
+                : `${optionNames.length} ${assignmentType === 'divisi' ? 'divisi' : 'subdirektorat'} tersedia`
+              }
+            </div>
+                      )}
+            
+            {/* Reset Assignment Option */}
+            {currentAssignmentLabel && (
+              <div className="border-t border-gray-200 p-2">
+                <button
+                  onClick={() => handleAssign('')}
+                  className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors duration-200 flex items-center space-x-2"
+                >
+                  <X className="w-4 h-4" />
+                  <span>Tidak Memilih (Reset)</span>
+                </button>
+              </div>
+            )}
         </div>
       )}
     </div>
@@ -176,7 +312,7 @@ interface User {
   name: string;
   email: string;
   password: string;
-  role: UserRole;
+  role: 'superadmin' | 'admin' | 'user';
   direktorat?: string;
   subdirektorat?: string;
   divisi?: string;
@@ -193,7 +329,9 @@ interface ChecklistItem extends ChecklistGCG {
 interface ChecklistAssignment {
   id: number;
   checklistId: number;
-  subdirektorat: string;
+  divisi?: string;
+  subdirektorat?: string;
+  assignmentType: 'divisi' | 'subdirektorat';
   aspek: string;
   deskripsi: string;
   tahun: number;
@@ -202,6 +340,266 @@ interface ChecklistAssignment {
   status: 'assigned' | 'in_progress' | 'completed';
   notes?: string;
 }
+
+// Default checklist data untuk demo (256 items)
+const DEFAULT_CHECKLIST_ITEMS = [
+  "Pedoman Tata Kelola Perusahaan yang Baik/CoCG",
+  "Pedoman Perilaku/CoC",
+  "Penetapan Direksi sbg Penanggungjawab GCG dan SK Penunjukan Tim Komite Pemantau GCG (Bila ada)",
+  "Board Manual",
+  "Pedoman Pengendalian Gratifikasi",
+  "Pedoman WBS",
+  "Peraturan Disiplin Pegawai",
+  "PKB Terupdate",
+  "Dokumentasi Sosialisasi CoCG, CoC dan panduan pelaksanaan CoC kepada Organ perusahaan",
+  "Pernyataan Kepatuhan kepada CoC Tahun 2022 dan sebelumnya",
+  "Program penguatan kepemimpinan, kompetensi, dan etika kepemimpinan",
+  "Uraian Jabatan/Job Description (JD) Dewan Komisaris dan Direksi",
+  "Pakta Integritas / Letter of Undertaking (LoU) Direksi dan Dewan Komisaris (periode 2023 dan 2024)",
+  "Pakta Integritas / Letter of Undertaking (LoU) Komite yang berada di bawah Dewan Komisaris Tahun 2023 dan 2024",
+  "Pakta Integritas / Letter of Undertaking (LoU) Seluruh Karyawan Tahun 2023 dan 2024",
+  "Laporan Penerapan GCG",
+  "Surat Pernyataan Tanggung Jawab atas Laporan Pelaksanaan GCG",
+  "Struktur organisasi Dewan Komisaris",
+  "Piagam (Board Charter) Dewan Komisaris",
+  "Surat Keputusan Anggota Dewan Komisaris",
+  "Laporan Pelaksanaan Tugas Dewan Komisaris",
+  "Jadwal dan Risalah Rapat Dewan Komisaris dan Rapat Gabungan dengan Direksi Tahun 2023 dan 2024",
+  "Form Laporan Keberadaan Dewan Komisaris Tahun 2023 dan 2024",
+  "Struktur organisasi Direksi",
+  "Piagam (Board Charter) Direksi",
+  "Surat Keputusan Anggota Direksi",
+  "Laporan Pelaksanaan Tugas Direksi",
+  "Jadwal dan Risalah Rapat Direksi Tahun 2023 dan 2024",
+  "Laporan Keberadaan Direksi Tahun 2023 dan 2024",
+  "Piagam Komite Audit",
+  "Struktur organisasi Komite Audit",
+  "SK Komite Audit",
+  "Laporan Pelaksanaan Tugas Komite Audit",
+  "Jadwal dan Risalah Rapat Komite Audit Tahun 2023 dan 2024",
+  "Piagam Komite Nominasi dan Remunerasi",
+  "Struktur organisasi Komite Nominasi dan Remunerasi",
+  "SK Komite Nominasi dan Remunerasi",
+  "Laporan Pelaksanaan Tugas Komite Nominasi dan Remunerasi",
+  "Jadwal dan Risalah Rapat Komite Nominasi dan Remunerasi Tahun 2023 dan 2024",
+  "Piagam Komite Lain (Bila ada)",
+  "Struktur Organisasi Komite Lain (Bila ada)",
+  "SK Komite Lain (Bila ada)",
+  "Laporan Pelaksanaan Tugas Komite Lain (Bila ada)",
+  "Jadwal dan Risalah Rapat Komite Lain (Bila ada) Tahun 2023 dan 2024",
+  "Profil Anggota Dewan Komisaris, Direksi, dan Komite",
+  "Kompetensi Dewan Komisaris, Direksi, dan Komite",
+  "Laporan Indeks Kepuasan Pemangku Kepentingan",
+  "Program pelatihan dan peningkatan kompetensi untuk Dewan Komisaris, Direksi, dan Komite yang berada di bawah Dewan Komisaris",
+  "Laporan Keterbatasan Akses Dewan Komisaris dan Komite terhadap Informasi (jika ada)",
+  "Piagam Satuan Pengawasan Intern (SPI)",
+  "Struktur Organisasi SPI",
+  "SK Ketua dan Anggota SPI",
+  "Uraian tugas dan tanggung jawab SPI",
+  "Laporan Pelaksanaan Tugas SPI",
+  "Jadwal dan Risalah Rapat SPI Tahun 2023 dan 2024",
+  "Rencana Kerja dan Anggaran (RKA) SPI",
+  "Dokumen hasil audit internal dan eksternal",
+  "Bukti tindak lanjut hasil audit internal dan eksternal",
+  "Piagam Sekretaris Perusahaan",
+  "SK Sekretaris Perusahaan",
+  "Uraian tugas dan tanggung jawab Sekretaris Perusahaan",
+  "Program kerja Sekretaris Perusahaan Tahun 2023 dan 2024",
+  "Laporan pelaksanaan tugas Sekretaris Perusahaan",
+  "Kebijakan Manajemen Risiko",
+  "Daftar profil risiko tahun 2024",
+  "Pedoman Manajemen Risiko",
+  "Laporan penerapan manajemen risiko secara berkelanjutan",
+  "Pedoman Sistem Pengendalian Internal",
+  "Piagam Audit Internal",
+  "Kebijakan dan prosedur tentang Anti Fraud",
+  "Kebijakan mengenai whistleblowing system (WBS)",
+  "Laporan penanganan WBS",
+  "Pedoman pengelolaan benturan kepentingan",
+  "Pedoman Pengendalian Gratifikasi",
+  "Laporan pengendalian gratifikasi",
+  "Kebijakan dan prosedur transaksi yang mengandung benturan kepentingan",
+  "Kebijakan dan prosedur terkait transaksi dengan pihak berelasi",
+  "Laporan transaksi dengan pihak berelasi",
+  "Kebijakan Manajemen Komplain",
+  "Laporan pengelolaan komplain",
+  "Kebijakan Perlindungan Konsumen",
+  "Laporan perlindungan konsumen",
+  "Kebijakan Manajemen Keberlanjutan",
+  "Laporan Keberlanjutan",
+  "Program dan Pelaksanaan CSR",
+  "Laporan Pelaksanaan CSR",
+  "Pedoman Penyelenggaraan Rapat Dewan Komisaris",
+  "Pedoman Penyelenggaraan Rapat Direksi",
+  "Piagam Komite-Komite di bawah Dewan Komisaris",
+  "Daftar anggota Komite-Komite di bawah Dewan Komisaris",
+  "Laporan pelaksanaan tugas Komite-Komite di bawah Dewan Komisaris",
+  "Laporan Rapat Gabungan Dewan Komisaris dan Direksi",
+  "Laporan Keberadaan Dewan Komisaris, Direksi, dan Komite di bawah Dewan Komisaris",
+  "Kebijakan Perekrutan dan Seleksi Dewan Komisaris",
+  "Kebijakan Perekrutan dan Seleksi Direksi",
+  "Kebijakan Penilaian Kinerja Dewan Komisaris dan Direksi",
+  "Laporan Penilaian Kinerja Dewan Komisaris dan Direksi",
+  "Laporan Remunerasi Dewan Komisaris dan Direksi",
+  "Laporan Keterbukaan Informasi Perusahaan",
+  "Kebijakan Komunikasi dengan Pemegang Saham",
+  "Laporan Komunikasi dengan Pemegang Saham",
+  "Kebijakan Pengelolaan Informasi dan Pengungkapan Informasi Publik",
+  "Laporan Pengungkapan Informasi Publik",
+  "Kebijakan Pengelolaan Website Perusahaan",
+  "Laporan Pengelolaan Website Perusahaan",
+  "Kebijakan Pemanfaatan Teknologi Informasi",
+  "Laporan Pemanfaatan Teknologi Informasi",
+  "Kebijakan Perlindungan Data Pribadi",
+  "Laporan Perlindungan Data Pribadi",
+  "Kebijakan Lingkungan Hidup",
+  "Laporan Lingkungan Hidup",
+  "Program Pengelolaan Lingkungan Hidup",
+  "Laporan Kepatuhan terhadap Peraturan Lingkungan Hidup",
+  "Kebijakan Kesehatan dan Keselamatan Kerja (K3)",
+  "Laporan Pelaksanaan K3",
+  "Program Pelaksanaan K3",
+  "Laporan Kepatuhan terhadap Peraturan K3",
+  "Kebijakan Hak Asasi Manusia (HAM)",
+  "Laporan Pelaksanaan HAM",
+  "Program Pelaksanaan HAM",
+  "Kebijakan Pengadaan Barang dan Jasa",
+  "Laporan Pengadaan Barang dan Jasa",
+  "Kebijakan Manajemen Keuangan",
+  "Laporan Keuangan",
+  "Kebijakan Perencanaan Strategis",
+  "Rencana Strategis Perusahaan",
+  "Kebijakan Manajemen Kinerja",
+  "Laporan Manajemen Kinerja",
+  "Kebijakan Manajemen SDM",
+  "Kebijakan Remunerasi Karyawan",
+  "Laporan Remunerasi Karyawan",
+  "Kebijakan Pendidikan dan Pelatihan",
+  "Laporan Pendidikan dan Pelatihan",
+  "Program Pendidikan dan Pelatihan",
+  "Kebijakan Kesejahteraan Karyawan",
+  "Laporan Kesejahteraan Karyawan",
+  "Kebijakan Hubungan Industrial",
+  "Laporan Hubungan Industrial",
+  "Kebijakan Pemberdayaan Karyawan",
+  "Laporan Pemberdayaan Karyawan",
+  "Kebijakan Keberagaman dan Inklusi",
+  "Laporan Keberagaman dan Inklusi",
+  "Kebijakan Pensiun",
+  "Laporan Pensiun",
+  "Kebijakan Keselamatan dan Keamanan",
+  "Laporan Keselamatan dan Keamanan",
+  "Kebijakan Pengelolaan Aset",
+  "Laporan Pengelolaan Aset",
+  "Kebijakan Manajemen Proyek",
+  "Laporan Manajemen Proyek",
+  "Kebijakan Teknologi Informasi",
+  "Laporan Teknologi Informasi",
+  "Kebijakan Inovasi",
+  "Laporan Inovasi",
+  "Kebijakan Manajemen Mutu",
+  "Laporan Manajemen Mutu",
+  "Kebijakan Pemasaran",
+  "Laporan Pemasaran",
+  "Kebijakan Penjualan",
+  "Laporan Penjualan",
+  "Kebijakan Pelayanan Pelanggan",
+  "Laporan Pelayanan Pelanggan",
+  "Kebijakan Riset dan Pengembangan",
+  "Laporan Riset dan Pengembangan",
+  "Kebijakan Kemitraan",
+  "Laporan Kemitraan",
+  "Kebijakan Komunikasi",
+  "Laporan Komunikasi",
+  "Kebijakan Hubungan Masyarakat",
+  "Laporan Hubungan Masyarakat",
+  "Kebijakan Hubungan Investor",
+  "Laporan Hubungan Investor",
+  "Kebijakan Kepatuhan",
+  "Laporan Kepatuhan",
+  "Kebijakan Hukum",
+  "Laporan Hukum",
+  "Kebijakan Etika",
+  "Laporan Etika",
+  "Kebijakan Integritas",
+  "Laporan Integritas",
+  "Kebijakan Anti-Korupsi",
+  "Laporan Anti-Korupsi",
+  "Kebijakan Anti-Pencucian Uang",
+  "Laporan Anti-Pencucian Uang",
+  "Kebijakan Manajemen Reputasi",
+  "Laporan Manajemen Reputasi",
+  "Kebijakan Manajemen Krisis",
+  "Laporan Manajemen Krisis",
+  "Kebijakan Keberlanjutan Bisnis",
+  "Laporan Keberlanjutan Bisnis",
+  "Kebijakan Keamanan Siber",
+  "Laporan Keamanan Siber",
+  "Kebijakan Perlindungan Data",
+  "Laporan Perlindungan Data",
+  "Kebijakan Pengelolaan Risiko",
+  "Laporan Pengelolaan Risiko",
+  "Kebijakan Pengendalian Internal",
+  "Laporan Pengendalian Internal",
+  "Kebijakan Audit Internal",
+  "Laporan Audit Internal",
+  "Kebijakan Anti-Fraud",
+  "Laporan Anti-Fraud",
+  "Kebijakan WBS",
+  "Laporan WBS",
+  "Kebijakan Anti-Gratifikasi",
+  "Laporan Anti-Gratifikasi",
+  "Kebijakan Benturan Kepentingan",
+  "Laporan Benturan Kepentingan",
+  "Kebijakan Pihak Berelasi",
+  "Laporan Pihak Berelasi",
+  "Kebijakan Komplain",
+  "Laporan Komplain",
+  "Kebijakan Pelindungan Konsumen",
+  "Laporan Perlindungan Konsumen",
+  "Kebijakan CSR",
+  "Laporan CSR",
+  "Kebijakan Lingkungan",
+  "Laporan Lingkungan",
+  "Kebijakan K3",
+  "Laporan K3",
+  "Kebijakan HAM",
+  "Laporan HAM",
+  "Kebijakan Pengadaan",
+  "Laporan Pengadaan",
+  "Kebijakan Keuangan",
+  "Laporan Keuangan",
+  "Kebijakan Manajemen",
+  "Laporan Manajemen",
+  "Kebijakan SDM",
+  "Laporan SDM",
+  "Kebijakan Remunerasi",
+  "Laporan Remunerasi",
+  "Kebijakan Pelatihan",
+  "Laporan Pelatihan",
+  "Kebijakan Kesejahteraan",
+  "Laporan Kesejahteraan",
+  "Kebijakan Industrial",
+  "Laporan Industrial",
+  "Kebijakan Pemberdayaan",
+  "Laporan Pemberdayaan",
+  "Kebijakan Keberagaman",
+  "Laporan Keberagaman",
+  "Kebijakan Pensiun",
+  "Laporan Pensiun",
+  "Kebijakan Keamanan",
+  "Laporan Keamanan",
+  "Kebijakan Aset",
+  "Laporan Aset",
+  "Kebijakan Proyek",
+  "Laporan Proyek",
+  "Kebijakan TI",
+  "Laporan TI",
+  "Annual Report",
+  "Penghargaan di bidang CSR, bidang publikasi dan keterbukaan Informasi",
+  "Penghargaan-penghargaan lainnya yang diperoleh perusahaan selama tahun 2024",
+  "Dekom/Direksi/Manajemen Kunci menjadi Pembicara mewakili Perusahaan"
+];
 
 const PengaturanBaru = () => {
   const { isSidebarOpen } = useSidebar();
@@ -246,6 +644,7 @@ const PengaturanBaru = () => {
   
   // State untuk assignment management
   const [assignments, setAssignments] = useState<ChecklistAssignment[]>([]);
+  const [assignmentType, setAssignmentType] = useState<'divisi' | 'subdirektorat'>('divisi');
   
   // State untuk manajemen aspek
   const [showAspekManagementPanel, setShowAspekManagementPanel] = useState(false);
@@ -947,6 +1346,8 @@ const PengaturanBaru = () => {
     }
   };
 
+
+
   // Function untuk memastikan tahun baru benar-benar fresh (tanpa data dari tahun sebelumnya)
   const ensureFreshYearData = async (year: number) => {
     try {
@@ -1132,23 +1533,7 @@ const PengaturanBaru = () => {
     }
   };
 
-  const handleUseDefaultStruktur = () => {
-    try {
-      useDefaultData(selectedYear || new Date().getFullYear());
-      setSetupProgress(prev => ({ ...prev, strukturOrganisasi: true }));
-      
-      toast({
-        title: "Berhasil!",
-        description: "Data default struktur organisasi berhasil digunakan",
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Gagal menggunakan data default",
-        variant: "destructive"
-      });
-    }
-  };
+
 
   // Fungsi-fungsi untuk editing struktur organisasi
   const openEditDirektorat = (id: number, nama: string, deskripsi: string) => {
@@ -1318,28 +1703,173 @@ const PengaturanBaru = () => {
     }
   };
 
-  // Handler untuk checklist management
+  // Handler untuk checklist management dengan data default 256 items
   const handleUseDefaultChecklist = () => {
-    try {
-      if (selectedYear) {
-        initializeYearData(selectedYear);
+    if (!selectedYear) {
         toast({
-          title: "Berhasil!",
-          description: "Data default checklist GCG berhasil digunakan",
-        });
-      }
+        title: "Error",
+        description: "Pilih tahun terlebih dahulu!",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Konfirmasi sebelum menggunakan data default
+    if (!confirm(`Apakah Anda yakin ingin menggunakan data default untuk tahun ${selectedYear}? Ini akan menambahkan ${DEFAULT_CHECKLIST_ITEMS.length} item checklist.`)) {
+      return;
+    }
+
+    try {
+      // Generate checklist items dari data default
+      const newChecklistItems = DEFAULT_CHECKLIST_ITEMS.map((deskripsi, index) => ({
+        id: Date.now() + index + Math.random(), // Unique ID
+        aspek: '', // Kosong, user bisa isi nanti
+        deskripsi: deskripsi,
+        tahun: selectedYear,
+        status: 'pending' as const,
+        catatan: '',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }));
+
+      // Update state
+      setChecklistItems(prev => {
+        const updated = [...prev, ...newChecklistItems];
+        
+        // Persist ke localStorage
+        try {
+          localStorage.setItem('checklistGCG', JSON.stringify(updated));
+        } catch (err) {
+          console.error('Failed to persist default checklist items', err);
+        }
+        
+        return updated;
+      });
+
+      // Trigger update di ChecklistContext
+      window.dispatchEvent(new CustomEvent('checklistUpdated', {
+        detail: { type: 'checklistUpdated', data: newChecklistItems }
+      }));
+
+      toast({
+        title: "Data Default Berhasil Ditambahkan",
+        description: `${DEFAULT_CHECKLIST_ITEMS.length} item checklist telah ditambahkan untuk tahun ${selectedYear}`,
+      });
+
+      console.log(`Default data added for year ${selectedYear}:`, newChecklistItems.length, 'items');
     } catch (error) {
+      console.error('Error adding default data:', error);
       toast({
         title: "Error",
-        description: "Gagal menggunakan data default checklist",
+        description: "Gagal menambahkan data default. Silakan coba lagi.",
         variant: "destructive"
       });
     }
   };
 
+  // Handle menggunakan data default struktur organisasi
+  const handleUseDefaultStruktur = () => {
+    if (!selectedYear) {
+      toast({
+        title: "Error",
+        description: "Pilih tahun terlebih dahulu!",
+        variant: "destructive"
+      });
+      return;
+    }
 
+    // Konfirmasi sebelum menggunakan data default
+    const summary = getStrukturOrganisasiSummary();
+    if (!confirm(`Apakah Anda yakin ingin menggunakan data default struktur organisasi untuk tahun ${selectedYear}? Ini akan menambahkan:\n\n` +
+      `• ${summary.totalDirektorat} Direktorat\n` +
+      `• ${summary.totalSubdirektorat} Sub Direktorat\n` +
+      `• ${summary.totalDivisi} Divisi\n` +
+      `• ${summary.totalSpecialUnits} Special Units\n` +
+      `• ${summary.totalRegional} Regional\n\n` +
+      `Total: ${summary.totalStruktur} struktur organisasi`)) {
+      return;
+    }
 
+    try {
+      // Update struktur perusahaan dengan data default
+      const { direktorat, subdirektorat, divisi, specialUnits, regional } = DEFAULT_STRUKTUR_ORGANISASI;
+      
+      // Convert data ke format yang sesuai dengan StrukturPerusahaanContext
+      const direktoratData = direktorat.map(d => ({
+        id: d.id,
+        nama: d.nama,
+        deskripsi: `Direktorat ${d.nama}`,
+        tahun: selectedYear,
+        createdAt: new Date(),
+        isActive: true
+      }));
 
+      const subdirektoratData = subdirektorat.map(s => ({
+        id: s.id,
+        nama: s.nama,
+        direktoratId: s.parentId || 1,
+        deskripsi: `Sub Direktorat ${s.nama}`,
+        tahun: selectedYear,
+        createdAt: new Date(),
+        isActive: true
+      }));
+
+      const divisiData = divisi.map(d => ({
+        id: d.id,
+        nama: d.nama,
+        subdirektoratId: d.parentId || 101,
+        deskripsi: `Divisi ${d.nama}`,
+        tahun: selectedYear,
+        createdAt: new Date(),
+        isActive: true
+      }));
+
+      // Persist ke localStorage untuk setiap kategori
+      const existingDirektorat = JSON.parse(localStorage.getItem('direktorat') || '[]');
+      const existingSubdirektorat = JSON.parse(localStorage.getItem('subdirektorat') || '[]');
+      const existingDivisi = JSON.parse(localStorage.getItem('divisi') || '[]');
+      
+      const updatedDirektorat = [...existingDirektorat, ...direktoratData];
+      const updatedSubdirektorat = [...existingSubdirektorat, ...subdirektoratData];
+      const updatedDivisi = [...existingDivisi, ...divisiData];
+      
+      localStorage.setItem('direktorat', JSON.stringify(updatedDirektorat));
+      localStorage.setItem('subdirektorat', JSON.stringify(updatedSubdirektorat));
+      localStorage.setItem('divisi', JSON.stringify(updatedDivisi));
+
+      // Trigger context update dengan event
+      window.dispatchEvent(new CustomEvent('strukturPerusahaanUpdate', {
+        detail: { type: 'strukturPerusahaanUpdate' }
+      }));
+
+      // Trigger year data cleaned event untuk refresh context
+      window.dispatchEvent(new CustomEvent('yearDataCleaned', {
+        detail: { type: 'yearRemoved', year: selectedYear }
+      }));
+
+      // Success toast
+      toast({
+        title: "Berhasil",
+        description: `${summary.totalStruktur} struktur organisasi telah ditambahkan untuk tahun ${selectedYear}`,
+      });
+
+      console.log('PengaturanBaru: Used default struktur organisasi data', {
+        year: selectedYear,
+        direktoratAdded: direktoratData.length,
+        subdirektoratAdded: subdirektoratData.length,
+        divisiAdded: divisiData.length,
+        summary
+      });
+
+    } catch (error) {
+      console.error('PengaturanBaru: Failed to use default struktur organisasi data', error);
+      toast({
+        title: "Error",
+        description: "Gagal menggunakan data default struktur organisasi",
+        variant: "destructive"
+      });
+    }
+  };
 
   const handleDeleteChecklist = (id: number) => {
     try {
@@ -1389,26 +1919,147 @@ const PengaturanBaru = () => {
 
 
 
-  // Handle assignment checklist ke subdirektorat
-  const handleAssignment = (checklistId: number, subdirektorat: string, aspek: string, deskripsi: string) => {
+  // Handle assignment checklist ke divisi atau subdirektorat
+  const handleAssignment = (checklistId: number, targetName: string, aspek: string, deskripsi: string) => {
+    // Jika targetName kosong, hapus assignment (reset)
+    if (!targetName || targetName.trim() === '') {
+      setAssignments(prev => {
+        const filtered = prev.filter(a => !(a.checklistId === checklistId && a.tahun === selectedYear));
+        
+        // Update localStorage
+        const storedAssignments = localStorage.getItem('checklistAssignments');
+        if (storedAssignments) {
+          try {
+            const allAssignments = JSON.parse(storedAssignments);
+            const updatedAssignments = allAssignments.filter((assignment: any) => 
+              !(assignment.checklistId === checklistId && assignment.tahun === selectedYear)
+            );
+            localStorage.setItem('checklistAssignments', JSON.stringify(updatedAssignments));
+            
+            // Dispatch event untuk memberitahu dashboard bahwa assignment dihapus
+            window.dispatchEvent(new CustomEvent('assignmentsUpdated', {
+              detail: { 
+                type: 'assignmentRemoved', 
+                checklistId: checklistId,
+                year: selectedYear 
+              }
+            }));
+            
+            console.log('Assignment removed:', {
+              checklistId: checklistId,
+              year: selectedYear,
+              remainingAssignments: updatedAssignments.length
+            });
+          } catch (error) {
+            console.error('Error removing assignment:', error);
+          }
+        }
+        
+        return filtered;
+      });
+      
+      toast({
+        title: "Assignment Direset",
+        description: "Assignment berhasil dihapus.",
+        variant: "default",
+      });
+      return;
+    }
+
+    // Cek apakah dokumen sudah di-assign dengan tipe yang berbeda
+    const existingAssignment = assignments.find(a => 
+      a.checklistId === checklistId && 
+      a.tahun === selectedYear && 
+      a.assignmentType !== assignmentType
+    );
+    
+    if (existingAssignment) {
+      // Cek apakah assignment yang ada memiliki hubungan organisasi yang sama
+      let hasOrganizationalRelationship = false;
+      
+      if (assignmentType === 'divisi' && existingAssignment.assignmentType === 'subdirektorat') {
+        // Cek apakah divisi yang dipilih berada di bawah subdirektorat yang sudah di-assign
+        const divisiData = divisi.find(d => d.nama === targetName);
+        const subdirektoratData = subdirektorat.find(s => s.nama === existingAssignment.subdirektorat);
+        
+        if (divisiData && subdirektoratData && divisiData.subdirektoratId === subdirektoratData.id) {
+          hasOrganizationalRelationship = true;
+        }
+      } else if (assignmentType === 'subdirektorat' && existingAssignment.assignmentType === 'divisi') {
+        // Cek apakah subdirektorat yang dipilih adalah parent dari divisi yang sudah di-assign
+        const subdirektoratData = subdirektorat.find(s => s.nama === targetName);
+        const divisiData = divisi.find(d => d.nama === existingAssignment.divisi);
+        
+        if (subdirektoratData && divisiData && divisiData.subdirektoratId === subdirektoratData.id) {
+          hasOrganizationalRelationship = true;
+        }
+      }
+      
+      if (!hasOrganizationalRelationship) {
+        toast({
+          title: "Assignment Terkunci",
+          description: `Dokumen ini sudah di-assign ke ${existingAssignment.assignmentType === 'divisi' ? 'divisi' : 'subdirektorat'}. Tidak bisa di-assign ke ${assignmentType === 'divisi' ? 'divisi' : 'subdirektorat'} yang berbeda.`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     const newAssignment: ChecklistAssignment = {
       id: Date.now(),
       checklistId,
-      subdirektorat,
+      assignmentType,
       aspek,
       deskripsi,
       tahun: selectedYear || new Date().getFullYear(),
       assignedBy: currentUser?.name || 'Super Admin',
       assignedAt: new Date(),
-      status: 'assigned'
+      status: 'assigned',
+      ...(assignmentType === 'divisi' 
+        ? { divisi: targetName } 
+        : { subdirektorat: targetName }
+      )
     };
 
     // Update state dan persist ke localStorage
     setAssignments(prev => {
       // Replace existing assignment untuk checklistId & year ini jika ada
       const next = [...prev.filter(a => !(a.checklistId === checklistId && a.tahun === selectedYear)), newAssignment];
+      
+      // Update localStorage dengan semua assignments (bukan hanya yang untuk tahun ini)
       try {
-        localStorage.setItem('checklistAssignments', JSON.stringify(next));
+        const storedAssignments = localStorage.getItem('checklistAssignments');
+        let allAssignments = [];
+        
+        if (storedAssignments) {
+          allAssignments = JSON.parse(storedAssignments);
+        }
+        
+        // Remove existing assignment untuk checklistId & year ini
+        allAssignments = allAssignments.filter((assignment: any) => 
+          !(assignment.checklistId === checklistId && assignment.tahun === selectedYear)
+        );
+        
+        // Add new assignment
+        allAssignments.push(newAssignment);
+        
+        localStorage.setItem('checklistAssignments', JSON.stringify(allAssignments));
+        
+        // Dispatch event untuk memberitahu dashboard bahwa ada assignment baru
+        window.dispatchEvent(new CustomEvent('assignmentsUpdated', {
+          detail: { 
+            type: 'assignmentUpdated', 
+            assignment: newAssignment,
+            year: selectedYear 
+          }
+        }));
+        
+        console.log('Assignment saved:', {
+          assignment: newAssignment,
+          allAssignments: allAssignments.length,
+          year: selectedYear
+        });
+        
       } catch (err) {
         console.error('Failed to persist checklistAssignments', err);
       }
@@ -1417,7 +2068,7 @@ const PengaturanBaru = () => {
 
     toast({
       title: "Assignment Berhasil",
-      description: `Dokumen GCG berhasil ditugaskan ke ${subdirektorat}`,
+      description: `Dokumen GCG berhasil ditugaskan ke ${targetName}`,
     });
   };
 
@@ -2637,14 +3288,25 @@ const PengaturanBaru = () => {
                            Tampilkan Data Default
                          </Button>
                        ) : (
+                         <div className="flex gap-2">
                          <Button 
                            onClick={handleUseDefaultChecklist}
                            variant="outline"
                            className="border-blue-600 text-blue-600 hover:bg-blue-700"
                          >
                            <Copy className="w-4 h-4 mr-2" />
-                           Gunakan Data Default
+                             Gunakan Data Default (256 Items)
                          </Button>
+                           
+                           <Button
+                             onClick={handleUseDefaultStruktur}
+                             variant="outline"
+                             className="border-green-600 text-green-600 hover:bg-green-700"
+                           >
+                             <Copy className="w-4 h-4 mr-2" />
+                             Gunakan Data Default Struktur Organisasi
+                           </Button>
+                         </div>
                        )}
 
 
@@ -2658,40 +3320,93 @@ const PengaturanBaru = () => {
                        <div className="text-sm text-blue-600">Total Item</div>
                      </div>
                      
-                     {/* Subdirektorat Assignment Overview */}
+                     {/* Assignment Overview */}
                      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                        <div className="text-2xl font-bold text-blue-600">
                          {(() => {
                            const yearAssignments = assignments?.filter(a => a.tahun === selectedYear) || [];
-                           const uniqueSubdirektorat = [...new Set(yearAssignments.map(a => a.subdirektorat))];
-                           return uniqueSubdirektorat.length;
+                           // Filter assignments berdasarkan assignment type
+                           const validAssignments = yearAssignments.filter(a => {
+                             if (assignmentType === 'divisi') {
+                               return a.divisi && 
+                                      a.divisi.trim() !== '' && 
+                                      a.divisi !== 'undefined' && 
+                                      a.divisi !== 'null';
+                             } else {
+                               return a.subdirektorat && 
+                                      a.subdirektorat.trim() !== '' && 
+                                      a.subdirektorat !== 'undefined' && 
+                                      a.subdirektorat !== 'null';
+                             }
+                           });
+                           
+                           const uniqueTargets = [...new Set(validAssignments.map(a => {
+                             return assignmentType === 'divisi' ? a.divisi.trim() : a.subdirektorat.trim();
+                           }))];
+                           return uniqueTargets.length;
                          })()}
                        </div>
-                       <div className="text-sm text-blue-600">Subdirektorat Aktif</div>
+                       <div className="text-sm text-blue-600">
+                         {assignmentType === 'divisi' ? 'Divisi Aktif' : 'Subdirektorat Aktif'}
+                       </div>
                      </div>
                    </div>
 
-                   {/* Subdirektorat Assignment Breakdown */}
+                   {/* Assignment Breakdown */}
                    {(() => {
                      const yearAssignments = assignments?.filter(a => a.tahun === selectedYear) || [];
-                     const subdirektoratCounts = yearAssignments.reduce((acc, assignment) => {
-                       acc[assignment.subdirektorat] = (acc[assignment.subdirektorat] || 0) + 1;
+                     
+                     // Jika tidak ada assignments untuk tahun ini, jangan tampilkan breakdown
+                     if (yearAssignments.length === 0) {
+                       return null;
+                     }
+                     
+                     // Filter hanya assignments dengan target valid berdasarkan assignment type
+                     const validAssignments = yearAssignments.filter(a => {
+                       if (assignmentType === 'divisi') {
+                         return a.divisi && 
+                                a.divisi.trim() !== '' && 
+                                a.divisi !== 'undefined' && 
+                                a.divisi !== 'null';
+                       } else {
+                         return a.subdirektorat && 
+                                a.subdirektorat.trim() !== '' && 
+                                a.subdirektorat !== 'undefined' && 
+                                a.subdirektorat !== 'null';
+                       }
+                     });
+                     
+                     // Jika tidak ada valid assignments, jangan tampilkan breakdown
+                     if (validAssignments.length === 0) {
+                       return null;
+                     }
+                     
+                     const targetCounts = validAssignments.reduce((acc, assignment) => {
+                       const target = assignmentType === 'divisi' 
+                         ? assignment.divisi?.trim() 
+                         : assignment.subdirektorat?.trim();
+                       if (target) {
+                         acc[target] = (acc[target] || 0) + 1;
+                       }
                        return acc;
                      }, {} as Record<string, number>);
                      
-                     const sortedSubdirektorat = Object.entries(subdirektoratCounts)
+                     const sortedTargets = Object.entries(targetCounts)
+                       .filter(([target]) => target && target.trim() !== '') // Extra safety filter
                        .sort(([,a], [,b]) => b - a);
                      
-                     return sortedSubdirektorat.length > 0 ? (
+                     return sortedTargets.length > 0 ? (
                        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                         <h4 className="font-semibold text-blue-800 mb-3">Breakdown Penugasan Subdirektorat</h4>
+                         <h4 className="font-semibold text-blue-800 mb-3">
+                           Breakdown Penugasan {assignmentType === 'divisi' ? 'Divisi' : 'Subdirektorat'}
+                         </h4>
                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                           {sortedSubdirektorat.map(([subdir, count]) => (
-                             <div key={subdir} className="flex items-center justify-between p-2 bg-white rounded border border-blue-200">
-                               <span className="text-sm font-medium text-blue-700 truncate" title={subdir}>
-                                 {subdir.replace(/^Sub\s*Direktorat\s*/i, '').trim()}
+                           {sortedTargets.map(([target, count]) => (
+                             <div key={target} className="flex items-center justify-between p-2 bg-white rounded border border-blue-200">
+                               <span className="text-sm font-medium text-blue-700 text-left flex-1 mr-2" title={target}>
+                                 {target}
                                </span>
-                               <Badge variant="secondary" className="bg-blue-100 text-blue-700 text-xs">
+                               <Badge variant="secondary" className="bg-blue-100 text-blue-700 text-xs flex-shrink-0">
                                  {count} tugas
                                </Badge>
                              </div>
@@ -2705,16 +3420,30 @@ const PengaturanBaru = () => {
 
                                                            {/* Checklist Items Table with Enhanced Design */}
                     <div ref={checklistTableRef}>
-                      <h3 className="text-lg font-semibold text-gray-900 mb-3">Dokumen GCG Checklist</h3>
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold text-gray-900">Dokumen GCG Checklist</h3>
+                        <div className="flex items-center space-x-3">
+                          <label className="text-sm font-medium text-gray-700">Tipe Penugasan:</label>
+                          <Select value={assignmentType} onValueChange={setAssignmentType}>
+                            <SelectTrigger className="w-48 border-blue-200 focus:border-blue-500 focus:ring-blue-500">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="divisi">Divisi</SelectItem>
+                              <SelectItem value="subdirektorat">Subdirektorat</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
                       <div className="overflow-hidden rounded-lg border border-blue-100 shadow-lg">
                         <Table>
                           <TableHeader>
                             <TableRow className="bg-gray-50">
-                              <TableHead className="text-gray-700 font-medium w-16 text-center">No</TableHead>
-                              <TableHead className="text-gray-700 font-medium w-48 text-center">Aspek (Opsional)</TableHead>
-                              <TableHead className="text-gray-700 font-medium w-96 text-center">Deskripsi</TableHead>
-                              <TableHead className="text-gray-700 font-medium w-48 text-center">Assign To</TableHead>
-                              <TableHead className="text-gray-700 font-medium w-32 text-center">Aksi</TableHead>
+                              <TableHead className="text-gray-700 font-medium w-20 text-center">No</TableHead>
+                              <TableHead className="text-gray-700 font-medium w-64 text-center">Aspek (Opsional)</TableHead>
+                              <TableHead className="text-gray-700 font-medium w-80 text-center">Deskripsi</TableHead>
+                              <TableHead className="text-gray-700 font-medium w-64 text-center">Tugaskan Ke</TableHead>
+                              <TableHead className="text-gray-700 font-medium w-40 text-center">Aksi</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -2787,11 +3516,20 @@ const PengaturanBaru = () => {
                                     item={item}
                                     onAssign={handleAssignment}
                                     isSuperAdmin={currentUser?.role === 'superadmin'}
+                                    assignmentType={assignmentType}
+                                    assignments={assignments}
+                                    selectedYear={selectedYear}
                                     currentAssignmentLabel={(() => {
                                       const a = assignments.find(a => a.checklistId === item.id && a.tahun === selectedYear);
                                       if (!a) return null;
+                                      
+                                      if (assignmentType === 'divisi') {
+                                        const d = divisi?.find(o => o.nama === a.divisi);
+                                        return d?.nama || a.divisi;
+                                      } else {
                                       const s = subdirektorat?.find(o => o.nama === a.subdirektorat);
                                       return s?.nama || a.subdirektorat;
+                                      }
                                     })()}
                                   />
                                 </TableCell>
@@ -3371,17 +4109,25 @@ const PengaturanBaru = () => {
                     </div>
 
                     <div>
-                      <Label htmlFor="user-direktorat" className="text-blue-800 font-medium">Direktorat</Label>
+                      <Label htmlFor="user-direktorat" className="text-blue-800 font-medium">Direktorat *</Label>
                       <Select
-                        value={userForm.direktorat}
-                        onValueChange={(value) => setUserForm(prev => ({ ...prev, direktorat: value }))}
+                        value={direktorat.find(d => d.nama === userForm.direktorat)?.id.toString() || ''}
+                        onValueChange={(value) => {
+                          const d = direktorat.find(x => x.id.toString() === value);
+                          setUserForm(prev => ({ 
+                            ...prev, 
+                            direktorat: d?.nama || '', 
+                            subdirektorat: '', 
+                            divisi: '' 
+                          }));
+                        }}
                       >
                         <SelectTrigger className="border-blue-200 focus:border-blue-500 focus:ring-blue-500">
                           <SelectValue placeholder="Pilih Direktorat" />
                         </SelectTrigger>
                         <SelectContent>
                           {direktorat && direktorat.length > 0 ? direktorat.map((item) => (
-                            <SelectItem key={item.id} value={item.nama}>
+                            <SelectItem key={item.id} value={item.id.toString()}>
                               {item.nama}
                             </SelectItem>
                           )) : []}
@@ -3391,15 +4137,25 @@ const PengaturanBaru = () => {
                     <div>
                       <Label htmlFor="user-subdirektorat" className="text-blue-800 font-medium">Subdirektorat</Label>
                       <Select
-                        value={userForm.subdirektorat}
-                        onValueChange={(value) => setUserForm(prev => ({ ...prev, subdirektorat: value }))}
+                        disabled={!userForm.direktorat}
+                        value={subdirektorat.find(s => s.nama === userForm.subdirektorat)?.id.toString() || ''}
+                        onValueChange={(value) => {
+                          const s = subdirektorat.find(x => x.id.toString() === value);
+                          setUserForm(prev => ({ 
+                            ...prev, 
+                            subdirektorat: s?.nama || '', 
+                            divisi: '' 
+                          }));
+                        }}
                       >
                         <SelectTrigger className="border-blue-200 focus:border-blue-500 focus:ring-blue-500">
                           <SelectValue placeholder="Pilih Subdirektorat" />
                         </SelectTrigger>
                         <SelectContent>
-                          {subdirektorat && subdirektorat.length > 0 ? subdirektorat.map((item) => (
-                            <SelectItem key={item.id} value={item.nama}>
+                          {userForm.direktorat ? subdirektorat
+                            .filter(s => s.direktoratId === direktorat.find(d => d.nama === userForm.direktorat)?.id)
+                            .map((item) => (
+                              <SelectItem key={item.id} value={item.id.toString()}>
                               {item.nama}
                             </SelectItem>
                           )) : []}
@@ -3409,15 +4165,24 @@ const PengaturanBaru = () => {
                     <div>
                       <Label htmlFor="user-divisi" className="text-blue-800 font-medium">Divisi</Label>
                       <Select
-                        value={userForm.divisi}
-                        onValueChange={(value) => setUserForm(prev => ({ ...prev, divisi: value }))}
+                        disabled={!userForm.subdirektorat}
+                        value={divisi.find(d => d.nama === userForm.divisi)?.id.toString() || ''}
+                        onValueChange={(value) => {
+                          const d = divisi.find(x => x.id.toString() === value);
+                          setUserForm(prev => ({ 
+                            ...prev, 
+                            divisi: d?.nama || '' 
+                          }));
+                        }}
                       >
                         <SelectTrigger className="border-blue-200 focus:border-blue-500 focus:ring-blue-500">
                           <SelectValue placeholder="Pilih Divisi" />
                         </SelectTrigger>
                         <SelectContent>
-                          {divisi && divisi.length > 0 ? divisi.map((item) => (
-                            <SelectItem key={item.id} value={item.nama}>
+                          {userForm.subdirektorat ? divisi
+                            .filter(d => d.subdirektoratId === subdirektorat.find(s => s.nama === userForm.subdirektorat)?.id)
+                            .map((item) => (
+                              <SelectItem key={item.id} value={item.id.toString()}>
                               {item.nama}
                             </SelectItem>
                           )) : []}

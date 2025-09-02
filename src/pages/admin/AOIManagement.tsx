@@ -37,7 +37,7 @@ const AOIManagement = () => {
   const { selectedYear, setSelectedYear, availableYears } = useYear();
   const { 
     aoiTables, 
-    recommendations, 
+    aoiRecommendations, 
     createAOITable, 
     updateAOITable, 
     deleteAOITable,
@@ -309,7 +309,7 @@ const AOIManagement = () => {
 
   // Get recommendations for a specific table
   const getTableRecommendations = (tableId: number) => {
-    return recommendations.filter(rec => rec.aoiTableId === tableId);
+    return (aoiRecommendations || []).filter(rec => rec.aoiTableId === tableId);
   };
 
   // Get next recommendation number for a table

@@ -1,11 +1,12 @@
 import React, { useMemo, useEffect, useState, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { useFileUpload } from '@/contexts/FileUploadContext';
 import { useChecklist } from '@/contexts/ChecklistContext';
 import { useYear } from '@/contexts/YearContext';
 import { useStrukturPerusahaan } from '@/contexts/StrukturPerusahaanContext';
-import { TrendingUp, Building2, Users, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import { TrendingUp, Building2, Users, CheckCircle, Clock, AlertCircle, ChevronDown, ChevronUp, Eye } from 'lucide-react';
 
 interface MonthlyTrendsProps {
   className?: string;
@@ -25,6 +26,22 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
   const { getFilesByYear } = useFileUpload();
   const { checklist } = useChecklist();
   const { subdirektorat: strukturSubdirektorat, divisi } = useStrukturPerusahaan();
+  
+  // State untuk mengelola expanded view per subdirektorat
+  const [expandedSubdirs, setExpandedSubdirs] = useState<Set<string>>(new Set());
+  
+  // Fungsi untuk toggle expanded view
+  const toggleExpanded = (subdirName: string) => {
+    setExpandedSubdirs(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(subdirName)) {
+        newSet.delete(subdirName);
+      } else {
+        newSet.add(subdirName);
+      }
+      return newSet;
+    });
+  };
 
   // Data progres per subdirektorat (berdasarkan dokumen yang diupload) - REAL-TIME
   const chartData = useMemo(() => {
@@ -75,17 +92,23 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
       const cleanName = subName.replace(/^\s*Sub\s*Direktorat\s*/i, '').trim();
       
       // Hitung target dari assignments untuk subdirektorat ini
-      // Target = total checklist items yang diassign ke divisi yang berada di bawah subdirektorat ini
+      // Target = total checklist items yang diassign ke divisi yang berada di bawah subdirektorat ini + assignment langsung ke subdirektorat
       const subdirAssignments = yearAssignments.filter(a => {
-        // Cari divisi yang berada di bawah subdirektorat ini
-        // Gunakan struktur data yang benar: divisi memiliki subdirektoratId
-        const divisiUnderSubdir = divisi.filter(d => {
-          const subdir = strukturSubdirektorat.find(s => s.id === d.subdirektoratId);
-          return subdir && subdir.nama === subName;
-        });
+        // Assignment langsung ke subdirektorat
+        if (a.assignmentType === 'subdirektorat' && a.subdirektorat === subName) {
+          return true;
+        }
         
         // Assignment ke divisi yang berada di bawah subdirektorat ini
-        return a.divisi && divisiUnderSubdir.some(d => d.nama === a.divisi);
+        if (a.assignmentType === 'divisi' && a.divisi) {
+          const divisiUnderSubdir = divisi.filter(d => {
+            const subdir = strukturSubdirektorat.find(s => s.id === d.subdirektoratId);
+            return subdir && subdir.nama === subName;
+          });
+          return divisiUnderSubdir.some(d => d.nama === a.divisi);
+        }
+        
+        return false;
       });
       const target = subdirAssignments.length;
       
@@ -97,25 +120,56 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
       ).length;
       
       // Breakdown per divisi yang berada di bawah subdirektorat ini
-      const divisiCounts: Record<string, number> = {};
-      yearFiles.forEach(file => {
-        // Cari divisi yang berada di bawah subdirektorat ini
-        const divisiUnderSubdir = divisi.filter(d => {
-          const subdir = strukturSubdirektorat.find(s => s.id === d.subdirektoratId);
-          return subdir && subdir.nama === subName;
-        });
+      const divisiBreakdown: Record<string, { target: number; progress: number }> = {};
+      
+      // Cari divisi yang berada di bawah subdirektorat ini
+      const divisiUnderSubdir = divisi.filter(d => {
+        const subdir = strukturSubdirektorat.find(s => s.id === d.subdirektoratId);
+        return subdir && subdir.nama === subName;
+      });
+      
+      // Hitung target dan progress per divisi (hanya yang sudah ditugaskan)
+      divisiUnderSubdir.forEach(divisiItem => {
+        const divisiAssignments = subdirAssignments.filter(a => 
+          a.assignmentType === 'divisi' && a.divisi === divisiItem.nama
+        );
         
-        // Hitung berdasarkan file.division (field yang benar)
-        if (file.division) {
-          const matchingDivisi = divisiUnderSubdir.find(d => d.nama === file.division);
-          if (matchingDivisi) {
-            divisiCounts[matchingDivisi.nama] = (divisiCounts[matchingDivisi.nama] || 0) + 1;
-          }
+        // Hanya tambahkan ke breakdown jika ada assignment
+        if (divisiAssignments.length > 0) {
+          const divisiProgress = divisiAssignments.filter(assignment => 
+            uploadedChecklistIds.has(assignment.checklistId)
+          ).length;
+          
+          divisiBreakdown[divisiItem.nama] = {
+            target: divisiAssignments.length,
+            progress: divisiProgress
+          };
         }
       });
-      const divisions = Object.entries(divisiCounts)
-        .sort((a, b) => b[1] - a[1])
-        .map(([name, count]) => ({ name, count }));
+      
+      // Tambahkan assignment langsung ke subdirektorat sebagai "Subdirektorat" entry
+      const subdirDirectAssignments = subdirAssignments.filter(a => 
+        a.assignmentType === 'subdirektorat' && a.subdirektorat === subName
+      );
+      const subdirDirectProgress = subdirDirectAssignments.filter(assignment => 
+        uploadedChecklistIds.has(assignment.checklistId)
+      ).length;
+      
+      if (subdirDirectAssignments.length > 0) {
+        divisiBreakdown['Subdirektorat'] = {
+          target: subdirDirectAssignments.length,
+          progress: subdirDirectProgress
+        };
+      }
+      
+      const divisions = Object.entries(divisiBreakdown)
+        .sort((a, b) => b[1].target - a[1].target)
+        .map(([name, data]) => ({ 
+          name, 
+          target: data.target, 
+          progress: data.progress,
+          percent: data.target > 0 ? Math.round((data.progress / data.target) * 100) : 0
+        }));
       
       // Hitung persentase berdasarkan target dan progress
       const percent = target > 0 ? (progress / target) * 100 : 0;
@@ -137,8 +191,13 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
           const subdir = strukturSubdirektorat.find(s => s.id === d.subdirektoratId);
           return subdir && subdir.nama === subName;
         }).map(d => d.nama),
+        divisiBreakdown: divisions,
         yearAssignments: yearAssignments.length,
-        yearFiles: yearFiles.length
+        yearFiles: yearFiles.length,
+        assignmentTypes: {
+          divisi: subdirAssignments.filter(a => a.assignmentType === 'divisi').length,
+          subdirektorat: subdirAssignments.filter(a => a.assignmentType === 'subdirektorat').length
+        }
       });
       
       return {
@@ -419,7 +478,7 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
                 <div key={index} className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
                   {/* Header dengan status indicator */}
                   <div className="flex items-center justify-between mb-3">
-                    <div className="text-sm font-semibold text-gray-900 truncate max-w-[120px]" title={data.subdirektorat}>
+                    <div className="text-sm font-semibold text-gray-900 text-left flex-1 mr-2" title={data.subdirektorat}>
                       {data.subdirektorat}
                     </div>
                     <div className="flex items-center space-x-1">
@@ -472,24 +531,70 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
                   {/* Breakdown per Divisi */}
                   {data.divisions.length > 0 && (
                     <div className="border-t pt-3">
-                      <div className="text-xs font-medium text-gray-600 mb-2">Breakdown per Divisi:</div>
-                      <div className="space-y-1">
-                        {data.divisions.slice(0, 3).map((divisi, divisiIndex) => (
-                          <div key={divisiIndex} className="flex items-center justify-between text-xs">
-                            <span className="text-gray-600 truncate max-w-[80px]" title={divisi.name}>
-                              {divisi.name}
-                            </span>
-                            <Badge variant="outline" className="text-xs px-2 py-0">
-                              {divisi.count}
-                            </Badge>
-                          </div>
-                        ))}
-                        {data.divisions.length > 3 && (
-                          <div className="text-xs text-gray-500 text-center">
-                            +{data.divisions.length - 3} divisi lainnya
-                          </div>
-                        )}
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-xs font-medium text-gray-600">Breakdown per Divisi:</div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => toggleExpanded(data.subdirektorat)}
+                          className="h-6 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                        >
+                          <Eye className="w-3 h-3 mr-1" />
+                          {expandedSubdirs.has(data.subdirektorat) ? 'Sembunyikan' : 'Lihat Detail'}
+                          {expandedSubdirs.has(data.subdirektorat) ? 
+                            <ChevronUp className="w-3 h-3 ml-1" /> : 
+                            <ChevronDown className="w-3 h-3 ml-1" />
+                          }
+                        </Button>
                       </div>
+                      
+                      {expandedSubdirs.has(data.subdirektorat) ? (
+                        // Expanded view - tampilkan semua divisi
+                        <div className="space-y-2">
+                          {data.divisions.map((divisi, divisiIndex) => (
+                            <div key={divisiIndex} className="space-y-1">
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-gray-600 text-left flex-1 mr-2" title={divisi.name}>
+                                  {divisi.name}
+                                </span>
+                                <div className="flex items-center space-x-1 flex-shrink-0">
+                                  <span className="text-blue-600 font-semibold">{divisi.progress}</span>
+                                  <span className="text-gray-400">/</span>
+                                  <span className="text-gray-700">{divisi.target}</span>
+                                </div>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-1">
+                                <div 
+                                  className={`h-1 rounded-full transition-all duration-500 ${
+                                    divisi.percent >= 100 ? 'bg-green-500' :
+                                    divisi.percent > 0 ? 'bg-yellow-500' :
+                                    'bg-gray-300'
+                                  }`}
+                                  style={{ width: `${Math.min(divisi.percent, 100)}%` }}
+                                />
+                              </div>
+                              <div className="text-xs text-center text-gray-500">
+                                {divisi.percent}% selesai
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        // Collapsed view - tampilkan summary saja
+                        <div className="space-y-1">
+                          <div className="text-xs text-gray-500 text-center">
+                            {data.divisions.length} divisi ditugaskan
+                          </div>
+                          <div className="flex justify-center space-x-2">
+                            <div className="text-xs text-green-600">
+                              {data.divisions.filter(d => d.percent >= 100).length} selesai
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {data.divisions.filter(d => d.percent < 100).length} belum selesai
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

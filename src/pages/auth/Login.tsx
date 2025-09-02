@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import gedungPosImage from '@/assets/gedung pos.jpg';
 import { 
   Bell, 
   Mail, 
@@ -63,8 +64,8 @@ const Login = () => {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-amber-50 to-emerald-50">
       {/* Navigation Header */}
       <nav className="bg-white/80 backdrop-blur-md border-b border-blue-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
+        <div className="px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center h-16">
             <div className="flex items-center space-x-4">
               <div className="h-10 w-10 flex items-center justify-center">
                 <img 
@@ -77,20 +78,6 @@ const Login = () => {
                 <h1 className="text-xl font-bold text-blue-900">Good Corporate Governance Documents Management System</h1>
                 <p className="text-sm text-blue-600">PT POS INDONESIA (PERSERO)</p>
               </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <Link 
-                to="/register" 
-                className="text-blue-600 hover:text-blue-800 font-medium transition-colors"
-              >
-                Daftar
-              </Link>
-              <Link 
-                to="/login" 
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Masuk
-              </Link>
             </div>
           </div>
         </div>
@@ -181,7 +168,7 @@ const Login = () => {
         </div>
 
         {/* Right Side - Login Form */}
-        <div className="flex-1 flex items-center justify-center p-6">
+        <div className="flex-1 flex items-center justify-center p-6 bg-cover bg-left bg-no-repeat" style={{ backgroundImage: `url(${gedungPosImage})` }}>
           <div className="w-full max-w-md">
             {/* Mobile Header */}
             <div className="lg:hidden text-center mb-8">
@@ -197,7 +184,7 @@ const Login = () => {
             </div>
 
             {/* Login Form */}
-            <Card className="border-0 shadow-2xl bg-white/90 backdrop-blur-sm">
+            <Card className="border-0 shadow-2xl bg-white/95 backdrop-blur-md">
               <CardContent className="p-8">
                 <div className="text-center mb-8">
                   <h2 className="text-2xl font-bold text-blue-900 mb-2">Masuk ke Sistem</h2>
@@ -293,20 +280,12 @@ const Login = () => {
                   </div>
                 </div>
 
-                {/* Register Link */}
-                <div className="mt-6 text-center">
-                  <p className="text-sm text-blue-600">
-                    Belum punya akun?{' '}
-                    <Link to="/register" className="text-blue-600 hover:text-blue-700 font-medium">
-                      Daftar sebagai User
-                    </Link>
-                  </p>
-                </div>
+
               </CardContent>
             </Card>
 
             {/* Footer */}
-            <div className="mt-8 text-center text-sm text-blue-500">
+            <div className="mt-8 text-center text-sm text-white">
               <p>© 2024 POS Indonesia. All rights reserved.</p>
               <p className="mt-1">Sistem Manajemen Dokumen Good Corporate Governance</p>
             </div>

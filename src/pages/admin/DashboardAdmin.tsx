@@ -135,17 +135,25 @@ const DashboardAdmin: React.FC = () => {
         return [];
       }
       
-      // Get assignments untuk tahun dan subdirektorat admin
+      // Get assignments untuk tahun dan struktur organisasi admin
       const storedAssignments = localStorage.getItem('checklistAssignments');
       let adminAssignments: any[] = [];
       
       if (storedAssignments) {
         try {
           const allAssignments = JSON.parse(storedAssignments);
-          adminAssignments = allAssignments.filter((assignment: any) => 
-            assignment.tahun === selectedYear && 
-            assignment.subdirektorat === user.subdirektorat
-          );
+          adminAssignments = allAssignments.filter((assignment: any) => {
+            if (assignment.tahun !== selectedYear) return false;
+            
+            // Check assignment type and match with user's organization
+            if (assignment.assignmentType === 'subdirektorat') {
+              return assignment.subdirektorat === user.subdirektorat;
+            } else if (assignment.assignmentType === 'divisi') {
+              return assignment.divisi === user.divisi;
+            }
+            
+            return false;
+          });
     } catch (error) {
           console.error('Error parsing assignments:', error);
         }
@@ -155,11 +163,19 @@ const DashboardAdmin: React.FC = () => {
       const assignedChecklistIds = new Set(adminAssignments.map(a => a.checklistId));
       const assignedItems = yearChecklist.filter(item => assignedChecklistIds.has(item.id));
       
-      console.log('Admin assignments for year and subdirektorat:', {
+      console.log('Admin assignments for year and organization:', {
         year: selectedYear,
-        subdirektorat: user.subdirektorat,
+        userSubdirektorat: user.subdirektorat,
+        userDivisi: user.divisi,
         totalAssignments: adminAssignments.length,
-        assignedItems: assignedItems.length
+        assignedItems: assignedItems.length,
+        assignments: adminAssignments.map(a => ({
+          id: a.id,
+          assignmentType: a.assignmentType,
+          subdirektorat: a.subdirektorat,
+          divisi: a.divisi,
+          checklistId: a.checklistId
+        }))
       });
       
       // Check if items are uploaded using FileUploadContext (real-time)
