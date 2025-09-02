@@ -35,6 +35,7 @@ export const GCGChartWrapper: React.FC<GCGChartWrapperProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
@@ -62,12 +63,25 @@ export const GCGChartWrapper: React.FC<GCGChartWrapperProps> = ({
         }
 
         // Fallback to current table data
+        console.log('GCGChartWrapper: Processing table data', {
+          tableDataLength: tableData.length,
+          tableData: tableData.slice(0, 3), // Show first 3 items
+          selectedYear,
+          auditor,
+          jenisAsesmen
+        });
+        
         const processedTableData = processGCGDataFromTable(
           tableData,
           selectedYear,
           auditor,
           jenisAsesmen
         );
+        
+        console.log('GCGChartWrapper: Processed chart data', {
+          processedLength: processedTableData.length,
+          processedData: processedTableData.slice(0, 2)
+        });
         
         setChartData(processedTableData);
         setLoading(false);

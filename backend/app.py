@@ -606,6 +606,41 @@ def save_assessment():
                 }
                 all_rows.append(subtotal_row)
         
+        # Process separate totalData (total row sent separately from main data)
+        total_data = data.get('totalData', {})
+        if total_data and isinstance(total_data, dict):
+            # Check if total data has meaningful values (not all zeros)
+            has_meaningful_total = (
+                total_data.get('bobot', 0) != 0 or 
+                total_data.get('skor', 0) != 0 or 
+                total_data.get('capaian', 0) != 0 or 
+                total_data.get('penjelasan', '').strip() != ''
+            )
+            
+            if has_meaningful_total:
+                print(f"🔧 DEBUG: Processing separate totalData: {total_data}")
+                
+                total_row = {
+                    'Level': "1",
+                    'Type': 'total',
+                    'Section': 'TOTAL',
+                    'No': '',
+                    'Deskripsi': 'TOTAL',
+                    'Jumlah_Parameter': total_data.get('jumlah_parameter', ''),
+                    'Bobot': total_data.get('bobot', ''),
+                    'Skor': total_data.get('skor', ''),
+                    'Capaian': total_data.get('capaian', ''),
+                    'Penjelasan': total_data.get('penjelasan', ''),
+                    'Tahun': year,
+                    'Penilai': auditor,
+                    'Jenis_Asesmen': jenis_asesmen,
+                    'Export_Date': saved_at[:10]
+                }
+                all_rows.append(total_row)
+                print(f"🔧 DEBUG: Added totalData row to all_rows")
+            else:
+                print(f"🔧 DEBUG: Skipping totalData - no meaningful values")
+        
         # Convert to DataFrame and save XLSX
         if all_rows:
             df = pd.DataFrame(all_rows)
@@ -632,8 +667,13 @@ def save_assessment():
                 except (ValueError, TypeError):
                     no_numeric = 9999
                 
-                # Type priority: header=0, indicators=1, subtotal=2
-                type_priority = {'header': 0, 'indicator': 1, 'subtotal': 2}.get(row_type, 1)
+                # Type priority: header=0, indicators=1, subtotal=2, total=3 (appears last)
+                type_priority = {'header': 0, 'indicator': 1, 'subtotal': 2, 'total': 3}.get(row_type, 1)
+                
+                # Special handling for total rows: they should appear at the very end of each year
+                if row_type == 'total':
+                    # Use 'ZZZZZ' as section to ensure total rows sort last within each year
+                    section = 'ZZZZZ'
                 
                 return (year, section, type_priority, no_numeric)
             
@@ -725,7 +765,14 @@ def delete_year_data():
                     except (ValueError, TypeError):
                         no_numeric = 9999
                     
-                    type_priority = {'header': 0, 'indicator': 1, 'subtotal': 2}.get(row_type, 1)
+                    # Type priority: header=0, indicators=1, subtotal=2, total=3 (appears last)
+                    type_priority = {'header': 0, 'indicator': 1, 'subtotal': 2, 'total': 3}.get(row_type, 1)
+                    
+                    # Special handling for total rows: they should appear at the very end of each year
+                    if row_type == 'total':
+                        # Use 'ZZZZZ' as section to ensure total rows sort last within each year
+                        section = 'ZZZZZ'
+                    
                     return (year, section, type_priority, no_numeric)
                 
                 # Apply sorting

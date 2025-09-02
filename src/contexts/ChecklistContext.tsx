@@ -26,6 +26,7 @@ interface ChecklistContextType {
   deleteAspek: (id: number, year: number) => void;
   initializeYearData: (year: number) => void;
   ensureAllYearsHaveData: () => void;
+  ensureAspectsForAllYears: () => void;
 }
 
 const ChecklistContext = createContext<ChecklistContextType | undefined>(undefined);
@@ -49,6 +50,9 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
           setChecklist(parsedData);
           setAspects(parsedAspects);
           console.log('ChecklistContext: Initialized from localStorage', { checklist: parsedData.length, aspects: parsedAspects.length });
+          
+          // Clean up any duplicate aspects
+          setTimeout(() => cleanupDuplicateAspects(), 100);
         }
       } catch (error) {
         console.error('ChecklistContext: Error parsing localStorage data', error);
@@ -339,6 +343,39 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
     });
   }, []);
 
+  // Function to make aspects available for all years (DISABLED to prevent duplication)
+  const ensureAspectsForAllYears = useCallback(() => {
+    // DISABLED: This function was causing aspect duplication
+    // The generatePredeterminedRows function now gets ALL aspects regardless of year
+    console.log('ChecklistContext: ensureAspectsForAllYears disabled to prevent duplication');
+    return;
+  }, [aspects]);
+
+  // Cleanup function to remove duplicate aspects
+  const cleanupDuplicateAspects = useCallback(() => {
+    const allAspects = JSON.parse(localStorage.getItem('aspects') || '[]');
+    if (allAspects.length === 0) return;
+
+    // Remove duplicates based on nama (aspect name)
+    const uniqueAspects: Aspek[] = [];
+    const seenNames = new Set<string>();
+
+    allAspects.forEach((aspect: Aspek) => {
+      if (!seenNames.has(aspect.nama)) {
+        seenNames.add(aspect.nama);
+        uniqueAspects.push(aspect);
+      }
+    });
+
+    if (uniqueAspects.length !== allAspects.length) {
+      console.log(`ChecklistContext: Removing ${allAspects.length - uniqueAspects.length} duplicate aspects`);
+      console.log(`ChecklistContext: Cleaned up from ${allAspects.length} to ${uniqueAspects.length} aspects`);
+      
+      setAspects(uniqueAspects);
+      localStorage.setItem('aspects', JSON.stringify(uniqueAspects));
+    }
+  }, []);
+
   return (
     <ChecklistContext.Provider value={{ 
       checklist, 
@@ -352,7 +389,8 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
       editAspek,
       deleteAspek,
       initializeYearData,
-      ensureAllYearsHaveData
+      ensureAllYearsHaveData,
+      ensureAspectsForAllYears
     }}>
       {children}
     </ChecklistContext.Provider>

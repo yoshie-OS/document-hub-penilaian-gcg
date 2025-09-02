@@ -83,42 +83,64 @@ const PenilaianGCG = () => {
   
   // Update chart mode when export dialog opens
   const handleOpenExportDialog = () => {
-    // Debug: find all switch elements
-    const allInputs = document.querySelectorAll('input');
-    const allSwitches = document.querySelectorAll('input[type="checkbox"]');
-    const chartModeInputs = document.querySelectorAll('input[id="chart-mode"]');
+    // Multiple ways to detect switch state
+    const switchElement = document.querySelector('input[id="chart-mode"]') as HTMLInputElement;
+    const buttonElement = document.querySelector('button[data-state]') as HTMLElement;
     
-    console.log('All inputs found:', allInputs.length);
-    console.log('All checkbox inputs:', allSwitches.length);
-    console.log('Chart-mode inputs found:', chartModeInputs.length);
+    console.log('Switch element:', switchElement);
+    console.log('Switch checked:', switchElement?.checked);
+    console.log('Switch data-state:', switchElement?.getAttribute('data-state'));
+    console.log('Button element:', buttonElement);
+    console.log('Button data-state:', buttonElement?.getAttribute('data-state'));
     
-    // Try multiple selectors
-    let switchElement = document.querySelector('input[id="chart-mode"]') as HTMLInputElement;
+    // Check multiple ways
+    const isInSkorTahunanMode = switchElement?.checked || 
+                                switchElement?.getAttribute('data-state') === 'checked' ||
+                                buttonElement?.getAttribute('data-state') === 'checked' ||
+                                false;
     
-    if (!switchElement) {
-      // Try alternative selectors
-      switchElement = document.querySelector('button[role="switch"]') as any;
-    }
+    console.log('Final detected mode:', isInSkorTahunanMode ? 'Skor Tahunan' : 'Capaian Aspek');
     
-    if (!switchElement) {
-      // Try finding by data attributes
-      switchElement = document.querySelector('[data-state]') as HTMLInputElement;
-    }
-    
-    console.log('Switch element found:', switchElement);
-    console.log('Switch checked state:', switchElement?.checked);
-    console.log('Switch data-state:', switchElement?.getAttribute?.('data-state'));
-    
-    // Check both checked property and data-state attribute
-    const isInSkorTahunanMode = switchElement?.checked || switchElement?.getAttribute?.('data-state') === 'checked' || false;
-    
+    // Update currentChartMode state based on actual switch
     setCurrentChartMode(isInSkorTahunanMode ? 'tahun' : 'aspek');
-    console.log('Export dialog opened, detected mode:', isInSkorTahunanMode ? 'Skor Tahunan' : 'Capaian Aspek');
+    
+    // Update export options based on detected mode
+    if (isInSkorTahunanMode) {
+      setExportOptions({
+        donutCharts: false,
+        capaianAspek: false,
+        skorTahunan: true,
+        dataTable: true
+      });
+    } else {
+      setExportOptions({
+        donutCharts: true,
+        capaianAspek: true,
+        skorTahunan: false,
+        dataTable: true
+      });
+    }
+    
     setShowExportDialog(true);
   };
   
   // State untuk data table
   const [tableData, setTableData] = useState<PenilaianRow[]>([]);
+  
+  // State untuk total row
+  const [totalRowData, setTotalRowData] = useState<{
+    jumlah_parameter: number;
+    bobot: number;
+    skor: number;
+    capaian: number;
+    penjelasan: string;
+  }>({
+    jumlah_parameter: 0,
+    bobot: 0,
+    skor: 0,
+    capaian: 0,
+    penjelasan: ''
+  });
   
   // Track which fields are being edited to handle 0 display properly
   const [editingFields, setEditingFields] = useState<Record<string, string>>({});
@@ -164,7 +186,16 @@ const PenilaianGCG = () => {
       console.log('🔧 DEBUG: Entering table step - loading data for year', selectedYear);
       loadExistingDataForYear(selectedYear);
     }
-  }, [currentStep, selectedYear]);
+  }, [currentStep]);
+
+  // Reload data whenever the selected year changes
+  useEffect(() => {
+    if (currentStep === 'table') {
+      console.log('🔧 DEBUG: Year changed, reloading data for year', selectedYear);
+      loadExistingDataForYear(selectedYear);
+    }
+  }, [selectedYear]);
+
 
   // Load existing data for a year, fallback to empty rows if none found
   const loadExistingDataForYear = async (year: number) => {
@@ -214,25 +245,37 @@ const PenilaianGCG = () => {
                 };
               });
               
-              // Add total rows if they exist
-              totalRows.forEach((totalItem: any, index: number) => {
-                convertedData.push({
-                  id: `total-${totalItem.Tahun}-${index}`,
-                  aspek: '',
-                  deskripsi: 'Total',
-                  jumlah_parameter: 0,
+              // Process total rows separately - load into totalRowData state
+              if (totalRows.length > 0) {
+                const totalItem = totalRows[0]; // Use first total row
+                setTotalRowData({
+                  jumlah_parameter: totalItem.Jumlah_Parameter || 0,
                   bobot: totalItem.Bobot || 0,
                   skor: totalItem.Skor || 0,
                   capaian: totalItem.Capaian || 0,
-                  penjelasan: totalItem.Penjelasan || '',
-                  isTotal: true
+                  penjelasan: totalItem.Penjelasan || ''
                 });
-              });
+                console.log(`📊 Loaded total row for year ${year}:`, totalItem);
+              } else {
+                // Reset total row if no total data for this year
+                setTotalRowData({
+                  jumlah_parameter: 0,
+                  bobot: 0,
+                  skor: 0,
+                  capaian: 0,
+                  penjelasan: ''
+                });
+                console.log(`📊 No total row data for year ${year} - reset to empty`);
+              }
               
             } else {
-              // BRIEF format: use data as-is
+              // BRIEF format: separate regular data from total data
               console.log(`📋 Processing BRIEF format`);
-              convertedData = yearData.map((item: any, index: number) => ({
+              
+              const regularData = yearData.filter((item: any) => item.Type !== 'total');
+              const totalData = yearData.filter((item: any) => item.Type === 'total');
+              
+              convertedData = regularData.map((item: any, index: number) => ({
                 id: `brief-${item.Tahun}-${item.Section}-${index}`,
                 aspek: item.Section,
                 deskripsi: item.Deskripsi || '',
@@ -241,8 +284,31 @@ const PenilaianGCG = () => {
                 skor: item.Skor || 0,
                 capaian: item.Capaian || 0,
                 penjelasan: item.Penjelasan || '',
-                isTotal: item.Type === 'total' || false
+                isTotal: false
               }));
+              
+              // Process total row for BRIEF format
+              if (totalData.length > 0) {
+                const totalItem = totalData[0];
+                setTotalRowData({
+                  jumlah_parameter: totalItem.Jumlah_Parameter || 0,
+                  bobot: totalItem.Bobot || 0,
+                  skor: totalItem.Skor || 0,
+                  capaian: totalItem.Capaian || 0,
+                  penjelasan: totalItem.Penjelasan || ''
+                });
+                console.log(`📊 Loaded total row for year ${year} (BRIEF):`, totalItem);
+              } else {
+                // Reset total row if no total data for this year
+                setTotalRowData({
+                  jumlah_parameter: 0,
+                  bobot: 0,
+                  skor: 0,
+                  capaian: 0,
+                  penjelasan: ''
+                });
+                console.log(`📊 No total row data for year ${year} (BRIEF) - reset to empty`);
+              }
             }
             
             setTableData(convertedData);
@@ -256,40 +322,82 @@ const PenilaianGCG = () => {
       console.error('Error loading existing data:', error);
     }
 
-    // Fallback: Generate empty rows if no existing data found
-    console.log(`📋 No existing data for year ${year}, generating empty rows`);
-    // BRIEF mode - use aspect summary for main table
-    const aspectRows = getAspectSummaryRows();
-    setTableData(aspectRows);
-    console.log(`📋 BRIEF mode - ${aspectRows.length} empty aspect rows loaded`);
+    // Fallback: Load predetermined rows from Kelola Aspek
+    console.log(`📝 No existing data for year ${year}, loading predetermined rows from Kelola Aspek`);
+    const predeterminedRows = generatePredeterminedRows(year, false);
+    
+    // Reset total row data for new year (no existing data)
+    setTotalRowData({
+      jumlah_parameter: 0,
+      bobot: 0,
+      skor: 0,
+      capaian: 0,
+      penjelasan: ''
+    });
+    console.log(`📊 Reset total row data for new year ${year}`);
+    
+    if (predeterminedRows.length > 0) {
+      setTableData(predeterminedRows);
+      setSaveMessage(`📋 Tahun ${year} dipilih - ${predeterminedRows.length} baris dari Kelola Aspek dimuat`);
+      setTimeout(() => setSaveMessage(null), 3000);
+      console.log(`📋 BRIEF mode - ${predeterminedRows.length} predetermined rows loaded from Kelola Aspek`);
+    } else {
+      // Final fallback: Generate empty aspect summary rows if no checklist data
+      console.log(`⚠️ No checklist data available for year ${year}, using empty aspect rows`);
+      const aspectRows = getAspectSummaryRows();
+      setTableData(aspectRows);
+      console.log(`📋 BRIEF mode - ${aspectRows.length} empty aspect rows loaded`);
+    }
   };
   
   // Generate predetermined rows from Kelola Aspek data
   const generatePredeterminedRows = (year: number, isDetailed: boolean): PenilaianRow[] => {
-    const checklistData = getChecklistByYear(year);
+    // Strategy: Always get ALL aspects from localStorage, regardless of year
+    // This makes aspects available across all years, which is what the user wants
+    const allAspects = JSON.parse(localStorage.getItem('aspects') || '[]');
+    console.log(`📋 Total aspects in localStorage: ${allAspects.length}`, allAspects);
     
-    if (checklistData.length === 0) {
-      console.log(`⚠️ No checklist data found for year ${year}`);
+    if (allAspects.length === 0) {
+      console.log(`⚠️ No aspects found in localStorage at all`);
       return [];
     }
     
-    console.log(`📋 Found ${checklistData.length} checklist items for year ${year}`);
-    console.log(`📋 Sample item:`, checklistData[0]); // Debug first item
+    // Use all aspects regardless of their original year
+    // This allows aspects to be reused across all years in the system
+    const aspectsData = allAspects;
+    console.log(`📋 Using all ${aspectsData.length} aspects for year ${year} table generation`);
+    console.log(`📋 Sample aspect:`, aspectsData[0]); // Debug first aspect
     
     const rows: PenilaianRow[] = [];
     
-    checklistData.forEach((item, index) => {
-      // Convert "ASPEK I. Komitmen" to "I" for the aspek field
-      let aspek = item.aspek.replace(/ASPEK\s+/, '').split('.')[0].trim();
+    aspectsData.forEach((aspect, index) => {
+      // Extract Roman numeral from aspect name for [aspek] column
+      let romanNumeral = '';
+      const aspectName = aspect.nama;
+      
+      // Try to extract Roman numeral from pattern "ASPEK I." or "ASPEK II." etc.
+      const romanMatch = aspectName.match(/ASPEK\s+([IVXLC]+)\./);
+      if (romanMatch) {
+        romanNumeral = romanMatch[1]; // Extract the Roman numeral part (I, II, III, etc.)
+      } else {
+        // Fallback: use sequential Roman numerals if pattern doesn't match
+        romanNumeral = toRoman(index + 1);
+      }
+      
+      // Use the full aspect name for [deskripsi] column
+      let deskripsi = aspectName;
+      
+      // Remove "ASPEK X." prefix from description if it exists to avoid redundancy
+      deskripsi = deskripsi.replace(/^ASPEK\s+[IVXLC]+\.\s*/, '');
       
       // Calculate initial capaian (penjelasan now manual)
       const initialCapaian = calculateCapaian(0, 0); // 0 skor, 0 bobot
       
       const row: PenilaianRow = {
-        id: `predetermined-${item.id}-${index}`,
+        id: `predetermined-${aspect.id}-${index}`,
         no: isDetailed ? (index + 1).toString() : undefined,
-        aspek: aspek,
-        deskripsi: item.deskripsi,
+        aspek: romanNumeral, // Roman numeral (I, II, III, etc.)
+        deskripsi: deskripsi, // Clean aspect description
         jumlah_parameter: 0, // Default to 0 - user will fill this manually
         bobot: 0, // User will fill this
         skor: 0, // User will fill this
@@ -300,9 +408,37 @@ const PenilaianGCG = () => {
       rows.push(row);
     });
     
-    console.log(`✅ Generated ${rows.length} predetermined rows from checklist data`);
+    console.log(`✅ Generated ${rows.length} predetermined rows from aspects data for year ${year}`);
     console.log(`📋 Sample generated row:`, rows[0]); // Debug first generated row
     return rows;
+  };
+
+  // Handle mode toggle between BRIEF and DETAILED modes
+  const handleModeToggle = (detailed: boolean) => {
+    setIsDetailedMode(detailed);
+    
+    if (detailed) {
+      // Switch to DETAILED mode - load aspect summary and predetermined rows
+      setAspectSummaryData(getAspectSummaryRows());
+      
+      // Load predetermined rows from Kelola Aspek for current year
+      const predeterminedRows = generatePredeterminedRows(selectedYear, true);
+      setTableData(predeterminedRows);
+      console.log(`📊 DETAILED mode activated - aspect summary + ${predeterminedRows.length} predetermined rows loaded`);
+    } else {
+      // Switch to BRIEF mode - use aspect summary as main table
+      setAspectSummaryData([]);
+      // Load predetermined rows for BRIEF mode
+      const predeterminedRows = generatePredeterminedRows(selectedYear, false);
+      if (predeterminedRows.length > 0) {
+        setTableData(predeterminedRows);
+        console.log(`📋 BRIEF mode activated - ${predeterminedRows.length} predetermined rows loaded`);
+      } else {
+        // Fallback to aspect summary if no checklist data
+        setTableData(getAspectSummaryRows());
+        console.log('📋 BRIEF mode activated - 6 predefined aspects loaded into main table');
+      }
+    }
   };
 
   // Dynamic GCG aspect summary rows based on configured aspects
@@ -514,7 +650,7 @@ const PenilaianGCG = () => {
       
       currentY += 40;
 
-      // Export Donut Charts
+      // Export Donut Charts (Same page as title)
       if (exportOptions.donutCharts) {
         const donutSection = document.querySelector('.grid.grid-cols-2');
         if (donutSection) {
@@ -529,6 +665,7 @@ const PenilaianGCG = () => {
           const imgWidth = 250;
           const imgHeight = (canvas.height * imgWidth) / canvas.width;
           
+          // Add section header
           pdf.setFontSize(14);
           pdf.setFont('helvetica', 'bold');
           pdf.text('Average Achievement by Aspect', 20, currentY);
@@ -536,28 +673,36 @@ const PenilaianGCG = () => {
           
           pdf.addImage(imgData, 'PNG', 20, currentY, imgWidth, imgHeight);
           currentY += imgHeight + 20;
+          console.log('Donut charts exported on first page');
         }
       }
 
-      // Export Capaian Aspek Charts (Multi-page: rows 1-2, 3-4, 5-6, etc.)
+      // Export Capaian Aspek Charts (Each pair on separate page)
       if (exportOptions.capaianAspek) {
         // Find all chart row containers
         const chartRows = document.querySelectorAll('.flex.flex-col.items-center.w-full.gap-12 > div');
         console.log('Found chart rows:', chartRows.length);
         
         if (chartRows.length > 0) {
-          // Group rows into pairs: 1-2, 3-4, 5-6, etc.
+          // Group rows into pairs: 1-2, 3-4, 5-6, etc. - each pair gets its own page
           for (let pageIndex = 0; pageIndex < Math.ceil(chartRows.length / 2); pageIndex++) {
             const rowIndex1 = pageIndex * 2;
             const rowIndex2 = pageIndex * 2 + 1;
             
             console.log(`Processing page ${pageIndex + 1}: rows ${rowIndex1 + 1}${rowIndex2 < chartRows.length ? `-${rowIndex2 + 1}` : ''}`);
             
-            // Add new page for each row pair (except the first)
-            if (pageIndex > 0 || currentY > 200) {
-              pdf.addPage();
-              currentY = 20;
-            }
+            // Add new page for each row pair
+            pdf.addPage();
+            currentY = 20;
+            
+            // Page header
+            pdf.setFontSize(16);
+            pdf.setFont('helvetica', 'bold');
+            const pageTitle = rowIndex2 < chartRows.length 
+              ? `Capaian Aspek Charts - Rows ${rowIndex1 + 1}-${rowIndex2 + 1}`
+              : `Capaian Aspek Charts - Row ${rowIndex1 + 1}`;
+            pdf.text(pageTitle, 20, currentY);
+            currentY += 20;
             
             // Create a temporary container for the row pair
             const tempContainer = document.createElement('div');
@@ -624,15 +769,21 @@ const PenilaianGCG = () => {
         }
       }
 
-      // Export Skor Tahunan Charts  
+      // Export Skor Tahunan Charts (Same page as title)
       if (exportOptions.skorTahunan) {
         // First switch to Skor Tahunan mode if not already
-        const switchElement = document.querySelector('input[id="chart-mode"]') as HTMLInputElement;
-        if (switchElement && !switchElement.checked) {
-          switchElement.click();
+        const buttonElement = document.querySelector('button[data-state]') as HTMLElement;
+        if (buttonElement && buttonElement.getAttribute('data-state') !== 'checked') {
+          buttonElement.click();
           // Wait for the chart to render in Skor Tahunan mode
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
+        
+        // Add section header
+        pdf.setFontSize(14);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('Skor Tahunan Chart', 20, currentY);
+        currentY += 10;
         
         // Target the parent container of the SVG instead of the SVG directly
         let chartContainer: HTMLElement | null = null;
@@ -1180,80 +1331,14 @@ const PenilaianGCG = () => {
 
   // Load data when year changes
   const handleYearChange = async (year: number) => {
-    try {
-      console.log(`🔧 DEBUG: Year changed to ${year}, loading indicator data...`);
-      
-      setSelectedYear(year);
-      
-      // Load aspek data (always for summary table)
-      const aspekResponse = await fetch('/api/aspek-data');
-      const aspekResult = await aspekResponse.json();
-      
-      // Load indicator data (for detailed table if exists)
-      const indicatorResponse = await fetch('/api/indicator-data');
-      const indicatorResult = await indicatorResponse.json();
-      
-      console.log(`🔧 DEBUG: Aspek response:`, aspekResult);
-      console.log(`🔧 DEBUG: Indicator response:`, indicatorResult);
-      
-      if (aspekResult.success && aspekResult.data.length > 0) {
-        // Filter aspek data for the selected year
-        const yearAspekData = aspekResult.data.filter((item: any) => item.tahun === year);
-        console.log(`✅ Found ${yearAspekData.length} aspek records for year ${year}`);
-        
-        if (yearAspekData.length > 0) {
-          // Load aspek data to summary table
-          setAspectSummaryData(yearAspekData);
-          setSaveMessage(`📂 Loaded ${yearAspekData.length} aspek records for year ${year}`);
-          
-          // Check if we have indicator data for this year
-          if (indicatorResult.success && indicatorResult.data.length > 0) {
-            const yearIndicators = indicatorResult.data.filter((item: any) => item.tahun === year);
-            if (yearIndicators.length > 0) {
-              // We have indicator data - load it but RESPECT current mode
-              loadDataWithDetection(yearIndicators);
-              console.log(`✅ Found ${yearIndicators.length} indicators - loaded in BRIEF mode`);
-              
-              // BRIEF mode - no aspect summary needed
-            } else {
-              // No indicators for this year - use aspek data
-              setAspectSummaryData([]); // Clear aspect summary table
-              setTableData(yearAspekData);
-              console.log(`📝 No indicators for year ${year} - using aspek data in BRIEF mode`);
-            }
-          } else {
-            // No indicator data at all - use aspek data
-            setAspectSummaryData([]); // Clear aspect summary table
-            setTableData(yearAspekData);
-            console.log(`📝 No indicator data available - using aspek data in BRIEF mode`);
-          }
-        } else {
-          // No aspek data for this year - load default aspect rows
-          console.log(`📝 No aspek data found for year ${year}, loading default aspect rows`);
-          
-          // BRIEF mode - load 6 simple aspect rows
-          setTableData(getAspectSummaryRows());
-          setSaveMessage(`📋 No data for year ${year} - loaded 6 aspect rows (BRIEF mode)`);
-        }
-        
-        setTimeout(() => setSaveMessage(null), 3000);
-      } else {
-        console.log(`📝 No aspek data available, loading default aspect rows`);
-        
-        // BRIEF mode - load 6 simple aspect rows
-        setTableData(getAspectSummaryRows());
-        setSaveMessage(`📋 No data available - loaded 6 aspect rows (BRIEF mode)`);
-        
-        setTimeout(() => setSaveMessage(null), 3000);
-      }
-      
-    } catch (error) {
-      console.error('❌ Error loading indicator data:', error);
-      
-      // BRIEF mode - fallback to 6 simple aspect rows
-      setTableData(getAspectSummaryRows());
-      setSaveMessage(`❌ Error loading data - using 6 aspect rows (BRIEF mode)`);
-      setTimeout(() => setSaveMessage(null), 5000);
+    console.log(`🔧 DEBUG: Year changed to ${year}, loading data...`);
+    
+    // Update the selected year
+    setSelectedYear(year);
+    
+    // Use the same data loading logic as the main useEffect
+    if (currentStep === 'table') {
+      await loadExistingDataForYear(year);
     }
   };
 
@@ -1268,9 +1353,23 @@ const PenilaianGCG = () => {
       console.log(`📋 Saving 0 aspect summary rows (BRIEF mode)`);
       console.log(`🎯 Year being saved: ${selectedYear}, Auditor: ${auditor}, Jenis Asesmen: ${jenisAsesmen}`);
       
+      // Create total row data in the same format
+      const totalRowForSave = {
+        aspek: 'TOTAL', // Will be used in Excel
+        deskripsi: 'TOTAL',
+        jumlah_parameter: totalRowData.jumlah_parameter || 0,
+        bobot: totalRowData.bobot,
+        skor: totalRowData.skor,
+        capaian: totalRowData.capaian,
+        penjelasan: totalRowData.penjelasan,
+        type: 'total', // Mark as total type
+        tahun: selectedYear
+      };
+
       const saveData = {
         data: tableData,
         aspectSummaryData: [],
+        totalData: totalRowForSave, // Add total row data
         year: selectedYear,
         auditor: auditor,
         jenis_asesmen: jenisAsesmen,
@@ -1411,7 +1510,13 @@ const PenilaianGCG = () => {
       <div className="space-y-6">
         <h2 className="text-xl font-semibold text-gray-800 text-left">Dashboard Visualisasi</h2>
         
-        <GCGChartWrapper key={chartRefreshKey} selectedYear={selectedYear} tableData={tableData} auditor={auditor} jenisAsesmen={jenisAsesmen} />
+        <GCGChartWrapper 
+          key={chartRefreshKey} 
+          selectedYear={selectedYear} 
+          tableData={tableData} 
+          auditor={auditor} 
+          jenisAsesmen={jenisAsesmen}
+        />
         
         {/* Action Buttons - moved to bottom */}
         {isSuperAdmin() && (
@@ -2596,7 +2701,96 @@ const PenilaianGCG = () => {
                 ))}
               </TableBody>
             </Table>
-            
+
+            {/* Total Row - Separate from main table */}
+            <div className="mt-6 border-t-2 border-gray-300 pt-4">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Total Row</h3>
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-gradient-to-r from-yellow-50 to-orange-50">
+                    <TableHead className="text-yellow-900 font-semibold">Deskripsi</TableHead>
+                    <TableHead className="text-yellow-900 font-semibold">Bobot</TableHead>
+                    <TableHead className="text-yellow-900 font-semibold">Skor</TableHead>
+                    <TableHead className="text-yellow-900 font-semibold">Capaian (%)</TableHead>
+                    <TableHead className="text-yellow-900 font-semibold">Penjelasan</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <TableRow className="bg-yellow-50 hover:bg-yellow-100">
+                    {/* Deskripsi - Fixed as "TOTAL" */}
+                    <TableCell>
+                      <div className="font-bold text-yellow-900 text-center py-2">
+                        TOTAL
+                      </div>
+                    </TableCell>
+                    
+                    {/* Bobot */}
+                    <TableCell>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={totalRowData.bobot}
+                        onChange={(e) => {
+                          const value = parseFloat(e.target.value) || 0;
+                          setTotalRowData(prev => ({
+                            ...prev,
+                            bobot: value,
+                            capaian: calculateCapaian(prev.skor, value)
+                          }));
+                        }}
+                        className="border-0 bg-transparent focus:bg-white focus:border focus:border-yellow-300 w-20 font-bold"
+                        placeholder="0.00"
+                      />
+                    </TableCell>
+                    
+                    {/* Skor */}
+                    <TableCell>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={totalRowData.skor}
+                        onChange={(e) => {
+                          const value = parseFloat(e.target.value) || 0;
+                          setTotalRowData(prev => ({
+                            ...prev,
+                            skor: value,
+                            capaian: calculateCapaian(value, prev.bobot)
+                          }));
+                        }}
+                        className="border-0 bg-transparent focus:bg-white focus:border focus:border-yellow-300 w-20 font-bold"
+                        placeholder="0.00"
+                      />
+                    </TableCell>
+                    
+                    {/* Capaian (Auto-calculated) */}
+                    <TableCell>
+                      <div className="text-center font-bold text-yellow-800">
+                        {totalRowData.capaian}%
+                      </div>
+                    </TableCell>
+                    
+                    {/* Penjelasan */}
+                    <TableCell>
+                      <Input
+                        type="text"
+                        value={totalRowData.penjelasan}
+                        onChange={(e) => setTotalRowData(prev => ({ ...prev, penjelasan: e.target.value }))}
+                        placeholder="Masukkan penjelasan..."
+                        className="border-0 bg-transparent focus:bg-white focus:border focus:border-yellow-300 font-bold"
+                        list="penjelasan-suggestions-total"
+                      />
+                      <datalist id="penjelasan-suggestions-total">
+                        <option value="Sangat Baik" />
+                        <option value="Baik" />
+                        <option value="Cukup Baik" />
+                        <option value="Kurang Baik" />
+                        <option value="Tidak Baik" />
+                      </datalist>
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
             
             {/* Mode Info */}
             {false && tableData.length > 0 && (
@@ -2653,14 +2847,21 @@ const PenilaianGCG = () => {
               Select which components to include in the PDF export
               <br />
               <span className="text-xs text-blue-600 font-medium">
-                Current mode: {currentChartMode === 'tahun' ? 'Skor Tahunan' : 'Capaian Aspek'}
+                Current mode: {(() => {
+                  const buttonElement = document.querySelector('button[data-state]') as HTMLElement;
+                  return buttonElement?.getAttribute('data-state') === 'checked' ? 'Skor Tahunan' : 'Capaian Aspek';
+                })()}
               </span>
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4 py-4">
             {(() => {              
-              if (currentChartMode === 'tahun') {
+              // Always check actual switch state using button element (not input)
+              const buttonElement = document.querySelector('button[data-state]') as HTMLElement;
+              const isInSkorTahunanMode = buttonElement?.getAttribute('data-state') === 'checked' || false;
+              
+              if (isInSkorTahunanMode) {
                 // Skor Tahunan mode - only show Skor Tahunan and Data Table options
                 return (
                   <>
@@ -2788,7 +2989,11 @@ const PenilaianGCG = () => {
               }}
               className="bg-blue-600 hover:bg-blue-700"
               disabled={(() => {                
-                if (currentChartMode === 'tahun') {
+                // Always check actual switch state using button element
+                const buttonElement = document.querySelector('button[data-state]') as HTMLElement;
+                const isInSkorTahunanMode = buttonElement?.getAttribute('data-state') === 'checked' || false;
+                
+                if (isInSkorTahunanMode) {
                   return !exportOptions.skorTahunan && !exportOptions.dataTable;
                 } else {
                   return !exportOptions.donutCharts && !exportOptions.capaianAspek && !exportOptions.dataTable;

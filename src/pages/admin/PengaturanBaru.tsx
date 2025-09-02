@@ -232,7 +232,8 @@ const PengaturanBaru = () => {
     editAspek, 
     deleteAspek, 
     initializeYearData,
-    getAspectsByYear
+    getAspectsByYear,
+    ensureAspectsForAllYears
   } = useChecklist();
   const { toast } = useToast();
 
@@ -332,6 +333,12 @@ const PengaturanBaru = () => {
       setSetupProgress(prev => ({ ...prev, manajemenAkun: true }));
     }
   }, [users]);
+
+  // Effect untuk memastikan aspects tersedia untuk semua tahun
+  useEffect(() => {
+    console.log('PengaturanBaru: Ensuring aspects are available for all years');
+    ensureAspectsForAllYears();
+  }, [ensureAspectsForAllYears]);
 
   // Effect untuk load checklist dari context dan localStorage
   useEffect(() => {
