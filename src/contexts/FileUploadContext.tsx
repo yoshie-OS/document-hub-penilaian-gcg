@@ -53,14 +53,14 @@ export const FileUploadProvider: React.FC<{ children: ReactNode }> = ({ children
   // Fetch files from backend API
   const fetchFiles = async (): Promise<UploadedFile[]> => {
     try {
-      const response = await fetch('http://localhost:5000/api/uploaded-files');
+      const response = await fetch('http://localhost:5001/api/files');
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
       return data.files.map((file: any) => ({
         ...file,
-        uploadDate: new Date(file.uploadDate)
+        uploadDate: new Date(file.created)
       }));
     } catch (error) {
       console.error('Error fetching uploaded files:', error);

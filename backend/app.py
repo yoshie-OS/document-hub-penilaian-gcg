@@ -8,6 +8,7 @@ import os
 import sys
 import json
 import uuid
+import time
 import shutil
 import subprocess
 from pathlib import Path
@@ -20,11 +21,35 @@ from werkzeug.utils import secure_filename
 import pandas as pd
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from parent directory
+from pathlib import Path
+env_path = Path(__file__).parent.parent / '.env'
+load_dotenv(dotenv_path=env_path)
 
 # Import storage service
 from storage_service import storage_service
+
+# Migrate Excel config files to CSV on startup
+def migrate_config_to_csv():
+    """Migrate config files from Excel to CSV format"""
+    try:
+        # Check if Excel file exists but CSV doesn't
+        if storage_service.file_exists('config/aspects.xlsx'):
+            aspects_data = storage_service.read_excel('config/aspects.xlsx')
+            if aspects_data is not None and not storage_service.file_exists('config/aspects.csv'):
+                print("🔄 Migrating aspects from Excel to CSV...")
+                success = storage_service.write_csv(aspects_data, 'config/aspects.csv')
+                if success:
+                    print("✅ Successfully migrated aspects to CSV")
+                else:
+                    print("❌ Failed to migrate aspects to CSV")
+            else:
+                print("📋 Aspects CSV already exists or no Excel data to migrate")
+    except Exception as e:
+        print(f"⚠️ Error during config migration: {e}")
+
+# Run migration on startup
+migrate_config_to_csv()
 
 # Project root for subprocess calls to the working core system
 project_root = str(Path(__file__).parent.parent.parent)
@@ -1650,6 +1675,144 @@ def upload_gcg_file():
         return jsonify({'error': f'Failed to upload GCG file: {str(e)}'}), 500
 
 
+# ========================
+# CONFIGURATION MANAGEMENT ENDPOINTS
+# ========================
+
+@app.route('/api/config/aspects', methods=['GET'])
+def get_aspects():
+    """Get all aspects, optionally filtered by year"""
+    try:
+        year = request.args.get('year')
+        
+        # Read aspects from storage (CSV for easier reading)
+        aspects_data = storage_service.read_csv('config/aspects.csv')
+        print(f"🔍 DEBUG: Read CSV data: {aspects_data}")
+        
+        if aspects_data is None:
+            return jsonify({'aspects': []}), 200
+            
+        # Convert DataFrame to list of dictionaries
+        aspects_list = aspects_data.to_dict('records')
+        
+        # Filter by year if provided
+        if year:
+            try:
+                year_int = int(year)
+                aspects_list = [aspect for aspect in aspects_list if aspect.get('tahun') == year_int]
+            except ValueError:
+                return jsonify({'error': 'Invalid year format'}), 400
+        
+        return jsonify({'aspects': aspects_list}), 200
+        
+    except Exception as e:
+        print(f"Error getting aspects: {e}")
+        return jsonify({'aspects': []}), 200
+
+@app.route('/api/config/aspects', methods=['POST'])
+def add_aspect():
+    """Add a new aspect for a specific year"""
+    try:
+        data = request.get_json()
+        
+        if not data.get('nama') or not data.get('tahun'):
+            return jsonify({'error': 'Name and year are required'}), 400
+            
+        # Read existing aspects
+        try:
+            aspects_data = storage_service.read_excel('config/aspects.xlsx')
+            if aspects_data is None:
+                aspects_data = pd.DataFrame()
+        except:
+            aspects_data = pd.DataFrame()
+            
+        # Create new aspect record
+        new_aspect = {
+            'id': int(time.time() * 1000),  # Use timestamp as ID
+            'nama': data['nama'],
+            'tahun': int(data['tahun']),
+            'created_at': datetime.now().isoformat()
+        }
+        
+        # Add to DataFrame
+        new_row = pd.DataFrame([new_aspect])
+        aspects_data = pd.concat([aspects_data, new_row], ignore_index=True)
+        
+        # Save to storage (CSV for easier reading)
+        success = storage_service.write_csv(aspects_data, 'config/aspects.csv')
+        
+        if success:
+            return jsonify({'success': True, 'aspect': new_aspect}), 201
+        else:
+            return jsonify({'error': 'Failed to save aspect'}), 500
+            
+    except Exception as e:
+        print(f"Error adding aspect: {e}")
+        return jsonify({'error': f'Failed to add aspect: {str(e)}'}), 500
+
+@app.route('/api/config/aspects/<int:aspect_id>', methods=['PUT'])
+def update_aspect(aspect_id):
+    """Update an existing aspect"""
+    try:
+        data = request.get_json()
+        
+        if not data.get('nama'):
+            return jsonify({'error': 'Name is required'}), 400
+            
+        # Read existing aspects
+        aspects_data = storage_service.read_csv('config/aspects.csv')
+        if aspects_data is None:
+            return jsonify({'error': 'No aspects found'}), 404
+            
+        # Find and update the aspect
+        aspect_found = False
+        for index, row in aspects_data.iterrows():
+            if int(row['id']) == aspect_id:
+                aspects_data.at[index, 'nama'] = data['nama']
+                aspects_data.at[index, 'updated_at'] = datetime.now().isoformat()
+                aspect_found = True
+                break
+                
+        if not aspect_found:
+            return jsonify({'error': 'Aspect not found'}), 404
+            
+        # Save to storage (CSV for easier reading)
+        success = storage_service.write_csv(aspects_data, 'config/aspects.csv')
+        
+        if success:
+            return jsonify({'success': True}), 200
+        else:
+            return jsonify({'error': 'Failed to update aspect'}), 500
+            
+    except Exception as e:
+        print(f"Error updating aspect: {e}")
+        return jsonify({'error': f'Failed to update aspect: {str(e)}'}), 500
+
+@app.route('/api/config/aspects/<int:aspect_id>', methods=['DELETE'])
+def delete_aspect(aspect_id):
+    """Delete an aspect"""
+    try:
+        # Read existing aspects
+        aspects_data = storage_service.read_csv('config/aspects.csv')
+        if aspects_data is None:
+            return jsonify({'error': 'No aspects found'}), 404
+            
+        # Filter out the aspect to delete
+        aspects_data = aspects_data[aspects_data['id'] != aspect_id]
+        
+        # Save to storage (CSV for easier reading)
+        success = storage_service.write_csv(aspects_data, 'config/aspects.csv')
+        
+        if success:
+            return jsonify({'success': True}), 200
+        else:
+            return jsonify({'error': 'Failed to delete aspect'}), 500
+            
+    except Exception as e:
+        print(f"Error deleting aspect: {e}")
+        return jsonify({'error': f'Failed to delete aspect: {str(e)}'}), 500
+
+
 if __name__ == '__main__':
     print(">> Starting POS Data Cleaner 2 Web API")
     print(f"   Upload folder: {UPLOAD_FOLDER}")
@@ -1658,4 +1821,154 @@ if __name__ == '__main__':
     print("   Production system integrated")
     print("   Server starting on http://localhost:5000")
     
+# =============================================================================
+# PENGATURAN BARU CONFIGURATION ENDPOINTS
+# =============================================================================
+
+@app.route('/api/config/tahun-buku', methods=['GET'])
+def get_tahun_buku():
+    """Get all tahun buku data"""
+    try:
+        # Read tahun buku from storage
+        tahun_data = storage_service.read_csv('config/tahun-buku.csv')
+        
+        if tahun_data is None:
+            return jsonify({'tahun_buku': []}), 200
+            
+        # Convert DataFrame to list of dictionaries
+        tahun_list = tahun_data.to_dict('records')
+        
+        return jsonify({'tahun_buku': tahun_list}), 200
+        
+    except Exception as e:
+        print(f"❌ Error getting tahun buku: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/config/tahun-buku', methods=['POST'])
+def add_tahun_buku():
+    """Add a new tahun buku"""
+    try:
+        data = request.get_json()
+        
+        if not data.get('tahun'):
+            return jsonify({'error': 'Tahun is required'}), 400
+            
+        # Read existing tahun buku
+        try:
+            tahun_data = storage_service.read_csv('config/tahun-buku.csv')
+            if tahun_data is None:
+                tahun_data = pd.DataFrame()
+        except:
+            tahun_data = pd.DataFrame()
+            
+        # Check if tahun already exists
+        if not tahun_data.empty and data['tahun'] in tahun_data['tahun'].values:
+            return jsonify({'error': 'Tahun already exists'}), 400
+        
+        # Create new tahun record
+        new_tahun = {
+            'id': int(time.time() * 1000000),  # microsecond timestamp
+            'tahun': data['tahun'],
+            'nama': data.get('nama', ''),
+            'created_at': datetime.now().isoformat()
+        }
+        
+        # Add to DataFrame
+        new_row = pd.DataFrame([new_tahun])
+        tahun_data = pd.concat([tahun_data, new_row], ignore_index=True)
+        
+        # Save to storage (CSV for easier reading)
+        success = storage_service.write_csv(tahun_data, 'config/tahun-buku.csv')
+        
+        if success:
+            return jsonify({'success': True, 'tahun_buku': new_tahun}), 201
+        else:
+            return jsonify({'error': 'Failed to save tahun buku'}), 500
+            
+    except Exception as e:
+        print(f"❌ Error adding tahun buku: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/config/struktur-organisasi', methods=['GET'])
+def get_struktur_organisasi():
+    """Get all struktur organisasi data"""
+    try:
+        # Read struktur organisasi from storage
+        struktur_data = storage_service.read_csv('config/struktur-organisasi.csv')
+        
+        if struktur_data is None:
+            return jsonify({
+                'direktorat': [],
+                'subdirektorat': [],
+                'divisi': [],
+                'anak_perusahaan': []
+            }), 200
+            
+        # Convert DataFrame to list and group by type
+        struktur_list = struktur_data.to_dict('records')
+        
+        result = {
+            'direktorat': [item for item in struktur_list if item.get('type') == 'direktorat'],
+            'subdirektorat': [item for item in struktur_list if item.get('type') == 'subdirektorat'],
+            'divisi': [item for item in struktur_list if item.get('type') == 'divisi'],
+            'anak_perusahaan': [item for item in struktur_list if item.get('type') == 'anak_perusahaan']
+        }
+        
+        return jsonify(result), 200
+        
+    except Exception as e:
+        print(f"❌ Error getting struktur organisasi: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/config/struktur-organisasi', methods=['POST'])
+def add_struktur_organisasi():
+    """Add a new struktur organisasi item"""
+    try:
+        data = request.get_json()
+        
+        required_fields = ['type', 'nama']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({'error': f'{field} is required'}), 400
+        
+        # Validate type
+        valid_types = ['direktorat', 'subdirektorat', 'divisi', 'anak_perusahaan']
+        if data['type'] not in valid_types:
+            return jsonify({'error': f'type must be one of: {", ".join(valid_types)}'}), 400
+            
+        # Read existing struktur organisasi
+        try:
+            struktur_data = storage_service.read_csv('config/struktur-organisasi.csv')
+            if struktur_data is None:
+                struktur_data = pd.DataFrame()
+        except:
+            struktur_data = pd.DataFrame()
+        
+        # Create new struktur record
+        new_struktur = {
+            'id': int(time.time() * 1000000),  # microsecond timestamp
+            'type': data['type'],
+            'nama': data['nama'],
+            'deskripsi': data.get('deskripsi', ''),
+            'parent_id': data.get('parent_id'),  # For subdirektorat->direktorat, divisi->subdirektorat
+            'created_at': datetime.now().isoformat()
+        }
+        
+        # Add to DataFrame
+        new_row = pd.DataFrame([new_struktur])
+        struktur_data = pd.concat([struktur_data, new_row], ignore_index=True)
+        
+        # Save to storage (CSV for easier reading)
+        success = storage_service.write_csv(struktur_data, 'config/struktur-organisasi.csv')
+        
+        if success:
+            return jsonify({'success': True, 'struktur': new_struktur}), 201
+        else:
+            return jsonify({'error': 'Failed to save struktur organisasi'}), 500
+            
+    except Exception as e:
+        print(f"❌ Error adding struktur organisasi: {e}")
+        return jsonify({'error': str(e)}), 500
+
+if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

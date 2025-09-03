@@ -48,18 +48,18 @@ interface StrukturPerusahaanContextType {
   divisi: Divisi[];
   
   // CRUD functions
-  addDirektorat: (data: Omit<Direktorat, 'id' | 'createdAt' | 'isActive'>) => void;
-  addSubdirektorat: (data: Omit<Subdirektorat, 'id' | 'createdAt' | 'isActive'>) => void;
-  addAnakPerusahaan: (data: Omit<AnakPerusahaan, 'id' | 'createdAt' | 'isActive'>) => void;
-  addDivisi: (data: Omit<Divisi, 'id' | 'createdAt' | 'isActive'>) => void;
+  addDirektorat: (data: Omit<Direktorat, 'id' | 'createdAt' | 'isActive'>) => Promise<void>;
+  addSubdirektorat: (data: Omit<Subdirektorat, 'id' | 'createdAt' | 'isActive'>) => Promise<void>;
+  addAnakPerusahaan: (data: Omit<AnakPerusahaan, 'id' | 'createdAt' | 'isActive'>) => Promise<void>;
+  addDivisi: (data: Omit<Divisi, 'id' | 'createdAt' | 'isActive'>) => Promise<void>;
   
-  deleteDirektorat: (id: number) => void;
-  deleteSubdirektorat: (id: number) => void;
-  deleteAnakPerusahaan: (id: number) => void;
-  deleteDivisi: (id: number) => void;
+  deleteDirektorat: (id: number) => Promise<void>;
+  deleteSubdirektorat: (id: number) => Promise<void>;
+  deleteAnakPerusahaan: (id: number) => Promise<void>;
+  deleteDivisi: (id: number) => Promise<void>;
   
   // Utility functions
-  useDefaultData: (year: number) => void;
+  useDefaultData: (year: number) => Promise<void>;
   refreshData: () => void;
   
   // Loading state
@@ -83,9 +83,55 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
   const [anakPerusahaan, setAnakPerusahaan] = useState<AnakPerusahaan[]>([]);
   const [divisi, setDivisi] = useState<Divisi[]>([]);
 
-  // Load data dari localStorage
+  // Load data from Supabase first, fallback to localStorage
   useEffect(() => {
-    const loadData = () => {
+    const loadDataFromSupabase = async () => {
+      try {
+        setIsLoading(true);
+        const response = await fetch('http://localhost:5000/api/config/struktur-organisasi');
+        if (response.ok) {
+          const data = await response.json();
+          
+          // Map the Supabase data to our local format
+          const mapSupabaseData = (items: any[], type: string) => {
+            return items.map((item: any) => ({
+              id: item.id || Date.now() + Math.random(),
+              nama: item.nama,
+              deskripsi: item.deskripsi || '',
+              tahun: item.tahun || new Date().getFullYear(),
+              createdAt: new Date(item.created_at || new Date()),
+              isActive: true,
+              // Type-specific fields
+              ...(type === 'subdirektorat' && { direktoratId: item.parent_id }),
+              ...(type === 'divisi' && { subdirektoratId: item.parent_id }),
+            }));
+          };
+
+          setDirektorat(mapSupabaseData(data.direktorat || [], 'direktorat'));
+          setSubdirektorat(mapSupabaseData(data.subdirektorat || [], 'subdirektorat'));
+          setAnakPerusahaan(mapSupabaseData(data.anak_perusahaan || [], 'anak_perusahaan'));
+          setDivisi(mapSupabaseData(data.divisi || [], 'divisi'));
+          
+          // Also update localStorage for consistency
+          localStorage.setItem('direktorat', JSON.stringify(mapSupabaseData(data.direktorat || [], 'direktorat')));
+          localStorage.setItem('subdirektorat', JSON.stringify(mapSupabaseData(data.subdirektorat || [], 'subdirektorat')));
+          localStorage.setItem('anakPerusahaan', JSON.stringify(mapSupabaseData(data.anak_perusahaan || [], 'anak_perusahaan')));
+          localStorage.setItem('divisi', JSON.stringify(mapSupabaseData(data.divisi || [], 'divisi')));
+
+          console.log('StrukturPerusahaanContext: Loaded data from Supabase');
+        } else {
+          console.error('StrukturPerusahaanContext: Failed to load from Supabase');
+          loadFromLocalStorage();
+        }
+      } catch (error) {
+        console.error('StrukturPerusahaanContext: Error loading from Supabase', error);
+        loadFromLocalStorage();
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    const loadFromLocalStorage = () => {
       try {
         // Load Direktorat
         const direktoratData = localStorage.getItem('direktorat');
@@ -110,12 +156,14 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
         if (divisiData) {
           setDivisi(JSON.parse(divisiData));
         }
+        
+        console.log('StrukturPerusahaanContext: Loaded data from localStorage fallback');
       } catch (error) {
-        console.error('Error loading struktur perusahaan data:', error);
+        console.error('StrukturPerusahaanContext: Error loading data:', error);
       }
     };
 
-    loadData();
+    loadDataFromSupabase();
   }, [refreshTrigger]);
 
   // Filter data berdasarkan tahun yang dipilih
@@ -125,7 +173,31 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
   const filteredDivisi = selectedYear ? divisi.filter(d => d.tahun === selectedYear) : [];
 
   // CRUD Functions
-  const addDirektorat = (data: Omit<Direktorat, 'id' | 'createdAt' | 'isActive'>) => {
+  const addDirektorat = async (data: Omit<Direktorat, 'id' | 'createdAt' | 'isActive'>) => {
+    try {
+      // Save to Supabase API
+      const response = await fetch('http://localhost:5000/api/config/struktur-organisasi', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'direktorat',
+          nama: data.nama,
+          deskripsi: data.deskripsi || '',
+          parent_id: null,
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      console.log('StrukturPerusahaanContext: Successfully saved direktorat to Supabase');
+    } catch (error) {
+      console.error('StrukturPerusahaanContext: Failed to save direktorat to Supabase:', error);
+    }
+
     const newDirektorat: Direktorat = {
       ...data,
       id: Date.now(),
@@ -139,7 +211,31 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
     triggerUpdate();
   };
 
-  const addSubdirektorat = (data: Omit<Subdirektorat, 'id' | 'createdAt' | 'isActive'>) => {
+  const addSubdirektorat = async (data: Omit<Subdirektorat, 'id' | 'createdAt' | 'isActive'>) => {
+    try {
+      // Save to Supabase API
+      const response = await fetch('http://localhost:5000/api/config/struktur-organisasi', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'subdirektorat',
+          nama: data.nama,
+          deskripsi: data.deskripsi || '',
+          parent_id: data.direktoratId || null,
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      console.log('StrukturPerusahaanContext: Successfully saved subdirektorat to Supabase');
+    } catch (error) {
+      console.error('StrukturPerusahaanContext: Failed to save subdirektorat to Supabase:', error);
+    }
+
     const newSubdirektorat: Subdirektorat = {
       ...data,
       id: Date.now(),
@@ -153,7 +249,31 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
     triggerUpdate();
   };
 
-  const addAnakPerusahaan = (data: Omit<AnakPerusahaan, 'id' | 'createdAt' | 'isActive'>) => {
+  const addAnakPerusahaan = async (data: Omit<AnakPerusahaan, 'id' | 'createdAt' | 'isActive'>) => {
+    try {
+      // Save to Supabase API
+      const response = await fetch('http://localhost:5000/api/config/struktur-organisasi', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'anak_perusahaan',
+          nama: data.nama,
+          deskripsi: data.deskripsi || '',
+          parent_id: null,
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      console.log('StrukturPerusahaanContext: Successfully saved anak perusahaan to Supabase');
+    } catch (error) {
+      console.error('StrukturPerusahaanContext: Failed to save anak perusahaan to Supabase:', error);
+    }
+
     const newAnakPerusahaan: AnakPerusahaan = {
       ...data,
       id: Date.now(),
@@ -167,7 +287,31 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
     triggerUpdate();
   };
 
-  const addDivisi = (data: Omit<Divisi, 'id' | 'createdAt' | 'isActive'>) => {
+  const addDivisi = async (data: Omit<Divisi, 'id' | 'createdAt' | 'isActive'>) => {
+    try {
+      // Save to Supabase API
+      const response = await fetch('http://localhost:5000/api/config/struktur-organisasi', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'divisi',
+          nama: data.nama,
+          deskripsi: data.deskripsi || '',
+          parent_id: data.subdirektoratId || null,
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      console.log('StrukturPerusahaanContext: Successfully saved divisi to Supabase');
+    } catch (error) {
+      console.error('StrukturPerusahaanContext: Failed to save divisi to Supabase:', error);
+    }
+
     const newDivisi: Divisi = {
       ...data,
       id: Date.now(),
@@ -181,78 +325,154 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
     triggerUpdate();
   };
 
-  const deleteDirektorat = (id: number) => {
+  const deleteDirektorat = async (id: number) => {
+    try {
+      // Delete from Supabase API
+      const response = await fetch(`http://localhost:5000/api/config/struktur-organisasi/${id}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      console.log('StrukturPerusahaanContext: Successfully deleted direktorat from Supabase');
+    } catch (error) {
+      console.error('StrukturPerusahaanContext: Failed to delete direktorat from Supabase:', error);
+    }
+
     const updatedDirektorat = direktorat.filter(d => d.id !== id);
     setDirektorat(updatedDirektorat);
     localStorage.setItem('direktorat', JSON.stringify(updatedDirektorat));
     triggerUpdate();
   };
 
-  const deleteSubdirektorat = (id: number) => {
+  const deleteSubdirektorat = async (id: number) => {
+    try {
+      // Delete from Supabase API
+      const response = await fetch(`http://localhost:5000/api/config/struktur-organisasi/${id}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      console.log('StrukturPerusahaanContext: Successfully deleted subdirektorat from Supabase');
+    } catch (error) {
+      console.error('StrukturPerusahaanContext: Failed to delete subdirektorat from Supabase:', error);
+    }
+
     const updatedSubdirektorat = subdirektorat.filter(s => s.id !== id);
     setSubdirektorat(updatedSubdirektorat);
     localStorage.setItem('subdirektorat', JSON.stringify(updatedSubdirektorat));
     triggerUpdate();
   };
 
-  const deleteAnakPerusahaan = (id: number) => {
+  const deleteAnakPerusahaan = async (id: number) => {
+    try {
+      // Delete from Supabase API
+      const response = await fetch(`http://localhost:5000/api/config/struktur-organisasi/${id}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      console.log('StrukturPerusahaanContext: Successfully deleted anak perusahaan from Supabase');
+    } catch (error) {
+      console.error('StrukturPerusahaanContext: Failed to delete anak perusahaan from Supabase:', error);
+    }
+
     const updatedAnakPerusahaan = anakPerusahaan.filter(a => a.id !== id);
     setAnakPerusahaan(updatedAnakPerusahaan);
     localStorage.setItem('anakPerusahaan', JSON.stringify(updatedAnakPerusahaan));
     triggerUpdate();
   };
 
-  const deleteDivisi = (id: number) => {
+  const deleteDivisi = async (id: number) => {
+    try {
+      // Delete from Supabase API
+      const response = await fetch(`http://localhost:5000/api/config/struktur-organisasi/${id}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      console.log('StrukturPerusahaanContext: Successfully deleted divisi from Supabase');
+    } catch (error) {
+      console.error('StrukturPerusahaanContext: Failed to delete divisi from Supabase:', error);
+    }
+
     const updatedDivisi = divisi.filter(d => d.id !== id);
     setDivisi(updatedDivisi);
     localStorage.setItem('divisi', JSON.stringify(updatedDivisi));
     triggerUpdate();
   };
 
-  const useDefaultData = (year: number) => {
+  const useDefaultData = async (year: number) => {
     try {
-      // Default Direktorat
-      const defaultDirektorat: Direktorat[] = [
-        { id: Date.now(), nama: 'Direktorat Keuangan', deskripsi: 'Mengelola keuangan perusahaan', tahun: year, createdAt: new Date(), isActive: true },
-        { id: Date.now() + 1, nama: 'Direktorat Operasional', deskripsi: 'Mengelola operasional perusahaan', tahun: year, createdAt: new Date(), isActive: true },
-        { id: Date.now() + 2, nama: 'Direktorat SDM', deskripsi: 'Mengelola sumber daya manusia', tahun: year, createdAt: new Date(), isActive: true },
-        { id: Date.now() + 3, nama: 'Direktorat Teknologi', deskripsi: 'Mengelola teknologi informasi', tahun: year, createdAt: new Date(), isActive: true }
+      console.log(`StrukturPerusahaanContext: Creating default data for year ${year}`);
+      
+      // Create default direktorat using the API functions
+      const direktoratData = [
+        { nama: 'Direktorat Keuangan', deskripsi: 'Mengelola keuangan perusahaan', tahun: year },
+        { nama: 'Direktorat Operasional', deskripsi: 'Mengelola operasional perusahaan', tahun: year },
+        { nama: 'Direktorat SDM', deskripsi: 'Mengelola sumber daya manusia', tahun: year },
+        { nama: 'Direktorat Teknologi', deskripsi: 'Mengelola teknologi informasi', tahun: year }
       ];
 
-      // Default Subdirektorat
-      const defaultSubdirektorat: Subdirektorat[] = [
-        { id: Date.now(), nama: 'Subdirektorat Akuntansi', direktoratId: defaultDirektorat[0].id, deskripsi: 'Mengelola akuntansi', tahun: year, createdAt: new Date(), isActive: true },
-        { id: Date.now() + 1, nama: 'Subdirektorat Treasury', direktoratId: defaultDirektorat[0].id, deskripsi: 'Mengelola treasury', tahun: year, createdAt: new Date(), isActive: true },
-        { id: Date.now() + 2, nama: 'Subdirektorat Logistik', direktoratId: defaultDirektorat[1].id, deskripsi: 'Mengelola logistik', tahun: year, createdAt: new Date(), isActive: true },
-        { id: Date.now() + 3, nama: 'Subdirektorat Pelayanan', direktoratId: defaultDirektorat[1].id, deskripsi: 'Mengelola pelayanan', tahun: year, createdAt: new Date(), isActive: true }
-      ];
+      // Add direktorat one by one
+      for (const dir of direktoratData) {
+        await addDirektorat(dir);
+        // Small delay to ensure proper ordering
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
 
-      // Default Anak Perusahaan - FRESH START
-      const defaultAnakPerusahaan: AnakPerusahaan[] = [];
+      // Get the current direktorat to get IDs for subdirektorat
+      const currentDirektorat = direktorat.filter(d => d.tahun === year);
+      
+      if (currentDirektorat.length >= 2) {
+        // Create default subdirektorat
+        const subdirektoratData = [
+          { nama: 'Subdirektorat Akuntansi', direktoratId: currentDirektorat[0].id, deskripsi: 'Mengelola akuntansi', tahun: year },
+          { nama: 'Subdirektorat Treasury', direktoratId: currentDirektorat[0].id, deskripsi: 'Mengelola treasury', tahun: year },
+          { nama: 'Subdirektorat Logistik', direktoratId: currentDirektorat[1].id, deskripsi: 'Mengelola logistik', tahun: year },
+          { nama: 'Subdirektorat Pelayanan', direktoratId: currentDirektorat[1].id, deskripsi: 'Mengelola pelayanan', tahun: year }
+        ];
 
-      // Default Divisi
-      const defaultDivisi: Divisi[] = [
-        { id: Date.now(), nama: 'Divisi Akuntansi', subdirektoratId: defaultSubdirektorat[0].id, deskripsi: 'Mengelola akuntansi', tahun: year, createdAt: new Date(), isActive: true },
-        { id: Date.now() + 1, nama: 'Divisi Treasury', subdirektoratId: defaultSubdirektorat[1].id, deskripsi: 'Mengelola treasury', tahun: year, createdAt: new Date(), isActive: true },
-        { id: Date.now() + 2, nama: 'Divisi Logistik', subdirektoratId: defaultSubdirektorat[2].id, deskripsi: 'Mengelola logistik', tahun: year, createdAt: new Date(), isActive: true },
-        { id: Date.now() + 3, nama: 'Divisi Pelayanan', subdirektoratId: defaultSubdirektorat[3].id, deskripsi: 'Mengelola pelayanan', tahun: year, createdAt: new Date(), isActive: true }
-      ];
+        // Add subdirektorat one by one
+        for (const sub of subdirektoratData) {
+          await addSubdirektorat(sub);
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
 
-      // Set data
-      setDirektorat(prev => [...prev, ...defaultDirektorat]);
-      setSubdirektorat(prev => [...prev, ...defaultSubdirektorat]);
-      setAnakPerusahaan(prev => [...prev, ...defaultAnakPerusahaan]);
-      setDivisi(prev => [...prev, ...defaultDivisi]);
+        // Get current subdirektorat for divisi
+        const currentSubdirektorat = subdirektorat.filter(s => s.tahun === year);
+        
+        if (currentSubdirektorat.length >= 4) {
+          // Create default divisi
+          const divisiData = [
+            { nama: 'Divisi Akuntansi', subdirektoratId: currentSubdirektorat[0].id, deskripsi: 'Mengelola akuntansi', tahun: year },
+            { nama: 'Divisi Treasury', subdirektoratId: currentSubdirektorat[1].id, deskripsi: 'Mengelola treasury', tahun: year },
+            { nama: 'Divisi Logistik', subdirektoratId: currentSubdirektorat[2].id, deskripsi: 'Mengelola logistik', tahun: year },
+            { nama: 'Divisi Pelayanan', subdirektoratId: currentSubdirektorat[3].id, deskripsi: 'Mengelola pelayanan', tahun: year }
+          ];
 
-      // Save to localStorage
-      localStorage.setItem('direktorat', JSON.stringify([...direktorat, ...defaultDirektorat]));
-      localStorage.setItem('subdirektorat', JSON.stringify([...subdirektorat, ...defaultSubdirektorat]));
-      localStorage.setItem('anakPerusahaan', JSON.stringify([...anakPerusahaan, ...defaultAnakPerusahaan]));
-      localStorage.setItem('divisi', JSON.stringify([...divisi, ...defaultDivisi]));
+          // Add divisi one by one
+          for (const div of divisiData) {
+            await addDivisi(div);
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+        }
+      }
 
-      triggerUpdate();
+      console.log(`StrukturPerusahaanContext: Successfully created default data for year ${year}`);
     } catch (error) {
-      console.error('Error using default data:', error);
+      console.error('StrukturPerusahaanContext: Error creating default data:', error);
     }
   };
 

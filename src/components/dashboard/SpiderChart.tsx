@@ -36,6 +36,7 @@ const SpiderChart: React.FC<SpiderChartProps> = ({ className }) => {
   const [selectedSubDirektorat, setSelectedSubDirektorat] = useState<string | null>(null);
   const [currentSubDirektoratIndex, setCurrentSubDirektoratIndex] = useState(0);
   const [isAutoRotateEnabled, setIsAutoRotateEnabled] = useState(true);
+  const [currentYearAspects, setCurrentYearAspects] = useState<Array<{ id: number; nama: string; tahun: number }>>([]);
 
   // Get actual assignment data from localStorage
   const getAssignmentData = () => {
@@ -49,6 +50,22 @@ const SpiderChart: React.FC<SpiderChartProps> = ({ className }) => {
     }
   };
 
+  // Load aspects for the selected year
+  useEffect(() => {
+    const loadAspects = async () => {
+      if (selectedYear) {
+        try {
+          const aspectsData = await getAspectsByYear(selectedYear);
+          setCurrentYearAspects(aspectsData);
+        } catch (error) {
+          console.error('Error loading aspects for SpiderChart:', error);
+          setCurrentYearAspects([]);
+        }
+      }
+    };
+    loadAspects();
+  }, [selectedYear, getAspectsByYear]);
+
   // Listen to updates from ListGCG and refresh chart
   useEffect(() => {
     const onUpdate = () => {
@@ -56,9 +73,16 @@ const SpiderChart: React.FC<SpiderChartProps> = ({ className }) => {
       setSelectedSubDirektorat((prev) => (prev ? `${prev}` : prev));
     };
     
-    const onAspectsUpdate = () => {
-      // Trigger recompute when aspects are updated
-      setSelectedSubDirektorat((prev) => (prev ? `${prev}` : prev));
+    const onAspectsUpdate = async () => {
+      // Trigger recompute when aspects are updated and reload aspects
+      if (selectedYear) {
+        try {
+          const aspectsData = await getAspectsByYear(selectedYear);
+          setCurrentYearAspects(aspectsData);
+        } catch (error) {
+          console.error('Error reloading aspects after update:', error);
+        }
+      }
     };
     
     window.addEventListener('assignmentsUpdated', onUpdate);
@@ -68,7 +92,7 @@ const SpiderChart: React.FC<SpiderChartProps> = ({ className }) => {
       window.removeEventListener('assignmentsUpdated', onUpdate);
       window.removeEventListener('aspectsUpdated', onAspectsUpdate);
     };
-  }, []);
+  }, [selectedYear, getAspectsByYear]);
 
   // Auto-rotate through sub-direktorat
   useEffect(() => {
@@ -97,8 +121,8 @@ const SpiderChart: React.FC<SpiderChartProps> = ({ className }) => {
     const assignments = getAssignmentData();
     const yearAssignments = assignments.filter(assignment => assignment.tahun === selectedYear);
 
-    // Get aspects from context for the selected year
-    const yearAspects = getAspectsByYear(selectedYear);
+    // Use the loaded aspects for the selected year
+    const yearAspects = currentYearAspects;
     
     // Map aspects to chart data with icons and colors
     const aspects = yearAspects.map((aspek, index) => {
@@ -188,7 +212,7 @@ const SpiderChart: React.FC<SpiderChartProps> = ({ className }) => {
     });
 
     return data;
-  }, [selectedYear, documents, checklist, getDocumentsByYear, selectedSubDirektorat]);
+  }, [selectedYear, documents, checklist, getDocumentsByYear, selectedSubDirektorat, currentYearAspects, subdirektorat]);
 
   if (!chartData) return null;
 

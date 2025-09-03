@@ -223,7 +223,11 @@ const PenilaianGCG = () => {
               
               const subtotalRows = yearData.filter((item: any) => item.Type === 'subtotal');
               const headerRows = yearData.filter((item: any) => item.Type === 'header');
-              const totalRows = yearData.filter((item: any) => item.Type === 'total');
+              const totalRows = yearData.filter((item: any) => 
+                item.Type === 'total' || 
+                (item.Section && item.Section.toString().toUpperCase() === 'TOTAL') ||
+                (item.Deskripsi && item.Deskripsi.toString().toUpperCase() === 'TOTAL')
+              );
               
               // Create rows from subtotal data + matching header descriptions
               convertedData = subtotalRows.map((subtotalItem: any, index: number) => {
@@ -272,8 +276,16 @@ const PenilaianGCG = () => {
               // BRIEF format: separate regular data from total data
               console.log(`📋 Processing BRIEF format`);
               
-              const regularData = yearData.filter((item: any) => item.Type !== 'total');
-              const totalData = yearData.filter((item: any) => item.Type === 'total');
+              const regularData = yearData.filter((item: any) => 
+                item.Type !== 'total' && 
+                !(item.Section && item.Section.toString().toUpperCase() === 'TOTAL') &&
+                !(item.Deskripsi && item.Deskripsi.toString().toUpperCase() === 'TOTAL')
+              );
+              const totalData = yearData.filter((item: any) => 
+                item.Type === 'total' || 
+                (item.Section && item.Section.toString().toUpperCase() === 'TOTAL') ||
+                (item.Deskripsi && item.Deskripsi.toString().toUpperCase() === 'TOTAL')
+              );
               
               convertedData = regularData.map((item: any, index: number) => ({
                 id: `brief-${item.Tahun}-${item.Section}-${index}`,
@@ -324,7 +336,7 @@ const PenilaianGCG = () => {
 
     // Fallback: Load predetermined rows from Kelola Aspek
     console.log(`📝 No existing data for year ${year}, loading predetermined rows from Kelola Aspek`);
-    const predeterminedRows = generatePredeterminedRows(year, false);
+    const predeterminedRows = generatePredeterminedRows(year, false, currentYearAspects);
     
     // Reset total row data for new year (no existing data)
     setTotalRowData({
@@ -351,21 +363,14 @@ const PenilaianGCG = () => {
   };
   
   // Generate predetermined rows from Kelola Aspek data
-  const generatePredeterminedRows = (year: number, isDetailed: boolean): PenilaianRow[] => {
-    // Strategy: Always get ALL aspects from localStorage, regardless of year
-    // This makes aspects available across all years, which is what the user wants
-    const allAspects = JSON.parse(localStorage.getItem('aspects') || '[]');
-    console.log(`📋 Total aspects in localStorage: ${allAspects.length}`, allAspects);
+  const generatePredeterminedRows = (year: number, isDetailed: boolean, aspectsData: any[] = currentYearAspects): PenilaianRow[] => {
+    console.log(`📋 Using ${aspectsData.length} aspects for year ${year} table generation`);
     
-    if (allAspects.length === 0) {
-      console.log(`⚠️ No aspects found in localStorage at all`);
+    if (aspectsData.length === 0) {
+      console.log(`⚠️ No aspects found for year ${year}`);
       return [];
     }
     
-    // Use all aspects regardless of their original year
-    // This allows aspects to be reused across all years in the system
-    const aspectsData = allAspects;
-    console.log(`📋 Using all ${aspectsData.length} aspects for year ${year} table generation`);
     console.log(`📋 Sample aspect:`, aspectsData[0]); // Debug first aspect
     
     const rows: PenilaianRow[] = [];
@@ -422,14 +427,14 @@ const PenilaianGCG = () => {
       setAspectSummaryData(getAspectSummaryRows());
       
       // Load predetermined rows from Kelola Aspek for current year
-      const predeterminedRows = generatePredeterminedRows(selectedYear, true);
+      const predeterminedRows = generatePredeterminedRows(selectedYear, true, currentYearAspects);
       setTableData(predeterminedRows);
       console.log(`📊 DETAILED mode activated - aspect summary + ${predeterminedRows.length} predetermined rows loaded`);
     } else {
       // Switch to BRIEF mode - use aspect summary as main table
       setAspectSummaryData([]);
       // Load predetermined rows for BRIEF mode
-      const predeterminedRows = generatePredeterminedRows(selectedYear, false);
+      const predeterminedRows = generatePredeterminedRows(selectedYear, false, currentYearAspects);
       if (predeterminedRows.length > 0) {
         setTableData(predeterminedRows);
         console.log(`📋 BRIEF mode activated - ${predeterminedRows.length} predetermined rows loaded`);
@@ -441,9 +446,42 @@ const PenilaianGCG = () => {
     }
   };
 
+  // State to store aspects for current year
+  const [currentYearAspects, setCurrentYearAspects] = useState<Aspek[]>([]);
+  
+  // Load aspects when year changes
+  useEffect(() => {
+    const loadAspects = async () => {
+      try {
+        const aspectsData = await getAspectsByYear(selectedYear);
+        console.log(`🔍 DEBUG: Getting aspects for year ${selectedYear}`);
+        console.log(`🔍 DEBUG: Found ${aspectsData.length} aspects for year ${selectedYear}:`, aspectsData);
+        setCurrentYearAspects(aspectsData);
+      } catch (error) {
+        console.error('Error loading aspects:', error);
+        setCurrentYearAspects([]);
+      }
+    };
+    
+    loadAspects();
+  }, [selectedYear, getAspectsByYear]);
+
+  // Reload table data when aspects change (but only if no existing data)
+  useEffect(() => {
+    if (currentYearAspects.length > 0) {
+      // Check if there's existing saved data for this year first
+      const hasExistingData = localStorage.getItem(`evaluationData_${selectedYear}`);
+      if (!hasExistingData) {
+        // No saved data, reload with fresh aspect data
+        console.log(`📋 Aspects loaded for year ${selectedYear}, reloading table data`);
+        loadExistingDataForYear(selectedYear);
+      }
+    }
+  }, [currentYearAspects]);
+
   // Dynamic GCG aspect summary rows based on configured aspects
   const getAspectSummaryRows = (): PenilaianRow[] => {
-    const aspectsData = getAspectsByYear(selectedYear);
+    const aspectsData = currentYearAspects;
     
     if (aspectsData.length === 0) {
       console.log(`⚠️ No aspects configured for year ${selectedYear}, using empty array`);
@@ -463,20 +501,7 @@ const PenilaianGCG = () => {
       penjelasan: ''
     }));
     
-    // Add total row at the end
-    const totalRow: PenilaianRow = {
-      id: 'total-row',
-      aspek: '',
-      deskripsi: 'Total',
-      jumlah_parameter: 0,
-      bobot: 0,
-      skor: 0,
-      capaian: 0,
-      penjelasan: '',
-      isTotal: true
-    };
-    
-    return [...aspectRows, totalRow];
+    return aspectRows; // No total row - it's rendered separately below the table
   };
 
   // Auto-detect data format from existing data

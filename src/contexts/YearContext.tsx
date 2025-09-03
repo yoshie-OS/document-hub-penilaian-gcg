@@ -28,29 +28,53 @@ export const YearProvider: React.FC<YearProviderProps> = ({ children }) => {
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [availableYears, setAvailableYears] = useState<number[]>([]);
 
-  // Initialize available years from localStorage - FRESH START
+  // Load available years from Supabase on startup
   useEffect(() => {
-    const storedYears = localStorage.getItem('availableYears');
-    if (storedYears) {
+    const loadYearsFromSupabase = async () => {
       try {
-        const parsedYears = JSON.parse(storedYears);
-        if (Array.isArray(parsedYears)) {
-          setAvailableYears(parsedYears);
-          console.log('YearContext: Loaded years from localStorage', parsedYears);
+        const response = await fetch('http://localhost:5000/api/config/tahun-buku');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.tahun_buku && Array.isArray(data.tahun_buku)) {
+            const years = data.tahun_buku.map((item: any) => item.tahun).sort((a: number, b: number) => b - a);
+            setAvailableYears(years);
+            // Also update localStorage for consistency
+            localStorage.setItem('availableYears', JSON.stringify(years));
+            console.log('YearContext: Loaded years from Supabase', years);
+          }
+        } else {
+          console.error('YearContext: Failed to load years from Supabase');
+          // Fallback to localStorage
+          loadFromLocalStorage();
         }
       } catch (error) {
-        console.error('YearContext: Error parsing years from localStorage', error);
-        localStorage.removeItem('availableYears');
-        setAvailableYears([]);
+        console.error('YearContext: Error loading years from Supabase', error);
+        // Fallback to localStorage
+        loadFromLocalStorage();
       }
-    } else {
-      // Start completely fresh - no default years
-      setAvailableYears([]);
-      console.log('YearContext: Started fresh - no default years');
-    }
+    };
 
-    // Tidak set selected year otomatis - biarkan user pilih manual
-    // setSelectedYear hanya akan di-set saat user benar-benar memilih tahun
+    const loadFromLocalStorage = () => {
+      const storedYears = localStorage.getItem('availableYears');
+      if (storedYears) {
+        try {
+          const parsedYears = JSON.parse(storedYears);
+          if (Array.isArray(parsedYears)) {
+            setAvailableYears(parsedYears);
+            console.log('YearContext: Loaded years from localStorage fallback', parsedYears);
+          }
+        } catch (error) {
+          console.error('YearContext: Error parsing years from localStorage', error);
+          localStorage.removeItem('availableYears');
+          setAvailableYears([]);
+        }
+      } else {
+        setAvailableYears([]);
+        console.log('YearContext: Started fresh - no default years');
+      }
+    };
+
+    loadYearsFromSupabase();
   }, []);
 
   // Save available years to localStorage whenever it changes
@@ -60,10 +84,33 @@ export const YearProvider: React.FC<YearProviderProps> = ({ children }) => {
     }
   }, [availableYears]);
 
-  const addYear = (year: number) => {
+  const addYear = async (year: number) => {
     if (!availableYears.includes(year)) {
       // Ensure no leftover data exists for this year before adding
       cleanupYearData(year);
+      
+      // Call backend API to save to Supabase
+      try {
+        const response = await fetch('http://localhost:5000/api/config/tahun-buku', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            tahun: year,
+            nama: `Tahun Buku ${year}`,
+          }),
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        console.log(`YearContext: Successfully saved year ${year} to Supabase`);
+      } catch (error) {
+        console.error(`YearContext: Failed to save year ${year} to Supabase:`, error);
+        // Continue with local update even if API fails
+      }
       
       const updatedYears = [...availableYears, year].sort((a, b) => b - a); // Sort descending
       setAvailableYears(updatedYears);

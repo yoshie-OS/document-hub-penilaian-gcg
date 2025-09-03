@@ -633,6 +633,7 @@ const PengaturanBaru = () => {
   const [showAspekManagementPanel, setShowAspekManagementPanel] = useState(false);
   const [editingAspek, setEditingAspek] = useState<{ id: number; nama: string } | null>(null);
   const [aspekForm, setAspekForm] = useState({ nama: '' });
+  const [currentYearAspects, setCurrentYearAspects] = useState<Array<{ id: number; nama: string; tahun: number }>>([]);
   
   // State untuk mengontrol visibility button data default
   const [showDefaultDataButton, setShowDefaultDataButton] = useState(false);
@@ -849,6 +850,22 @@ const PengaturanBaru = () => {
     }
   }, [selectedYear]);
 
+  // Effect to load aspects for selected year
+  useEffect(() => {
+    const loadAspects = async () => {
+      if (selectedYear) {
+        try {
+          const aspectsData = await getAspectsByYear(selectedYear);
+          setCurrentYearAspects(aspectsData);
+        } catch (error) {
+          console.error('Error loading aspects for PengaturanBaru:', error);
+          setCurrentYearAspects([]);
+        }
+      }
+    };
+    loadAspects();
+  }, [selectedYear, getAspectsByYear]);
+
   // Effect untuk mengupdate progress kelola dokumen
   useEffect(() => {
     // Progress kelola dokumen tidak bergantung pada tahun tertentu
@@ -1021,7 +1038,7 @@ const PengaturanBaru = () => {
   }, [availableYears, direktorat, subdirektorat, anakPerusahaan, divisi, users, checklistItems, selectedYear]);
 
   // Handler untuk submit tahun buku
-  const handleTahunSubmit = (e: React.FormEvent) => {
+  const handleTahunSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!tahunForm.tahun) {
@@ -1044,8 +1061,8 @@ const PengaturanBaru = () => {
     }
 
     try {
-      // Add new year
-      addYear(tahunForm.tahun);
+      // Add new year (now calls Supabase API)
+      await addYear(tahunForm.tahun);
       
       // Set as active year
       setSelectedYear(tahunForm.tahun);
@@ -1179,24 +1196,24 @@ const PengaturanBaru = () => {
     try {
       // Copy Direktorat
       const direktoratFromYear = direktorat?.filter(d => d.tahun === fromYear) || [];
-      direktoratFromYear.forEach(d => {
-        addDirektorat({
+      for (const d of direktoratFromYear) {
+        await addDirektorat({
           nama: d.nama,
           deskripsi: d.deskripsi,
           tahun: toYear
         });
-      });
+      }
 
       // Copy Subdirektorat
       const subdirektoratFromYear = subdirektorat?.filter(s => s.tahun === fromYear) || [];
-      subdirektoratFromYear.forEach(s => {
-        addSubdirektorat({
+      for (const s of subdirektoratFromYear) {
+        await addSubdirektorat({
           nama: s.nama,
           direktoratId: s.direktoratId,
           deskripsi: s.deskripsi,
           tahun: toYear
         });
-      });
+      }
 
       // Copy Anak Perusahaan
       const anakPerusahaanFromYear = anakPerusahaan?.filter(a => a.tahun === fromYear) || [];
@@ -1376,7 +1393,7 @@ const PengaturanBaru = () => {
   };
 
   // Handler untuk struktur organisasi
-  const handleDirektoratSubmit = (e: React.FormEvent) => {
+  const handleDirektoratSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!strukturForm.direktorat.nama) {
@@ -1389,7 +1406,7 @@ const PengaturanBaru = () => {
     }
 
     try {
-      addDirektorat({
+      await addDirektorat({
         nama: strukturForm.direktorat.nama,
         deskripsi: strukturForm.direktorat.deskripsi,
         tahun: selectedYear || new Date().getFullYear()
@@ -1412,7 +1429,7 @@ const PengaturanBaru = () => {
     }
   };
 
-  const handleSubdirektoratSubmit = (e: React.FormEvent) => {
+  const handleSubdirektoratSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!strukturForm.subdirektorat.nama || !strukturForm.subdirektorat.direktoratId) {
@@ -1425,7 +1442,7 @@ const PengaturanBaru = () => {
     }
 
     try {
-      addSubdirektorat({
+      await addSubdirektorat({
         nama: strukturForm.subdirektorat.nama,
         direktoratId: parseInt(strukturForm.subdirektorat.direktoratId),
         deskripsi: strukturForm.subdirektorat.deskripsi,
@@ -1757,7 +1774,7 @@ const PengaturanBaru = () => {
   };
 
   // Handle menggunakan data default struktur organisasi
-  const handleUseDefaultStruktur = () => {
+  const handleUseDefaultStruktur = async () => {
     if (!selectedYear) {
       toast({
         title: "Error",
@@ -1780,30 +1797,19 @@ const PengaturanBaru = () => {
     }
 
     try {
-      // Update struktur perusahaan dengan data default
-      const { direktorat, subdirektorat, divisi, specialUnits, regional } = DEFAULT_STRUKTUR_ORGANISASI;
-      
-      // Convert data ke format yang sesuai dengan StrukturPerusahaanContext
-      const direktoratData = direktorat.map(d => ({
-        id: d.id,
-        nama: d.nama,
-        deskripsi: `Direktorat ${d.nama}`,
-        tahun: selectedYear,
-        createdAt: new Date(),
-        isActive: true
-      }));
+      // Use the context's useDefaultData function which syncs to Supabase
+      await useDefaultData(selectedYear);
+      // Success toast
+      toast({
+        title: "Berhasil",
+        description: `Data default struktur organisasi telah ditambahkan untuk tahun ${selectedYear}`,
+      });
 
-      const subdirektoratData = subdirektorat.map(s => ({
-        id: s.id,
-        nama: s.nama,
-        direktoratId: s.parentId || 1,
-        deskripsi: `Sub Direktorat ${s.nama}`,
-        tahun: selectedYear,
-        createdAt: new Date(),
-        isActive: true
-      }));
+      console.log('PengaturanBaru: Used default struktur organisasi data via context', {
+        year: selectedYear
+      });
 
-      const divisiData = divisi.map(d => ({
+    } catch (error) {
         id: d.id,
         nama: d.nama,
         subdirektoratId: d.parentId || 101,
@@ -2071,7 +2077,7 @@ const PengaturanBaru = () => {
   };
 
   // Handle manajemen aspek
-  const handleAddAspek = () => {
+  const handleAddAspek = async () => {
     if (!aspekForm.nama.trim()) {
       toast({
         title: "Error",
@@ -2082,7 +2088,7 @@ const PengaturanBaru = () => {
     }
 
     // Generate full aspek name with prefix
-    const yearAspects = getAspectsByYear(selectedYear);
+    const yearAspects = await getAspectsByYear(selectedYear);
     const nextNumber = yearAspects.length + 1;
     const romanNumeral = getRomanNumeral(nextNumber);
     const fullAspekName = `ASPEK ${romanNumeral}. ${aspekForm.nama.trim()}`;
@@ -2102,18 +2108,30 @@ const PengaturanBaru = () => {
     }
 
     // Add new aspek using context with full name
-    addAspek(fullAspekName, selectedYear);
-    
-    // Reset form
-    setAspekForm({ nama: '' });
-    
-    toast({
-      title: "Berhasil!",
-      description: `Aspek "${fullAspekName}" berhasil ditambahkan`,
-    });
+    try {
+      await addAspek(fullAspekName, selectedYear);
+      
+      // Refresh aspects after successful add
+      const updatedAspects = await getAspectsByYear(selectedYear);
+      setCurrentYearAspects(updatedAspects);
+      
+      // Reset form
+      setAspekForm({ nama: '' });
+      
+      toast({
+        title: "Berhasil!",
+        description: `Aspek "${fullAspekName}" berhasil ditambahkan`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: `Gagal menambah aspek: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        variant: "destructive"
+      });
+    }
   };
 
-  const handleEditAspek = () => {
+  const handleEditAspek = async () => {
     if (!editingAspek || !aspekForm.nama.trim()) {
       toast({
         title: "Error",
@@ -2140,7 +2158,7 @@ const PengaturanBaru = () => {
     const fullAspekName = `ASPEK ${romanNumeral}. ${aspekForm.nama.trim()}`;
 
     // Check if the new name conflicts with existing aspek
-    const yearAspects = getAspectsByYear(selectedYear);
+    const yearAspects = await getAspectsByYear(selectedYear);
     const existingAspek = yearAspects.find(aspek => 
       aspek.id !== editingAspek.id && 
       aspek.nama.toLowerCase() === fullAspekName.toLowerCase()
@@ -2158,6 +2176,14 @@ const PengaturanBaru = () => {
     // Update aspek using context with full name
     editAspek(editingAspek.id, fullAspekName, selectedYear);
 
+    // Refresh aspects after successful edit
+    try {
+      const updatedAspects = await getAspectsByYear(selectedYear);
+      setCurrentYearAspects(updatedAspects);
+    } catch (error) {
+      console.error('Error refreshing aspects after edit:', error);
+    }
+
     // Reset form and close edit mode
     setAspekForm({ nama: '' });
     setEditingAspek(null);
@@ -2168,9 +2194,17 @@ const PengaturanBaru = () => {
     });
   };
 
-  const handleDeleteAspek = (aspekId: number) => {
+  const handleDeleteAspek = async (aspekId: number) => {
     // Delete aspek using context
     deleteAspek(aspekId, selectedYear);
+    
+    // Refresh aspects after successful delete
+    try {
+      const updatedAspects = await getAspectsByYear(selectedYear);
+      setCurrentYearAspects(updatedAspects);
+    } catch (error) {
+      console.error('Error refreshing aspects after delete:', error);
+    }
     
     toast({
       title: "Berhasil!",
@@ -3450,7 +3484,7 @@ const PengaturanBaru = () => {
                                     </SelectTrigger>
                                     <SelectContent>
                                       <SelectItem value="none">Tidak Ada Aspek</SelectItem>
-                                      {getAspectsByYear(selectedYear).map((aspek) => (
+                                      {currentYearAspects.map((aspek) => (
                                         <SelectItem key={aspek.id} value={aspek.nama}>
                                           {aspek.nama}
                                         </SelectItem>
@@ -4244,7 +4278,7 @@ const PengaturanBaru = () => {
                               <div className="mt-1">
                                 <div className="flex items-center space-x-2 mb-2">
                                   <span className="text-sm font-medium text-blue-600">ASPEK {(() => {
-                                    const yearAspects = getAspectsByYear(selectedYear);
+                                    const yearAspects = currentYearAspects;
                                     return yearAspects.length > 0 ? 
                                       getRomanNumeral(yearAspects.length + 1) : 'I';
                                   })()}. </span>
@@ -4259,7 +4293,7 @@ const PengaturanBaru = () => {
                                 </div>
                                 <p className="text-xs text-blue-600">
                                   Hasil akhir: ASPEK {(() => {
-                                    const yearAspects = getAspectsByYear(selectedYear);
+                                    const yearAspects = currentYearAspects;
                                     return yearAspects.length > 0 ? 
                                       getRomanNumeral(yearAspects.length + 1) : 'I';
                                   })()}. {aspekForm.nama || '[Deskripsi Aspek]'}
@@ -4310,7 +4344,7 @@ const PengaturanBaru = () => {
                           <h4 className="font-semibold text-gray-900 mb-3">Daftar Aspek Tersedia</h4>
                           
                           {(() => {
-                            const yearAspects = getAspectsByYear(selectedYear);
+                            const yearAspects = currentYearAspects;
                             return yearAspects.length > 0 ? (
                               <div className="space-y-2">
                                 {yearAspects.map((aspek) => (
