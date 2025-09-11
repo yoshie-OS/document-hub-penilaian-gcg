@@ -98,7 +98,7 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
               id: item.id || Date.now() + Math.random(),
               nama: item.nama,
               deskripsi: item.deskripsi || '',
-              tahun: item.tahun || new Date().getFullYear(),
+              tahun: item.tahun || selectedYear || new Date().getFullYear(),
               createdAt: new Date(item.created_at || new Date()),
               isActive: true,
               // Type-specific fields
@@ -416,63 +416,136 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
   const useDefaultData = async (year: number) => {
     try {
       console.log(`StrukturPerusahaanContext: Creating default data for year ${year}`);
+      setIsLoading(true);
       
-      // Create default direktorat using the API functions
-      const direktoratData = [
-        { nama: 'Direktorat Keuangan', deskripsi: 'Mengelola keuangan perusahaan', tahun: year },
-        { nama: 'Direktorat Operasional', deskripsi: 'Mengelola operasional perusahaan', tahun: year },
-        { nama: 'Direktorat SDM', deskripsi: 'Mengelola sumber daya manusia', tahun: year },
-        { nama: 'Direktorat Teknologi', deskripsi: 'Mengelola teknologi informasi', tahun: year }
-      ];
-
-      // Add direktorat one by one
-      for (const dir of direktoratData) {
-        await addDirektorat(dir);
-        // Small delay to ensure proper ordering
-        await new Promise(resolve => setTimeout(resolve, 100));
+      // Import the actual default data
+      const { DEFAULT_STRUKTUR_ORGANISASI } = await import('../data/defaultStrukturOrganisasi');
+      
+      // Clear existing data first to avoid duplicates
+      setDirektorat(prev => prev.filter(d => d.tahun !== year));
+      setSubdirektorat(prev => prev.filter(s => s.tahun !== year));
+      setDivisi(prev => prev.filter(d => d.tahun !== year));
+      setAnakPerusahaan(prev => prev.filter(a => a.tahun !== year));
+      
+      // Prepare batch data for API
+      const batchItems: any[] = [];
+      
+      // Add all direktorat to batch
+      for (const dir of DEFAULT_STRUKTUR_ORGANISASI.direktorat) {
+        batchItems.push({
+          type: 'direktorat',
+          nama: dir.nama,
+          deskripsi: `${dir.kode} - ${dir.nama}`,
+          tahun: year, // Add year field
+          parent_id: null,
+          // Include original ID for mapping later
+          original_id: dir.id
+        });
       }
-
-      // Get the current direktorat to get IDs for subdirektorat
-      const currentDirektorat = direktorat.filter(d => d.tahun === year);
       
-      if (currentDirektorat.length >= 2) {
-        // Create default subdirektorat
-        const subdirektoratData = [
-          { nama: 'Subdirektorat Akuntansi', direktoratId: currentDirektorat[0].id, deskripsi: 'Mengelola akuntansi', tahun: year },
-          { nama: 'Subdirektorat Treasury', direktoratId: currentDirektorat[0].id, deskripsi: 'Mengelola treasury', tahun: year },
-          { nama: 'Subdirektorat Logistik', direktoratId: currentDirektorat[1].id, deskripsi: 'Mengelola logistik', tahun: year },
-          { nama: 'Subdirektorat Pelayanan', direktoratId: currentDirektorat[1].id, deskripsi: 'Mengelola pelayanan', tahun: year }
-        ];
-
-        // Add subdirektorat one by one
-        for (const sub of subdirektoratData) {
-          await addSubdirektorat(sub);
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
-
-        // Get current subdirektorat for divisi
-        const currentSubdirektorat = subdirektorat.filter(s => s.tahun === year);
+      // Add all subdirektorat to batch
+      for (const sub of DEFAULT_STRUKTUR_ORGANISASI.subdirektorat) {
+        batchItems.push({
+          type: 'subdirektorat',
+          nama: sub.nama,
+          deskripsi: `${sub.kode} - ${sub.nama}`,
+          tahun: year, // Add year field
+          parent_id: sub.parentId, // Will be mapped by backend
+          original_id: sub.id,
+          parent_original_id: sub.parentId
+        });
+      }
+      
+      // Add all divisi to batch
+      for (const div of DEFAULT_STRUKTUR_ORGANISASI.divisi) {
+        batchItems.push({
+          type: 'divisi',
+          nama: div.nama,
+          deskripsi: `${div.kode} - ${div.nama}`,
+          tahun: year, // Add year field
+          parent_id: div.parentId, // Will be mapped by backend
+          original_id: div.id,
+          parent_original_id: div.parentId
+        });
+      }
+      
+      console.log(`StrukturPerusahaanContext: Sending ${batchItems.length} items in batch API call`);
+      
+      // Single batch API call to avoid race conditions
+      const response = await fetch('http://localhost:5000/api/config/struktur-organisasi/batch', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ items: batchItems }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Batch API failed: ${response.status} ${response.statusText}`);
+      }
+      
+      const batchResult = await response.json();
+      console.log(`StrukturPerusahaanContext: Batch API successful, created ${batchResult.created?.length || 0} items`);
+      
+      // Update local state with the batch results
+      if (batchResult.created && Array.isArray(batchResult.created)) {
+        const newDirektorat: Direktorat[] = [];
+        const newSubdirektorat: Subdirektorat[] = [];
+        const newDivisi: Divisi[] = [];
         
-        if (currentSubdirektorat.length >= 4) {
-          // Create default divisi
-          const divisiData = [
-            { nama: 'Divisi Akuntansi', subdirektoratId: currentSubdirektorat[0].id, deskripsi: 'Mengelola akuntansi', tahun: year },
-            { nama: 'Divisi Treasury', subdirektoratId: currentSubdirektorat[1].id, deskripsi: 'Mengelola treasury', tahun: year },
-            { nama: 'Divisi Logistik', subdirektoratId: currentSubdirektorat[2].id, deskripsi: 'Mengelola logistik', tahun: year },
-            { nama: 'Divisi Pelayanan', subdirektoratId: currentSubdirektorat[3].id, deskripsi: 'Mengelola pelayanan', tahun: year }
-          ];
-
-          // Add divisi one by one
-          for (const div of divisiData) {
-            await addDivisi(div);
-            await new Promise(resolve => setTimeout(resolve, 100));
+        for (const item of batchResult.created) {
+          if (item.type === 'direktorat') {
+            newDirektorat.push({
+              id: item.id || Date.now() + Math.random(),
+              nama: item.nama,
+              deskripsi: item.deskripsi,
+              tahun: year,
+              createdAt: new Date(item.created_at || new Date()),
+              isActive: true
+            });
+          } else if (item.type === 'subdirektorat') {
+            newSubdirektorat.push({
+              id: item.id || Date.now() + Math.random(),
+              nama: item.nama,
+              direktoratId: item.parent_id,
+              deskripsi: item.deskripsi,
+              tahun: year,
+              createdAt: new Date(item.created_at || new Date()),
+              isActive: true
+            });
+          } else if (item.type === 'divisi') {
+            newDivisi.push({
+              id: item.id || Date.now() + Math.random(),
+              nama: item.nama,
+              subdirektoratId: item.parent_id,
+              deskripsi: item.deskripsi,
+              tahun: year,
+              createdAt: new Date(item.created_at || new Date()),
+              isActive: true
+            });
           }
         }
+        
+        // Update state with all new items
+        setDirektorat(prev => [...prev, ...newDirektorat]);
+        setSubdirektorat(prev => [...prev, ...newSubdirektorat]);
+        setDivisi(prev => [...prev, ...newDivisi]);
+        
+        console.log(`StrukturPerusahaanContext: Updated state with ${newDirektorat.length} direktorat, ${newSubdirektorat.length} subdirektorat, ${newDivisi.length} divisi`);
       }
-
+      
       console.log(`StrukturPerusahaanContext: Successfully created default data for year ${year}`);
+      
+      // Force refresh from Supabase to update localStorage with the latest data
+      setTimeout(() => {
+        triggerUpdate();
+      }, 1000); // Reduced timeout since we're using batch API
+      
     } catch (error) {
       console.error('StrukturPerusahaanContext: Error creating default data:', error);
+      throw error;
+    } finally {
+      setIsLoading(false);
     }
   };
 

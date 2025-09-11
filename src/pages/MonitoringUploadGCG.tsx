@@ -13,6 +13,7 @@ import { useSidebar } from '@/contexts/SidebarContext';
 import { useDocumentMetadata } from '@/contexts/DocumentMetadataContext';
 import { useFileUpload } from '@/contexts/FileUploadContext';
 import { useYear } from '@/contexts/YearContext';
+import { useUser } from '@/contexts/UserContext';
 
 import { useToast } from '@/hooks/use-toast';
 import { AdminUploadDialog } from '@/components/dialogs';
@@ -33,6 +34,8 @@ import {
   Download,
   Plus,
   User,
+  Loader2,
+  RefreshCw,
 } from 'lucide-react';
 
 const MonitoringUploadGCG = () => {
@@ -43,9 +46,10 @@ const MonitoringUploadGCG = () => {
     ensureAllYearsHaveData
   } = useChecklist();
   const { documents, getDocumentsByYear } = useDocumentMetadata();
-  const { getFilesByYear } = useFileUpload();
+  const { getFilesByYear, refreshFiles } = useFileUpload();
   const { isSidebarOpen } = useSidebar();
   const { selectedYear, setSelectedYear } = useYear();
+  const { user } = useUser();
   const { toast } = useToast();
 
   const [selectedAspek, setSelectedAspek] = useState<string>('all');
@@ -58,18 +62,33 @@ const MonitoringUploadGCG = () => {
     id: number;
     aspek: string;
     deskripsi: string;
+    rowNumber?: number;
   } | null>(null);
   // Force re-render state untuk memastikan data terupdate
   const [forceUpdate, setForceUpdate] = useState(0);
   
   // State untuk CatatanDialog
   const [isCatatanDialogOpen, setIsCatatanDialogOpen] = useState(false);
+  
+  // State to track actual file existence from Supabase
+  const [supabaseFileStatus, setSupabaseFileStatus] = useState<{[key: string]: boolean}>({});
+  // State to store file information from Supabase
+  const [supabaseFileInfo, setSupabaseFileInfo] = useState<{[key: string]: any}>({});
+  // State to track which files are being checked for loading spinners
+  const [fileStatusLoading, setFileStatusLoading] = useState<boolean>(false);
+  // State to track individual items being checked
+  const [itemsBeingChecked, setItemsBeingChecked] = useState<Set<number>>(new Set());
+  // State to track batch progress
+  const [batchProgress, setBatchProgress] = useState<{current: number, total: number} | null>(null);
+  // State to track refresh/rescan progress
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [selectedDocumentForCatatan, setSelectedDocumentForCatatan] = useState<{
     catatan?: string;
     title?: string;
     fileName?: string;
   } | null>(null);
   
+
   // Ensure all years have dokumen GCG data when component mounts
   useEffect(() => {
     ensureAllYearsHaveData();
@@ -104,6 +123,10 @@ const MonitoringUploadGCG = () => {
     // Listen for file upload events from FileUploadDialog
     const handleFileUploaded = () => {
       console.log('MonitoringUploadGCG: Received fileUploaded event from FileUploadDialog');
+      // Refresh Supabase file status after upload
+      setTimeout(() => {
+        checkSupabaseFileStatus();
+      }, 1000); // Wait a bit for Supabase to sync
       // Force re-render using setSelectedYear like admin dashboard
       if (selectedYear) {
         setTimeout(() => {
@@ -259,78 +282,253 @@ const MonitoringUploadGCG = () => {
   const picValues = useMemo(() => {
     if (!selectedYear) return [];
     
-    try {
-      const assignmentsData = localStorage.getItem('checklistAssignments');
-      if (!assignmentsData) return [];
+    const yearChecklist = checklist.filter(item => item.tahun === selectedYear);
+    const allPICs = yearChecklist
+      .map(item => item.pic)
+      .filter(Boolean)
+      .filter(pic => pic.trim() !== '');
       
-      const assignments = JSON.parse(assignmentsData);
-      const yearAssignments = assignments.filter((assignment: any) => assignment.tahun === selectedYear);
-      
-      // Get both divisi and subdirektorat assignments
-      const allPICs = yearAssignments.flatMap((assignment: any) => [
-        assignment.divisi,
-        assignment.subdirektorat
-      ]).filter(Boolean);
-      
-      const uniquePICs = Array.from(new Set(allPICs)).sort();
-      
-      return uniquePICs;
-    } catch (error) {
-      console.error('Error getting PIC values:', error);
-      return [];
-    }
-  }, [selectedYear]);
+    const uniquePICs = Array.from(new Set(allPICs)).sort();
+    
+    return uniquePICs;
+  }, [selectedYear, checklist]);
 
-  // Check if dokumen GCG item is uploaded - menggunakan data yang sama dengan DashboardStats
+  // Check if dokumen GCG item is uploaded - now uses Supabase file status
   const isChecklistUploaded = useCallback((checklistId: number) => {
     if (!selectedYear) return false;
-    const yearFiles = getFilesByYear(selectedYear);
-    console.log('MonitoringUploadGCG: isChecklistUploaded called for checklistId:', checklistId, 'yearFiles:', yearFiles);
-    // Convert both to integers for comparison to handle decimal vs integer mismatch
-    const checklistIdInt = Math.floor(checklistId);
-    return yearFiles.some(file => file.checklistId === checklistIdInt);
-  }, [getFilesByYear, selectedYear]);
-
-  // Get uploaded document for dokumen GCG - menggunakan data yang sama dengan DashboardStats
-  const getUploadedDocument = useCallback((checklistId: number) => {
-    if (!selectedYear) return null;
-    const yearFiles = getFilesByYear(selectedYear);
-    console.log('MonitoringUploadGCG: getUploadedDocument called for checklistId:', checklistId, 'yearFiles:', yearFiles);
     
-    // Convert to integer for comparison to handle decimal vs integer mismatch
-    const checklistIdInt = Math.floor(checklistId);
-    const foundFile = yearFiles.find(file => file.checklistId === checklistIdInt);
-    if (foundFile) {
-      console.log('MonitoringUploadGCG: Found file:', {
-        fileName: foundFile.fileName,
-        catatan: foundFile.catatan,
-        catatanType: typeof foundFile.catatan,
-        catatanLength: foundFile.catatan?.length
-      });
+    // Check Supabase file status first (authoritative)
+    const supabaseExists = supabaseFileStatus[checklistId.toString()] || false;
+    // Uncomment for detailed debugging:
+    // console.log('MonitoringUploadGCG: isChecklistUploaded called for checklistId:', checklistId, 'supabaseExists:', supabaseExists);
+    
+    if (supabaseExists) {
+      return true;
     }
     
+    // Fallback to localStorage for backward compatibility
+    const yearFiles = getFilesByYear(selectedYear);
+    const checklistIdInt = Math.floor(checklistId);
+    const localFileExists = yearFiles.some(file => file.checklistId === checklistIdInt);
+    // Uncomment for detailed debugging:
+    // console.log('MonitoringUploadGCG: localStorage fallback for checklistId:', checklistId, 'localFileExists:', localFileExists);
+    
+    return localFileExists;
+  }, [supabaseFileStatus, getFilesByYear, selectedYear]);
+
+  // Get uploaded document for dokumen GCG - now uses Supabase file status with localStorage fallback
+  const getUploadedDocument = useCallback((checklistId: number) => {
+    if (!selectedYear) return null;
+    
+    // First check if file exists in Supabase
+    const supabaseExists = supabaseFileStatus[checklistId.toString()];
+    if (supabaseExists && supabaseFileInfo[checklistId.toString()]) {
+      return supabaseFileInfo[checklistId.toString()];
+    }
+    
+    // Fallback to localStorage for backward compatibility
+    const yearFiles = getFilesByYear(selectedYear);
+    const checklistIdInt = Math.floor(checklistId);
+    const foundFile = yearFiles.find(file => file.checklistId === checklistIdInt);
+    
     return foundFile;
-  }, [getFilesByYear, selectedYear]);
+  }, [supabaseFileStatus, supabaseFileInfo, getFilesByYear, selectedYear]);
 
   // Get assignment data for checklist item
   const getAssignmentData = useCallback((checklistId: number) => {
     if (!selectedYear) return null;
     
+    const checklistItem = checklist.find(item => 
+      item.id === checklistId && item.tahun === selectedYear
+    );
+    
+    if (!checklistItem || !checklistItem.pic) return null;
+    
+    // Return simplified assignment data structure for backward compatibility
+    return {
+      checklistId: checklistId,
+      subdirektorat: checklistItem.pic,
+      divisi: checklistItem.pic, // For compatibility with existing code
+      assignmentType: 'subdirektorat',
+      tahun: selectedYear,
+      assignedAt: new Date().toISOString()
+    };
+  }, [selectedYear, checklist]);
+
+  // Function to check file existence from Supabase
+  const checkSupabaseFileStatus = useCallback(async () => {
+    if (!selectedYear || !checklist.length) return;
+
+    // Set loading state
+    setFileStatusLoading(true);
+    setBatchProgress(null);
+    
+    // Initialize all items as being checked
+    const allItemIds = new Set(checklist.map(item => item.id));
+    setItemsBeingChecked(allItemIds);
+
     try {
-      const assignmentsData = localStorage.getItem('checklistAssignments');
-      if (!assignmentsData) return null;
+      // Group checklist items by PIC to minimize API calls
+      const itemsByPIC = new Map<string, Array<{id: number, rowNumber: number}>>();
       
-      const assignments = JSON.parse(assignmentsData);
-      const assignment = assignments.find((assignment: any) => 
-        assignment.checklistId === checklistId && assignment.tahun === selectedYear
-      );
+      checklist
+        .filter(item => item.tahun === selectedYear)
+        .forEach((item, index) => {
+          // Get PIC from checklist item, fallback to current user's subdirektorat
+          const picName = item.pic || user?.subdirektorat || 'UNKNOWN_PIC';
+          
+          if (!itemsByPIC.has(picName)) {
+            itemsByPIC.set(picName, []);
+          }
+          itemsByPIC.get(picName)!.push({
+            id: item.id,
+            rowNumber: item.rowNumber || (index + 1) // Use stable rowNumber or fallback to index+1
+          });
+        });
+
+      console.log('MonitoringUploadGCG: Checking file status for PICs:', Array.from(itemsByPIC.keys()));
+
+      // Check files for each PIC in batches of 10
+      const newFileStatus: {[key: string]: boolean} = {};
+      const newFileInfo: {[key: string]: any} = {};
+      const BATCH_SIZE = 10;
       
-      return assignment || null;
+      // Calculate total batches for progress tracking
+      let totalBatches = 0;
+      for (const [picName, items] of itemsByPIC) {
+        totalBatches += Math.ceil(items.length / BATCH_SIZE);
+      }
+      setBatchProgress({current: 0, total: totalBatches});
+      
+      let currentBatch = 0;
+      
+      for (const [picName, items] of itemsByPIC) {
+        // Split items into batches of 10
+        const batches = [];
+        for (let i = 0; i < items.length; i += BATCH_SIZE) {
+          batches.push(items.slice(i, i + BATCH_SIZE));
+        }
+        
+        console.log(`MonitoringUploadGCG: Processing ${items.length} files for ${picName} in ${batches.length} batches`);
+        
+        // Process each batch
+        for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+          const batch = batches[batchIndex];
+          currentBatch++;
+          setBatchProgress({current: currentBatch, total: totalBatches});
+          
+          console.log(`MonitoringUploadGCG: Processing batch ${batchIndex + 1}/${batches.length} for ${picName} (${batch.length} files) - Overall: ${currentBatch}/${totalBatches}`);
+          
+          try {
+            const requestBody = {
+              picName,
+              year: selectedYear,
+              rowNumbers: batch.map(item => item.rowNumber)
+            };
+            
+            const response = await fetch('http://localhost:5000/api/check-gcg-files', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(requestBody),
+            });
+
+            if (response.ok) {
+              const result = await response.json();
+              
+              // Create batch-specific updates
+              const batchFileStatus: {[key: string]: boolean} = {};
+              const batchFileInfo: {[key: string]: any} = {};
+              
+              // Map results back to checklist IDs
+              batch.forEach(item => {
+                const fileStatus = result.fileStatuses?.[item.rowNumber.toString()];
+                const fileExists = fileStatus?.exists || false;
+                batchFileStatus[item.id.toString()] = fileExists;
+                newFileStatus[item.id.toString()] = fileExists; // Keep for final state
+                
+                if (fileExists && fileStatus) {
+                  // Create file info object compatible with localStorage format
+                  const fileInfoObj = {
+                    id: `supabase_${item.id}`,
+                    fileName: fileStatus.fileName,
+                    fileSize: fileStatus.size,
+                    uploadDate: new Date(fileStatus.lastModified),
+                    year: selectedYear,
+                    checklistId: item.id,
+                    status: 'uploaded',
+                    catatan: fileStatus.notes || '' // Notes might come from Supabase metadata
+                  };
+                  batchFileInfo[item.id.toString()] = fileInfoObj;
+                  newFileInfo[item.id.toString()] = fileInfoObj; // Keep for final state
+                }
+                
+                console.log('MonitoringUploadGCG: Mapped file status - ID:', item.id, 'Row:', item.rowNumber, 'Exists:', fileExists);
+              });
+              
+              // Update state immediately after each batch for progressive loading
+              setSupabaseFileStatus(prev => ({...prev, ...batchFileStatus}));
+              setSupabaseFileInfo(prev => ({...prev, ...batchFileInfo}));
+              
+              // Remove processed items from being checked
+              setItemsBeingChecked(prev => {
+                const newSet = new Set(prev);
+                batch.forEach(item => newSet.delete(item.id));
+                return newSet;
+              });
+              
+            } else {
+              console.error(`MonitoringUploadGCG: API call failed for ${picName} batch ${batchIndex + 1} with status:`, response.status);
+            }
+          } catch (error) {
+            console.error(`Error checking files for PIC: ${picName} batch ${batchIndex + 1}`, error);
+            
+            // Create batch-specific error updates
+            const batchErrorStatus: {[key: string]: boolean} = {};
+            
+            // Set all items for this batch as not uploaded on error
+            batch.forEach(item => {
+              batchErrorStatus[item.id.toString()] = false;
+              newFileStatus[item.id.toString()] = false; // Keep for final state
+            });
+            
+            // Update state immediately for this batch
+            setSupabaseFileStatus(prev => ({...prev, ...batchErrorStatus}));
+            
+            // Remove processed items from being checked even on error
+            setItemsBeingChecked(prev => {
+              const newSet = new Set(prev);
+              batch.forEach(item => newSet.delete(item.id));
+              return newSet;
+            });
+          }
+          
+          // Small delay between batches to prevent overwhelming the server
+          if (batchIndex < batches.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+        }
+      }
+
+      // Final update (already done progressively above)
+      console.log('MonitoringUploadGCG: Batch processing complete - Total items:', Object.keys(newFileStatus).length, 'True values:', Object.values(newFileStatus).filter(Boolean).length);
+      console.log('MonitoringUploadGCG: Updated Supabase file info - Files with info:', Object.keys(newFileInfo).length);
+      
     } catch (error) {
-      console.error('Error getting assignment data:', error);
-      return null;
+      console.error('Error checking Supabase file status:', error);
+    } finally {
+      // Clear loading and progress states
+      setFileStatusLoading(false);
+      setBatchProgress(null);
+      setItemsBeingChecked(new Set()); // Clear all checking states
     }
-  }, [selectedYear]);
+  }, [selectedYear, checklist, getAssignmentData, user]);
+
+  // Check Supabase file status when year or checklist changes
+  useEffect(() => {
+    checkSupabaseFileStatus();
+  }, [checkSupabaseFileStatus]);
 
   // Filter dokumen GCG berdasarkan aspek, status, dan PIC - menggunakan data yang sama dengan DashboardStats
   const filteredChecklist = useMemo(() => {
@@ -353,11 +551,7 @@ const MonitoringUploadGCG = () => {
     // Filter by PIC
     if (selectedPIC !== 'all') {
       filtered = filtered.filter(item => {
-        const assignmentData = getAssignmentData(item.id);
-        if (!assignmentData) return false;
-        
-        // Check both divisi and subdirektorat assignments
-        return assignmentData.divisi === selectedPIC || assignmentData.subdirektorat === selectedPIC;
+        return item.pic === selectedPIC;
       });
     }
 
@@ -368,7 +562,7 @@ const MonitoringUploadGCG = () => {
     }
 
     return filtered;
-  }, [checklist, selectedAspek, selectedStatus, selectedPIC, selectedYear, debouncedSearchTerm, isChecklistUploaded, getAssignmentData, forceUpdate]);
+  }, [checklist, selectedAspek, selectedStatus, selectedPIC, selectedYear, debouncedSearchTerm, isChecklistUploaded, getAssignmentData, forceUpdate, supabaseFileStatus, supabaseFileInfo]);
 
   // Navigate to dashboard with document highlight
   const handleViewDocument = useCallback((checklistId: number) => {
@@ -392,42 +586,179 @@ const MonitoringUploadGCG = () => {
   }, [getUploadedDocument, documents, selectedYear, navigate]);
 
   // Handle download document
-  const handleDownloadDocument = useCallback((checklistId: number) => {
-    const uploadedDocument = getUploadedDocument(checklistId);
-    if (uploadedDocument) {
-      try {
-        // Create a blob from the file data (simulated for now)
-        const blob = new Blob(['Document content'], { type: 'application/pdf' });
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = uploadedDocument.fileName || `${uploadedDocument.fileName}.pdf`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-        
-        // Show success message
-        toast({
-          title: "Download berhasil",
-          description: `File ${uploadedDocument.fileName} berhasil diunduh`,
-        });
-      } catch (error) {
-        console.error('Download error:', error);
-        toast({
-          title: "Download gagal",
-          description: "Terjadi kesalahan saat mengunduh file",
-          variant: "destructive"
-        });
-      }
-    } else {
+  const handleDownloadDocument = useCallback(async (checklistId: number, rowNumber: number) => {
+    if (!selectedYear) return;
+    
+    try {
+      // Get PIC from checklist item, fallback to current user's subdirektorat  
+      const checklistItem = checklist.find(item => item.id === checklistId && item.tahun === selectedYear);
+      const picName = checklistItem?.pic || user?.subdirektorat || 'UNKNOWN_PIC';
+      
+      // Create a direct download URL instead of using fetch
+      const downloadUrl = new URL('http://localhost:5000/api/download-gcg-file');
+      const downloadBody = JSON.stringify({
+        picName,
+        year: selectedYear,
+        rowNumber
+      });
+
+      // Create a form to submit the download request
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = 'http://localhost:5000/api/download-gcg-file';
+      form.style.display = 'none';
+      form.target = '_self';
+
+      // Add the JSON data as a hidden input
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'data';
+      input.value = downloadBody;
+      form.appendChild(input);
+
+      // Add individual fields for the backend to parse easily
+      const picInput = document.createElement('input');
+      picInput.type = 'hidden';
+      picInput.name = 'picName';
+      picInput.value = picName;
+      form.appendChild(picInput);
+
+      const yearInput = document.createElement('input');
+      yearInput.type = 'hidden';
+      yearInput.name = 'year';
+      yearInput.value = selectedYear.toString();
+      form.appendChild(yearInput);
+
+      const rowInput = document.createElement('input');
+      rowInput.type = 'hidden';
+      rowInput.name = 'rowNumber';
+      rowInput.value = rowNumber.toString();
+      form.appendChild(rowInput);
+
+      document.body.appendChild(form);
+      form.submit();
+      document.body.removeChild(form);
+      
+      // Show success message
       toast({
-        title: "File tidak ditemukan",
-        description: "Dokumen belum diupload atau tidak tersedia",
+        title: "Download berhasil",
+        description: `Dokumen untuk ${picName} berhasil diunduh`,
+      });
+    } catch (error) {
+      console.error('Download error:', error);
+      toast({
+        title: "Download gagal",
+        description: error instanceof Error ? error.message : "Terjadi kesalahan saat download dokumen",
         variant: "destructive"
       });
     }
-  }, [getUploadedDocument, toast]);
+  }, [selectedYear, getAssignmentData, toast, user]);
+
+  // Handle refresh/rescan - reload checklist data and rescan storage
+  const handleRefreshRescan = useCallback(async () => {
+    if (isRefreshing) return; // Prevent multiple simultaneous refreshes
+    
+    setIsRefreshing(true);
+    try {
+      toast({
+        title: "Memuat ulang data...",
+        description: "Memperbarui daftar dokumen dan memindai ulang storage",
+      });
+
+      // 1. Refresh checklist data (reload from backend)
+      await ensureAllYearsHaveData();
+      
+      // 2. Refresh uploaded files data (reload from backend)
+      await refreshFiles();
+      
+      // 3. Rescan Supabase storage for file changes
+      await checkSupabaseFileStatus();
+      
+      toast({
+        title: "Data berhasil diperbarui",
+        description: "Daftar dokumen dan storage telah dipindai ulang",
+      });
+      
+    } catch (error) {
+      console.error('Error during refresh/rescan:', error);
+      toast({
+        title: "Gagal memperbarui data",
+        description: "Terjadi kesalahan saat memperbarui data",
+        variant: "destructive"
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [isRefreshing, ensureAllYearsHaveData, refreshFiles, checkSupabaseFileStatus, toast]);
+
+  // Function to rescan a single row after upload
+  const rescanSingleRow = useCallback(async (checklistId: number, rowNumber: number) => {
+    if (!selectedYear) return;
+    
+    // Find the specific item
+    const item = checklist.find(item => item.id === checklistId);
+    if (!item) return;
+    
+    // Get PIC from checklist item, fallback to current user's subdirektorat
+    const picName = item.pic || user?.subdirektorat || 'UNKNOWN_PIC';
+    
+    console.log('MonitoringUploadGCG: Rescanning single row - ID:', checklistId, 'Row:', rowNumber, 'PIC:', picName);
+    
+    // Add this item to being checked
+    setItemsBeingChecked(prev => new Set(prev.add(checklistId)));
+    
+    try {
+      const requestBody = {
+        picName,
+        year: selectedYear,
+        rowNumbers: [rowNumber]
+      };
+      
+      const response = await fetch('http://localhost:5000/api/check-gcg-files', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        const fileStatus = result.fileStatuses?.[rowNumber.toString()];
+        const fileExists = fileStatus?.exists || false;
+        
+        // Update states for this single item
+        setSupabaseFileStatus(prev => ({...prev, [checklistId.toString()]: fileExists}));
+        
+        if (fileExists && fileStatus) {
+          const fileInfoObj = {
+            id: `supabase_${checklistId}`,
+            fileName: fileStatus.fileName,
+            fileSize: fileStatus.size,
+            uploadDate: new Date(fileStatus.lastModified),
+            year: selectedYear,
+            checklistId: checklistId,
+            status: 'uploaded',
+            catatan: fileStatus.notes || ''
+          };
+          setSupabaseFileInfo(prev => ({...prev, [checklistId.toString()]: fileInfoObj}));
+        }
+        
+        console.log('MonitoringUploadGCG: Single row rescan complete - ID:', checklistId, 'Exists:', fileExists);
+      }
+    } catch (error) {
+      console.error('Error rescanning single row:', error);
+      // Set as not uploaded on error
+      setSupabaseFileStatus(prev => ({...prev, [checklistId.toString()]: false}));
+    } finally {
+      // Remove from being checked
+      setItemsBeingChecked(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(checklistId);
+        return newSet;
+      });
+    }
+  }, [selectedYear, checklist, getAssignmentData, user]);
 
   // Handle show catatan
   const handleShowCatatan = useCallback((checklistId: number) => {
@@ -503,7 +834,7 @@ const MonitoringUploadGCG = () => {
       uploadedCount,
       progress
     };
-  }, [selectedYear, checklist, isChecklistUploaded]);
+  }, [selectedYear, checklist, isChecklistUploaded, supabaseFileStatus]);
 
   // Get aspect statistics for year book
   const getAspectStats = useMemo(() => {
@@ -528,11 +859,11 @@ const MonitoringUploadGCG = () => {
         progress
       };
     }).sort((a, b) => b.progress - a.progress); // Sort by progress descending
-  }, [selectedYear, checklist, getDocumentsByYear, isChecklistUploaded]);
+  }, [selectedYear, checklist, getDocumentsByYear, isChecklistUploaded, supabaseFileStatus]);
 
   // Handle upload button click
-  const handleUploadClick = useCallback((item: { id: number; aspek: string; deskripsi: string }) => {
-    setSelectedChecklistItem(item);
+  const handleUploadClick = useCallback((item: { id: number; aspek: string; deskripsi: string; rowNumber?: number }, rowNumber: number) => {
+    setSelectedChecklistItem({ ...item, rowNumber: item.rowNumber || rowNumber });
     setIsUploadDialogOpen(true);
   }, []);
 
@@ -806,6 +1137,29 @@ const MonitoringUploadGCG = () => {
                     Reset Filter
                   </Button>
                 </div>
+
+                      {/* Refresh/Rescan Button */}
+                      <div className="flex-shrink-0">
+                  <Button 
+                    variant="outline" 
+                    onClick={handleRefreshRescan}
+                    disabled={isRefreshing || fileStatusLoading}
+                          size="sm"
+                          className={`${
+                            isRefreshing || fileStatusLoading
+                              ? 'border-gray-200 text-gray-400 cursor-not-allowed'
+                              : 'border-blue-300 text-blue-600 hover:bg-blue-50'
+                          }`}
+                          title="Muat ulang daftar dokumen dan pindai ulang storage"
+                  >
+                          {isRefreshing ? (
+                            <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                          ) : (
+                            <RefreshCw className="w-4 h-4 mr-1" />
+                          )}
+                    {isRefreshing ? 'Memuat...' : 'Rescan'}
+                  </Button>
+                </div>
                 </div>
               </div>
             </CardHeader>
@@ -886,7 +1240,12 @@ const MonitoringUploadGCG = () => {
                         )}
                       </TableCell>
                       <TableCell>
-                            {item.status === 'uploaded' ? (
+                            {itemsBeingChecked.has(item.id) ? (
+                              <span className="flex items-center text-blue-500 text-sm font-medium">
+                                <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                                {batchProgress ? `Checking... (${batchProgress.current}/${batchProgress.total})` : 'Checking...'}
+                              </span>
+                            ) : item.status === 'uploaded' ? (
                               <span className="flex items-center text-green-600 text-sm font-medium">
                                 <CheckCircle className="w-4 h-4 mr-1" />
                                 Sudah Upload
@@ -926,7 +1285,7 @@ const MonitoringUploadGCG = () => {
                               <Button 
                                 variant="outline" 
                                 size="sm"
-                                onClick={() => handleDownloadDocument(item.id)}
+                                onClick={() => handleDownloadDocument(item.id, index + 1)}
                                 disabled={!isChecklistUploaded(item.id)}
                                 className={`${
                                   isChecklistUploaded(item.id)
@@ -957,9 +1316,18 @@ const MonitoringUploadGCG = () => {
                               <Button 
                                 variant="outline" 
                                 size="sm"
-                                onClick={() => handleUploadClick(item)}
-                                className="border-orange-200 text-orange-600 hover:bg-orange-50"
-                                title="Upload dokumen baru"
+                                onClick={() => handleUploadClick(item, item.rowNumber || (index + 1))}
+                                disabled={itemsBeingChecked.has(item.id)}
+                                className={`${
+                                  itemsBeingChecked.has(item.id) 
+                                    ? 'border-gray-200 text-gray-400 cursor-not-allowed' 
+                                    : 'border-orange-200 text-orange-600 hover:bg-orange-50'
+                                }`}
+                                title={
+                                  itemsBeingChecked.has(item.id) 
+                                    ? "Menunggu pemeriksaan file selesai..." 
+                                    : "Upload dokumen baru"
+                                }
                               >
                             <Upload className="w-4 h-4" />
                           </Button>
@@ -1043,14 +1411,24 @@ const MonitoringUploadGCG = () => {
         isOpen={isUploadDialogOpen}
         onOpenChange={setIsUploadDialogOpen}
         checklistItem={selectedChecklistItem}
+        rowNumber={selectedChecklistItem?.rowNumber}
         isReUpload={false}
         onUploadSuccess={() => {
+          // Rescan only the uploaded row instead of all rows
+          if (selectedChecklistItem && selectedChecklistItem.rowNumber) {
+            setTimeout(() => {
+              rescanSingleRow(selectedChecklistItem.id, selectedChecklistItem.rowNumber);
+            }, 500); // Shorter delay for single row
+          }
+          
           // Dispatch custom event for real-time updates without page restart
-          console.log('MonitoringUploadGCG: Upload success, dispatching refresh event');
+          console.log('MonitoringUploadGCG: Upload success, rescanning single row:', selectedChecklistItem?.id);
           window.dispatchEvent(new CustomEvent('fileUploaded', {
             detail: { 
               type: 'fileUploaded', 
               year: selectedYear,
+              checklistId: selectedChecklistItem?.id,
+              rowNumber: selectedChecklistItem?.rowNumber,
               timestamp: new Date().toISOString()
             }
           }));
@@ -1059,6 +1437,7 @@ const MonitoringUploadGCG = () => {
             detail: { 
               type: 'uploadedFilesChanged', 
               year: selectedYear,
+              checklistId: selectedChecklistItem?.id,
               timestamp: new Date().toISOString()
             }
           }));

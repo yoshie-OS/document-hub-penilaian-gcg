@@ -28,6 +28,7 @@ interface AdminUploadDialogProps {
     deskripsi: string;
     tahun?: number;
   } | null;
+  rowNumber?: number; // New: row number for organized file structure
   isReUpload?: boolean;
   existingFileName?: string;
   onUploadSuccess?: () => void; // Callback untuk refresh data
@@ -43,6 +44,7 @@ const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
   isOpen,
   onOpenChange,
   checklistItem,
+  rowNumber,
   isReUpload = false,
   existingFileName,
   onUploadSuccess
@@ -202,7 +204,8 @@ const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
               checklistItem.deskripsi,
               checklistItem.aspek || 'Tidak Diberikan Aspek',
               user?.subdirektorat,
-              formData.notes // Tambahkan catatan
+              formData.notes, // Tambahkan catatan
+              rowNumber // Add row number for organized file structure
             );
           } else {
             // For new upload: add new file
@@ -213,7 +216,8 @@ const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
               checklistItem.deskripsi,
               checklistItem.aspek || 'Tidak Diberikan Aspek',
               user?.subdirektorat,
-              formData.notes // Tambahkan catatan
+              formData.notes, // Tambahkan catatan
+              rowNumber // Add row number for organized file structure
             );
           }
 

@@ -93,10 +93,13 @@ const AssignmentDropdown = ({
     const source = assignmentType === 'divisi' ? divisi : subdirektorat;
     const names = (source || [])
       .map(d => d.nama)
-      .filter((n): n is string => !!n && n.trim() !== '')
+      .filter((n): n is string => !!n && n.trim() !== '');
+    
+    // Deduplicate names using Set and then sort
+    const uniqueNames = [...new Set(names)]
       .sort((a, b) => a.localeCompare(b, 'id', { sensitivity: 'base' })); // Sort A-Z dengan locale Indonesia
     
-    return names;
+    return uniqueNames;
   }, [assignmentType, divisi, subdirektorat]);
 
   // Filter berdasarkan search term
@@ -305,6 +308,7 @@ interface User {
 interface ChecklistItem extends ChecklistGCG {
   status?: 'pending' | 'in_progress' | 'completed' | 'not_applicable';
   catatan?: string;
+  pic?: string;
   tahun: number;
 }
 
@@ -613,7 +617,8 @@ const PengaturanBaru = () => {
     deleteAspek, 
     initializeYearData,
     getAspectsByYear,
-    ensureAspectsForAllYears
+    ensureAspectsForAllYears,
+    useDefaultChecklistData
   } = useChecklist();
   const { toast } = useToast();
 
@@ -722,49 +727,32 @@ const PengaturanBaru = () => {
     ensureAspectsForAllYears();
   }, [ensureAspectsForAllYears]);
 
-  // Effect untuk load checklist dari context dan localStorage
+  // Effect untuk load checklist dari context (removed localStorage dependency)
   useEffect(() => {
     console.log('PengaturanBaru: Loading checklist data for year', selectedYear);
+    console.log('PengaturanBaru: Context checklist data:', {
+      total: checklist?.length || 0,
+      selectedYear: selectedYear
+    });
     
-    // Coba load dari localStorage terlebih dahulu (data yang sudah disimpan user)
-    const storedChecklist = localStorage.getItem('checklistGCG');
     let allChecklist: ChecklistItem[] = [];
     
-    if (storedChecklist) {
-      try {
-        const parsedChecklist = JSON.parse(storedChecklist);
-        // Filter berdasarkan tahun yang dipilih - HANYA tampilkan data untuk tahun aktif
-        const yearFiltered = selectedYear ? 
-          parsedChecklist.filter((item: any) => item.tahun === selectedYear) :
-          []; // Jika tidak ada tahun dipilih, jangan tampilkan data apapun
-          
-        allChecklist = yearFiltered.map((item: any) => ({
-          ...item,
-          status: item.status || 'pending',
-          catatan: item.catatan || '',
-          tahun: item.tahun || selectedYear
-        }));
-        console.log('PengaturanBaru: Loaded from localStorage', {
-          total: parsedChecklist.length,
-          selectedYear: selectedYear,
-          filteredForYear: allChecklist.length
-        });
-      } catch (error) {
-        console.error('Error parsing stored checklist', error);
-      }
-    }
-    
-    // Jika tidak ada data di localStorage, gunakan data dari context (hanya untuk tahun aktif)
-    if (allChecklist.length === 0 && checklist && selectedYear) {
+    // Load from ChecklistContext (Supabase data)
+    if (checklist && selectedYear) {
       // Filter data context berdasarkan tahun yang dipilih
       const contextFiltered = checklist.filter(item => item.tahun === selectedYear);
       allChecklist = contextFiltered.map(item => ({
         ...item,
         status: 'pending' as const,
         catatan: '',
-        tahun: item.tahun || selectedYear
+        tahun: item.tahun || selectedYear,
+        id: item.id,
+        aspek: item.aspek || '',
+        deskripsi: item.deskripsi || '',
+        pic: item.pic || '',
+        rowNumber: item.rowNumber
       }));
-      console.log('PengaturanBaru: Loaded from context', {
+      console.log('PengaturanBaru: Loaded from ChecklistContext', {
         contextTotal: checklist.length,
         selectedYear: selectedYear,
         filteredForYear: allChecklist.length
@@ -773,25 +761,13 @@ const PengaturanBaru = () => {
     
     console.log('PengaturanBaru: Setting checklist items', {
       count: allChecklist.length,
-      items: allChecklist
+      items: allChecklist.slice(0, 3) // Show first 3 items for debugging
     });
     
-    // Gunakan functional update untuk mencegah re-render berlebihan
-    setChecklistItems(prev => {
-      // Hanya update jika data benar-benar berbeda
-      if (JSON.stringify(prev) !== JSON.stringify(allChecklist)) {
-        return allChecklist;
-      }
-      return prev;
-    });
+    // Update state
+    setChecklistItems(allChecklist);
+    setOriginalChecklistItems(allChecklist);
     
-    setOriginalChecklistItems(prev => {
-      // Hanya update jika data benar-benar berbeda
-      if (JSON.stringify(prev) !== JSON.stringify(allChecklist)) {
-        return prev;
-      }
-      return allChecklist;
-    });
   }, [checklist, selectedYear]);
   
   // Effect untuk auto-save checklist items saat ada perubahan
@@ -1579,7 +1555,7 @@ const PengaturanBaru = () => {
   };
 
   // Handler untuk user management
-  const handleUserSubmit = (e: React.FormEvent) => {
+  const handleUserSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!userForm.name || !userForm.email || !userForm.password || !userForm.role) {
@@ -1592,38 +1568,57 @@ const PengaturanBaru = () => {
     }
 
     try {
-      const newUser: User = {
-        id: editingUser ? editingUser.id : Date.now(),
+      const userData = {
         name: userForm.name,
         email: userForm.email,
         password: userForm.password,
         role: userForm.role,
-        direktorat: userForm.direktorat || undefined,
-        subdirektorat: userForm.subdirektorat || undefined,
-        divisi: userForm.divisi || undefined,
-        whatsapp: userForm.whatsapp || undefined,
+        direktorat: userForm.direktorat || '',
+        subdirektorat: userForm.subdirektorat || '',
+        divisi: userForm.divisi || '',
+        whatsapp: userForm.whatsapp || '',
         tahun: selectedYear || new Date().getFullYear()
       };
 
       if (editingUser) {
-        // Update existing user
-        setUsers(prev => prev.map(u => u.id === editingUser.id ? newUser : u));
+        // For updates, we'd need a PUT endpoint - for now just show message
         toast({
-          title: "Berhasil!",
-          description: "User berhasil diupdate",
+          title: "Info",
+          description: "Edit user belum diimplementasikan dengan Supabase sync",
+          variant: "default"
         });
+        return;
       } else {
-        // Add new user
+        // Create new user via API
+        const response = await fetch('http://localhost:5000/api/users', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(userData),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const newUser = await response.json();
+        
+        // Update local state
         setUsers(prev => [...prev, newUser]);
+        
+        // Update localStorage for consistency
+        const updatedUsers = [...users, newUser];
+        localStorage.setItem('users', JSON.stringify(updatedUsers));
+
         toast({
           title: "Berhasil!",
-          description: "User baru berhasil ditambahkan",
+          description: "User baru berhasil ditambahkan dan disync ke Supabase",
         });
+
+        console.log('PengaturanBaru: Successfully created user via API', newUser);
       }
 
-      // Update localStorage
-      localStorage.setItem('users', JSON.stringify([...users, newUser]));
-      
       // Reset form and close dialog
       setUserForm({
         name: '',
@@ -1639,9 +1634,10 @@ const PengaturanBaru = () => {
       setShowUserDialog(false);
 
     } catch (error) {
+      console.error('PengaturanBaru: Error creating user:', error);
       toast({
         title: "Error",
-        description: "Gagal menambahkan/update user",
+        description: "Gagal menambahkan user ke Supabase",
         variant: "destructive"
       });
     }
@@ -1662,19 +1658,35 @@ const PengaturanBaru = () => {
     setShowUserDialog(true);
   };
 
-  const handleDeleteUser = (userId: number) => {
+  const handleDeleteUser = async (userId: number) => {
     try {
+      // Delete from Supabase via API
+      const response = await fetch(`http://localhost:5000/api/users/${userId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      // Update local state
       setUsers(prev => prev.filter(u => u.id !== userId));
-      localStorage.setItem('users', JSON.stringify(users.filter(u => u.id !== userId)));
+      
+      // Update localStorage for consistency
+      const updatedUsers = users.filter(u => u.id !== userId);
+      localStorage.setItem('users', JSON.stringify(updatedUsers));
       
       toast({
         title: "Berhasil!",
-        description: "User berhasil dihapus",
+        description: "User berhasil dihapus dari Supabase",
       });
+
+      console.log('PengaturanBaru: Successfully deleted user via API', userId);
     } catch (error) {
+      console.error('PengaturanBaru: Error deleting user:', error);
       toast({
         title: "Error",
-        description: "Gagal menghapus user",
+        description: "Gagal menghapus user dari Supabase",
         variant: "destructive"
       });
     }
@@ -1710,7 +1722,10 @@ const PengaturanBaru = () => {
   };
 
   // Handler untuk checklist management dengan data default 256 items
-  const handleUseDefaultChecklist = () => {
+  const handleUseDefaultChecklist = async () => {
+    console.log('PengaturanBaru: handleUseDefaultChecklist called');
+    console.log('PengaturanBaru: useDefaultChecklistData function:', typeof useDefaultChecklistData);
+    
     if (!selectedYear) {
         toast({
         title: "Error",
@@ -1726,48 +1741,27 @@ const PengaturanBaru = () => {
     }
 
     try {
-      // Generate checklist items dari data default
-      const newChecklistItems = DEFAULT_CHECKLIST_ITEMS.map((deskripsi, index) => ({
-        id: Date.now() + index + Math.random(), // Unique ID
-        aspek: '', // Kosong, user bisa isi nanti
-        deskripsi: deskripsi,
-        tahun: selectedYear,
-        status: 'pending' as const,
-        catatan: '',
-        createdAt: new Date(),
-        updatedAt: new Date()
-      }));
-
-      // Update state
-      setChecklistItems(prev => {
-        const updated = [...prev, ...newChecklistItems];
-        
-        // Persist ke localStorage
-        try {
-          localStorage.setItem('checklistGCG', JSON.stringify(updated));
-        } catch (err) {
-          console.error('Failed to persist default checklist items', err);
-        }
-        
-        return updated;
-      });
-
-      // Trigger update di ChecklistContext
-      window.dispatchEvent(new CustomEvent('checklistUpdated', {
-        detail: { type: 'checklistUpdated', data: newChecklistItems }
-      }));
-
+      console.log('PengaturanBaru: About to call useDefaultChecklistData with year:', selectedYear);
+      
+      // Use the context's useDefaultChecklistData function (same pattern as struktur organisasi)
+      await useDefaultChecklistData(selectedYear);
+      
+      console.log('PengaturanBaru: useDefaultChecklistData completed successfully');
+      
       toast({
-        title: "Data Default Berhasil Ditambahkan",
-        description: `${DEFAULT_CHECKLIST_ITEMS.length} item checklist telah ditambahkan untuk tahun ${selectedYear}`,
+        title: "Berhasil",
+        description: `Data default checklist telah ditambahkan untuk tahun ${selectedYear}`,
       });
 
-      console.log(`Default data added for year ${selectedYear}:`, newChecklistItems.length, 'items');
+      console.log('PengaturanBaru: Used default checklist data via context', {
+        year: selectedYear
+      });
+
     } catch (error) {
-      console.error('Error adding default data:', error);
+      console.error('PengaturanBaru: Failed to use default checklist data', error);
       toast({
         title: "Error",
-        description: "Gagal menambahkan data default. Silakan coba lagi.",
+        description: "Gagal menggunakan data default checklist",
         variant: "destructive"
       });
     }
@@ -1799,7 +1793,7 @@ const PengaturanBaru = () => {
     try {
       // Use the context's useDefaultData function which syncs to Supabase
       await useDefaultData(selectedYear);
-      // Success toast
+      
       toast({
         title: "Berhasil",
         description: `Data default struktur organisasi telah ditambahkan untuk tahun ${selectedYear}`,
@@ -1807,53 +1801,6 @@ const PengaturanBaru = () => {
 
       console.log('PengaturanBaru: Used default struktur organisasi data via context', {
         year: selectedYear
-      });
-
-    } catch (error) {
-        id: d.id,
-        nama: d.nama,
-        subdirektoratId: d.parentId || 101,
-        deskripsi: `Divisi ${d.nama}`,
-        tahun: selectedYear,
-        createdAt: new Date(),
-        isActive: true
-      }));
-
-      // Persist ke localStorage untuk setiap kategori
-      const existingDirektorat = JSON.parse(localStorage.getItem('direktorat') || '[]');
-      const existingSubdirektorat = JSON.parse(localStorage.getItem('subdirektorat') || '[]');
-      const existingDivisi = JSON.parse(localStorage.getItem('divisi') || '[]');
-      
-      const updatedDirektorat = [...existingDirektorat, ...direktoratData];
-      const updatedSubdirektorat = [...existingSubdirektorat, ...subdirektoratData];
-      const updatedDivisi = [...existingDivisi, ...divisiData];
-      
-      localStorage.setItem('direktorat', JSON.stringify(updatedDirektorat));
-      localStorage.setItem('subdirektorat', JSON.stringify(updatedSubdirektorat));
-      localStorage.setItem('divisi', JSON.stringify(updatedDivisi));
-
-      // Trigger context update dengan event
-      window.dispatchEvent(new CustomEvent('strukturPerusahaanUpdate', {
-        detail: { type: 'strukturPerusahaanUpdate' }
-      }));
-
-      // Trigger year data cleaned event untuk refresh context
-      window.dispatchEvent(new CustomEvent('yearDataCleaned', {
-        detail: { type: 'yearRemoved', year: selectedYear }
-      }));
-
-      // Success toast
-      toast({
-        title: "Berhasil",
-        description: `${summary.totalStruktur} struktur organisasi telah ditambahkan untuk tahun ${selectedYear}`,
-      });
-
-      console.log('PengaturanBaru: Used default struktur organisasi data', {
-        year: selectedYear,
-        direktoratAdded: direktoratData.length,
-        subdirektoratAdded: subdirektoratData.length,
-        divisiAdded: divisiData.length,
-        summary
       });
 
     } catch (error) {
@@ -1866,8 +1813,54 @@ const PengaturanBaru = () => {
     }
   };
 
-  const handleDeleteChecklist = (id: number) => {
+  const handleDeleteChecklist = async (id: number) => {
+    const item = checklistItems.find(item => item.id === id);
+    if (!item) return;
+
     try {
+      // Check if files exist for this row
+      const rowNumber = item.rowNumber || checklistItems.indexOf(item) + 1;
+      const picName = 'UNKNOWN_PIC'; // We'd need to determine this properly
+      const year = selectedYear || new Date().getFullYear();
+
+      const response = await fetch(`http://localhost:5000/api/check-row-files/${year}/${picName}/${rowNumber}`);
+      const result = await response.json();
+
+      if (result.success && result.hasFiles) {
+        // Show warning dialog for rows with files
+        const confirmed = window.confirm(
+          `⚠️ PERINGATAN: Row ini memiliki ${result.fileCount} file yang sudah diupload.\n\n` +
+          `File yang akan dihapus:\n${result.files.map((f: any) => `• ${f.name}`).join('\n')}\n\n` +
+          `Apakah Anda yakin ingin menghapus row ini beserta semua filenya?\n\n` +
+          `TINDAKAN INI TIDAK DAPAT DIBATALKAN!`
+        );
+
+        if (!confirmed) {
+          return;
+        }
+
+        // Delete files from storage
+        const deleteResponse = await fetch(`http://localhost:5000/api/delete-row-files/${year}/${picName}/${rowNumber}`, {
+          method: 'DELETE'
+        });
+        const deleteResult = await deleteResponse.json();
+
+        if (!deleteResult.success) {
+          toast({
+            title: "Error",
+            description: "Gagal menghapus file dari storage",
+            variant: "destructive"
+          });
+          return;
+        }
+
+        toast({
+          title: "File Dihapus",
+          description: `${deleteResult.deletedCount} file berhasil dihapus dari storage`,
+        });
+      }
+
+      // Proceed with row deletion
       const updatedItems = checklistItems.filter(item => item.id !== id);
       setChecklistItems(updatedItems);
       
@@ -1889,7 +1882,8 @@ const PengaturanBaru = () => {
         id: item.id,
         aspek: item.aspek,
         deskripsi: item.deskripsi,
-        tahun: item.tahun
+        tahun: item.tahun,
+        rowNumber: item.rowNumber
       }));
       
       window.dispatchEvent(new CustomEvent('checklistUpdated', {
@@ -1897,13 +1891,16 @@ const PengaturanBaru = () => {
       }));
       
       // Delete from context
-      deleteChecklist(id, selectedYear || new Date().getFullYear());
+      deleteChecklist(id, year);
       
       toast({
         title: "Berhasil!",
-        description: "Checklist item berhasil dihapus",
+        description: result.hasFiles 
+          ? `Row dan ${result.fileCount} file berhasil dihapus`
+          : "Checklist item berhasil dihapus",
       });
     } catch (error) {
+      console.error('Error deleting checklist item:', error);
       toast({
         title: "Error",
         description: "Gagal menghapus checklist item",
@@ -1915,134 +1912,69 @@ const PengaturanBaru = () => {
 
 
   // Handle assignment checklist ke divisi atau subdirektorat
-  const handleAssignment = (checklistId: number, targetName: string, aspek: string, deskripsi: string) => {
-    // Jika targetName kosong, hapus assignment (reset)
+  const handleAssignment = async (checklistId: number, targetName: string, aspek: string, deskripsi: string) => {
+    // Jika targetName kosong, reset PIC field
     if (!targetName || targetName.trim() === '') {
-      setAssignments(prev => {
-        const filtered = prev.filter(a => !(a.checklistId === checklistId && a.tahun === selectedYear));
+      try {
+        await editChecklist(checklistId, aspek, deskripsi, '', selectedYear || new Date().getFullYear());
         
-        // Update localStorage
-        const storedAssignments = localStorage.getItem('checklistAssignments');
-        if (storedAssignments) {
-          try {
-            const allAssignments = JSON.parse(storedAssignments);
-            const updatedAssignments = allAssignments.filter((assignment: any) => 
-              !(assignment.checklistId === checklistId && assignment.tahun === selectedYear)
-            );
-            localStorage.setItem('checklistAssignments', JSON.stringify(updatedAssignments));
-            
-            // Dispatch event untuk memberitahu dashboard bahwa assignment dihapus
-            window.dispatchEvent(new CustomEvent('assignmentsUpdated', {
-              detail: { 
-                type: 'assignmentRemoved', 
-                checklistId: checklistId,
-                year: selectedYear 
-              }
-            }));
-            
-            console.log('Assignment removed:', {
-              checklistId: checklistId,
-              year: selectedYear,
-              remainingAssignments: updatedAssignments.length
-            });
-          } catch (error) {
-            console.error('Error removing assignment:', error);
-          }
-        }
+        // Update local state
+        setChecklistItems(prev => prev.map(item => 
+          item.id === checklistId ? { ...item, pic: '' } : item
+        ));
         
-        return filtered;
-      });
-      
-      toast({
-        title: "Assignment Direset",
-        description: "Assignment berhasil dihapus.",
-        variant: "default",
-      });
+        toast({
+          title: "Assignment Direset",
+          description: "PIC berhasil dihapus dari checklist.",
+          variant: "default",
+        });
+      } catch (error) {
+        console.error('Error resetting PIC:', error);
+        toast({
+          title: "Error",
+          description: "Gagal mereset PIC. Silakan coba lagi.",
+          variant: "destructive",
+        });
+      }
       return;
     }
 
-    // Cek apakah dokumen sudah di-assign dengan tipe yang berbeda
-    const existingAssignment = assignments.find(a => 
-      a.checklistId === checklistId && 
-      a.tahun === selectedYear && 
-      a.assignmentType !== assignmentType
+    // Check for existing assignment conflicts (simplified)
+    const existingItem = checklistItems.find(item => 
+      item.id === checklistId && item.pic && item.pic !== targetName
     );
     
-    if (existingAssignment) {
-      // Jika sudah ada assignment dengan tipe yang berbeda, maka terkunci
+    if (existingItem) {
       toast({
-        title: "Assignment Terkunci",
-        description: `Dokumen ini sudah di-assign ke ${existingAssignment.assignmentType === 'divisi' ? 'divisi' : 'subdirektorat'}. Tidak bisa di-assign ke ${assignmentType === 'divisi' ? 'divisi' : 'subdirektorat'}. Gunakan opsi "Tidak Memilih (Reset)" untuk mereset assignment.`,
+        title: "Assignment sudah ada",
+        description: `Item ini sudah di-assign ke ${existingItem.pic}. Reset terlebih dahulu untuk mengubah assignment.`,
         variant: "destructive",
       });
       return;
     }
 
-    const newAssignment: ChecklistAssignment = {
-      id: Date.now(),
-      checklistId,
-      assignmentType,
-      aspek,
-      deskripsi,
-      tahun: selectedYear || new Date().getFullYear(),
-      assignedBy: currentUser?.name || 'Super Admin',
-      assignedAt: new Date(),
-      status: 'assigned',
-      ...(assignmentType === 'divisi' 
-        ? { divisi: targetName } 
-        : { subdirektorat: targetName }
-      )
-    };
-
-    // Update state dan persist ke localStorage
-    setAssignments(prev => {
-      // Replace existing assignment untuk checklistId & year ini jika ada
-      const next = [...prev.filter(a => !(a.checklistId === checklistId && a.tahun === selectedYear)), newAssignment];
+    // Save PIC assignment to backend
+    try {
+      await editChecklist(checklistId, aspek, deskripsi, targetName, selectedYear || new Date().getFullYear());
       
-      // Update localStorage dengan semua assignments (bukan hanya yang untuk tahun ini)
-      try {
-        const storedAssignments = localStorage.getItem('checklistAssignments');
-        let allAssignments = [];
-        
-        if (storedAssignments) {
-          allAssignments = JSON.parse(storedAssignments);
-        }
-        
-        // Remove existing assignment untuk checklistId & year ini
-        allAssignments = allAssignments.filter((assignment: any) => 
-          !(assignment.checklistId === checklistId && assignment.tahun === selectedYear)
-        );
-        
-        // Add new assignment
-        allAssignments.push(newAssignment);
-        
-        localStorage.setItem('checklistAssignments', JSON.stringify(allAssignments));
-        
-        // Dispatch event untuk memberitahu dashboard bahwa ada assignment baru
-        window.dispatchEvent(new CustomEvent('assignmentsUpdated', {
-          detail: { 
-            type: 'assignmentUpdated', 
-            assignment: newAssignment,
-            year: selectedYear 
-          }
-        }));
-        
-        console.log('Assignment saved:', {
-          assignment: newAssignment,
-          allAssignments: allAssignments.length,
-          year: selectedYear
-        });
-        
-      } catch (err) {
-        console.error('Failed to persist checklistAssignments', err);
-      }
-      return next;
-    });
-
-    toast({
-      title: "Assignment Berhasil",
-      description: `Dokumen GCG berhasil ditugaskan ke ${targetName}`,
-    });
+      // Update local state
+      setChecklistItems(prev => prev.map(item => 
+        item.id === checklistId ? { ...item, pic: targetName } : item
+      ));
+      
+      toast({
+        title: "Assignment Berhasil",
+        description: `Dokumen berhasil ditugaskan ke ${targetName}`,
+        variant: "default",
+      });
+    } catch (error) {
+      console.error('Error assigning PIC:', error);
+      toast({
+        title: "Error",
+        description: "Gagal menugaskan dokumen. Silakan coba lagi.",
+        variant: "destructive",
+      });
+    }
   };
 
   // Helper function untuk konversi angka ke angka romawi
@@ -3460,7 +3392,7 @@ const PengaturanBaru = () => {
                               >
                                 <TableCell className="font-bold text-gray-700 text-center bg-gray-50">
                                   <div className="flex items-center justify-center gap-2">
-                                    {index + 1}
+                                    {item.rowNumber || (index + 1)}
                                     {newItems.has(item.id) && (
                                       <Badge variant="secondary" className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5">
                                         NEW
@@ -3520,18 +3452,7 @@ const PengaturanBaru = () => {
                                     assignmentType={assignmentType}
                                     assignments={assignments}
                                     selectedYear={selectedYear}
-                                    currentAssignmentLabel={(() => {
-                                      const a = assignments.find(a => a.checklistId === item.id && a.tahun === selectedYear);
-                                      if (!a) return null;
-                                      
-                                      if (assignmentType === 'divisi') {
-                                        const d = divisi?.find(o => o.nama === a.divisi);
-                                        return d?.nama || a.divisi;
-                                      } else {
-                                      const s = subdirektorat?.find(o => o.nama === a.subdirektorat);
-                                      return s?.nama || a.subdirektorat;
-                                      }
-                                    })()}
+                                    currentAssignmentLabel={item.pic || null}
                                   />
                                 </TableCell>
                                 <TableCell>

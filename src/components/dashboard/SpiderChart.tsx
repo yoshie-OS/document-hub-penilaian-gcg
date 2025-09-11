@@ -153,7 +153,7 @@ const SpiderChart: React.FC<SpiderChartProps> = ({ className }) => {
       const totalAvailableItems = aspectChecklistItems.length;
 
       // Calculate distribution percentage for each sub-direktorat based on total available items
-      const subOptions = (subdirektorat || []).map(s => s.nama).filter(Boolean) as string[];
+      const subOptions = [...new Set((subdirektorat || []).map(s => s.nama).filter(Boolean))] as string[];
       const subDirektoratDistribution = subOptions.map(subName => {
         const subDirAssignments = aspectAssignments.filter(assignment => 
           assignment.assignmentType === 'subdirektorat' && assignment.subdirektorat === subName
@@ -324,7 +324,7 @@ const SpiderChart: React.FC<SpiderChartProps> = ({ className }) => {
 
   const assignmentStats = getAssignmentStats();
 
-  const subOptions = (subdirektorat || []).map(s => s.nama).filter(Boolean) as string[];
+  const subOptions = [...new Set((subdirektorat || []).map(s => s.nama).filter(Boolean))] as string[];
 
   return (
     <Card className={`border-0 shadow-xl bg-white/80 backdrop-blur-sm ${className}`}>
@@ -565,7 +565,7 @@ const SpiderChart: React.FC<SpiderChartProps> = ({ className }) => {
             )}
             {subOptions.map((subName, index) => (
               <div
-                key={subName}
+                key={`subdir-${index}-${subName}`}
                 className={`
                   p-2 rounded-lg border cursor-pointer transition-all duration-200 text-xs
                   ${selectedSubDirektorat === subName

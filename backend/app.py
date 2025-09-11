@@ -11,11 +11,12 @@ import uuid
 import time
 import shutil
 import subprocess
+import io
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, make_response
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import pandas as pd
@@ -50,6 +51,10 @@ def migrate_config_to_csv():
 
 # Run migration on startup
 migrate_config_to_csv()
+
+def generate_unique_id():
+    """Generate a unique ID for database records"""
+    return int(time.time() * 1000000) % 2147483647  # Generate int ID within PostgreSQL int range
 
 # Project root for subprocess calls to the working core system
 project_root = str(Path(__file__).parent.parent.parent)
@@ -1513,13 +1518,89 @@ def get_aoi_tables():
 
 @app.route('/api/users', methods=['GET'])
 def get_users():
-    """Get all users - placeholder endpoint"""
+    """Get all users from storage"""
     try:
-        # Return empty list for now - this can be expanded later
+        csv_data = storage_service.read_csv('config/users.csv')
+        if csv_data is not None:
+            users = csv_data.to_dict(orient='records')
+            return jsonify(users), 200
         return jsonify([]), 200
     except Exception as e:
         print(f"Error getting users: {e}")
         return jsonify({'error': f'Failed to get users: {str(e)}'}), 500
+
+@app.route('/api/users', methods=['POST'])
+def create_user():
+    """Create a new user and save to Supabase"""
+    try:
+        data = request.get_json()
+        
+        # Generate unique ID
+        user_id = generate_unique_id()
+        
+        # Create user object
+        user_data = {
+            'id': user_id,
+            'name': data.get('name'),
+            'email': data.get('email'),
+            'role': data.get('role'),
+            'direktorat': data.get('direktorat', ''),
+            'subdirektorat': data.get('subdirektorat', ''),
+            'divisi': data.get('divisi', ''),
+            'tahun': data.get('tahun'),
+            'created_at': datetime.now().isoformat(),
+            'is_active': True
+        }
+        
+        # Read existing users
+        csv_data = storage_service.read_csv('config/users.csv')
+        if csv_data is not None:
+            users_df = csv_data
+        else:
+            users_df = pd.DataFrame()
+        
+        # Add new user
+        new_user_df = pd.DataFrame([user_data])
+        updated_df = pd.concat([users_df, new_user_df], ignore_index=True)
+        
+        # Save to storage
+        success = storage_service.write_csv(updated_df, 'config/users.csv')
+        
+        if success:
+            return jsonify(user_data), 201
+        else:
+            return jsonify({'error': 'Failed to save user to Supabase'}), 500
+            
+    except Exception as e:
+        print(f"Error creating user: {e}")
+        return jsonify({'error': f'Failed to create user: {str(e)}'}), 500
+
+@app.route('/api/users/<int:user_id>', methods=['DELETE'])
+def delete_user(user_id):
+    """Delete a user from storage"""
+    try:
+        # Read existing users
+        csv_data = storage_service.read_csv('config/users.csv')
+        if csv_data is None:
+            return jsonify({'error': 'No users found'}), 404
+        
+        # Filter out the user to delete
+        updated_df = csv_data[csv_data['id'] != user_id]
+        
+        if len(updated_df) == len(csv_data):
+            return jsonify({'error': 'User not found'}), 404
+        
+        # Save to storage
+        success = storage_service.write_csv(updated_df, 'config/users.csv')
+        
+        if success:
+            return jsonify({'message': 'User deleted successfully'}), 200
+        else:
+            return jsonify({'error': 'Failed to delete user from storage'}), 500
+            
+    except Exception as e:
+        print(f"Error deleting user: {e}")
+        return jsonify({'error': f'Failed to delete user: {str(e)}'}), 500
 
 @app.route('/api/upload-gcg-file', methods=['POST'])
 def upload_gcg_file():
@@ -1551,29 +1632,34 @@ def upload_gcg_file():
         aspect = request.form.get('aspect', '')
         subdirektorat = request.form.get('subdirektorat', '')
         catatan = request.form.get('catatan', '')
+        row_number = request.form.get('rowNumber')  # New: row number for document organization
         
         # Validate required fields
         if not year:
             return jsonify({'error': 'Year is required'}), 400
+        if not row_number:
+            return jsonify({'error': 'Row number is required'}), 400
         
         try:
             year_int = int(year)
+            row_num = int(row_number)
         except ValueError:
-            return jsonify({'error': 'Invalid year format'}), 400
+            return jsonify({'error': 'Invalid year or row number format'}), 400
         
-        # Generate unique file path in Supabase with PIC structure: year/PIC/data
+        # Generate file ID for record tracking
         file_id = str(uuid.uuid4())
-        file_extension = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else 'bin'
         
         # Clean subdirektorat name for use in file path
         pic_name = secure_filename(subdirektorat) if subdirektorat else 'UNKNOWN_PIC'
         
-        supabase_file_path = f"gcg-documents/{year_int}/{pic_name}/{file_id}_{secure_filename(file.filename)}"
+        # Corrected file structure: gcg-documents/{year}/{PIC}/{row_number}/{filename}
+        supabase_file_path = f"gcg-documents/{year_int}/{pic_name}/{row_num}/{secure_filename(file.filename)}"
         
         # Upload file to Supabase storage
         file_data = file.read()
         
         # Determine content type
+        file_extension = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else 'bin'
         content_type_map = {
             'pdf': 'application/pdf',
             'doc': 'application/msword',
@@ -1594,25 +1680,27 @@ def upload_gcg_file():
             
             supabase = create_client(supabase_url, supabase_key)
             
-            # Try to upload
+            # Always try to upload, if exists it will automatically overwrite
+            print(f"🔧 DEBUG: Uploading to path: {supabase_file_path}")
+            
+            # First, try to delete existing file to ensure clean overwrite
+            try:
+                delete_response = supabase.storage.from_(bucket_name).remove([supabase_file_path])
+                print(f"🔧 DEBUG: Delete existing file response: {delete_response}")
+            except Exception as e:
+                print(f"🔧 DEBUG: No existing file to delete (or error): {e}")
+            
+            # Now upload the new file
             response = supabase.storage.from_(bucket_name).upload(
                 path=supabase_file_path,
                 file=file_data,
                 file_options={"content-type": content_type}
             )
             
-            # If upload fails due to existing file, try update
+            # Check for any upload errors
             if hasattr(response, 'error') and response.error:
-                if "already exists" in str(response.error):
-                    print(f"🔧 DEBUG: File exists, trying update...")
-                    response = supabase.storage.from_(bucket_name).update(
-                        path=supabase_file_path,
-                        file=file_data,
-                        file_options={"content-type": content_type}
-                    )
-                else:
-                    print(f"🔧 DEBUG: Upload error: {response.error}")
-                    return jsonify({'error': f'Failed to upload file to storage: {response.error}'}), 500
+                print(f"🔧 DEBUG: Upload error: {response.error}")
+                return jsonify({'error': f'Failed to upload file to storage: {response.error}'}), 500
             
             print(f"🔧 DEBUG: File uploaded successfully to: {supabase_file_path}")
             
@@ -1673,6 +1761,153 @@ def upload_gcg_file():
         import traceback
         print(f"🔧 DEBUG: Full traceback: {traceback.format_exc()}")
         return jsonify({'error': f'Failed to upload GCG file: {str(e)}'}), 500
+
+@app.route('/api/check-gcg-files', methods=['POST'])
+def check_gcg_files():
+    """Check if GCG files exist in Supabase for given year, PIC and row numbers"""
+    try:
+        data = request.get_json()
+        pic_name = data.get('picName')
+        row_numbers = data.get('rowNumbers', [])  # List of row numbers to check
+        year = data.get('year')  # Year is required for new structure
+        
+        if not pic_name or not row_numbers or not year:
+            return jsonify({'error': 'PIC name, year, and row numbers are required'}), 400
+        
+        # Clean PIC name
+        pic_name_clean = secure_filename(pic_name)
+        
+        # Initialize Supabase client
+        supabase_url = os.getenv('SUPABASE_URL')
+        supabase_key = os.getenv('SUPABASE_KEY') 
+        bucket_name = os.getenv('SUPABASE_BUCKET')
+        
+        if not all([supabase_url, supabase_key, bucket_name]):
+            return jsonify({'error': 'Supabase configuration missing'}), 500
+        
+        from supabase import create_client
+        supabase = create_client(supabase_url, supabase_key)
+        
+        # Check each row number for existing files
+        file_statuses = {}
+        
+        for row_num in row_numbers:
+            try:
+                # New structure: gcg-documents/{year}/{PIC}/{row_number}/
+                folder_path = f"gcg-documents/{year}/{pic_name_clean}/{row_num}"
+                
+                # Try to list files in the row directory
+                file_found = None
+                try:
+                    response = supabase.storage.from_(bucket_name).list(folder_path)
+                    if response and len(response) > 0:
+                        # Get the first file in the directory (should be only one)
+                        file_info = response[0]
+                        file_found = {
+                            'exists': True,
+                            'fileName': file_info['name'],
+                            'path': f"{folder_path}/{file_info['name']}",
+                            'size': file_info.get('metadata', {}).get('size', 0),
+                            'lastModified': file_info.get('updated_at')
+                        }
+                except Exception as e:
+                    # Directory doesn't exist or is empty
+                    file_found = {'exists': False}
+                
+                if not file_found:
+                    file_found = {'exists': False}
+                
+                file_statuses[str(row_num)] = file_found
+                
+            except Exception as e:
+                file_statuses[str(row_num)] = {'exists': False, 'error': str(e)}
+        
+        return jsonify({
+            'year': year,
+            'picName': pic_name,
+            'fileStatuses': file_statuses
+        }), 200
+        
+    except Exception as e:
+        print(f"Error checking GCG files: {e}")
+        return jsonify({'error': f'Failed to check files: {str(e)}'}), 500
+
+@app.route('/api/download-gcg-file', methods=['POST'])
+def download_gcg_file():
+    """Download GCG file from Supabase storage"""
+    try:
+        # Handle both JSON and form data
+        if request.is_json:
+            data = request.get_json()
+            pic_name = data.get('picName')
+            year = data.get('year')
+            row_number = data.get('rowNumber')
+        else:
+            # Handle form data
+            pic_name = request.form.get('picName')
+            year = request.form.get('year')
+            row_number = request.form.get('rowNumber')
+            # Convert to int for year and row_number
+            if year:
+                year = int(year)
+            if row_number:
+                row_number = int(row_number)
+        
+        if not all([pic_name, year, row_number]):
+            return jsonify({'error': 'PIC name, year, and row number are required'}), 400
+        
+        # Clean PIC name
+        pic_name_clean = secure_filename(pic_name)
+        
+        # Initialize Supabase client
+        supabase_url = os.getenv('SUPABASE_URL')
+        supabase_key = os.getenv('SUPABASE_KEY')
+        bucket_name = os.getenv('SUPABASE_BUCKET')
+        
+        if not all([supabase_url, supabase_key, bucket_name]):
+            return jsonify({'error': 'Supabase configuration missing'}), 500
+        
+        from supabase import create_client
+        supabase = create_client(supabase_url, supabase_key)
+        
+        # Try to find the file in the directory structure
+        folder_path = f"gcg-documents/{year}/{pic_name_clean}/{row_number}"
+        
+        try:
+            # List files in the directory
+            response = supabase.storage.from_(bucket_name).list(folder_path)
+            if not response or len(response) == 0:
+                return jsonify({'error': 'File not found'}), 404
+            
+            # Get the first (and should be only) file in the directory
+            file_info = response[0]
+            file_name = file_info['name']
+            file_path = f"{folder_path}/{file_name}"
+            
+            # Download the file
+            file_response = supabase.storage.from_(bucket_name).download(file_path)
+            
+            if not file_response:
+                return jsonify({'error': 'Failed to download file from storage'}), 500
+            
+            # Return the file as a download with aggressive headers that force download
+            response = make_response(file_response)
+            response.headers['Content-Disposition'] = f'attachment; filename="{file_name}"'
+            response.headers['Content-Type'] = 'application/force-download'
+            response.headers['Content-Transfer-Encoding'] = 'binary'
+            response.headers['Content-Length'] = str(len(file_response))
+            response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+            response.headers['Pragma'] = 'no-cache'
+            response.headers['Expires'] = '0'
+            response.headers['X-Content-Type-Options'] = 'nosniff'
+            return response
+            
+        except Exception as e:
+            return jsonify({'error': f'File not found or download failed: {str(e)}'}), 404
+        
+    except Exception as e:
+        print(f"Error downloading GCG file: {e}")
+        return jsonify({'error': f'Failed to download file: {str(e)}'}), 500
 
 
 # ========================
@@ -1812,6 +2047,185 @@ def delete_aspect(aspect_id):
         print(f"Error deleting aspect: {e}")
         return jsonify({'error': f'Failed to delete aspect: {str(e)}'}), 500
 
+# CHECKLIST ENDPOINTS
+@app.route('/api/config/checklist', methods=['GET'])
+def get_checklist():
+    """Get all checklist items, optionally filtered by year"""
+    try:
+        # Read checklist from storage
+        checklist_data = storage_service.read_csv('config/checklist.csv')
+        if checklist_data is not None:
+            # Replace NaN values with empty strings before converting to dict
+            checklist_data = checklist_data.fillna('')
+            checklist_items = checklist_data.to_dict(orient='records')
+            return jsonify({'checklist': checklist_items}), 200
+        return jsonify({'checklist': []}), 200
+    except Exception as e:
+        print(f"Error getting checklist: {e}")
+        return jsonify({'checklist': []}), 200
+
+@app.route('/api/config/checklist', methods=['POST'])
+def add_checklist():
+    """Add a new checklist item"""
+    try:
+        data = request.get_json()
+        
+        # Generate unique ID
+        checklist_id = generate_unique_id()
+        
+        # Create checklist object
+        checklist_data = {
+            'id': checklist_id,
+            'aspek': data.get('aspek', ''),
+            'deskripsi': data.get('deskripsi', ''),
+            'pic': data.get('pic', ''),
+            'tahun': data.get('tahun'),
+            'created_at': datetime.now().isoformat()
+        }
+        
+        # Read existing checklist
+        existing_data = storage_service.read_csv('config/checklist.csv')
+        if existing_data is not None:
+            checklist_df = existing_data
+        else:
+            checklist_df = pd.DataFrame()
+        
+        # Add new checklist item
+        new_checklist_df = pd.DataFrame([checklist_data])
+        updated_df = pd.concat([checklist_df, new_checklist_df], ignore_index=True)
+        
+        # Save to storage
+        success = storage_service.write_csv(updated_df, 'config/checklist.csv')
+        
+        if success:
+            return jsonify(checklist_data), 201
+        else:
+            return jsonify({'error': 'Failed to save checklist to Supabase'}), 500
+            
+    except Exception as e:
+        print(f"Error adding checklist: {e}")
+        return jsonify({'error': f'Failed to add checklist: {str(e)}'}), 500
+
+@app.route('/api/config/checklist/<int:checklist_id>', methods=['PUT'])
+def update_checklist(checklist_id):
+    """Update an existing checklist item"""
+    try:
+        data = request.get_json()
+        
+        # Read existing checklist
+        checklist_data = storage_service.read_csv('config/checklist.csv')
+        if checklist_data is None:
+            return jsonify({'error': 'No checklist found'}), 404
+        
+        # Update the checklist item
+        checklist_data.loc[checklist_data['id'] == checklist_id, 'aspek'] = data.get('aspek', '')
+        checklist_data.loc[checklist_data['id'] == checklist_id, 'deskripsi'] = data.get('deskripsi', '')
+        checklist_data.loc[checklist_data['id'] == checklist_id, 'pic'] = data.get('pic', '')
+        checklist_data.loc[checklist_data['id'] == checklist_id, 'tahun'] = data.get('tahun')
+        
+        # Save to storage
+        success = storage_service.write_csv(checklist_data, 'config/checklist.csv')
+        
+        if success:
+            return jsonify({'success': True}), 200
+        else:
+            return jsonify({'error': 'Failed to update checklist'}), 500
+            
+    except Exception as e:
+        print(f"Error updating checklist: {e}")
+        return jsonify({'error': f'Failed to update checklist: {str(e)}'}), 500
+
+@app.route('/api/config/checklist/<int:checklist_id>', methods=['DELETE'])
+def delete_checklist(checklist_id):
+    """Delete a checklist item"""
+    try:
+        # Read existing checklist
+        checklist_data = storage_service.read_csv('config/checklist.csv')
+        if checklist_data is None:
+            return jsonify({'error': 'No checklist found'}), 404
+            
+        # Filter out the checklist item to delete
+        checklist_data = checklist_data[checklist_data['id'] != checklist_id]
+        
+        # Save to storage
+        success = storage_service.write_csv(checklist_data, 'config/checklist.csv')
+        
+        if success:
+            return jsonify({'success': True}), 200
+        else:
+            return jsonify({'error': 'Failed to delete checklist'}), 500
+            
+    except Exception as e:
+        print(f"Error deleting checklist: {e}")
+        return jsonify({'error': f'Failed to delete checklist: {str(e)}'}), 500
+
+@app.route('/api/config/checklist/clear', methods=['DELETE'])
+def clear_checklist():
+    """Clear all checklist data"""
+    try:
+        # Create empty DataFrame and save to clear the file
+        empty_df = pd.DataFrame()
+        success = storage_service.write_csv(empty_df, 'config/checklist.csv')
+        
+        if success:
+            return jsonify({'success': True, 'message': 'Checklist data cleared'}), 200
+        else:
+            return jsonify({'error': 'Failed to clear checklist data'}), 500
+            
+    except Exception as e:
+        print(f"Error clearing checklist: {e}")
+        return jsonify({'error': f'Failed to clear checklist: {str(e)}'}), 500
+
+@app.route('/api/config/checklist/batch', methods=['POST'])
+def add_checklist_batch():
+    """Add multiple checklist items in batch"""
+    try:
+        data = request.get_json()
+        items = data.get('items', [])
+        
+        if not items:
+            return jsonify({'error': 'No items provided'}), 400
+        
+        # Read existing checklist
+        existing_data = storage_service.read_csv('config/checklist.csv')
+        if existing_data is not None:
+            checklist_df = existing_data
+        else:
+            checklist_df = pd.DataFrame()
+        
+        # Process each item in the batch
+        batch_data = []
+        for item in items:
+            checklist_data = {
+                'id': generate_unique_id(),
+                'aspek': item.get('aspek', ''),
+                'deskripsi': item.get('deskripsi', ''),
+                'tahun': item.get('tahun'),
+                'rowNumber': item.get('rowNumber'),
+                'created_at': datetime.now().isoformat()
+            }
+            batch_data.append(checklist_data)
+        
+        # Create new DataFrame from batch data
+        new_batch_df = pd.DataFrame(batch_data)
+        updated_df = pd.concat([checklist_df, new_batch_df], ignore_index=True)
+        
+        # Save to storage
+        success = storage_service.write_csv(updated_df, 'config/checklist.csv')
+        
+        if success:
+            return jsonify({
+                'success': True, 
+                'message': f'Successfully added {len(batch_data)} checklist items',
+                'items': batch_data
+            }), 201
+        else:
+            return jsonify({'error': 'Failed to save checklist batch to storage'}), 500
+            
+    except Exception as e:
+        print(f"Error adding checklist batch: {e}")
+        return jsonify({'error': f'Failed to add checklist batch: {str(e)}'}), 500
+
 
 if __name__ == '__main__':
     print(">> Starting POS Data Cleaner 2 Web API")
@@ -1904,8 +2318,27 @@ def get_struktur_organisasi():
                 'anak_perusahaan': []
             }), 200
             
-        # Convert DataFrame to list and group by type
+        # Convert DataFrame to list and fix NaN values
+        struktur_data = struktur_data.fillna('')  # Replace NaN with empty string
         struktur_list = struktur_data.to_dict('records')
+        
+        # Clean up the data - convert empty strings back to None for parent_id and handle numeric fields
+        for item in struktur_list:
+            # Handle parent_id - convert empty string back to None, ensure it's an integer if not None
+            if item.get('parent_id') == '' or pd.isna(item.get('parent_id')):
+                item['parent_id'] = None
+            elif item.get('parent_id') is not None:
+                try:
+                    item['parent_id'] = int(float(item['parent_id']))  # Handle float to int conversion
+                except (ValueError, TypeError):
+                    item['parent_id'] = None
+            
+            # Ensure ID is integer
+            if item.get('id') is not None:
+                try:
+                    item['id'] = int(float(item['id']))
+                except (ValueError, TypeError):
+                    item['id'] = int(time.time() * 1000000)  # Fallback ID
         
         result = {
             'direktorat': [item for item in struktur_list if item.get('type') == 'direktorat'],
@@ -1968,6 +2401,263 @@ def add_struktur_organisasi():
             
     except Exception as e:
         print(f"❌ Error adding struktur organisasi: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/config/struktur-organisasi/batch', methods=['POST'])
+def add_struktur_organisasi_batch():
+    """Add multiple struktur organisasi items in a single transaction with proper ID mapping"""
+    try:
+        data = request.get_json()
+        items = data.get('items', [])
+        
+        print(f"🔥 BATCH API CALLED: Received {len(items)} items")
+        if items:
+            print(f"🔥 Sample item: {items[0]}")
+        
+        if not items:
+            print("❌ No items provided in batch request")
+            return jsonify({'error': 'No items provided'}), 400
+        
+        # Read existing struktur organisasi
+        try:
+            struktur_data = storage_service.read_csv('config/struktur-organisasi.csv')
+            if struktur_data is None:
+                struktur_data = pd.DataFrame()
+        except:
+            struktur_data = pd.DataFrame()
+        
+        # Sort items by dependency order: direktorat first, then subdirektorat, then divisi
+        type_order = {'direktorat': 0, 'subdirektorat': 1, 'divisi': 2, 'anak_perusahaan': 3}
+        items.sort(key=lambda x: type_order.get(x.get('type', ''), 999))
+        
+        # Track original ID to new ID mappings for hierarchical relationships
+        id_mappings = {}
+        new_items = []
+        created_items = []  # For response
+        
+        for item in items:
+            # Generate unique ID
+            new_id = int(time.time() * 1000000 + len(new_items))  # More unique ID
+            
+            # Map parent_id if this item has a parent
+            mapped_parent_id = None
+            if item.get('parent_original_id'):
+                mapped_parent_id = id_mappings.get(item['parent_original_id'])
+                if not mapped_parent_id:
+                    print(f"Warning: Could not find mapping for parent_original_id {item['parent_original_id']}")
+            elif item.get('parent_id'):
+                # Direct parent_id (for backward compatibility)
+                mapped_parent_id = item['parent_id']
+            
+            new_struktur = {
+                'id': new_id,
+                'nama': item.get('nama'),
+                'kode': item.get('kode', ''),
+                'deskripsi': item.get('deskripsi', ''),
+                'tahun': item.get('tahun', datetime.now().year),
+                'type': item.get('type'),
+                'parent_id': mapped_parent_id,
+                'created_at': datetime.now().isoformat(),
+                'is_active': True
+            }
+            
+            # Store mapping from original_id to new_id
+            if item.get('original_id'):
+                id_mappings[item['original_id']] = new_id
+            
+            new_items.append(new_struktur)
+            created_items.append(new_struktur.copy())  # For response
+            
+            print(f"✓ Created {item.get('type')}: {item.get('nama')} (ID: {new_id}, Parent: {mapped_parent_id})")
+        
+        # Add all items to DataFrame in one operation
+        if new_items:
+            new_df = pd.DataFrame(new_items)
+            struktur_data = pd.concat([struktur_data, new_df], ignore_index=True)
+        
+        # Save to storage once
+        print(f"🔥 Saving {len(struktur_data)} total rows to CSV...")
+        success = storage_service.write_csv(struktur_data, 'config/struktur-organisasi.csv')
+        
+        if success:
+            print(f"✅ Batch saved {len(new_items)} struktur organisasi items successfully!")
+            print(f"✅ Total rows in CSV: {len(struktur_data)}")
+            return jsonify({
+                'success': True, 
+                'added_count': len(new_items), 
+                'created': created_items,
+                'id_mappings': id_mappings
+            }), 201
+        else:
+            print(f"❌ Failed to save struktur organisasi to CSV")
+            return jsonify({'error': 'Failed to save struktur organisasi'}), 500
+            
+    except Exception as e:
+        print(f"❌ Error adding batch struktur organisasi: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/config/struktur-organisasi/<int:struktur_id>', methods=['DELETE'])
+def delete_struktur_organisasi(struktur_id):
+    """Delete a struktur organisasi item"""
+    try:
+        # Read existing struktur organisasi
+        struktur_data = storage_service.read_csv('config/struktur-organisasi.csv')
+        if struktur_data is None:
+            return jsonify({'error': 'No struktur organisasi found'}), 404
+            
+        # Filter out the struktur organisasi to delete
+        original_count = len(struktur_data)
+        struktur_data = struktur_data[struktur_data['id'] != struktur_id]
+        
+        if len(struktur_data) == original_count:
+            return jsonify({'error': 'Struktur organisasi not found'}), 404
+        
+        # Save to storage
+        success = storage_service.write_csv(struktur_data, 'config/struktur-organisasi.csv')
+        
+        if success:
+            return jsonify({'success': True}), 200
+        else:
+            return jsonify({'error': 'Failed to delete struktur organisasi'}), 500
+            
+    except Exception as e:
+        print(f"❌ Error deleting struktur organisasi: {e}")
+        return jsonify({'error': str(e)}), 500
+
+# CHECKLIST ASSIGNMENTS ENDPOINTS
+@app.route('/api/config/assignments', methods=['GET'])
+def get_assignments():
+    """Get all checklist assignments"""
+    try:
+        assignments_data = storage_service.read_csv('config/checklist-assignments.csv')
+        if assignments_data is not None:
+            assignments = assignments_data.to_dict(orient='records')
+            return jsonify({'assignments': assignments}), 200
+        else:
+            return jsonify({'assignments': []}), 200
+    except Exception as e:
+        print(f"❌ Error getting assignments: {e}")
+        return jsonify({'assignments': []}), 200
+
+@app.route('/api/config/assignments', methods=['POST'])
+def add_assignment():
+    """Add or update checklist assignment"""
+    try:
+        data = request.get_json()
+        
+        assignment_data = {
+            'checklistId': data.get('checklistId'),
+            'assignedTo': data.get('assignedTo'),
+            'assignmentType': data.get('assignmentType'),  # 'divisi' or 'subdirektorat'
+            'year': data.get('year'),
+            'createdAt': datetime.now().isoformat()
+        }
+        
+        # Read existing assignments
+        existing_data = storage_service.read_csv('config/checklist-assignments.csv')
+        if existing_data is not None:
+            assignments_df = existing_data
+        else:
+            assignments_df = pd.DataFrame()
+        
+        # Remove existing assignment for this checklistId if exists
+        assignments_df = assignments_df[assignments_df['checklistId'] != assignment_data['checklistId']]
+        
+        # Add new assignment
+        new_assignment_df = pd.DataFrame([assignment_data])
+        updated_df = pd.concat([assignments_df, new_assignment_df], ignore_index=True)
+        
+        # Save to storage
+        success = storage_service.write_csv(updated_df, 'config/checklist-assignments.csv')
+        
+        if success:
+            return jsonify(assignment_data), 201
+        else:
+            return jsonify({'error': 'Failed to save assignment'}), 500
+            
+    except Exception as e:
+        print(f"❌ Error adding assignment: {e}")
+        return jsonify({'error': f'Failed to add assignment: {str(e)}'}), 500
+
+@app.route('/api/config/assignments/<int:checklist_id>', methods=['DELETE'])
+def delete_assignment(checklist_id):
+    """Delete assignment for a checklist item"""
+    try:
+        assignments_data = storage_service.read_csv('config/checklist-assignments.csv')
+        if assignments_data is None:
+            return jsonify({'success': True}), 200
+            
+        # Filter out the assignment to delete
+        assignments_data = assignments_data[assignments_data['checklistId'] != checklist_id]
+        
+        # Save to storage
+        success = storage_service.write_csv(assignments_data, 'config/checklist-assignments.csv')
+        
+        if success:
+            return jsonify({'success': True}), 200
+        else:
+            return jsonify({'error': 'Failed to delete assignment'}), 500
+            
+    except Exception as e:
+        print(f"❌ Error deleting assignment: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/check-row-files/<int:year>/<pic_name>/<int:row_number>', methods=['GET'])
+def check_row_files(year, pic_name, row_number):
+    """Check if files exist for a specific row"""
+    try:
+        path = f"gcg-documents/{year}/{pic_name}/{row_number}"
+        
+        # Check if directory exists
+        files = storage_service.list_files(path)
+        has_files = len(files) > 0
+        
+        return jsonify({
+            'success': True,
+            'hasFiles': has_files,
+            'fileCount': len(files),
+            'files': files
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ Error checking row files: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/delete-row-files/<int:year>/<pic_name>/<int:row_number>', methods=['DELETE'])
+def delete_row_files(year, pic_name, row_number):
+    """Delete all files for a specific row"""
+    try:
+        path = f"gcg-documents/{year}/{pic_name}/{row_number}"
+        
+        # List files first
+        files = storage_service.list_files(path)
+        
+        if not files:
+            return jsonify({
+                'success': True,
+                'message': 'No files to delete',
+                'deletedCount': 0
+            }), 200
+        
+        # Delete all files in the directory
+        deleted_count = 0
+        for file_info in files:
+            file_path = f"{path}/{file_info['name']}"
+            success = storage_service.delete_file(file_path)
+            if success:
+                deleted_count += 1
+        
+        return jsonify({
+            'success': True,
+            'message': f'Successfully deleted {deleted_count} files',
+            'deletedCount': deleted_count,
+            'totalFiles': len(files)
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ Error deleting row files: {e}")
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':

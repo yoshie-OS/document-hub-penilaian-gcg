@@ -53,7 +53,7 @@ export const FileUploadProvider: React.FC<{ children: ReactNode }> = ({ children
   // Fetch files from backend API
   const fetchFiles = async (): Promise<UploadedFile[]> => {
     try {
-      const response = await fetch('http://localhost:5001/api/files');
+      const response = await fetch('http://localhost:5000/api/files');
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -85,7 +85,7 @@ export const FileUploadProvider: React.FC<{ children: ReactNode }> = ({ children
     };
   }, []);
 
-  const uploadFile = async (file: File, year: number, checklistId?: number, checklistDescription?: string, aspect?: string, subdirektorat?: string, catatan?: string) => {
+  const uploadFile = async (file: File, year: number, checklistId?: number, checklistDescription?: string, aspect?: string, subdirektorat?: string, catatan?: string, rowNumber?: number) => {
     try {
       // Upload the file using the new GCG file upload endpoint
       const formData = new FormData();
@@ -96,6 +96,7 @@ export const FileUploadProvider: React.FC<{ children: ReactNode }> = ({ children
       if (aspect) formData.append('aspect', aspect);
       if (subdirektorat) formData.append('subdirektorat', subdirektorat);
       if (catatan) formData.append('catatan', catatan);
+      if (rowNumber) formData.append('rowNumber', rowNumber.toString());
 
       const response = await fetch('http://localhost:5000/api/upload-gcg-file', {
         method: 'POST',
@@ -132,7 +133,7 @@ export const FileUploadProvider: React.FC<{ children: ReactNode }> = ({ children
     }
   };
 
-  const reUploadFile = async (file: File, year: number, checklistId?: number, checklistDescription?: string, aspect?: string, subdirektorat?: string, catatan?: string) => {
+  const reUploadFile = async (file: File, year: number, checklistId?: number, checklistDescription?: string, aspect?: string, subdirektorat?: string, catatan?: string, rowNumber?: number) => {
     try {
       // First, delete existing file with same checklistId
       if (checklistId) {
@@ -143,7 +144,7 @@ export const FileUploadProvider: React.FC<{ children: ReactNode }> = ({ children
       }
       
       // Then upload new file
-      await uploadFile(file, year, checklistId, checklistDescription, aspect, subdirektorat, catatan);
+      await uploadFile(file, year, checklistId, checklistDescription, aspect, subdirektorat, catatan, rowNumber);
     } catch (error) {
       console.error('Re-upload error:', error);
       throw error;

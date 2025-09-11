@@ -4,6 +4,7 @@ Storage Service - Handles file operations for both local and Supabase storage
 
 import os
 import tempfile
+import threading
 from pathlib import Path
 from typing import Optional
 import pandas as pd
@@ -19,6 +20,9 @@ class StorageService:
     
     def __init__(self):
         self.storage_mode = os.getenv('STORAGE_MODE', 'local')
+        # File locks to prevent race conditions
+        self._file_locks = {}
+        self._locks_lock = threading.Lock()  # Lock to protect the _file_locks dict itself
         
         if self.storage_mode == 'supabase':
             self.supabase_url = os.getenv('SUPABASE_URL')
@@ -32,6 +36,13 @@ class StorageService:
             print(f"✅ Supabase storage initialized - Bucket: {self.bucket_name}")
         else:
             print("✅ Local storage mode initialized")
+    
+    def _get_file_lock(self, file_path: str) -> threading.Lock:
+        """Get or create a threading lock for a specific file path"""
+        with self._locks_lock:
+            if file_path not in self._file_locks:
+                self._file_locks[file_path] = threading.Lock()
+            return self._file_locks[file_path]
     
     def read_excel(self, file_path: str) -> Optional[pd.DataFrame]:
         """Read Excel file from storage"""
@@ -77,10 +88,12 @@ class StorageService:
     
     def _write_excel_local(self, df: pd.DataFrame, file_path: str) -> bool:
         """Write Excel file to local storage"""
-        full_path = Path(__file__).parent.parent / file_path
-        full_path.parent.mkdir(parents=True, exist_ok=True)
-        df.to_excel(str(full_path), index=False)
-        return True
+        file_lock = self._get_file_lock(file_path)
+        with file_lock:
+            full_path = Path(__file__).parent.parent / file_path
+            full_path.parent.mkdir(parents=True, exist_ok=True)
+            df.to_excel(str(full_path), index=False)
+            return True
     
     def _file_exists_local(self, file_path: str) -> bool:
         """Check if file exists in local storage"""
@@ -114,52 +127,55 @@ class StorageService:
     
     def _write_excel_supabase(self, df: pd.DataFrame, file_path: str) -> bool:
         """Write Excel file to Supabase storage"""
-        # Save to temporary location first
-        with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as temp_file:
-            temp_path = temp_file.name
-        
-        try:
-            # Save DataFrame to temp file
-            df.to_excel(temp_path, index=False)
+        # Get file lock to prevent race conditions
+        file_lock = self._get_file_lock(file_path)
+        with file_lock:
+            # Save to temporary location first
+            with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as temp_file:
+                temp_path = temp_file.name
             
-            # Upload to Supabase
-            with open(temp_path, 'rb') as f:
-                file_data = f.read()
-            
-            # Try to upload, if file exists use update instead
             try:
-                response = self.supabase.storage.from_(self.bucket_name).upload(
-                    path=file_path,
-                    file=file_data,
-                    file_options={"content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}
-                )
+                # Save DataFrame to temp file
+                df.to_excel(temp_path, index=False)
                 
-                # Check for upload errors
-                if hasattr(response, 'error') and response.error:
-                    raise Exception(f"Upload error: {response.error}")
-                    
-            except Exception as upload_error:
-                if "already exists" in str(upload_error) or "Duplicate" in str(upload_error):
-                    # File exists, try update instead
-                    response = self.supabase.storage.from_(self.bucket_name).update(
+                # Upload to Supabase
+                with open(temp_path, 'rb') as f:
+                    file_data = f.read()
+                
+                # Try to upload, if file exists use update instead
+                try:
+                    response = self.supabase.storage.from_(self.bucket_name).upload(
                         path=file_path,
                         file=file_data,
                         file_options={"content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}
                     )
                     
-                    # Check for update errors
+                    # Check for upload errors
                     if hasattr(response, 'error') and response.error:
-                        raise Exception(f"Update error: {response.error}")
-                else:
-                    raise upload_error
-            
-            print(f"📤 Uploaded Excel file: {file_path}")
-            return True
-            
-        finally:
-            # Clean up temp file
-            if os.path.exists(temp_path):
-                os.unlink(temp_path)
+                        raise Exception(f"Upload error: {response.error}")
+                        
+                except Exception as upload_error:
+                    if "already exists" in str(upload_error) or "Duplicate" in str(upload_error):
+                        # File exists, try update instead
+                        response = self.supabase.storage.from_(self.bucket_name).update(
+                            path=file_path,
+                            file=file_data,
+                            file_options={"content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}
+                        )
+                        
+                        # Check for update errors
+                        if hasattr(response, 'error') and response.error:
+                            raise Exception(f"Update error: {response.error}")
+                    else:
+                        raise upload_error
+                
+                print(f"📤 Uploaded Excel file: {file_path}")
+                return True
+                
+            finally:
+                # Clean up temp file
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
     
     def _file_exists_supabase(self, file_path: str) -> bool:
         """Check if file exists in Supabase storage"""
@@ -204,10 +220,12 @@ class StorageService:
     
     def _write_csv_local(self, df: pd.DataFrame, file_path: str) -> bool:
         """Write CSV file to local storage"""
-        full_path = Path(__file__).parent.parent / file_path
-        full_path.parent.mkdir(parents=True, exist_ok=True)
-        df.to_csv(str(full_path), index=False)
-        return True
+        file_lock = self._get_file_lock(file_path)
+        with file_lock:
+            full_path = Path(__file__).parent.parent / file_path
+            full_path.parent.mkdir(parents=True, exist_ok=True)
+            df.to_csv(str(full_path), index=False)
+            return True
     
     # Supabase CSV methods
     def _read_csv_supabase(self, file_path: str) -> pd.DataFrame:
@@ -248,69 +266,75 @@ class StorageService:
         print(f"🔍 DEBUG: DataFrame shape: {df.shape}")
         print(f"🔍 DEBUG: DataFrame preview:\n{df.head()}")
         
-        # Save to temporary location first
-        with tempfile.NamedTemporaryFile(suffix='.csv', delete=False) as temp_file:
-            temp_path = temp_file.name
-        
-        try:
-            # Save DataFrame to temp file
-            df.to_csv(temp_path, index=False)
-            print(f"🔍 DEBUG: Saved to temp file: {temp_path}")
+        # Get file lock to prevent race conditions
+        file_lock = self._get_file_lock(file_path)
+        with file_lock:
+            print(f"🔒 DEBUG: Acquired lock for {file_path}")
             
-            # Upload to Supabase
-            with open(temp_path, 'rb') as f:
-                file_data = f.read()
-            print(f"🔍 DEBUG: Read {len(file_data)} bytes from temp file")
-            print(f"🔍 DEBUG: Bucket: {self.bucket_name}")
-            print(f"🔍 DEBUG: File path: {file_path}")
+            # Save to temporary location first
+            with tempfile.NamedTemporaryFile(suffix='.csv', delete=False) as temp_file:
+                temp_path = temp_file.name
             
-            # Try to upload, if file exists use update instead
             try:
-                print("🔍 DEBUG: Attempting upload...")
-                response = self.supabase.storage.from_(self.bucket_name).upload(
-                    path=file_path,
-                    file=file_data,
-                    file_options={"content-type": "text/csv"}
-                )
-                print(f"🔍 DEBUG: Upload response: {response}")
+                # Save DataFrame to temp file
+                df.to_csv(temp_path, index=False)
+                print(f"🔍 DEBUG: Saved to temp file: {temp_path}")
                 
-                # Check for upload errors
-                if hasattr(response, 'error') and response.error:
-                    print(f"🔍 DEBUG: Upload error detected: {response.error}")
-                    raise Exception(f"Upload error: {response.error}")
-                else:
-                    print("🔍 DEBUG: Upload successful!")
-                    
-            except Exception as upload_error:
-                print(f"🔍 DEBUG: Upload exception: {upload_error}")
-                # If upload fails, try update instead (file might already exist)
-                if "already exists" in str(upload_error).lower() or "duplicate" in str(upload_error).lower():
-                    print("🔍 DEBUG: File exists, attempting update...")
-                    response = self.supabase.storage.from_(self.bucket_name).update(
+                # Upload to Supabase
+                with open(temp_path, 'rb') as f:
+                    file_data = f.read()
+                print(f"🔍 DEBUG: Read {len(file_data)} bytes from temp file")
+                print(f"🔍 DEBUG: Bucket: {self.bucket_name}")
+                print(f"🔍 DEBUG: File path: {file_path}")
+                
+                # Try to upload, if file exists use update instead
+                try:
+                    print("🔍 DEBUG: Attempting upload...")
+                    response = self.supabase.storage.from_(self.bucket_name).upload(
                         path=file_path,
                         file=file_data,
                         file_options={"content-type": "text/csv"}
                     )
-                    print(f"🔍 DEBUG: Update response: {response}")
+                    print(f"🔍 DEBUG: Upload response: {response}")
                     
-                    # Check for update errors
+                    # Check for upload errors
                     if hasattr(response, 'error') and response.error:
-                        print(f"🔍 DEBUG: Update error detected: {response.error}")
-                        raise Exception(f"Update error: {response.error}")
+                        print(f"🔍 DEBUG: Upload error detected: {response.error}")
+                        raise Exception(f"Upload error: {response.error}")
                     else:
-                        print("🔍 DEBUG: Update successful!")
-                else:
-                    print(f"🔍 DEBUG: Unhandled upload error: {upload_error}")
-                    raise upload_error
-            
-            print(f"📤 Uploaded CSV file: {file_path}")
-            return True
-            
-        finally:
-            # Clean up temp file
-            if os.path.exists(temp_path):
-                os.unlink(temp_path)
-                print(f"🔍 DEBUG: Cleaned up temp file: {temp_path}")
+                        print("🔍 DEBUG: Upload successful!")
+                        
+                except Exception as upload_error:
+                    print(f"🔍 DEBUG: Upload exception: {upload_error}")
+                    # If upload fails, try update instead (file might already exist)
+                    if "already exists" in str(upload_error).lower() or "duplicate" in str(upload_error).lower():
+                        print("🔍 DEBUG: File exists, attempting update...")
+                        response = self.supabase.storage.from_(self.bucket_name).update(
+                            path=file_path,
+                            file=file_data,
+                            file_options={"content-type": "text/csv"}
+                        )
+                        print(f"🔍 DEBUG: Update response: {response}")
+                        
+                        # Check for update errors
+                        if hasattr(response, 'error') and response.error:
+                            print(f"🔍 DEBUG: Update error detected: {response.error}")
+                            raise Exception(f"Update error: {response.error}")
+                        else:
+                            print("🔍 DEBUG: Update successful!")
+                    else:
+                        print(f"🔍 DEBUG: Unhandled upload error: {upload_error}")
+                        raise upload_error
+                
+                print(f"📤 Uploaded CSV file: {file_path}")
+                print(f"🔒 DEBUG: Releasing lock for {file_path}")
+                return True
+                
+            finally:
+                # Clean up temp file
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
+                    print(f"🔍 DEBUG: Cleaned up temp file: {temp_path}")
 
 # Global storage service instance
 storage_service = StorageService()

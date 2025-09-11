@@ -30,6 +30,25 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
   // State untuk mengelola expanded view per subdirektorat
   const [expandedSubdirs, setExpandedSubdirs] = useState<Set<string>>(new Set());
   
+  // Ukuran dinamis chart agar tidak perlu scroll horizontal - MOVED UP BEFORE EARLY RETURN
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [containerWidth, setContainerWidth] = useState<number>(0);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [showAll, setShowAll] = useState(false);
+  
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect?.width || 0;
+      setContainerWidth(w);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  
+  // Auto-highlight effect - will be added after chartData declaration to avoid reference issues
+  
   // Fungsi untuk toggle expanded view
   const toggleExpanded = (subdirName: string) => {
     setExpandedSubdirs(prev => {
@@ -211,6 +230,15 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
     }).filter(Boolean); // Filter out null values
   }, [selectedYear, checklist, getFilesByYear, strukturSubdirektorat]);
 
+  // Auto-highlight effect - placed after chartData declaration to avoid reference issues
+  useEffect(() => {
+    if (showAll || !chartData.length) return;
+    const id = setInterval(() => {
+      setActiveIndex((prev) => (prev + 1) % chartData.length);
+    }, 2500);
+    return () => clearInterval(id);
+  }, [showAll, chartData.length]);
+
   if (!chartData.length) return (
     <Card className={`border-0 shadow-xl bg-white/80 backdrop-blur-sm ${className}`}>
       <CardHeader>
@@ -225,19 +253,6 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
     </Card>
   );
 
-  // Ukuran dinamis chart agar tidak perlu scroll horizontal
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const [containerWidth, setContainerWidth] = useState<number>(0);
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver((entries) => {
-      const w = entries[0]?.contentRect?.width || 0;
-      setContainerWidth(w);
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
 
   const svgWidth = Math.max(700, containerWidth || 700);
   const leftMargin = 60;
@@ -270,16 +285,6 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
     return abbr;
   };
 
-  // Auto-highlight index agar chart tetap terasa hidup tanpa scroll
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [showAll, setShowAll] = useState(false);
-  useEffect(() => {
-    if (!chartData.length || showAll) return;
-    const id = setInterval(() => {
-      setActiveIndex((prev) => (prev + 1) % chartData.length);
-    }, 2500);
-    return () => clearInterval(id);
-  }, [chartData, showAll]);
 
   // removed auto-scroll helper and slider
 

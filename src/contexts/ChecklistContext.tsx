@@ -4,7 +4,9 @@ export interface ChecklistGCG {
   id: number;
   aspek: string;
   deskripsi: string;
+  pic?: string;
   tahun?: number;
+  rowNumber?: number; // Stable row number for file storage
 }
 
 export interface Aspek {
@@ -18,8 +20,8 @@ interface ChecklistContextType {
   aspects: Aspek[];
   getChecklistByYear: (year: number) => ChecklistGCG[];
   getAspectsByYear: (year: number) => Promise<Aspek[]>;
-  addChecklist: (aspek: string, deskripsi: string, year: number) => Promise<void>;
-  editChecklist: (id: number, aspek: string, deskripsi: string, year: number) => Promise<void>;
+  addChecklist: (aspek: string, deskripsi: string, pic: string, year: number) => Promise<void>;
+  editChecklist: (id: number, aspek: string, deskripsi: string, pic: string, year: number) => Promise<void>;
   deleteChecklist: (id: number, year: number) => Promise<void>;
   addAspek: (nama: string, year: number) => Promise<void>;
   editAspek: (id: number, newNama: string, year: number) => void;
@@ -27,6 +29,7 @@ interface ChecklistContextType {
   initializeYearData: (year: number) => void;
   ensureAllYearsHaveData: () => void;
   ensureAspectsForAllYears: () => void;
+  useDefaultChecklistData: (year: number) => Promise<void>;
 }
 
 const ChecklistContext = createContext<ChecklistContextType | undefined>(undefined);
@@ -37,8 +40,11 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
 
   // Load data from Supabase first, fallback to localStorage
   useEffect(() => {
+    console.log('ChecklistContext: useEffect triggered - starting data load');
+    
     const loadDataFromSupabase = async () => {
       try {
+        console.log('ChecklistContext: loadDataFromSupabase function called');
         // Load aspects from Supabase
         const aspectsResponse = await fetch('http://localhost:5000/api/config/aspects');
         if (aspectsResponse.ok) {
@@ -58,13 +64,76 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
           loadAspectsFromLocalStorage();
         }
 
-        // For checklist, we'll need to check if there's a checklist endpoint
-        // For now, fallback to localStorage
-        loadChecklistFromLocalStorage();
+        // Load checklist from Supabase API
+        console.log('ChecklistContext: Fetching checklist from API...');
+        const checklistResponse = await fetch('http://localhost:5000/api/config/checklist');
+        if (checklistResponse.ok) {
+          const checklistData = await checklistResponse.json();
+          console.log('ChecklistContext: Raw API response:', checklistData.checklist?.length || 0, 'items');
+          if (checklistData.checklist && Array.isArray(checklistData.checklist)) {
+            const mappedChecklist = checklistData.checklist
+              .filter((item: any) => {
+                // Filter out corrupted data where deskripsi is null/invalid
+                if (!item.deskripsi && item.aspek && item.aspek.includes('deskripsi')) {
+                  // This is corrupted data - try to extract from the aspek field
+                  try {
+                    const parsedData = JSON.parse(item.aspek.replace(/'/g, '"'));
+                    const isValid = parsedData.deskripsi && parsedData.tahun;
+                    console.log('ChecklistContext: Corrupted item recovery - valid:', isValid, 'desc:', parsedData.deskripsi?.substring(0, 30));
+                    return isValid;
+                  } catch (e) {
+                    console.error('ChecklistContext: Failed to parse corrupted item:', e);
+                    return false;
+                  }
+                }
+                const isValidNormal = item.deskripsi && item.tahun;
+                console.log('ChecklistContext: Normal item - valid:', isValidNormal, 'desc:', item.deskripsi?.substring(0, 30));
+                return isValidNormal;
+              })
+              .map((item: any) => {
+                // Handle corrupted data by extracting from aspek field
+                if (!item.deskripsi && item.aspek && item.aspek.includes('deskripsi')) {
+                  try {
+                    const parsedData = JSON.parse(item.aspek.replace(/'/g, '"'));
+                    console.log('ChecklistContext: Recovering corrupted data:', parsedData.deskripsi.substring(0, 50));
+                    return {
+                      id: item.id,
+                      aspek: parsedData.aspek || '',
+                      deskripsi: parsedData.deskripsi || '',
+                      pic: parsedData.pic || '',
+                      tahun: parsedData.tahun,
+                      rowNumber: item.rowNumber
+                    };
+                  } catch (e) {
+                    console.error('ChecklistContext: Failed to recover corrupted data:', e);
+                    return null;
+                  }
+                }
+                // Normal data mapping
+                return {
+                  id: item.id,
+                  aspek: item.aspek || '',
+                  deskripsi: item.deskripsi || '',
+                  pic: item.pic || '',
+                  tahun: item.tahun,
+                  rowNumber: item.rowNumber
+                };
+              })
+              .filter(Boolean); // Remove null items
+            
+            setChecklist(mappedChecklist);
+            console.log('ChecklistContext: Loaded checklist from Supabase', mappedChecklist.length);
+          }
+        } else {
+          console.error('ChecklistContext: Failed to load checklist from Supabase');
+          setChecklist([]); // Start with empty instead of localStorage
+        }
 
       } catch (error) {
         console.error('ChecklistContext: Error loading from Supabase', error);
-        loadFromLocalStorage();
+        // Set empty data instead of localStorage fallback for multi-user support
+        setChecklist([]);
+        setAspects([]);
       }
     };
 
@@ -136,8 +205,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
     const defaultData: ChecklistGCG[] = [];
     const defaultAspects: Aspek[] = [];
     
-    localStorage.setItem("checklistGCG", JSON.stringify(defaultData));
-    localStorage.setItem("aspects", JSON.stringify(defaultAspects));
+    // Initialize with empty data - will be loaded from Supabase
     setChecklist(defaultData);
     setAspects(defaultAspects);
     console.log('ChecklistContext: Initialized with FRESH START - no default data');
@@ -153,8 +221,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
         // Pastikan data valid sebelum update
         if (Array.isArray(updatedData) && updatedData.length > 0) {
           setChecklist(updatedData);
-          // Update localStorage juga untuk konsistensi
-          localStorage.setItem('checklistGCG', JSON.stringify(updatedData));
+          // Data updated from Supabase
           console.log('ChecklistContext: Data updated from PengaturanBaru', updatedData);
         }
       }
@@ -241,29 +308,19 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
   }, [checklist]);
 
   const getChecklistByYear = (year: number): ChecklistGCG[] => {
-    // Pastikan data di-load dari localStorage terlebih dahulu
-    const storedData = localStorage.getItem("checklistGCG");
-    if (storedData) {
-      try {
-        const parsedData = JSON.parse(storedData);
-        if (Array.isArray(parsedData)) {
-          // Update state jika ada data baru
-          if (JSON.stringify(parsedData) !== JSON.stringify(checklist)) {
-            setChecklist(parsedData);
-          }
-          return parsedData.filter(item => item.tahun === year);
-        }
-      } catch (error) {
-        console.error('ChecklistContext: Error parsing stored data in getChecklistByYear', error);
-      }
-    }
+    // Use data from state (loaded from Supabase) instead of localStorage
+    console.log('ChecklistContext: getChecklistByYear called', {
+      year,
+      totalItems: checklist.length,
+      itemsForYear: checklist.filter(item => item.tahun === year).length
+    });
     return checklist.filter(item => item.tahun === year);
   };
 
   const getAspectsByYear = async (year: number): Promise<Aspek[]> => {
     try {
       // Fetch aspects from Supabase API
-      const response = await fetch(`http://localhost:5001/api/config/aspects?year=${year}`);
+      const response = await fetch(`http://localhost:5000/api/config/aspects?year=${year}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -304,7 +361,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const addChecklist = async (aspek: string, deskripsi: string, year: number) => {
+  const addChecklist = async (aspek: string, deskripsi: string, pic: string, year: number) => {
     try {
       // Save to Supabase API
       const response = await fetch('http://localhost:5000/api/config/checklist', {
@@ -315,6 +372,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
         body: JSON.stringify({
           aspek: aspek,
           deskripsi: deskripsi,
+          pic: pic,
           tahun: year
         })
       });
@@ -328,10 +386,22 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
       console.error('ChecklistContext: Failed to save checklist to Supabase:', error);
     }
 
-    const newChecklist = { id: Date.now(), aspek, deskripsi, tahun: year };
+    // Calculate next stable row number for this year
+    const yearItems = checklist.filter(item => item.tahun === year);
+    const maxRowNumber = yearItems.reduce((max, item) => 
+      Math.max(max, item.rowNumber || 0), 0
+    );
+    const nextRowNumber = maxRowNumber + 1;
+    
+    const newChecklist = { 
+      id: Date.now(), 
+      aspek, 
+      deskripsi, 
+      tahun: year,
+      rowNumber: nextRowNumber 
+    };
     const updated = [...checklist, newChecklist];
     setChecklist(updated);
-    localStorage.setItem("checklistGCG", JSON.stringify(updated));
     
     // Trigger update event
     window.dispatchEvent(new CustomEvent('checklistUpdated', {
@@ -339,7 +409,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
     }));
   };
 
-  const editChecklist = async (id: number, aspek: string, deskripsi: string, year: number) => {
+  const editChecklist = async (id: number, aspek: string, deskripsi: string, pic: string, year: number) => {
     try {
       // Update in Supabase API
       const response = await fetch(`http://localhost:5000/api/config/checklist/${id}`, {
@@ -350,6 +420,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
         body: JSON.stringify({
           aspek: aspek,
           deskripsi: deskripsi,
+          pic: pic,
           tahun: year
         })
       });
@@ -365,7 +436,6 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
 
     const updated = checklist.map((c) => (c.id === id ? { ...c, aspek, deskripsi, tahun: year } : c));
     setChecklist(updated);
-    localStorage.setItem("checklistGCG", JSON.stringify(updated));
     
     // Trigger update event
     window.dispatchEvent(new CustomEvent('checklistUpdated', {
@@ -391,7 +461,6 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
 
     const updated = checklist.filter((c) => c.id !== id);
     setChecklist(updated);
-    localStorage.setItem("checklistGCG", JSON.stringify(updated));
     
     // Trigger update event
     window.dispatchEvent(new CustomEvent('checklistUpdated', {
@@ -557,6 +626,342 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
+  // Function to load default checklist data (same pattern as StrukturPerusahaanContext)
+  const useDefaultChecklistData = async (year: number) => {
+    try {
+      console.log(`ChecklistContext: Loading default checklist data for year ${year}`);
+      
+      // Import DEFAULT_CHECKLIST_ITEMS from the component
+      const DEFAULT_CHECKLIST_ITEMS = [
+        "Pedoman Tata Kelola Perusahaan yang Baik/CoCG",
+        "Pedoman Perilaku/CoC",
+        "Penetapan Direksi sbg Penanggungjawab GCG dan SK Penunjukan Tim Komite Pemantau GCG (Bila ada)",
+        "Board Manual",
+        "Pedoman Pengendalian Gratifikasi",
+        "Pedoman WBS",
+        "Peraturan Disiplin Pegawai",
+        "PKB Terupdate",
+        "Dokumentasi Sosialisasi CoCG, CoC dan panduan pelaksanaan CoC kepada Organ perusahaan",
+        "Pernyataan Kepatuhan kepada CoC Tahun 2022 dan sebelumnya",
+        "Program penguatan kepemimpinan, kompetensi, dan etika kepemimpinan",
+        "Uraian Jabatan/Job Description (JD) Dewan Komisaris dan Direksi",
+        "Pakta Integritas / Letter of Undertaking (LoU) Direksi dan Dewan Komisaris (periode 2023 dan 2024)",
+        "Pakta Integritas / Letter of Undertaking (LoU) Komite yang berada di bawah Dewan Komisaris Tahun 2023 dan 2024",
+        "Pakta Integritas / Letter of Undertaking (LoU) Seluruh Karyawan Tahun 2023 dan 2024",
+        "Laporan Penerapan GCG",
+        "Surat Pernyataan Tanggung Jawab atas Laporan Pelaksanaan GCG",
+        "Struktur organisasi Dewan Komisaris",
+        "Piagam (Board Charter) Dewan Komisaris",
+        "Surat Keputusan Anggota Dewan Komisaris",
+        "Laporan Pelaksanaan Tugas Dewan Komisaris",
+        "Jadwal dan Risalah Rapat Dewan Komisaris dan Rapat Gabungan dengan Direksi Tahun 2023 dan 2024",
+        "Form Laporan Keberadaan Dewan Komisaris Tahun 2023 dan 2024",
+        "Struktur organisasi Direksi",
+        "Piagam (Board Charter) Direksi",
+        "Surat Keputusan Anggota Direksi",
+        "Laporan Pelaksanaan Tugas Direksi",
+        "Jadwal dan Risalah Rapat Direksi Tahun 2023 dan 2024",
+        "Laporan Keberadaan Direksi Tahun 2023 dan 2024",
+        "Piagam Komite Audit",
+        "Struktur organisasi Komite Audit",
+        "SK Komite Audit",
+        "Laporan Pelaksanaan Tugas Komite Audit",
+        "Jadwal dan Risalah Rapat Komite Audit Tahun 2023 dan 2024",
+        "Piagam Komite Nominasi dan Remunerasi",
+        "Struktur organisasi Komite Nominasi dan Remunerasi",
+        "SK Komite Nominasi dan Remunerasi",
+        "Laporan Pelaksanaan Tugas Komite Nominasi dan Remunerasi",
+        "Jadwal dan Risalah Rapat Komite Nominasi dan Remunerasi Tahun 2023 dan 2024",
+        "Piagam Komite Lain (Bila ada)",
+        "Struktur Organisasi Komite Lain (Bila ada)",
+        "SK Komite Lain (Bila ada)",
+        "Laporan Pelaksanaan Tugas Komite Lain (Bila ada)",
+        "Jadwal dan Risalah Rapat Komite Lain (Bila ada) Tahun 2023 dan 2024",
+        "Profil Anggota Dewan Komisaris, Direksi, dan Komite",
+        "Kompetensi Dewan Komisaris, Direksi, dan Komite",
+        "Laporan Indeks Kepuasan Pemangku Kepentingan",
+        "Program pelatihan dan peningkatan kompetensi untuk Dewan Komisaris, Direksi, dan Komite yang berada di bawah Dewan Komisaris",
+        "Laporan Keterbatasan Akses Dewan Komisaris dan Komite terhadap Informasi (jika ada)",
+        "Piagam Satuan Pengawasan Intern (SPI)",
+        "Struktur Organisasi SPI",
+        "SK Ketua dan Anggota SPI",
+        "Uraian tugas dan tanggung jawab SPI",
+        "Laporan Pelaksanaan Tugas SPI",
+        "Jadwal dan Risalah Rapat SPI Tahun 2023 dan 2024",
+        "Rencana Kerja dan Anggaran (RKA) SPI",
+        "Dokumen hasil audit internal dan eksternal",
+        "Bukti tindak lanjut hasil audit internal dan eksternal",
+        "Piagam Sekretaris Perusahaan",
+        "SK Sekretaris Perusahaan",
+        "Uraian tugas dan tanggung jawab Sekretaris Perusahaan",
+        "Program kerja Sekretaris Perusahaan Tahun 2023 dan 2024",
+        "Laporan pelaksanaan tugas Sekretaris Perusahaan",
+        "Kebijakan Manajemen Risiko",
+        "Daftar profil risiko tahun 2024",
+        "Pedoman Manajemen Risiko",
+        "Laporan penerapan manajemen risiko secara berkelanjutan",
+        "Pedoman Sistem Pengendalian Internal",
+        "Piagam Audit Internal",
+        "Kebijakan dan prosedur tentang Anti Fraud",
+        "Kebijakan mengenai whistleblowing system (WBS)",
+        "Laporan penanganan WBS",
+        "Pedoman pengelolaan benturan kepentingan",
+        "Pedoman Pengendalian Gratifikasi",
+        "Laporan pengendalian gratifikasi",
+        "Kebijakan dan prosedur transaksi yang mengandung benturan kepentingan",
+        "Kebijakan dan prosedur terkait transaksi dengan pihak berelasi",
+        "Laporan transaksi dengan pihak berelasi",
+        "Kebijakan Manajemen Komplain",
+        "Laporan pengelolaan komplain",
+        "Kebijakan Perlindungan Konsumen",
+        "Laporan perlindungan konsumen",
+        "Kebijakan Manajemen Keberlanjutan",
+        "Laporan Keberlanjutan",
+        "Program dan Pelaksanaan CSR",
+        "Laporan Pelaksanaan CSR",
+        "Pedoman Penyelenggaraan Rapat Dewan Komisaris",
+        "Pedoman Penyelenggaraan Rapat Direksi",
+        "Piagam Komite-Komite di bawah Dewan Komisaris",
+        "Daftar anggota Komite-Komite di bawah Dewan Komisaris",
+        "Laporan pelaksanaan tugas Komite-Komite di bawah Dewan Komisaris",
+        "Laporan Rapat Gabungan Dewan Komisaris dan Direksi",
+        "Laporan Keberadaan Dewan Komisaris, Direksi, dan Komite di bawah Dewan Komisaris",
+        "Kebijakan Perekrutan dan Seleksi Dewan Komisaris",
+        "Kebijakan Perekrutan dan Seleksi Direksi",
+        "Kebijakan Penilaian Kinerja Dewan Komisaris dan Direksi",
+        "Laporan Penilaian Kinerja Dewan Komisaris dan Direksi",
+        "Laporan Remunerasi Dewan Komisaris dan Direksi",
+        "Laporan Keterbukaan Informasi Perusahaan",
+        "Kebijakan Komunikasi dengan Pemegang Saham",
+        "Laporan Komunikasi dengan Pemegang Saham",
+        "Kebijakan Pengelolaan Informasi dan Pengungkapan Informasi Publik",
+        "Laporan Pengungkapan Informasi Publik",
+        "Kebijakan Pengelolaan Website Perusahaan",
+        "Laporan Pengelolaan Website Perusahaan",
+        "Kebijakan Pemanfaatan Teknologi Informasi",
+        "Laporan Pemanfaatan Teknologi Informasi",
+        "Kebijakan Perlindungan Data Pribadi",
+        "Laporan Perlindungan Data Pribadi",
+        "Kebijakan Lingkungan Hidup",
+        "Laporan Lingkungan Hidup",
+        "Program Pengelolaan Lingkungan Hidup",
+        "Laporan Kepatuhan terhadap Peraturan Lingkungan Hidup",
+        "Kebijakan Kesehatan dan Keselamatan Kerja (K3)",
+        "Laporan Pelaksanaan K3",
+        "Program Pelaksanaan K3",
+        "Laporan Kepatuhan terhadap Peraturan K3",
+        "Kebijakan Hak Asasi Manusia (HAM)",
+        "Laporan Pelaksanaan HAM",
+        "Program Pelaksanaan HAM",
+        "Kebijakan Pengadaan Barang dan Jasa",
+        "Laporan Pengadaan Barang dan Jasa",
+        "Kebijakan Manajemen Keuangan",
+        "Laporan Keuangan",
+        "Kebijakan Perencanaan Strategis",
+        "Rencana Strategis Perusahaan",
+        "Kebijakan Manajemen Kinerja",
+        "Laporan Manajemen Kinerja",
+        "Kebijakan Manajemen SDM",
+        "Kebijakan Remunerasi Karyawan",
+        "Laporan Remunerasi Karyawan",
+        "Kebijakan Pendidikan dan Pelatihan",
+        "Laporan Pendidikan dan Pelatihan",
+        "Program Pendidikan dan Pelatihan",
+        "Kebijakan Kesejahteraan Karyawan",
+        "Laporan Kesejahteraan Karyawan",
+        "Kebijakan Hubungan Industrial",
+        "Laporan Hubungan Industrial",
+        "Kebijakan Pemberdayaan Karyawan",
+        "Laporan Pemberdayaan Karyawan",
+        "Kebijakan Keberagaman dan Inklusi",
+        "Laporan Keberagaman dan Inklusi",
+        "Kebijakan Pensiun",
+        "Laporan Pensiun",
+        "Kebijakan Keselamatan dan Keamanan",
+        "Laporan Keselamatan dan Keamanan",
+        "Kebijakan Pengelolaan Aset",
+        "Laporan Pengelolaan Aset",
+        "Kebijakan Manajemen Proyek",
+        "Laporan Manajemen Proyek",
+        "Kebijakan Teknologi Informasi",
+        "Laporan Teknologi Informasi",
+        "Kebijakan Inovasi",
+        "Laporan Inovasi",
+        "Kebijakan Manajemen Mutu",
+        "Laporan Manajemen Mutu",
+        "Kebijakan Pemasaran",
+        "Laporan Pemasaran",
+        "Kebijakan Penjualan",
+        "Laporan Penjualan",
+        "Kebijakan Pelayanan Pelanggan",
+        "Laporan Pelayanan Pelanggan",
+        "Kebijakan Riset dan Pengembangan",
+        "Laporan Riset dan Pengembangan",
+        "Kebijakan Kemitraan",
+        "Laporan Kemitraan",
+        "Kebijakan Komunikasi",
+        "Laporan Komunikasi",
+        "Kebijakan Hubungan Masyarakat",
+        "Laporan Hubungan Masyarakat",
+        "Kebijakan Hubungan Investor",
+        "Laporan Hubungan Investor",
+        "Kebijakan Kepatuhan",
+        "Laporan Kepatuhan",
+        "Kebijakan Hukum",
+        "Laporan Hukum",
+        "Kebijakan Etika",
+        "Laporan Etika",
+        "Kebijakan Integritas",
+        "Laporan Integritas",
+        "Kebijakan Anti-Korupsi",
+        "Laporan Anti-Korupsi",
+        "Kebijakan Anti-Pencucian Uang",
+        "Laporan Anti-Pencucian Uang",
+        "Kebijakan Manajemen Reputasi",
+        "Laporan Manajemen Reputasi",
+        "Kebijakan Manajemen Krisis",
+        "Laporan Manajemen Krisis",
+        "Kebijakan Keberlanjutan Bisnis",
+        "Laporan Keberlanjutan Bisnis",
+        "Kebijakan Keamanan Siber",
+        "Laporan Keamanan Siber",
+        "Kebijakan Perlindungan Data",
+        "Laporan Perlindungan Data",
+        "Kebijakan Pengelolaan Risiko",
+        "Laporan Pengelolaan Risiko",
+        "Kebijakan Pengendalian Internal",
+        "Laporan Pengendalian Internal",
+        "Kebijakan Audit Internal",
+        "Laporan Audit Internal",
+        "Kebijakan Anti-Fraud",
+        "Laporan Anti-Fraud",
+        "Kebijakan WBS",
+        "Laporan WBS",
+        "Kebijakan Anti-Gratifikasi",
+        "Laporan Anti-Gratifikasi",
+        "Kebijakan Benturan Kepentingan",
+        "Laporan Benturan Kepentingan",
+        "Kebijakan Pihak Berelasi",
+        "Laporan Pihak Berelasi",
+        "Kebijakan Komplain",
+        "Laporan Komplain",
+        "Kebijakan Pelindungan Konsumen",
+        "Laporan Perlindungan Konsumen",
+        "Kebijakan CSR",
+        "Laporan CSR",
+        "Kebijakan Lingkungan",
+        "Laporan Lingkungan",
+        "Kebijakan K3",
+        "Laporan K3",
+        "Kebijakan HAM",
+        "Laporan HAM",
+        "Kebijakan Pengadaan",
+        "Laporan Pengadaan",
+        "Kebijakan Keuangan",
+        "Laporan Keuangan",
+        "Kebijakan Manajemen",
+        "Laporan Manajemen",
+        "Kebijakan SDM",
+        "Laporan SDM",
+        "Kebijakan Remunerasi",
+        "Laporan Remunerasi",
+        "Kebijakan Pelatihan",
+        "Laporan Pelatihan",
+        "Kebijakan Kesejahteraan",
+        "Laporan Kesejahteraan",
+        "Kebijakan Industrial",
+        "Laporan Industrial",
+        "Kebijakan Pemberdayaan",
+        "Laporan Pemberdayaan",
+        "Kebijakan Keberagaman",
+        "Laporan Keberagaman",
+        "Kebijakan Pensiun",
+        "Laporan Pensiun",
+        "Kebijakan Keamanan",
+        "Laporan Keamanan",
+        "Kebijakan Aset",
+        "Laporan Aset",
+        "Kebijakan Proyek",
+        "Laporan Proyek",
+        "Kebijakan TI",
+        "Laporan TI",
+        "Annual Report",
+        "Penghargaan di bidang CSR, bidang publikasi dan keterbukaan Informasi",
+        "Penghargaan-penghargaan lainnya yang diperoleh perusahaan selama tahun 2024",
+        "Dekom/Direksi/Manajemen Kunci menjadi Pembicara mewakili Perusahaan"
+      ];
+
+      // Clear existing data for this year to avoid duplicates
+      const existingData = checklist.filter(item => item.tahun !== year);
+
+      // Create new checklist items from default data
+      let counter = 1;
+      const newItems: ChecklistGCG[] = DEFAULT_CHECKLIST_ITEMS.map((deskripsi, index) => ({
+        id: Date.now() + index,
+        aspek: '',
+        deskripsi,
+        tahun: year,
+        rowNumber: counter++
+      }));
+
+      // Update local state immediately
+      const updatedChecklist = [...existingData, ...newItems];
+      setChecklist(updatedChecklist);
+
+      // Save to backend via batch API
+      const response = await fetch('http://localhost:5000/api/config/checklist/batch', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          items: newItems.map(item => ({
+            aspek: item.aspek,
+            deskripsi: item.deskripsi,
+            tahun: item.tahun,
+            rowNumber: item.rowNumber
+          }))
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save default checklist data');
+      }
+
+      console.log(`ChecklistContext: Successfully loaded ${newItems.length} default checklist items for year ${year}`);
+      
+      // Reload the data from Supabase to refresh the context
+      setTimeout(async () => {
+        try {
+          const checklistResponse = await fetch('http://localhost:5000/api/config/checklist');
+          if (checklistResponse.ok) {
+            const checklistData = await checklistResponse.json();
+            if (checklistData.checklist && Array.isArray(checklistData.checklist)) {
+              const mappedChecklist = checklistData.checklist
+                .filter((item: any) => item.deskripsi && item.tahun)
+                .map((item: any) => ({
+                  id: item.id,
+                  aspek: item.aspek || '',
+                  deskripsi: item.deskripsi || '',
+                  tahun: item.tahun,
+                  rowNumber: item.rowNumber
+                }));
+              
+              setChecklist(mappedChecklist);
+              console.log(`ChecklistContext: Refreshed checklist data after default load: ${mappedChecklist.length} items`);
+            }
+          }
+        } catch (refreshError) {
+          console.error('ChecklistContext: Error refreshing data after default load', refreshError);
+        }
+      }, 1000); // Wait 1 second for Supabase sync
+      
+    } catch (error) {
+      console.error('ChecklistContext: Error loading default checklist data', error);
+      throw error;
+    }
+  };
+
   return (
     <ChecklistContext.Provider value={{ 
       checklist, 
@@ -571,7 +976,8 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
       deleteAspek,
       initializeYearData,
       ensureAllYearsHaveData,
-      ensureAspectsForAllYears
+      ensureAspectsForAllYears,
+      useDefaultChecklistData
     }}>
       {children}
     </ChecklistContext.Provider>
