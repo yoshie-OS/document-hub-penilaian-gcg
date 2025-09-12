@@ -784,6 +784,7 @@ const PengaturanBaru = () => {
           id: item.id,
           aspek: item.aspek,
           deskripsi: item.deskripsi,
+          pic: item.pic,
           tahun: item.tahun
         }));
         
@@ -1923,6 +1924,9 @@ const PengaturanBaru = () => {
           item.id === checklistId ? { ...item, pic: '' } : item
         ));
         
+        // Track the change for consistency
+        trackItemChange(checklistId);
+        
         toast({
           title: "Assignment Direset",
           description: "PIC berhasil dihapus dari checklist.",
@@ -1939,19 +1943,8 @@ const PengaturanBaru = () => {
       return;
     }
 
-    // Check for existing assignment conflicts (simplified)
-    const existingItem = checklistItems.find(item => 
-      item.id === checklistId && item.pic && item.pic !== targetName
-    );
-    
-    if (existingItem) {
-      toast({
-        title: "Assignment sudah ada",
-        description: `Item ini sudah di-assign ke ${existingItem.pic}. Reset terlebih dahulu untuk mengubah assignment.`,
-        variant: "destructive",
-      });
-      return;
-    }
+    // Allow direct reassignment - no conflict check needed
+    // Users can change assignments directly without resetting first
 
     // Save PIC assignment to backend
     try {
@@ -1961,6 +1954,9 @@ const PengaturanBaru = () => {
       setChecklistItems(prev => prev.map(item => 
         item.id === checklistId ? { ...item, pic: targetName } : item
       ));
+      
+      // Track the change for consistency
+      trackItemChange(checklistId);
       
       toast({
         title: "Assignment Berhasil",
@@ -2202,8 +2198,20 @@ const PengaturanBaru = () => {
   };
 
   // Handle save individual item
-  const handleSaveItem = (itemId: number) => {
+  const handleSaveItem = async (itemId: number) => {
     try {
+      const currentItem = checklistItems.find(item => item.id === itemId);
+      if (!currentItem) return;
+      
+      // Save to backend using editChecklist
+      await editChecklist(
+        currentItem.id, 
+        currentItem.aspek || '', 
+        currentItem.deskripsi || '', 
+        currentItem.pic || '',
+        selectedYear || new Date().getFullYear()
+      );
+      
       // Update original data for this specific item
       setOriginalChecklistItems(prev => 
         prev.map(item => 
@@ -2280,6 +2288,7 @@ const PengaturanBaru = () => {
       id: item.id,
       aspek: item.aspek,
       deskripsi: item.deskripsi,
+      pic: item.pic,
       tahun: item.tahun
     }));
     

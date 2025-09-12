@@ -122,6 +122,8 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
               .filter(Boolean); // Remove null items
             
             setChecklist(mappedChecklist);
+            // Save fresh data to localStorage for next load
+            localStorage.setItem("checklistGCG", JSON.stringify(mappedChecklist));
             console.log('ChecklistContext: Loaded checklist from Supabase', mappedChecklist.length);
           }
         } else {
@@ -148,6 +150,20 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
           
           // Pastikan data valid
           if (Array.isArray(parsedData) && Array.isArray(parsedAspects)) {
+            // Check for old timestamp-based IDs and clear if found
+            const hasOldTimestampIds = parsedData.some(item => 
+              item.id && item.id > 1000000000 // Timestamp IDs are much larger than year+row format
+            );
+            
+            if (hasOldTimestampIds) {
+              console.warn('ChecklistContext: Found old timestamp-based IDs in localStorage, clearing cache');
+              localStorage.removeItem("checklistGCG");
+              localStorage.removeItem("aspects");
+              // Fallback to Supabase load
+              loadDataFromSupabase();
+              return;
+            }
+            
             setChecklist(parsedData);
             setAspects(parsedAspects);
             console.log('ChecklistContext: Initialized from localStorage', { checklist: parsedData.length, aspects: parsedAspects.length });
@@ -187,6 +203,19 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
         try {
           const parsedData = JSON.parse(data);
           if (Array.isArray(parsedData)) {
+            // Check for old timestamp-based IDs and clear if found
+            const hasOldTimestampIds = parsedData.some(item => 
+              item.id && item.id > 1000000000 // Timestamp IDs are much larger than year+row format
+            );
+            
+            if (hasOldTimestampIds) {
+              console.warn('ChecklistContext: Found old timestamp-based IDs, clearing cache and reloading from backend');
+              localStorage.removeItem("checklistGCG");
+              localStorage.removeItem("aspects");
+              loadDataFromSupabase();
+              return;
+            }
+            
             setChecklist(parsedData);
             console.log('ChecklistContext: Loaded checklist from localStorage');
           }
@@ -318,6 +347,12 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const getAspectsByYear = async (year: number): Promise<Aspek[]> => {
+    // Return empty array if year is invalid
+    if (!year || year === null || year === undefined || isNaN(year)) {
+      console.warn('getAspectsByYear called with invalid year:', year);
+      return [];
+    }
+    
     try {
       // Fetch aspects from Supabase API
       const response = await fetch(`http://localhost:5000/api/config/aspects?year=${year}`);
@@ -434,7 +469,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
       console.error('ChecklistContext: Failed to update checklist in Supabase:', error);
     }
 
-    const updated = checklist.map((c) => (c.id === id ? { ...c, aspek, deskripsi, tahun: year } : c));
+    const updated = checklist.map((c) => (c.id === id ? { ...c, aspek, deskripsi, pic, tahun: year } : c));
     setChecklist(updated);
     
     // Trigger update event
@@ -469,6 +504,12 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const addAspek = async (nama: string, year: number) => {
+    // Validate year parameter
+    if (!year || year === null || year === undefined || isNaN(year)) {
+      console.warn('addAspek called with invalid year:', year);
+      throw new Error('Invalid year provided');
+    }
+    
     try {
       // Add aspect via API
       const response = await fetch('http://localhost:5000/api/config/aspects', {

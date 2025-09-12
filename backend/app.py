@@ -56,11 +56,18 @@ def generate_unique_id():
     """Generate a unique ID for database records"""
     return int(time.time() * 1000000) % 2147483647  # Generate int ID within PostgreSQL int range
 
+def generate_checklist_id(year, row_number):
+    """Generate checklist ID in format: last two digits of year + row number
+    Example: 2024 row 1 -> 241, 2025 row 10 -> 2510"""
+    year_digits = year % 100  # Get last two digits of year
+    return int(f"{year_digits}{row_number}")
+
 # Project root for subprocess calls to the working core system
 project_root = str(Path(__file__).parent.parent.parent)
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for React frontend
+# Enable CORS for React frontend with exposed headers
+CORS(app, expose_headers=['Content-Disposition', 'Content-Type', 'Content-Length'])
 
 # Configuration
 UPLOAD_FOLDER = Path(__file__).parent / 'uploads'
@@ -1506,15 +1513,453 @@ def delete_uploaded_file(file_id):
         print(f"Error deleting uploaded file: {e}")
         return jsonify({'error': f'Failed to delete uploaded file: {str(e)}'}), 500
 
+# AOI TABLES ENDPOINTS
 @app.route('/api/aoiTables', methods=['GET'])
 def get_aoi_tables():
-    """Get all AOI tables - placeholder endpoint"""
+    """Get all AOI tables"""
     try:
-        # Return empty list for now - this can be expanded later
+        aoi_data = storage_service.read_csv('config/aoi-tables.csv')
+        if aoi_data is not None:
+            # Replace NaN values with empty strings before converting to dict
+            aoi_data = aoi_data.fillna('')
+            aoi_tables = aoi_data.to_dict(orient='records')
+            return jsonify(aoi_tables), 200
         return jsonify([]), 200
     except Exception as e:
         print(f"Error getting AOI tables: {e}")
-        return jsonify({'error': f'Failed to get AOI tables: {str(e)}'}), 500
+        return jsonify([]), 200
+
+@app.route('/api/aoiTables/<int:table_id>', methods=['GET'])
+def get_aoi_table_by_id(table_id):
+    """Get AOI table by ID"""
+    try:
+        aoi_data = storage_service.read_csv('config/aoi-tables.csv')
+        if aoi_data is not None:
+            aoi_data = aoi_data.fillna('')
+            table_row = aoi_data[aoi_data['id'] == table_id]
+            if not table_row.empty:
+                table = table_row.iloc[0].to_dict()
+                return jsonify(table), 200
+        return jsonify({'error': 'AOI table not found'}), 404
+    except Exception as e:
+        print(f"Error getting AOI table {table_id}: {e}")
+        return jsonify({'error': f'Failed to get AOI table: {str(e)}'}), 500
+
+@app.route('/api/aoiTables', methods=['POST'])
+def create_aoi_table():
+    """Create a new AOI table"""
+    try:
+        data = request.get_json()
+        
+        # Generate unique ID
+        table_id = generate_unique_id()
+        
+        # Create AOI table object
+        aoi_table_data = {
+            'id': table_id,
+            'nama': data.get('nama', ''),
+            'tahun': data.get('tahun'),
+            'targetType': data.get('targetType', ''),
+            'targetDirektorat': data.get('targetDirektorat', ''),
+            'targetSubdirektorat': data.get('targetSubdirektorat', ''),
+            'targetDivisi': data.get('targetDivisi', ''),
+            'createdAt': data.get('createdAt', datetime.now().isoformat()),
+            'status': data.get('status', 'active')
+        }
+        
+        # Read existing AOI tables
+        existing_data = storage_service.read_csv('config/aoi-tables.csv')
+        if existing_data is not None:
+            aoi_df = existing_data
+        else:
+            aoi_df = pd.DataFrame()
+        
+        # Add new AOI table
+        new_aoi_df = pd.DataFrame([aoi_table_data])
+        updated_df = pd.concat([aoi_df, new_aoi_df], ignore_index=True)
+        
+        # Save to storage
+        success = storage_service.write_csv(updated_df, 'config/aoi-tables.csv')
+        
+        if success:
+            return jsonify(aoi_table_data), 201
+        else:
+            return jsonify({'error': 'Failed to save AOI table'}), 500
+            
+    except Exception as e:
+        print(f"Error creating AOI table: {e}")
+        return jsonify({'error': f'Failed to create AOI table: {str(e)}'}), 500
+
+@app.route('/api/aoiTables/<int:table_id>', methods=['PUT'])
+def update_aoi_table(table_id):
+    """Update an existing AOI table"""
+    try:
+        data = request.get_json()
+        
+        # Read existing AOI tables
+        aoi_data = storage_service.read_csv('config/aoi-tables.csv')
+        if aoi_data is None:
+            return jsonify({'error': 'No AOI tables found'}), 404
+        
+        # Update the AOI table
+        aoi_data.loc[aoi_data['id'] == table_id, 'nama'] = data.get('nama', '')
+        aoi_data.loc[aoi_data['id'] == table_id, 'tahun'] = data.get('tahun')
+        aoi_data.loc[aoi_data['id'] == table_id, 'targetType'] = data.get('targetType', '')
+        aoi_data.loc[aoi_data['id'] == table_id, 'targetDirektorat'] = data.get('targetDirektorat', '')
+        aoi_data.loc[aoi_data['id'] == table_id, 'targetSubdirektorat'] = data.get('targetSubdirektorat', '')
+        aoi_data.loc[aoi_data['id'] == table_id, 'targetDivisi'] = data.get('targetDivisi', '')
+        aoi_data.loc[aoi_data['id'] == table_id, 'status'] = data.get('status', 'active')
+        
+        # Save to storage
+        success = storage_service.write_csv(aoi_data, 'config/aoi-tables.csv')
+        
+        if success:
+            # Return updated table
+            updated_row = aoi_data[aoi_data['id'] == table_id]
+            if not updated_row.empty:
+                updated_table = updated_row.iloc[0].to_dict()
+                return jsonify(updated_table), 200
+            else:
+                return jsonify({'error': 'AOI table not found after update'}), 404
+        else:
+            return jsonify({'error': 'Failed to update AOI table'}), 500
+            
+    except Exception as e:
+        print(f"Error updating AOI table {table_id}: {e}")
+        return jsonify({'error': f'Failed to update AOI table: {str(e)}'}), 500
+
+@app.route('/api/aoiTables/<int:table_id>', methods=['DELETE'])
+def delete_aoi_table(table_id):
+    """Delete an AOI table"""
+    try:
+        # Read existing AOI tables
+        aoi_data = storage_service.read_csv('config/aoi-tables.csv')
+        if aoi_data is None:
+            return jsonify({'error': 'No AOI tables found'}), 404
+        
+        # Remove the AOI table
+        aoi_data = aoi_data[aoi_data['id'] != table_id]
+        
+        # Save to storage
+        success = storage_service.write_csv(aoi_data, 'config/aoi-tables.csv')
+        
+        if success:
+            return jsonify({'message': f'AOI table {table_id} deleted successfully'}), 200
+        else:
+            return jsonify({'error': 'Failed to delete AOI table'}), 500
+            
+    except Exception as e:
+        print(f"Error deleting AOI table {table_id}: {e}")
+        return jsonify({'error': f'Failed to delete AOI table: {str(e)}'}), 500
+
+# AOI RECOMMENDATIONS ENDPOINTS
+@app.route('/api/aoiRecommendations', methods=['GET'])
+def get_aoi_recommendations():
+    """Get AOI recommendations, optionally filtered by aoiTableId"""
+    try:
+        aoi_table_id = request.args.get('aoiTableId', type=int)
+        
+        recommendations_data = storage_service.read_csv('config/aoi-recommendations.csv')
+        if recommendations_data is not None:
+            recommendations_data = recommendations_data.fillna('')
+            
+            # Filter by aoiTableId if provided
+            if aoi_table_id:
+                recommendations_data = recommendations_data[recommendations_data['aoiTableId'] == aoi_table_id]
+            
+            recommendations = recommendations_data.to_dict(orient='records')
+            return jsonify(recommendations), 200
+        return jsonify([]), 200
+    except Exception as e:
+        print(f"Error getting AOI recommendations: {e}")
+        return jsonify([]), 200
+
+@app.route('/api/aoiRecommendations/<int:recommendation_id>', methods=['GET'])
+def get_aoi_recommendation_by_id(recommendation_id):
+    """Get AOI recommendation by ID"""
+    try:
+        recommendations_data = storage_service.read_csv('config/aoi-recommendations.csv')
+        if recommendations_data is not None:
+            recommendations_data = recommendations_data.fillna('')
+            recommendation_row = recommendations_data[recommendations_data['id'] == recommendation_id]
+            if not recommendation_row.empty:
+                recommendation = recommendation_row.iloc[0].to_dict()
+                return jsonify(recommendation), 200
+        return jsonify({'error': 'AOI recommendation not found'}), 404
+    except Exception as e:
+        print(f"Error getting AOI recommendation {recommendation_id}: {e}")
+        return jsonify({'error': f'Failed to get AOI recommendation: {str(e)}'}), 500
+
+@app.route('/api/aoiRecommendations', methods=['POST'])
+def create_aoi_recommendation():
+    """Create a new AOI recommendation"""
+    try:
+        data = request.get_json()
+        
+        # Generate unique ID
+        recommendation_id = generate_unique_id()
+        
+        # Create AOI recommendation object
+        aoi_recommendation_data = {
+            'id': recommendation_id,
+            'aoiTableId': data.get('aoiTableId'),
+            'jenis': data.get('jenis', 'REKOMENDASI'),
+            'no': data.get('no', 1),
+            'isi': data.get('isi', ''),
+            'tingkatUrgensi': data.get('tingkatUrgensi', 'SEDANG'),
+            'aspekAOI': data.get('aspekAOI', ''),
+            'pihakTerkait': data.get('pihakTerkait', ''),
+            'organPerusahaan': data.get('organPerusahaan', ''),
+            'createdAt': data.get('createdAt', datetime.now().isoformat()),
+            'status': data.get('status', 'active')
+        }
+        
+        # Read existing AOI recommendations
+        existing_data = storage_service.read_csv('config/aoi-recommendations.csv')
+        if existing_data is not None:
+            recommendations_df = existing_data
+        else:
+            recommendations_df = pd.DataFrame()
+        
+        # Add new AOI recommendation
+        new_recommendation_df = pd.DataFrame([aoi_recommendation_data])
+        updated_df = pd.concat([recommendations_df, new_recommendation_df], ignore_index=True)
+        
+        # Save to storage
+        success = storage_service.write_csv(updated_df, 'config/aoi-recommendations.csv')
+        
+        if success:
+            return jsonify(aoi_recommendation_data), 201
+        else:
+            return jsonify({'error': 'Failed to save AOI recommendation'}), 500
+            
+    except Exception as e:
+        print(f"Error creating AOI recommendation: {e}")
+        return jsonify({'error': f'Failed to create AOI recommendation: {str(e)}'}), 500
+
+@app.route('/api/aoiRecommendations/<int:recommendation_id>', methods=['PUT'])
+def update_aoi_recommendation(recommendation_id):
+    """Update an existing AOI recommendation"""
+    try:
+        data = request.get_json()
+        
+        # Read existing AOI recommendations
+        recommendations_data = storage_service.read_csv('config/aoi-recommendations.csv')
+        if recommendations_data is None:
+            return jsonify({'error': 'No AOI recommendations found'}), 404
+        
+        # Update the AOI recommendation
+        recommendations_data.loc[recommendations_data['id'] == recommendation_id, 'aoiTableId'] = data.get('aoiTableId')
+        recommendations_data.loc[recommendations_data['id'] == recommendation_id, 'jenis'] = data.get('jenis', 'REKOMENDASI')
+        recommendations_data.loc[recommendations_data['id'] == recommendation_id, 'no'] = data.get('no', 1)
+        recommendations_data.loc[recommendations_data['id'] == recommendation_id, 'isi'] = data.get('isi', '')
+        recommendations_data.loc[recommendations_data['id'] == recommendation_id, 'tingkatUrgensi'] = data.get('tingkatUrgensi', 'SEDANG')
+        recommendations_data.loc[recommendations_data['id'] == recommendation_id, 'aspekAOI'] = data.get('aspekAOI', '')
+        recommendations_data.loc[recommendations_data['id'] == recommendation_id, 'pihakTerkait'] = data.get('pihakTerkait', '')
+        recommendations_data.loc[recommendations_data['id'] == recommendation_id, 'organPerusahaan'] = data.get('organPerusahaan', '')
+        recommendations_data.loc[recommendations_data['id'] == recommendation_id, 'status'] = data.get('status', 'active')
+        
+        # Save to storage
+        success = storage_service.write_csv(recommendations_data, 'config/aoi-recommendations.csv')
+        
+        if success:
+            # Return updated recommendation
+            updated_row = recommendations_data[recommendations_data['id'] == recommendation_id]
+            if not updated_row.empty:
+                updated_recommendation = updated_row.iloc[0].to_dict()
+                return jsonify(updated_recommendation), 200
+            else:
+                return jsonify({'error': 'AOI recommendation not found after update'}), 404
+        else:
+            return jsonify({'error': 'Failed to update AOI recommendation'}), 500
+            
+    except Exception as e:
+        print(f"Error updating AOI recommendation {recommendation_id}: {e}")
+        return jsonify({'error': f'Failed to update AOI recommendation: {str(e)}'}), 500
+
+@app.route('/api/aoiRecommendations/<int:recommendation_id>', methods=['DELETE'])
+def delete_aoi_recommendation(recommendation_id):
+    """Delete an AOI recommendation"""
+    try:
+        # Read existing AOI recommendations
+        recommendations_data = storage_service.read_csv('config/aoi-recommendations.csv')
+        if recommendations_data is None:
+            return jsonify({'error': 'No AOI recommendations found'}), 404
+        
+        # Remove the AOI recommendation
+        recommendations_data = recommendations_data[recommendations_data['id'] != recommendation_id]
+        
+        # Save to storage
+        success = storage_service.write_csv(recommendations_data, 'config/aoi-recommendations.csv')
+        
+        if success:
+            return jsonify({'message': f'AOI recommendation {recommendation_id} deleted successfully'}), 200
+        else:
+            return jsonify({'error': 'Failed to delete AOI recommendation'}), 500
+            
+    except Exception as e:
+        print(f"Error deleting AOI recommendation {recommendation_id}: {e}")
+        return jsonify({'error': f'Failed to delete AOI recommendation: {str(e)}'}), 500
+
+# AOI DOCUMENTS ENDPOINTS
+@app.route('/api/aoiDocuments', methods=['GET'])
+def get_aoi_documents():
+    """Get AOI documents, optionally filtered by recommendation ID or year"""
+    try:
+        aoi_recommendation_id = request.args.get('aoiRecommendationId', type=int)
+        tahun = request.args.get('tahun', type=int)
+        
+        documents_data = storage_service.read_csv('config/aoi-documents.csv')
+        if documents_data is not None:
+            documents_data = documents_data.fillna('')
+            
+            # Filter by aoiRecommendationId if provided
+            if aoi_recommendation_id:
+                documents_data = documents_data[documents_data['aoiRecommendationId'] == aoi_recommendation_id]
+            
+            # Filter by tahun if provided
+            if tahun:
+                documents_data = documents_data[documents_data['tahun'] == tahun]
+            
+            documents = documents_data.to_dict(orient='records')
+            return jsonify(documents), 200
+        return jsonify([]), 200
+    except Exception as e:
+        print(f"Error getting AOI documents: {e}")
+        return jsonify([]), 200
+
+@app.route('/api/aoiDocuments/<string:document_id>', methods=['GET'])
+def get_aoi_document_by_id(document_id):
+    """Get AOI document by ID"""
+    try:
+        documents_data = storage_service.read_csv('config/aoi-documents.csv')
+        if documents_data is not None:
+            documents_data = documents_data.fillna('')
+            document_row = documents_data[documents_data['id'] == document_id]
+            if not document_row.empty:
+                document = document_row.iloc[0].to_dict()
+                return jsonify(document), 200
+        return jsonify({'error': 'AOI document not found'}), 404
+    except Exception as e:
+        print(f"Error getting AOI document {document_id}: {e}")
+        return jsonify({'error': f'Failed to get AOI document: {str(e)}'}), 500
+
+@app.route('/api/aoiDocuments', methods=['POST'])
+def create_aoi_document():
+    """Create a new AOI document record"""
+    try:
+        data = request.get_json()
+        
+        # Generate unique ID (using string for AOI documents)
+        document_id = f"aoi_{generate_unique_id()}"
+        
+        # Create AOI document object
+        aoi_document_data = {
+            'id': document_id,
+            'fileName': data.get('fileName', ''),
+            'fileSize': data.get('fileSize', 0),
+            'uploadDate': data.get('uploadDate', datetime.now().isoformat()),
+            'aoiRecommendationId': data.get('aoiRecommendationId'),
+            'aoiJenis': data.get('aoiJenis', 'REKOMENDASI'),
+            'aoiUrutan': data.get('aoiUrutan', 1),
+            'userId': data.get('userId', ''),
+            'userDirektorat': data.get('userDirektorat', ''),
+            'userSubdirektorat': data.get('userSubdirektorat', ''),
+            'userDivisi': data.get('userDivisi', ''),
+            'fileType': data.get('fileType', ''),
+            'status': data.get('status', 'active'),
+            'tahun': data.get('tahun')
+        }
+        
+        # Read existing AOI documents
+        existing_data = storage_service.read_csv('config/aoi-documents.csv')
+        if existing_data is not None:
+            documents_df = existing_data
+        else:
+            documents_df = pd.DataFrame()
+        
+        # Add new AOI document
+        new_document_df = pd.DataFrame([aoi_document_data])
+        updated_df = pd.concat([documents_df, new_document_df], ignore_index=True)
+        
+        # Save to storage
+        success = storage_service.write_csv(updated_df, 'config/aoi-documents.csv')
+        
+        if success:
+            return jsonify(aoi_document_data), 201
+        else:
+            return jsonify({'error': 'Failed to save AOI document'}), 500
+            
+    except Exception as e:
+        print(f"Error creating AOI document: {e}")
+        return jsonify({'error': f'Failed to create AOI document: {str(e)}'}), 500
+
+@app.route('/api/aoiDocuments/<string:document_id>', methods=['PUT'])
+def update_aoi_document(document_id):
+    """Update an existing AOI document"""
+    try:
+        data = request.get_json()
+        
+        # Read existing AOI documents
+        documents_data = storage_service.read_csv('config/aoi-documents.csv')
+        if documents_data is None:
+            return jsonify({'error': 'No AOI documents found'}), 404
+        
+        # Update the AOI document
+        documents_data.loc[documents_data['id'] == document_id, 'fileName'] = data.get('fileName', '')
+        documents_data.loc[documents_data['id'] == document_id, 'fileSize'] = data.get('fileSize', 0)
+        documents_data.loc[documents_data['id'] == document_id, 'aoiRecommendationId'] = data.get('aoiRecommendationId')
+        documents_data.loc[documents_data['id'] == document_id, 'aoiJenis'] = data.get('aoiJenis', 'REKOMENDASI')
+        documents_data.loc[documents_data['id'] == document_id, 'aoiUrutan'] = data.get('aoiUrutan', 1)
+        documents_data.loc[documents_data['id'] == document_id, 'userId'] = data.get('userId', '')
+        documents_data.loc[documents_data['id'] == document_id, 'userDirektorat'] = data.get('userDirektorat', '')
+        documents_data.loc[documents_data['id'] == document_id, 'userSubdirektorat'] = data.get('userSubdirektorat', '')
+        documents_data.loc[documents_data['id'] == document_id, 'userDivisi'] = data.get('userDivisi', '')
+        documents_data.loc[documents_data['id'] == document_id, 'fileType'] = data.get('fileType', '')
+        documents_data.loc[documents_data['id'] == document_id, 'status'] = data.get('status', 'active')
+        documents_data.loc[documents_data['id'] == document_id, 'tahun'] = data.get('tahun')
+        
+        # Save to storage
+        success = storage_service.write_csv(documents_data, 'config/aoi-documents.csv')
+        
+        if success:
+            # Return updated document
+            updated_row = documents_data[documents_data['id'] == document_id]
+            if not updated_row.empty:
+                updated_document = updated_row.iloc[0].to_dict()
+                return jsonify(updated_document), 200
+            else:
+                return jsonify({'error': 'AOI document not found after update'}), 404
+        else:
+            return jsonify({'error': 'Failed to update AOI document'}), 500
+            
+    except Exception as e:
+        print(f"Error updating AOI document {document_id}: {e}")
+        return jsonify({'error': f'Failed to update AOI document: {str(e)}'}), 500
+
+@app.route('/api/aoiDocuments/<string:document_id>', methods=['DELETE'])
+def delete_aoi_document(document_id):
+    """Delete an AOI document"""
+    try:
+        # Read existing AOI documents
+        documents_data = storage_service.read_csv('config/aoi-documents.csv')
+        if documents_data is None:
+            return jsonify({'error': 'No AOI documents found'}), 404
+        
+        # Remove the AOI document
+        documents_data = documents_data[documents_data['id'] != document_id]
+        
+        # Save to storage
+        success = storage_service.write_csv(documents_data, 'config/aoi-documents.csv')
+        
+        if success:
+            return jsonify({'message': f'AOI document {document_id} deleted successfully'}), 200
+        else:
+            return jsonify({'error': 'Failed to delete AOI document'}), 500
+            
+    except Exception as e:
+        print(f"Error deleting AOI document {document_id}: {e}")
+        return jsonify({'error': f'Failed to delete AOI document: {str(e)}'}), 500
 
 @app.route('/api/users', methods=['GET'])
 def get_users():
@@ -1637,14 +2082,14 @@ def upload_gcg_file():
         # Validate required fields
         if not year:
             return jsonify({'error': 'Year is required'}), 400
-        if not row_number:
-            return jsonify({'error': 'Row number is required'}), 400
+        if not checklist_id:
+            return jsonify({'error': 'Checklist ID is required'}), 400
         
         try:
             year_int = int(year)
-            row_num = int(row_number)
+            checklist_id_int = int(checklist_id)
         except ValueError:
-            return jsonify({'error': 'Invalid year or row number format'}), 400
+            return jsonify({'error': 'Invalid year or checklist ID format'}), 400
         
         # Generate file ID for record tracking
         file_id = str(uuid.uuid4())
@@ -1652,8 +2097,8 @@ def upload_gcg_file():
         # Clean subdirektorat name for use in file path
         pic_name = secure_filename(subdirektorat) if subdirektorat else 'UNKNOWN_PIC'
         
-        # Corrected file structure: gcg-documents/{year}/{PIC}/{row_number}/{filename}
-        supabase_file_path = f"gcg-documents/{year_int}/{pic_name}/{row_num}/{secure_filename(file.filename)}"
+        # Fixed file structure: gcg-documents/{year}/{PIC}/{checklist_id}/{filename}
+        supabase_file_path = f"gcg-documents/{year_int}/{pic_name}/{checklist_id_int}/{secure_filename(file.filename)}"
         
         # Upload file to Supabase storage
         file_data = file.read()
@@ -1683,12 +2128,34 @@ def upload_gcg_file():
             # Always try to upload, if exists it will automatically overwrite
             print(f"🔧 DEBUG: Uploading to path: {supabase_file_path}")
             
-            # First, try to delete existing file to ensure clean overwrite
+            # First, delete ALL existing files in the directory to ensure clean overwrite
             try:
-                delete_response = supabase.storage.from_(bucket_name).remove([supabase_file_path])
-                print(f"🔧 DEBUG: Delete existing file response: {delete_response}")
+                # Get the directory path (without filename)
+                directory_path = f"gcg-documents/{year_int}/{pic_name}/{checklist_id_int}"
+                print(f"🔧 DEBUG: Clearing directory: {directory_path}")
+                
+                # List all files in the directory
+                list_response = supabase.storage.from_(bucket_name).list(directory_path)
+                print(f"🔧 DEBUG: Files found in directory: {len(list_response) if list_response else 0}")
+                
+                if list_response and len(list_response) > 0:
+                    # Filter out placeholder files and get real file paths
+                    files_to_delete = []
+                    for file_item in list_response:
+                        if file_item['name'] != '.emptyFolderPlaceholder':
+                            files_to_delete.append(f"{directory_path}/{file_item['name']}")
+                    
+                    if files_to_delete:
+                        print(f"🔧 DEBUG: Deleting {len(files_to_delete)} existing files: {files_to_delete}")
+                        delete_response = supabase.storage.from_(bucket_name).remove(files_to_delete)
+                        print(f"🔧 DEBUG: Delete existing files response: {delete_response}")
+                    else:
+                        print(f"🔧 DEBUG: No real files to delete (only placeholders found)")
+                else:
+                    print(f"🔧 DEBUG: Directory is empty or doesn't exist")
+                    
             except Exception as e:
-                print(f"🔧 DEBUG: No existing file to delete (or error): {e}")
+                print(f"🔧 DEBUG: Error clearing directory (continuing anyway): {e}")
             
             # Now upload the new file
             response = supabase.storage.from_(bucket_name).upload(
@@ -1764,15 +2231,36 @@ def upload_gcg_file():
 
 @app.route('/api/check-gcg-files', methods=['POST'])
 def check_gcg_files():
-    """Check if GCG files exist in Supabase for given year, PIC and row numbers"""
+    """Check if GCG files exist in Supabase for given year, PIC and checklist IDs"""
     try:
         data = request.get_json()
+        print(f"🔍 DEBUG: check_gcg_files received data: {data}")
+        
         pic_name = data.get('picName')
-        row_numbers = data.get('rowNumbers', [])  # List of row numbers to check
+        checklist_ids = data.get('checklistIds', [])  # List of checklist IDs to check
         year = data.get('year')  # Year is required for new structure
         
-        if not pic_name or not row_numbers or not year:
-            return jsonify({'error': 'PIC name, year, and row numbers are required'}), 400
+        print(f"🔍 DEBUG: pic_name={pic_name}, year={year}, checklist_ids={checklist_ids}")
+        
+        # Support legacy row_numbers parameter for backward compatibility
+        if not checklist_ids and data.get('rowNumbers'):
+            print(f"🔍 DEBUG: Using legacy rowNumbers: {data.get('rowNumbers')}")
+            # Convert row numbers to checklist IDs (year_prefix * 10 + row_number)
+            year_prefix = int(str(year)[-2:])
+            row_numbers = data.get('rowNumbers', [])
+            print(f"🔍 DEBUG: Converting rowNumbers {row_numbers} with year_prefix {year_prefix}")
+            checklist_ids = []
+            for row_number in row_numbers:
+                try:
+                    print(f"🔍 DEBUG: Processing row_number: {row_number} (type: {type(row_number)})")
+                    checklist_id = year_prefix * 10 + int(row_number)
+                    checklist_ids.append(checklist_id)
+                except ValueError as ve:
+                    print(f"❌ ERROR: Cannot convert row_number {row_number} to int: {ve}")
+                    return jsonify({'error': f'Invalid row number: {row_number}'}), 400
+        
+        if not pic_name or not checklist_ids or not year:
+            return jsonify({'error': 'PIC name, year, and checklist IDs are required'}), 400
         
         # Clean PIC name
         pic_name_clean = secure_filename(pic_name)
@@ -1788,28 +2276,35 @@ def check_gcg_files():
         from supabase import create_client
         supabase = create_client(supabase_url, supabase_key)
         
-        # Check each row number for existing files
+        # Check each checklist ID for existing files
         file_statuses = {}
         
-        for row_num in row_numbers:
+        for checklist_id in checklist_ids:
             try:
-                # New structure: gcg-documents/{year}/{PIC}/{row_number}/
-                folder_path = f"gcg-documents/{year}/{pic_name_clean}/{row_num}"
+                # New structure: gcg-documents/{year}/{PIC}/{checklist_id}/
+                folder_path = f"gcg-documents/{year}/{pic_name_clean}/{checklist_id}"
                 
                 # Try to list files in the row directory
                 file_found = None
                 try:
                     response = supabase.storage.from_(bucket_name).list(folder_path)
                     if response and len(response) > 0:
-                        # Get the first file in the directory (should be only one)
-                        file_info = response[0]
-                        file_found = {
-                            'exists': True,
-                            'fileName': file_info['name'],
-                            'path': f"{folder_path}/{file_info['name']}",
-                            'size': file_info.get('metadata', {}).get('size', 0),
-                            'lastModified': file_info.get('updated_at')
-                        }
+                        # Filter out placeholder files and get the first real file
+                        real_files = [f for f in response if f['name'] != '.emptyFolderPlaceholder']
+                        
+                        if real_files:
+                            # Get the first real file in the directory
+                            file_info = real_files[0]
+                            file_found = {
+                                'exists': True,
+                                'fileName': file_info['name'],
+                                'path': f"{folder_path}/{file_info['name']}",
+                                'size': file_info.get('metadata', {}).get('size', 0),
+                                'lastModified': file_info.get('updated_at')
+                            }
+                        else:
+                            # Only placeholder files exist, treat as no file
+                            file_found = {'exists': False}
                 except Exception as e:
                     # Directory doesn't exist or is empty
                     file_found = {'exists': False}
@@ -1817,10 +2312,10 @@ def check_gcg_files():
                 if not file_found:
                     file_found = {'exists': False}
                 
-                file_statuses[str(row_num)] = file_found
+                file_statuses[str(checklist_id)] = file_found
                 
             except Exception as e:
-                file_statuses[str(row_num)] = {'exists': False, 'error': str(e)}
+                file_statuses[str(checklist_id)] = {'exists': False, 'error': str(e)}
         
         return jsonify({
             'year': year,
@@ -1841,20 +2336,28 @@ def download_gcg_file():
             data = request.get_json()
             pic_name = data.get('picName')
             year = data.get('year')
+            # Support both rowNumber (legacy) and checklistId (new)
             row_number = data.get('rowNumber')
+            checklist_id = data.get('checklistId')
         else:
             # Handle form data
             pic_name = request.form.get('picName')
             year = request.form.get('year')
             row_number = request.form.get('rowNumber')
-            # Convert to int for year and row_number
+            checklist_id = request.form.get('checklistId')
+            # Convert to int for year and identifiers
             if year:
                 year = int(year)
             if row_number:
                 row_number = int(row_number)
+            if checklist_id:
+                checklist_id = int(checklist_id)
         
-        if not all([pic_name, year, row_number]):
-            return jsonify({'error': 'PIC name, year, and row number are required'}), 400
+        # Use checklistId if provided, otherwise fall back to rowNumber
+        folder_id = checklist_id if checklist_id else row_number
+        
+        if not all([pic_name, year, folder_id]):
+            return jsonify({'error': 'PIC name, year, and checklist ID (or row number) are required'}), 400
         
         # Clean PIC name
         pic_name_clean = secure_filename(pic_name)
@@ -1871,7 +2374,7 @@ def download_gcg_file():
         supabase = create_client(supabase_url, supabase_key)
         
         # Try to find the file in the directory structure
-        folder_path = f"gcg-documents/{year}/{pic_name_clean}/{row_number}"
+        folder_path = f"gcg-documents/{year}/{pic_name_clean}/{folder_id}"
         
         try:
             # List files in the directory
@@ -1879,8 +2382,14 @@ def download_gcg_file():
             if not response or len(response) == 0:
                 return jsonify({'error': 'File not found'}), 404
             
-            # Get the first (and should be only) file in the directory
-            file_info = response[0]
+            # Filter out placeholder files and get the first real file
+            real_files = [f for f in response if f['name'] != '.emptyFolderPlaceholder']
+            
+            if not real_files:
+                return jsonify({'error': 'No real files found (only placeholders)'}), 404
+            
+            # Get the first (and should be only) real file in the directory
+            file_info = real_files[0]
             file_name = file_info['name']
             file_path = f"{folder_path}/{file_name}"
             
@@ -1890,10 +2399,17 @@ def download_gcg_file():
             if not file_response:
                 return jsonify({'error': 'Failed to download file from storage'}), 500
             
-            # Return the file as a download with aggressive headers that force download
+            # Return the file as a download with proper MIME type detection
+            import mimetypes
+            
+            # Detect proper MIME type from file extension
+            mime_type, _ = mimetypes.guess_type(file_name)
+            if not mime_type:
+                mime_type = 'application/octet-stream'  # Default binary type
+            
             response = make_response(file_response)
             response.headers['Content-Disposition'] = f'attachment; filename="{file_name}"'
-            response.headers['Content-Type'] = 'application/force-download'
+            response.headers['Content-Type'] = mime_type
             response.headers['Content-Transfer-Encoding'] = 'binary'
             response.headers['Content-Length'] = str(len(file_response))
             response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
@@ -1955,7 +2471,7 @@ def add_aspect():
             
         # Read existing aspects
         try:
-            aspects_data = storage_service.read_excel('config/aspects.xlsx')
+            aspects_data = storage_service.read_csv('config/aspects.csv')
             if aspects_data is None:
                 aspects_data = pd.DataFrame()
         except:
@@ -2069,9 +2585,42 @@ def add_checklist():
     """Add a new checklist item"""
     try:
         data = request.get_json()
+        year = data.get('tahun')
         
-        # Generate unique ID
-        checklist_id = generate_unique_id()
+        # Read existing checklist to determine next ID and row number
+        existing_data = storage_service.read_csv('config/checklist.csv')
+        if existing_data is not None:
+            checklist_df = existing_data
+            
+            # Get next row number for this year (current position in table)
+            year_items = checklist_df[checklist_df['tahun'] == year] if 'tahun' in checklist_df.columns else pd.DataFrame()
+            next_row_number = len(year_items) + 1
+            
+            # Get highest ID ever used for this year to ensure uniqueness
+            year_prefix = year % 100  # Last two digits of year
+            if not year_items.empty and 'id' in year_items.columns:
+                # Find all IDs that start with this year's prefix
+                year_ids = year_items['id'].astype(str).apply(lambda x: x.startswith(str(year_prefix))).sum()
+                if year_ids > 0:
+                    # Get the highest row number component from existing IDs
+                    max_existing_row = 0
+                    for existing_id in year_items['id']:
+                        id_str = str(existing_id)
+                        if id_str.startswith(str(year_prefix)) and len(id_str) > 2:
+                            row_part = int(id_str[2:])  # Remove year prefix
+                            max_existing_row = max(max_existing_row, row_part)
+                    next_id_sequence = max_existing_row + 1
+                else:
+                    next_id_sequence = 1
+            else:
+                next_id_sequence = 1
+        else:
+            checklist_df = pd.DataFrame()
+            next_row_number = 1
+            next_id_sequence = 1
+        
+        # Generate checklist ID using year + ID sequence (not row position)
+        checklist_id = generate_checklist_id(year, next_id_sequence)
         
         # Create checklist object
         checklist_data = {
@@ -2079,16 +2628,10 @@ def add_checklist():
             'aspek': data.get('aspek', ''),
             'deskripsi': data.get('deskripsi', ''),
             'pic': data.get('pic', ''),
-            'tahun': data.get('tahun'),
+            'tahun': year,
+            'rowNumber': next_row_number,
             'created_at': datetime.now().isoformat()
         }
-        
-        # Read existing checklist
-        existing_data = storage_service.read_csv('config/checklist.csv')
-        if existing_data is not None:
-            checklist_df = existing_data
-        else:
-            checklist_df = pd.DataFrame()
         
         # Add new checklist item
         new_checklist_df = pd.DataFrame([checklist_data])
@@ -2176,6 +2719,41 @@ def clear_checklist():
         print(f"Error clearing checklist: {e}")
         return jsonify({'error': f'Failed to clear checklist: {str(e)}'}), 500
 
+@app.route('/api/config/checklist/fix-ids', methods=['POST'])
+def fix_checklist_ids():
+    """Temporary endpoint to fix checklist IDs to proper year+row format"""
+    try:
+        # Read existing checklist
+        existing_data = storage_service.read_csv('config/checklist.csv')
+        if existing_data is None or existing_data.empty:
+            return jsonify({'error': 'No checklist data found'}), 404
+        
+        print(f"🔧 DEBUG: Fixing IDs for {len(existing_data)} checklist items")
+        
+        # Update each item with correct ID
+        for index, row in existing_data.iterrows():
+            year = int(row['tahun'])
+            row_number = int(row['rowNumber'])
+            correct_id = generate_checklist_id(year, row_number)
+            existing_data.loc[index, 'id'] = correct_id
+            print(f"🔧 DEBUG: Row {row_number}: {row['id']} -> {correct_id}")
+        
+        # Save updated data
+        success = storage_service.write_csv(existing_data, 'config/checklist.csv')
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': f'Successfully fixed {len(existing_data)} checklist IDs',
+                'count': len(existing_data)
+            }), 200
+        else:
+            return jsonify({'error': 'Failed to save fixed checklist to storage'}), 500
+            
+    except Exception as e:
+        print(f"Error fixing checklist IDs: {e}")
+        return jsonify({'error': f'Failed to fix checklist IDs: {str(e)}'}), 500
+
 @app.route('/api/config/checklist/batch', methods=['POST'])
 def add_checklist_batch():
     """Add multiple checklist items in batch"""
@@ -2197,7 +2775,7 @@ def add_checklist_batch():
         batch_data = []
         for item in items:
             checklist_data = {
-                'id': generate_unique_id(),
+                'id': generate_checklist_id(item.get('tahun'), item.get('rowNumber')),
                 'aspek': item.get('aspek', ''),
                 'deskripsi': item.get('deskripsi', ''),
                 'tahun': item.get('tahun'),

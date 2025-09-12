@@ -27,6 +27,7 @@ interface AdminUploadDialogProps {
     aspek?: string; // Make aspek optional
     deskripsi: string;
     tahun?: number;
+    pic?: string; // PIC assignment for the checklist item
   } | null;
   rowNumber?: number; // New: row number for organized file structure
   isReUpload?: boolean;
@@ -203,7 +204,7 @@ const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
               checklistItem.id,
               checklistItem.deskripsi,
               checklistItem.aspek || 'Tidak Diberikan Aspek',
-              user?.subdirektorat,
+              checklistItem.pic || user?.subdirektorat || '',
               formData.notes, // Tambahkan catatan
               rowNumber // Add row number for organized file structure
             );
@@ -215,7 +216,7 @@ const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
               checklistItem.id,
               checklistItem.deskripsi,
               checklistItem.aspek || 'Tidak Diberikan Aspek',
-              user?.subdirektorat,
+              checklistItem.pic || user?.subdirektorat || '',
               formData.notes, // Tambahkan catatan
               rowNumber // Add row number for organized file structure
             );

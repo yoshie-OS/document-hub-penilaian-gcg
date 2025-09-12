@@ -211,7 +211,151 @@ grep -r "localhost:5000" src/
 - Maintain proper error boundaries for robust error handling
 - Regular testing of year switching and data persistence
 
+# Latest Session: Tugaskan Ke Dropdown Issue - September 11, 2025
+
+## Problem Report
+User reported: "i tried adding a divisi in kelola dokumen in the [tugaskan ke] column and it doesnt work. i tried clicking on the drop down menu, selected a divisi, wow selected only or it to return to 'pilih divisi' or sumn"
+
+## Root Cause Analysis
+**ID Format Mismatch**: The system was experiencing a data synchronization issue between frontend and backend:
+
+1. **Backend Data Structure**: Checklist items had timestamp-based IDs (e.g., `1857555632`, `1857555655`) 
+2. **Expected Format**: Should use year+row format (e.g., 2025 row 1 = `251`, row 2 = `252`)
+3. **Frontend Behavior**: AssignmentDropdown component trying to update items with incorrect ID format
+4. **Update Failure**: Backend couldn't find items with timestamp IDs when frontend expected year+row IDs
+
+## Technical Investigation
+- **Data Found**: 256 checklist items for 2025 with timestamp-based IDs
+- **PIC Assignments**: Items 1 and 2 already assigned to "Divisi Account Management and Corporate Marketing"
+- **ID Generation Function**: `generate_checklist_id(year, row_number)` existed but wasn't used in batch creation
+
+## Fixes Implemented
+
+### 1. Backend ID Generation Fix
+**File**: `/backend/app.py:2671`
+**Change**: Updated batch checklist creation to use proper ID format
+```python
+# Before
+'id': generate_unique_id(),
+
+# After  
+'id': generate_checklist_id(item.get('tahun'), item.get('rowNumber')),
+```
+
+### 2. Data Migration
+**Created temporary endpoint**: `/api/config/checklist/fix-ids`
+- Converted all 256 existing items from timestamp IDs to year+row format
+- Preserved existing PIC assignments during migration
+- Example conversions:
+  - Row 1: `1857555632` → `251` (2025 + row 1)
+  - Row 2: `1857555655` → `252` (2025 + row 2)
+  - Row 256: `1857555XXX` → `25256` (2025 + row 256)
+
+### 3. Verification Results
+```json
+{
+  "count": 256,
+  "message": "Successfully fixed 256 checklist IDs", 
+  "success": true
+}
+```
+
+**Sample Data After Fix**:
+```json
+{
+  "id": 251,
+  "rowNumber": 1,
+  "deskripsi": "Pedoman Tata Kelola Perusahaan yang Baik/CoCG",
+  "pic": "Divisi Account Management and Corporate Marketing"
+}
+```
+
+## Files Modified
+1. **backend/app.py**:
+   - Line 2671: Fixed batch ID generation
+   - Added temporary fix endpoint at line 2650
+2. **Created utility scripts**:
+   - `fix_checklist_ids.py`
+   - `clear_and_fix_checklist.py`
+
+## Expected Resolution
+- **Tugaskan Ke dropdown** should now work correctly
+- **ID consistency** between frontend and backend
+- **PIC assignments** will persist instead of reverting to "Pilih Divisi"
+
+## Status: ✅ RESOLVED
+**Root Cause Found**: Frontend state management bug in ChecklistContext
+
+### Final Fix Applied
+**Multiple PIC Field Issues Found and Fixed**:
+
+#### 1. ChecklistContext Local State Update
+- **File**: `src/contexts/ChecklistContext.tsx:443`
+- **Issue**: `editChecklist` only updated `aspek`, `deskripsi`, `tahun` but **missed `pic` field**
+- **Fix**: Added `pic` field to local state update
+```typescript
+// Before
+const updated = checklist.map((c) => (c.id === id ? { ...c, aspek, deskripsi, tahun: year } : c));
+// After (FIXED)  
+const updated = checklist.map((c) => (c.id === id ? { ...c, aspek, deskripsi, pic, tahun: year } : c));
+```
+
+#### 2. Auto-Save Data Transformation
+- **File**: `src/pages/admin/PengaturanBaru.tsx:787` 
+- **Issue**: `debouncedSave` function **stripped PIC field** when syncing to ChecklistContext
+- **Fix**: Added `pic` field to contextData transformation
+```typescript
+// Before
+const contextData = items.map(item => ({
+  id: item.id, aspek: item.aspek, deskripsi: item.deskripsi, tahun: item.tahun
+}));
+// After (FIXED)
+const contextData = items.map(item => ({
+  id: item.id, aspek: item.aspek, deskripsi: item.deskripsi, pic: item.pic, tahun: item.tahun
+}));
+```
+
+#### 3. Change Tracking for PIC Assignments  
+- **File**: `src/pages/admin/PengaturanBaru.tsx:1928, 1970`
+- **Issue**: `handleAssignment` didn't call `trackItemChange()` for PIC updates
+- **Fix**: Added `trackItemChange(checklistId)` calls after PIC state updates
+
+#### 4. Manual Save Function Missing Backend Persistence
+- **File**: `src/pages/admin/PengaturanBaru.tsx:2212-2224`
+- **Issue**: `handleSaveItem` only updated local state, didn't save to backend
+- **Fix**: Added `await editChecklist()` call to persist changes to backend
+
+#### 5. Manual Sync Function Stripping PIC Field
+- **File**: `src/pages/admin/PengaturanBaru.tsx:2302`
+- **Issue**: `syncDataWithContext` missing `pic` field when syncing to ChecklistContext
+- **Fix**: Added `pic: item.pic` to contextData transformation
+
+#### 6. Automatic Cache Detection for Old IDs
+- **File**: `src/contexts/ChecklistContext.tsx:152-163, 204-215`
+- **Issue**: localStorage cached old timestamp IDs causing frontend/backend mismatch
+- **Fix**: Added automatic detection and clearing of old timestamp IDs (>1000000000)
+
+### Verification Results
+- **Backend API**: ✅ Working correctly (PUT `/api/config/checklist/{id}` saves PIC)  
+- **ID Format**: ✅ Properly using year+row format (251, 252, etc.)
+- **Data Persistence**: ✅ PIC assignments saved to database
+- **Frontend State**: ✅ Now properly synced with backend after fix
+
+## System Status After Fix
+- **Backend**: Running on port 5000, all APIs functional
+- **Frontend**: Running on port 8080, state management fixed
+- **Data**: 256 checklist items with correct ID format
+- **Assignment Flow**: Dropdown → API Call → Backend Save → Frontend State Update → UI Refresh
+
+### Expected Behavior Now
+1. User selects divisi in "Tugaskan Ke" dropdown
+2. AssignmentDropdown calls `handleAssignment` function  
+3. `editChecklist` API call updates backend successfully
+4. ChecklistContext updates local state **including PIC field**
+5. Component re-renders with assigned divisi showing
+6. Assignment **persists** instead of reverting to "Pilih Divisi"
+
 ---
-*Last Updated: 2025-09-07*
-*Session Type: Debugging & Error Resolution*
-*Status: Successfully Resolved*
+*Last Updated: 2025-09-11*
+*Session Type: Frontend State Management Bug Fix*  
+*Status: ✅ RESOLVED - PIC Field Update Missing in Local State*

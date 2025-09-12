@@ -1104,13 +1104,14 @@ const FileUploadDialog: React.FC<FileUploadDialogProps> = ({
         ? checklist.find(item => item.id === formData.selectedChecklistId)
         : null;
       
-      // Ensure we have the correct subdirektorat value (moved to top level)
-      const userSubdirektorat = formData.subdirektorat || user?.subdirektorat || user?.subDirektorat || '';
-      console.log('🔵 FileUploadDialog: User subdirektorat resolved:', {
+      // Use the PIC from selected checklist item, fallback to user's subdirektorat
+      const picForUpload = selectedChecklist?.pic || formData.subdirektorat || user?.subdirektorat || user?.subDirektorat || '';
+      console.log('🔵 FileUploadDialog: PIC resolved for upload:', {
+        selectedChecklistPic: selectedChecklist?.pic,
         formDataSubdirektorat: formData.subdirektorat,
         userSubdirektorat: user?.subdirektorat,
         userSubDirektorat: user?.subDirektorat,
-        finalSubdirektorat: userSubdirektorat
+        finalPic: picForUpload
       });
       
       // Upload file using context ONCE with correct data
@@ -1130,7 +1131,7 @@ const FileUploadDialog: React.FC<FileUploadDialogProps> = ({
           formData.selectedChecklistId || undefined,
           formData.description || selectedChecklist?.deskripsi || '',
           formData.documentCategory || selectedChecklist?.aspek || '',
-          userSubdirektorat,
+          picForUpload,
           formData.description // Use description as catatan for superadmin
         );
       }
@@ -1143,8 +1144,8 @@ const FileUploadDialog: React.FC<FileUploadDialogProps> = ({
           documentNumber: formData.documentNumber || '',
           documentDate: formData.documentDate || new Date().toISOString().split('T')[0],
           description: formData.description || selectedChecklist?.deskripsi || '',
-          direktorat: userSubdirektorat || user?.direktorat || '',
-          subdirektorat: userSubdirektorat, // Use resolved subdirektorat
+          direktorat: user?.direktorat || '',
+          subdirektorat: user?.subdirektorat || user?.subDirektorat || '', // Use user's actual subdirektorat for metadata
           division: formData.division || user?.divisi || '',
           status: formData.status || 'draft',
           confidentiality: formData.confidentiality || 'public',

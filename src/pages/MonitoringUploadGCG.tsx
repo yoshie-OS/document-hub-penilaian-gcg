@@ -63,6 +63,7 @@ const MonitoringUploadGCG = () => {
     aspek: string;
     deskripsi: string;
     rowNumber?: number;
+    pic?: string;
   } | null>(null);
   // Force re-render state untuk memastikan data terupdate
   const [forceUpdate, setForceUpdate] = useState(0);
@@ -121,12 +122,22 @@ const MonitoringUploadGCG = () => {
     };
 
     // Listen for file upload events from FileUploadDialog
-    const handleFileUploaded = () => {
+    const handleFileUploaded = (event: CustomEvent) => {
       console.log('MonitoringUploadGCG: Received fileUploaded event from FileUploadDialog');
-      // Refresh Supabase file status after upload
-      setTimeout(() => {
-        checkSupabaseFileStatus();
-      }, 1000); // Wait a bit for Supabase to sync
+      
+      // If we have specific upload details, rescan only that row
+      const uploadDetails = event.detail;
+      if (uploadDetails?.checklistId && uploadDetails?.rowNumber) {
+        setTimeout(() => {
+          rescanSingleRow(uploadDetails.checklistId, uploadDetails.rowNumber);
+        }, 1000); // Wait a bit for Supabase to sync
+      } else {
+        // Fallback: full rescan if no specific details
+        setTimeout(() => {
+          checkSupabaseFileStatus();
+        }, 1000);
+      }
+      
       // Force re-render using setSelectedYear like admin dashboard
       if (selectedYear) {
         setTimeout(() => {
@@ -423,7 +434,7 @@ const MonitoringUploadGCG = () => {
             const requestBody = {
               picName,
               year: selectedYear,
-              rowNumbers: batch.map(item => item.rowNumber)
+              checklistIds: batch.map(item => item.id)  // Use checklist IDs instead of row numbers
             };
             
             const response = await fetch('http://localhost:5000/api/check-gcg-files', {
@@ -443,7 +454,7 @@ const MonitoringUploadGCG = () => {
               
               // Map results back to checklist IDs
               batch.forEach(item => {
-                const fileStatus = result.fileStatuses?.[item.rowNumber.toString()];
+                const fileStatus = result.fileStatuses?.[item.id.toString()];
                 const fileExists = fileStatus?.exists || false;
                 batchFileStatus[item.id.toString()] = fileExists;
                 newFileStatus[item.id.toString()] = fileExists; // Keep for final state
@@ -594,50 +605,63 @@ const MonitoringUploadGCG = () => {
       const checklistItem = checklist.find(item => item.id === checklistId && item.tahun === selectedYear);
       const picName = checklistItem?.pic || user?.subdirektorat || 'UNKNOWN_PIC';
       
-      // Create a direct download URL instead of using fetch
-      const downloadUrl = new URL('http://localhost:5000/api/download-gcg-file');
-      const downloadBody = JSON.stringify({
-        picName,
-        year: selectedYear,
-        rowNumber
+      // Use fetch to download the file as a blob
+      const response = await fetch('http://localhost:5000/api/download-gcg-file', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          picName,
+          year: selectedYear,
+          rowNumber
+        })
       });
 
-      // Create a form to submit the download request
-      const form = document.createElement('form');
-      form.method = 'POST';
-      form.action = 'http://localhost:5000/api/download-gcg-file';
-      form.style.display = 'none';
-      form.target = '_self';
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
-      // Add the JSON data as a hidden input
-      const input = document.createElement('input');
-      input.type = 'hidden';
-      input.name = 'data';
-      input.value = downloadBody;
-      form.appendChild(input);
+      // Get the filename from the Content-Disposition header if available
+      const contentDisposition = response.headers.get('content-disposition');
+      let filename = `document_${selectedYear}_${rowNumber}`; // Default filename without extension
+      
+      if (contentDisposition) {
+        // Match: filename="actual_filename.ext" or filename=actual_filename.ext
+        const filenameMatch = contentDisposition.match(/filename="([^"]+)"|filename=([^;\s]+)/);
+        if (filenameMatch) {
+          // Use the captured group that matched (either quoted or unquoted)
+          filename = filenameMatch[1] || filenameMatch[2];
+        }
+      }
 
-      // Add individual fields for the backend to parse easily
-      const picInput = document.createElement('input');
-      picInput.type = 'hidden';
-      picInput.name = 'picName';
-      picInput.value = picName;
-      form.appendChild(picInput);
-
-      const yearInput = document.createElement('input');
-      yearInput.type = 'hidden';
-      yearInput.name = 'year';
-      yearInput.value = selectedYear.toString();
-      form.appendChild(yearInput);
-
-      const rowInput = document.createElement('input');
-      rowInput.type = 'hidden';
-      rowInput.name = 'rowNumber';
-      rowInput.value = rowNumber.toString();
-      form.appendChild(rowInput);
-
-      document.body.appendChild(form);
-      form.submit();
-      document.body.removeChild(form);
+      // Convert response to blob
+      const blob = await response.blob();
+      
+      // Create a temporary URL for the blob
+      const url = window.URL.createObjectURL(blob);
+      
+      // Create a temporary download link and trigger it
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      link.style.display = 'none';
+      
+      document.body.appendChild(link);
+      
+      // For Firefox and other browsers that might try to open PDFs inline,
+      // dispatch a proper click event
+      const clickEvent = new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+        view: window
+      });
+      link.dispatchEvent(clickEvent);
+      
+      document.body.removeChild(link);
+      
+      // Clean up the temporary URL
+      window.URL.revokeObjectURL(url);
       
       // Show success message
       toast({
@@ -652,7 +676,7 @@ const MonitoringUploadGCG = () => {
         variant: "destructive"
       });
     }
-  }, [selectedYear, getAssignmentData, toast, user]);
+  }, [selectedYear, checklist, toast, user]);
 
   // Handle refresh/rescan - reload checklist data and rescan storage
   const handleRefreshRescan = useCallback(async () => {
@@ -711,7 +735,7 @@ const MonitoringUploadGCG = () => {
       const requestBody = {
         picName,
         year: selectedYear,
-        rowNumbers: [rowNumber]
+        checklistIds: [checklistId]  // Use checklist ID instead of row number
       };
       
       const response = await fetch('http://localhost:5000/api/check-gcg-files', {
@@ -724,7 +748,7 @@ const MonitoringUploadGCG = () => {
 
       if (response.ok) {
         const result = await response.json();
-        const fileStatus = result.fileStatuses?.[rowNumber.toString()];
+        const fileStatus = result.fileStatuses?.[checklistId.toString()];
         const fileExists = fileStatus?.exists || false;
         
         // Update states for this single item
@@ -862,7 +886,7 @@ const MonitoringUploadGCG = () => {
   }, [selectedYear, checklist, getDocumentsByYear, isChecklistUploaded, supabaseFileStatus]);
 
   // Handle upload button click
-  const handleUploadClick = useCallback((item: { id: number; aspek: string; deskripsi: string; rowNumber?: number }, rowNumber: number) => {
+  const handleUploadClick = useCallback((item: { id: number; aspek: string; deskripsi: string; rowNumber?: number; pic?: string }, rowNumber: number) => {
     setSelectedChecklistItem({ ...item, rowNumber: item.rowNumber || rowNumber });
     setIsUploadDialogOpen(true);
   }, []);
@@ -1285,7 +1309,7 @@ const MonitoringUploadGCG = () => {
                               <Button 
                                 variant="outline" 
                                 size="sm"
-                                onClick={() => handleDownloadDocument(item.id, index + 1)}
+                                onClick={() => handleDownloadDocument(item.id, item.id)}
                                 disabled={!isChecklistUploaded(item.id)}
                                 className={`${
                                   isChecklistUploaded(item.id)
