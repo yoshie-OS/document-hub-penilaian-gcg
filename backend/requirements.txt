@@ -1,4 +1,4 @@
-# Core web framework (Flask is actually used, not FastAPI)
+# Core web framework
 flask>=3.0.0
 flask-cors>=4.0.0
 werkzeug>=3.0.0
@@ -6,6 +6,14 @@ werkzeug>=3.0.0
 # File processing
 pandas>=2.0.0
 openpyxl>=3.1.0
+
+# Database and cloud storage
+supabase>=2.0.0
+python-dotenv>=1.0.0
+
+# HTTP requests
+requests>=2.30.0
+urllib3>=2.0.0
 
 # Optional: Enhanced OCR support (if needed)
 # pytesseract>=0.3.10
