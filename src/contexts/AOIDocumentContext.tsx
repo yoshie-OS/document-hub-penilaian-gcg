@@ -44,22 +44,62 @@ interface AOIDocumentProviderProps {
 export const AOIDocumentProvider: React.FC<AOIDocumentProviderProps> = ({ children }) => {
   const [documents, setDocuments] = useState<AOIDocument[]>([]);
 
-  // Load documents from localStorage on mount
+  // Load documents from backend API on mount
   React.useEffect(() => {
-    const savedDocuments = localStorage.getItem('aoiDocuments');
-    if (savedDocuments) {
+    const loadDocuments = async () => {
       try {
-        const parsed = JSON.parse(savedDocuments);
-        // Convert string dates back to Date objects
-        const documentsWithDates = parsed.map((doc: any) => ({
-          ...doc,
-          uploadDate: new Date(doc.uploadDate)
-        }));
-        setDocuments(documentsWithDates);
+        const response = await fetch('http://localhost:5000/api/aoiDocuments');
+        if (response.ok) {
+          const backendDocuments = await response.json();
+          
+          // Convert backend format to AOIDocument format
+          const convertedDocuments: AOIDocument[] = backendDocuments.map((doc: any) => ({
+            id: doc.id,
+            fileName: doc.fileName,
+            fileSize: parseInt(doc.fileSize) || 0,
+            uploadDate: new Date(doc.uploadDate),
+            aoiRecommendationId: parseInt(doc.aoiRecommendationId) || 0,
+            aoiJenis: doc.aoiJenis || 'REKOMENDASI',
+            aoiUrutan: parseInt(doc.aoiUrutan) || 1,
+            userId: doc.userId || '',
+            userDirektorat: doc.userDirektorat || '',
+            userSubdirektorat: doc.userSubdirektorat || '',
+            userDivisi: doc.userDivisi || '',
+            fileType: doc.fileType || 'application/octet-stream',
+            status: doc.status || 'active',
+            tahun: parseInt(doc.tahun) || new Date().getFullYear()
+          }));
+          
+          setDocuments(convertedDocuments);
+          console.log(`✅ Loaded ${convertedDocuments.length} AOI documents from backend`);
+        } else {
+          console.warn('Failed to load AOI documents from backend, using empty state');
+          setDocuments([]);
+        }
       } catch (error) {
-        console.error('Error loading AOI documents from localStorage:', error);
+        console.error('Error loading AOI documents from backend:', error);
+        // Fallback to localStorage for backward compatibility
+        const savedDocuments = localStorage.getItem('aoiDocuments');
+        if (savedDocuments) {
+          try {
+            const parsed = JSON.parse(savedDocuments);
+            const documentsWithDates = parsed.map((doc: any) => ({
+              ...doc,
+              uploadDate: new Date(doc.uploadDate)
+            }));
+            setDocuments(documentsWithDates);
+            console.log('Fallback: Loaded AOI documents from localStorage');
+          } catch (localError) {
+            console.error('Error loading AOI documents from localStorage:', localError);
+            setDocuments([]);
+          }
+        } else {
+          setDocuments([]);
+        }
       }
-    }
+    };
+
+    loadDocuments();
   }, []);
 
   // Save documents to localStorage whenever documents change
@@ -78,37 +118,65 @@ export const AOIDocumentProvider: React.FC<AOIDocumentProviderProps> = ({ childr
     userDivisi: string, 
     tahun: number
   ): Promise<AOIDocument> => {
-    const newDocument: AOIDocument = {
-      id: `aoi-doc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      fileName: file.name,
-      fileSize: file.size,
-      uploadDate: new Date(),
-      aoiRecommendationId,
-      aoiJenis,
-      aoiUrutan,
-      userId,
-      userDirektorat,
-      userSubdirektorat,
-      userDivisi,
-      fileType: file.type,
-      status: 'active',
-      tahun
-    };
+    try {
+      // Create FormData for file upload
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('aoiRecommendationId', aoiRecommendationId.toString());
+      formData.append('aoiJenis', aoiJenis);
+      formData.append('aoiUrutan', aoiUrutan.toString());
+      formData.append('year', tahun.toString());
+      formData.append('userDirektorat', userDirektorat);
+      formData.append('userSubdirektorat', userSubdirektorat);
+      formData.append('userDivisi', userDivisi);
+      formData.append('userId', userId);
 
-    // Check if document already exists for this recommendation
-    setDocuments(prev => {
-      // Remove existing document for the same recommendation
-      const filteredDocs = prev.filter(doc => doc.aoiRecommendationId !== aoiRecommendationId);
-      // Add new document
-      return [...filteredDocs, newDocument];
-    });
-    
-    // Simulate file upload delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    console.log('AOIDocumentContext: Document uploaded/replaced for recommendation', aoiRecommendationId);
-    
-    return newDocument;
+      // Upload to backend API
+      const response = await fetch('http://localhost:5000/api/upload-aoi-file', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Upload failed' }));
+        throw new Error(errorData.error || `Upload failed with status ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      // Convert backend response to AOIDocument format
+      const newDocument: AOIDocument = {
+        id: result.document.id,
+        fileName: result.document.fileName,
+        fileSize: result.document.fileSize,
+        uploadDate: new Date(result.document.uploadDate),
+        aoiRecommendationId: result.document.aoiRecommendationId,
+        aoiJenis: result.document.aoiJenis as 'REKOMENDASI' | 'SARAN',
+        aoiUrutan: result.document.aoiUrutan,
+        userId: result.document.userId,
+        userDirektorat: result.document.userDirektorat,
+        userSubdirektorat: result.document.userSubdirektorat,
+        userDivisi: result.document.userDivisi,
+        fileType: result.document.fileType,
+        status: result.document.status as 'active' | 'archived',
+        tahun: result.document.tahun
+      };
+
+      // Update local state
+      setDocuments(prev => {
+        // Remove existing document for the same recommendation
+        const filteredDocs = prev.filter(doc => doc.aoiRecommendationId !== aoiRecommendationId);
+        // Add new document
+        return [...filteredDocs, newDocument];
+      });
+      
+      console.log('✅ AOI document uploaded successfully to Supabase:', result.filePath);
+      return newDocument;
+      
+    } catch (error) {
+      console.error('❌ AOI document upload failed:', error);
+      throw error;
+    }
   }, []);
 
   const getDocumentsByRecommendation = useCallback((aoiRecommendationId: number): AOIDocument[] => {

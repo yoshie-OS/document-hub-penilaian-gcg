@@ -3,10 +3,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 import { Star, FileText, Users, Calendar, CheckCircle, Upload, Download, RefreshCw } from 'lucide-react';
 import { useAOI } from '@/contexts/AOIContext';
 import { useUser } from '@/contexts/UserContext';
 import { useAOIDocument } from '@/contexts/AOIDocumentContext';
+import { useStrukturPerusahaan } from '@/contexts/StrukturPerusahaanContext';
 
 interface AOIPanelProps {
   selectedYear: number | null;
@@ -17,7 +21,17 @@ const AOIPanel: React.FC<AOIPanelProps> = ({ selectedYear, className = "" }) => 
   const { aoiTables, aoiRecommendations, aoiTracking } = useAOI();
   const { user } = useUser();
   const { uploadDocument, getDocumentsByRecommendation } = useAOIDocument();
+  const { direktorat, subdirektorat, divisi } = useStrukturPerusahaan();
   const [forceUpdate, setForceUpdate] = useState(0);
+  
+  // Superadmin upload dialog state
+  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
+  const [selectedRecommendationId, setSelectedRecommendationId] = useState<number | null>(null);
+  const [uploadForm, setUploadForm] = useState({
+    targetDirektorat: '',
+    targetSubdirektorat: '',
+    targetDivisi: ''
+  });
 
   // Event listeners for real-time updates
   useEffect(() => {
@@ -36,11 +50,31 @@ const AOIPanel: React.FC<AOIPanelProps> = ({ selectedYear, className = "" }) => 
 
   if (!selectedYear || !user) return null;
 
-  // Get AOI tables for selected year that are relevant to the current admin user
+  // Filter organizational data by selected year
+  const yearDirektorat = selectedYear ? direktorat.filter(dir => dir.tahun === selectedYear) : [];
+  const yearSubdirektorat = selectedYear ? subdirektorat.filter(sub => sub.tahun === selectedYear) : [];
+  const yearDivisi = selectedYear ? divisi.filter(div => div.tahun === selectedYear) : [];
+
+  // Get subdirektorat by direktorat
+  const getSubdirektoratByDirektorat = (direktoratId: number) => {
+    return yearSubdirektorat.filter(sub => sub.direktoratId === direktoratId);
+  };
+
+  // Get divisi by subdirektorat
+  const getDivisiBySubdirektorat = (subdirektoratId: number) => {
+    return yearDivisi.filter(div => div.subdirektoratId === subdirektoratId);
+  };
+
+  // Get AOI tables for selected year
   const yearTables = (aoiTables || []).filter(table => {
     if (table.tahun !== selectedYear) return false;
     
-    // Check if the table targets the user's organizational level
+    // Superadmin can see all tables
+    if (user.role === 'superadmin') {
+      return true;
+    }
+    
+    // Admin can only see tables that target their organizational level
     if (table.targetType === 'direktorat' && table.targetDirektorat === user.direktorat) {
       return true;
     }
@@ -97,8 +131,8 @@ const AOIPanel: React.FC<AOIPanelProps> = ({ selectedYear, className = "" }) => 
     return docs.length > 0;
   };
 
-  // Handle file upload
-  const handleUpload = (recommendationId: number) => {
+  // Handle file upload - admin version (direct upload)
+  const handleAdminUpload = (recommendationId: number) => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt';
@@ -130,6 +164,62 @@ const AOIPanel: React.FC<AOIPanelProps> = ({ selectedYear, className = "" }) => 
                 timestamp: new Date().toISOString()
               }
             }));
+          }
+        } catch (error) {
+          console.error('Error uploading document:', error);
+          alert('Gagal mengupload dokumen. Silakan coba lagi.');
+        }
+      }
+    };
+    input.click();
+  };
+
+  // Handle file upload - superadmin version (with dialog)
+  const handleSuperAdminUpload = (recommendationId: number) => {
+    setSelectedRecommendationId(recommendationId);
+    setUploadForm({
+      targetDirektorat: '',
+      targetSubdirektorat: '',
+      targetDivisi: ''
+    });
+    setIsUploadDialogOpen(true);
+  };
+
+  // Handle superadmin file selection in dialog
+  const handleSuperAdminFileUpload = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt';
+    input.onchange = async (e) => {
+      const target = e.target as HTMLInputElement;
+      if (target.files && target.files[0] && selectedRecommendationId) {
+        const file = target.files[0];
+        try {
+          // Get recommendation details for jenis and urutan
+          const recommendation = aoiRecommendations.find(rec => rec.id === selectedRecommendationId);
+          if (recommendation) {
+            await uploadDocument(
+              file,
+              selectedRecommendationId,
+              recommendation.jenis,
+              recommendation.no || 0,
+              String(user.id || 'unknown'),
+              uploadForm.targetDirektorat || '',
+              uploadForm.targetSubdirektorat || '',
+              uploadForm.targetDivisi || '',
+              selectedYear
+            );
+            // Dispatch custom event for real-time updates
+            window.dispatchEvent(new CustomEvent('aoiDocumentUploaded', {
+              detail: { 
+                type: 'aoiDocumentUploaded', 
+                recommendationId: selectedRecommendationId,
+                year: selectedYear,
+                timestamp: new Date().toISOString()
+              }
+            }));
+            setIsUploadDialogOpen(false);
+            setSelectedRecommendationId(null);
           }
         } catch (error) {
           console.error('Error uploading document:', error);
@@ -199,16 +289,17 @@ const AOIPanel: React.FC<AOIPanelProps> = ({ selectedYear, className = "" }) => 
     }
   };
 
-  // Render action buttons based on document status
+  // Render action buttons based on document status and user role
   const renderActionButtons = (recommendationId: number) => {
     const hasDoc = hasDocument(recommendationId);
+    const isSuperAdmin = user.role === 'superadmin';
 
     return (
       <div className="flex gap-2">
         {/* Upload button - always visible */}
         <Button
           size="sm"
-          onClick={() => handleUpload(recommendationId)}
+          onClick={() => isSuperAdmin ? handleSuperAdminUpload(recommendationId) : handleAdminUpload(recommendationId)}
           className="bg-blue-600 hover:bg-blue-700"
         >
           <Upload className="w-3 h-3 mr-1" />
@@ -393,6 +484,122 @@ const AOIPanel: React.FC<AOIPanelProps> = ({ selectedYear, className = "" }) => 
           </div>
         ))}
       </CardContent>
+
+      {/* Superadmin Upload Dialog */}
+      <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Upload Dokumen AOI - Pilih Target Division/PIC</DialogTitle>
+            <DialogDescription>
+              Sebagai superadmin, Anda dapat mengupload dokumen untuk division/PIC mana saja
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <Label>Direktorat</Label>
+                <Select
+                  value={yearDirektorat.find(d => d.nama === uploadForm.targetDirektorat)?.id.toString() || ''}
+                  onValueChange={(value) => {
+                    const d = yearDirektorat.find(x => x.id.toString() === value);
+                    setUploadForm(prev => ({ 
+                      ...prev, 
+                      targetDirektorat: d?.nama || '', 
+                      targetSubdirektorat: '', 
+                      targetDivisi: '' 
+                    }));
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih Direktorat" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {yearDirektorat.map(d => (
+                      <SelectItem key={d.id} value={d.id.toString()}>{d.nama}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
+                <Label>Subdirektorat</Label>
+                <Select
+                  disabled={!uploadForm.targetDirektorat}
+                  value={yearSubdirektorat.find(s => s.nama === uploadForm.targetSubdirektorat)?.id.toString() || ''}
+                  onValueChange={(value) => {
+                    const s = yearSubdirektorat.find(x => x.id.toString() === value);
+                    setUploadForm(prev => ({ 
+                      ...prev, 
+                      targetSubdirektorat: s?.nama || '', 
+                      targetDivisi: '' 
+                    }));
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih Subdirektorat" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {getSubdirektoratByDirektorat(yearDirektorat.find(d => d.nama === uploadForm.targetDirektorat)?.id || 0).map(s => (
+                      <SelectItem key={s.id} value={s.id.toString()}>{s.nama}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
+                <Label>Divisi</Label>
+                <Select
+                  disabled={!uploadForm.targetSubdirektorat}
+                  value={yearDivisi.find(v => v.nama === uploadForm.targetDivisi)?.id.toString() || ''}
+                  onValueChange={(value) => {
+                    const v = yearDivisi.find(x => x.id.toString() === value);
+                    setUploadForm(prev => ({ 
+                      ...prev, 
+                      targetDivisi: v?.nama || '' 
+                    }));
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih Divisi" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {getDivisiBySubdirektorat(yearSubdirektorat.find(s => s.nama === uploadForm.targetSubdirektorat)?.id || 0).map(v => (
+                      <SelectItem key={v.id} value={v.id.toString()}>{v.nama}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setIsUploadDialogOpen(false);
+                  setSelectedRecommendationId(null);
+                  setUploadForm({
+                    targetDirektorat: '',
+                    targetSubdirektorat: '',
+                    targetDivisi: ''
+                  });
+                }}
+              >
+                Batal
+              </Button>
+              <Button 
+                onClick={handleSuperAdminFileUpload}
+                disabled={!uploadForm.targetDirektorat}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                Pilih & Upload File
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 };

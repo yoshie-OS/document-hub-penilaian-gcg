@@ -16,7 +16,7 @@ import { useYear } from '@/contexts/YearContext';
 import { useAOI } from '@/contexts/AOIContext';
 import { useStrukturPerusahaan } from '@/contexts/StrukturPerusahaanContext';
 import { useToast } from '@/hooks/use-toast';
-import { PageHeaderPanel, YearSelectorPanel } from '@/components/panels';
+import { PageHeaderPanel, YearSelectorPanel, AOIPanel } from '@/components/panels';
 import { 
   Plus, 
   Edit, 
@@ -194,10 +194,11 @@ const AOIManagement = () => {
       });
     }
 
-    // Reset form
+    // Reset form with correct next number for the current table
+    const currentTableId = recommendationForm.aoiTableId;
     setRecommendationForm({
-      no: 1,
-      aoiTableId: 0,
+      no: currentTableId ? getNextRecommendationNumber(currentTableId) : 1,
+      aoiTableId: currentTableId,
       jenis: 'REKOMENDASI',
       isi: '',
       tingkatUrgensi: 'TINGGI',
@@ -307,6 +308,8 @@ const AOIManagement = () => {
   // Get next recommendation number for a table
   const getNextRecommendationNumber = (tableId: number) => {
     const tableRecs = getTableRecommendations(tableId);
+    
+    // Since we use sequential numbering (no gaps), just count existing + 1
     return tableRecs.length + 1;
   };
 
@@ -856,6 +859,14 @@ const AOIManagement = () => {
                 </CardContent>
               </Card>
             )}
+          </div>
+
+          {/* Superadmin AOI Document Upload Panel */}
+          <div className="mt-8">
+            <AOIPanel
+              selectedYear={selectedYear}
+              className="w-full"
+            />
           </div>
         </div>
       </div>

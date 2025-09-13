@@ -586,7 +586,7 @@ def save_assessment():
                 'Penjelasan': row.get('penjelasan', ''),
                 'Tahun': year,
                 'Penilai': auditor,
-                'Jenis_Asesmen': jenis_asesmen,
+                'Jenis_Penilaian': jenis_asesmen,
                 'Export_Date': saved_at[:10]
             }
             all_rows.append(xlsx_row)
@@ -623,7 +623,7 @@ def save_assessment():
                     'Penjelasan': '',
                     'Tahun': year,
                     'Penilai': auditor,
-                    'Jenis_Asesmen': jenis_asesmen,
+                    'Jenis_Penilaian': jenis_asesmen,
                     'Export_Date': saved_at[:10]
                 }
                 all_rows.append(header_row)
@@ -641,7 +641,7 @@ def save_assessment():
                     'Penjelasan': summary_row.get('penjelasan', ''),
                     'Tahun': year,
                     'Penilai': auditor,
-                    'Jenis_Asesmen': jenis_asesmen,
+                    'Jenis_Penilaian': jenis_asesmen,
                     'Export_Date': saved_at[:10]
                 }
                 all_rows.append(subtotal_row)
@@ -672,7 +672,7 @@ def save_assessment():
                     'Penjelasan': total_data.get('penjelasan', ''),
                     'Tahun': year,
                     'Penilai': auditor,
-                    'Jenis_Asesmen': jenis_asesmen,
+                    'Jenis_Penilaian': jenis_asesmen,
                     'Export_Date': saved_at[:10]
                 }
                 all_rows.append(total_row)
@@ -1699,12 +1699,32 @@ def create_aoi_recommendation():
         # Generate unique ID
         recommendation_id = generate_unique_id()
         
+        # Read existing AOI recommendations
+        existing_data = storage_service.read_csv('config/aoi-recommendations.csv')
+        if existing_data is not None:
+            recommendations_df = existing_data
+        else:
+            recommendations_df = pd.DataFrame()
+        
+        # Calculate correct row number for this table
+        table_id = data.get('aoiTableId')
+        if table_id and not recommendations_df.empty:
+            # Get existing recommendations for this table
+            table_recs = recommendations_df[recommendations_df['aoiTableId'] == table_id]
+            if not table_recs.empty:
+                # Since we're using sequential numbering (no gaps), just count existing + 1
+                next_no = len(table_recs) + 1
+            else:
+                next_no = 1
+        else:
+            next_no = 1
+        
         # Create AOI recommendation object
         aoi_recommendation_data = {
             'id': recommendation_id,
-            'aoiTableId': data.get('aoiTableId'),
+            'aoiTableId': table_id,
             'jenis': data.get('jenis', 'REKOMENDASI'),
-            'no': data.get('no', 1),
+            'no': next_no,  # Use calculated number instead of frontend value
             'isi': data.get('isi', ''),
             'tingkatUrgensi': data.get('tingkatUrgensi', 'SEDANG'),
             'aspekAOI': data.get('aspekAOI', ''),
@@ -1713,13 +1733,6 @@ def create_aoi_recommendation():
             'createdAt': data.get('createdAt', datetime.now().isoformat()),
             'status': data.get('status', 'active')
         }
-        
-        # Read existing AOI recommendations
-        existing_data = storage_service.read_csv('config/aoi-recommendations.csv')
-        if existing_data is not None:
-            recommendations_df = existing_data
-        else:
-            recommendations_df = pd.DataFrame()
         
         # Add new AOI recommendation
         new_recommendation_df = pd.DataFrame([aoi_recommendation_data])
@@ -1779,21 +1792,46 @@ def update_aoi_recommendation(recommendation_id):
 
 @app.route('/api/aoiRecommendations/<int:recommendation_id>', methods=['DELETE'])
 def delete_aoi_recommendation(recommendation_id):
-    """Delete an AOI recommendation"""
+    """Delete an AOI recommendation and renumber remaining recommendations"""
     try:
         # Read existing AOI recommendations
         recommendations_data = storage_service.read_csv('config/aoi-recommendations.csv')
         if recommendations_data is None:
             return jsonify({'error': 'No AOI recommendations found'}), 404
         
-        # Remove the AOI recommendation
+        # Find the recommendation to be deleted to get its table ID and current number
+        target_rec = recommendations_data[recommendations_data['id'] == recommendation_id]
+        if target_rec.empty:
+            return jsonify({'error': 'AOI recommendation not found'}), 404
+        
+        target_table_id = target_rec.iloc[0]['aoiTableId']
+        target_no = int(target_rec.iloc[0]['no'])
+        
+        # Remove the target recommendation
         recommendations_data = recommendations_data[recommendations_data['id'] != recommendation_id]
+        
+        # Get all recommendations for the same table, sorted by 'no'
+        table_recs = recommendations_data[recommendations_data['aoiTableId'] == target_table_id].copy()
+        
+        if not table_recs.empty:
+            # Renumber all recommendations with 'no' greater than the deleted one
+            # Sort by 'no' to ensure proper order
+            table_recs_sorted = table_recs.sort_values('no')
+            
+            # Update the row numbers: shift down all numbers greater than target_no
+            for idx, row in table_recs_sorted.iterrows():
+                current_no = int(row['no'])
+                if current_no > target_no:
+                    recommendations_data.loc[idx, 'no'] = current_no - 1
         
         # Save to storage
         success = storage_service.write_csv(recommendations_data, 'config/aoi-recommendations.csv')
         
         if success:
-            return jsonify({'message': f'AOI recommendation {recommendation_id} deleted successfully'}), 200
+            return jsonify({
+                'message': f'AOI recommendation {recommendation_id} deleted successfully',
+                'renumbered': f'Renumbered recommendations for table {target_table_id}'
+            }), 200
         else:
             return jsonify({'error': 'Failed to delete AOI recommendation'}), 500
             
@@ -1960,6 +1998,156 @@ def delete_aoi_document(document_id):
     except Exception as e:
         print(f"Error deleting AOI document {document_id}: {e}")
         return jsonify({'error': f'Failed to delete AOI document: {str(e)}'}), 500
+
+@app.route('/api/upload-aoi-file', methods=['POST'])
+def upload_aoi_file():
+    """
+    Upload an AOI document file directly to Supabase storage.
+    This endpoint handles file uploads for Area of Improvement documents.
+    """
+    try:
+        print(f"🔧 DEBUG: AOI file upload request received")
+        print(f"🔧 DEBUG: Request files: {list(request.files.keys())}")
+        print(f"🔧 DEBUG: Request form: {dict(request.form)}")
+        
+        # Get the uploaded file
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        print(f"🔧 DEBUG: File received: {file.filename}")
+        
+        # Get form data
+        aoi_recommendation_id = request.form.get('aoiRecommendationId')
+        aoi_jenis = request.form.get('aoiJenis', 'REKOMENDASI')
+        aoi_urutan = request.form.get('aoiUrutan', '1')
+        year = request.form.get('year')
+        user_direktorat = request.form.get('userDirektorat', '')
+        user_subdirektorat = request.form.get('userSubdirektorat', '')
+        user_divisi = request.form.get('userDivisi', '')
+        user_id = request.form.get('userId', '')
+        
+        # Validate required parameters
+        if not aoi_recommendation_id or not year:
+            return jsonify({'error': 'AOI recommendation ID and year are required'}), 400
+        
+        try:
+            year_int = int(year)
+            recommendation_id_int = int(aoi_recommendation_id)
+            urutan_int = int(aoi_urutan)
+        except ValueError:
+            return jsonify({'error': 'Invalid year, recommendation ID, or urutan format'}), 400
+        
+        # Determine PIC name (use provided or fallback)
+        pic_name = user_divisi or user_subdirektorat or user_direktorat or 'Unknown_Division'
+        # Replace spaces with underscores for file path
+        pic_name_clean = secure_filename(pic_name.replace(' ', '_'))
+        
+        # Create file path: aoi-documents/{year}/{pic}/{recommendation_id}/{filename}
+        filename = secure_filename(file.filename)
+        file_path = f"aoi-documents/{year_int}/{pic_name_clean}/{recommendation_id_int}/{filename}"
+        
+        print(f"🔧 DEBUG: Uploading to path: {file_path}")
+        
+        # Clear existing files in the recommendation directory first
+        try:
+            directory_path = f"aoi-documents/{year_int}/{pic_name_clean}/{recommendation_id_int}"
+            print(f"🔧 DEBUG: Clearing directory: {directory_path}")
+            
+            list_response = supabase.storage.from_(bucket_name).list(directory_path)
+            if list_response and len(list_response) > 0:
+                print(f"🔧 DEBUG: Files found in directory: {len(list_response)}")
+                files_to_delete = []
+                for file_item in list_response:
+                    if file_item['name'] != '.emptyFolderPlaceholder':
+                        files_to_delete.append(f"{directory_path}/{file_item['name']}")
+                
+                if files_to_delete:
+                    print(f"🔧 DEBUG: Deleting {len(files_to_delete)} existing files: {files_to_delete}")
+                    delete_response = supabase.storage.from_(bucket_name).remove(files_to_delete)
+                    print(f"🔧 DEBUG: Delete existing files response: {delete_response}")
+        except Exception as e:
+            print(f"Error clearing directory: {e}")
+        
+        # Initialize Supabase client
+        from supabase import create_client
+        supabase_url = os.getenv('SUPABASE_URL')
+        supabase_key = os.getenv('SUPABASE_KEY')
+        bucket_name = os.getenv('SUPABASE_BUCKET')
+        
+        if not all([supabase_url, supabase_key, bucket_name]):
+            return jsonify({'error': 'Supabase configuration missing'}), 500
+        
+        supabase = create_client(supabase_url, supabase_key)
+        
+        # Upload file to Supabase storage
+        file_content = file.read()
+        upload_response = supabase.storage.from_(bucket_name).upload(
+            file_path, 
+            file_content
+        )
+        
+        if hasattr(upload_response, 'error') and upload_response.error:
+            print(f"🔧 DEBUG: Upload error: {upload_response.error}")
+            return jsonify({'error': f'Failed to upload file: {upload_response.error}'}), 500
+        
+        print(f"🔧 DEBUG: File uploaded successfully to: {file_path}")
+        
+        # Create AOI document record
+        document_id = f"aoi_{generate_unique_id()}"
+        aoi_document_data = {
+            'id': document_id,
+            'fileName': filename,
+            'fileSize': len(file_content),
+            'uploadDate': datetime.now().isoformat(),
+            'aoiRecommendationId': recommendation_id_int,
+            'aoiJenis': aoi_jenis,
+            'aoiUrutan': urutan_int,
+            'userId': user_id,
+            'userDirektorat': user_direktorat,
+            'userSubdirektorat': user_subdirektorat,
+            'userDivisi': user_divisi,
+            'fileType': file.content_type or 'application/octet-stream',
+            'status': 'active',
+            'tahun': year_int,
+            'filePath': file_path
+        }
+        
+        # Read existing AOI documents
+        existing_data = storage_service.read_csv('config/aoi-documents.csv')
+        if existing_data is not None:
+            # Remove existing documents for the same recommendation
+            existing_data = existing_data[existing_data['aoiRecommendationId'] != recommendation_id_int]
+            documents_df = existing_data
+        else:
+            documents_df = pd.DataFrame()
+        
+        # Add new AOI document
+        new_document_df = pd.DataFrame([aoi_document_data])
+        updated_df = pd.concat([documents_df, new_document_df], ignore_index=True)
+        
+        # Save to storage
+        success = storage_service.write_csv(updated_df, 'config/aoi-documents.csv')
+        
+        if success:
+            print(f"🔧 DEBUG: AOI document record saved successfully")
+            return jsonify({
+                'message': 'AOI file uploaded successfully',
+                'documentId': document_id,
+                'filePath': file_path,
+                'document': aoi_document_data
+            }), 201
+        else:
+            return jsonify({'error': 'Failed to save AOI document record'}), 500
+            
+    except Exception as e:
+        print(f"🔧 DEBUG: Exception in upload_aoi_file: {e}")
+        import traceback
+        print(f"🔧 DEBUG: Full traceback: {traceback.format_exc()}")
+        return jsonify({'error': f'Failed to upload AOI file: {str(e)}'}), 500
 
 @app.route('/api/users', methods=['GET'])
 def get_users():

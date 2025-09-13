@@ -323,6 +323,28 @@ const PenilaianGCG = () => {
               }
             }
             
+            // Extract and set auditor/jenisAsesmen from loaded data
+            if (yearData.length > 0) {
+              const firstDataRow = yearData[0];
+              const loadedAuditor = firstDataRow.Penilai || '';
+              const loadedJenisAsesmen = firstDataRow.Jenis_Penilaian || '';
+              
+              // Only update if we have valid data (not empty or default values)
+              if (loadedAuditor && loadedAuditor !== 'Unknown' && loadedAuditor !== 'Data Kosong') {
+                setAuditor(loadedAuditor);
+                console.log(`🎯 Loaded auditor from XLSX: "${loadedAuditor}"`);
+              }
+              
+              if (loadedJenisAsesmen && loadedJenisAsesmen !== 'Data Kosong' && loadedJenisAsesmen !== 'Internal') {
+                setJenisAsesmen(loadedJenisAsesmen);
+                console.log(`🎯 Loaded jenis asesmen from XLSX: "${loadedJenisAsesmen}"`);
+              } else if (loadedJenisAsesmen === 'Internal') {
+                // Set 'Internal' as it's a valid value
+                setJenisAsesmen(loadedJenisAsesmen);
+                console.log(`🎯 Loaded jenis asesmen from XLSX: "${loadedJenisAsesmen}"`);
+              }
+            }
+            
             setTableData(convertedData);
             setSaveMessage(`📊 Loaded ${convertedData.length} rows for year ${year} (${hasSubtotalRows && hasHeaderRows ? 'DETAILED' : 'BRIEF'} format)`);
             setTimeout(() => setSaveMessage(null), 3000);

@@ -93,72 +93,27 @@ export const AOIProvider: React.FC<AOIProviderProps> = ({ children }) => {
       setIsLoading(true);
       setError(null);
       
-      // Try API first
-      try {
-        const [tables, recommendations] = await Promise.all([
-          aoiAPI.getTables(),
-          aoiAPI.getTables().then(tables => 
-            Promise.all(tables.map(table => 
-              aoiAPI.getRecommendationsByTable(table.id)
-            ))
-          ).then(allRecommendations => allRecommendations.flat())
-        ]);
-        
-        setAoiTables(tables);
-        setAoiRecommendations(recommendations);
-      } catch (apiError) {
-        console.warn('API failed, using mock data:', apiError);
-        
-        // Fallback to mock data
-        const mockTables: AOITable[] = [
-          {
-            id: 1,
-            nama: "AOI GCG 2024 - DIREKTORAT BISNIS JASA KEUANGAN / SUB DIREKTORAT GOVERNMENT AND CORPORATE BUSINESS / PENYALURAN DANA",
-            tahun: 2024,
-            targetType: "divisi",
-            targetDirektorat: "DIREKTORAT BISNIS JASA KEUANGAN",
-            targetSubdirektorat: "SUB DIREKTORAT GOVERNMENT AND CORPORATE BUSINESS",
-            targetDivisi: "PENYALURAN DANA",
-            createdAt: "2024-01-01T00:00:00.000Z",
-            status: "active"
-          }
-        ];
-
-        const mockRecommendations: AOIRecommendation[] = [
-          {
-            id: 1,
-            aoiTableId: 1,
-            jenis: "REKOMENDASI",
-            no: 1,
-            isi: "Perlu peningkatan dalam implementasi Good Corporate Governance",
-            tingkatUrgensi: "TINGGI",
-            aspekAOI: "TATA KELOLA",
-            pihakTerkait: "DIREKSI",
-            organPerusahaan: "RUPS",
-            createdAt: "2024-01-01T00:00:00.000Z",
-            status: "active"
-          },
-          {
-            id: 2,
-            aoiTableId: 1,
-            jenis: "SARAN",
-            no: 1,
-            isi: "Saran untuk peningkatan transparansi",
-            tingkatUrgensi: "SEDANG",
-            aspekAOI: "TRANSPARANSI",
-            pihakTerkait: "DEWAN KOMISARIS",
-            organPerusahaan: "DEWAN KOMISARIS",
-            createdAt: "2024-01-01T00:00:00.000Z",
-            status: "active"
-          }
-        ];
-
-        setAoiTables(mockTables);
-        setAoiRecommendations(mockRecommendations);
-      }
+      // Load data from Supabase API
+      const [tables, recommendations] = await Promise.all([
+        aoiAPI.getTables(),
+        aoiAPI.getTables().then(tables => 
+          Promise.all(tables.map(table => 
+            aoiAPI.getRecommendationsByTable(table.id)
+          ))
+        ).then(allRecommendations => allRecommendations.flat())
+      ]);
+      
+      setAoiTables(tables);
+      setAoiRecommendations(recommendations);
+      console.log(`✅ AOI data loaded successfully: ${tables.length} tables, ${recommendations.length} recommendations`);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load AOI data';
+      console.error('❌ AOI API Error:', err);
       setError(errorMessage);
+      
+      // Set empty state instead of mock data to ensure cross-browser consistency
+      setAoiTables([]);
+      setAoiRecommendations([]);
     } finally {
       setIsLoading(false);
     }
@@ -168,30 +123,17 @@ export const AOIProvider: React.FC<AOIProviderProps> = ({ children }) => {
     try {
       setError(null);
       
-      // Try API first
-      try {
-        const newTable = await aoiAPI.createTable({
-          ...tableData,
-          createdAt: new Date().toISOString()
-        });
-        
-        setAoiTables(prev => [...prev, newTable]);
-        return newTable;
-      } catch (apiError) {
-        console.warn('API failed, using local state:', apiError);
-        
-        // Fallback to local state
-        const newTable: AOITable = {
-          ...tableData,
-          id: Date.now(),
-          createdAt: new Date().toISOString()
-        };
-        
-        setAoiTables(prev => [...prev, newTable]);
-        return newTable;
-      }
+      const newTable = await aoiAPI.createTable({
+        ...tableData,
+        createdAt: new Date().toISOString()
+      });
+      
+      setAoiTables(prev => [...prev, newTable]);
+      console.log(`✅ AOI table created successfully:`, newTable);
+      return newTable;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to create AOI table';
+      console.error('❌ Create AOI table error:', err);
       setError(errorMessage);
       throw err;
     }
@@ -201,29 +143,16 @@ export const AOIProvider: React.FC<AOIProviderProps> = ({ children }) => {
     try {
       setError(null);
       
-      // Try API first
-      try {
-        const updatedTable = await aoiAPI.updateTable(id, tableData);
-        
-        setAoiTables(prev => prev.map(table => 
-          table.id === id ? updatedTable : table
-        ));
-        return updatedTable;
-      } catch (apiError) {
-        console.warn('API failed, using local state:', apiError);
-        
-        // Fallback to local state
-        setAoiTables(prev => prev.map(table => 
-          table.id === id ? { ...table, ...tableData } : table
-        ));
-        
-        const updatedTable = aoiTables.find(table => table.id === id);
-        if (!updatedTable) throw new Error('Table not found');
-        
-        return { ...updatedTable, ...tableData };
-      }
+      const updatedTable = await aoiAPI.updateTable(id, tableData);
+      
+      setAoiTables(prev => prev.map(table => 
+        table.id === id ? updatedTable : table
+      ));
+      console.log(`✅ AOI table updated successfully:`, updatedTable);
+      return updatedTable;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to update AOI table';
+      console.error('❌ Update AOI table error:', err);
       setError(errorMessage);
       throw err;
     }
@@ -233,18 +162,15 @@ export const AOIProvider: React.FC<AOIProviderProps> = ({ children }) => {
     try {
       setError(null);
       
-      // Try API first
-      try {
-        await aoiAPI.deleteTable(id);
-      } catch (apiError) {
-        console.warn('API failed, using local state:', apiError);
-      }
+      await aoiAPI.deleteTable(id);
       
-      // Remove from local state
+      // Remove from local state after successful API call
       setAoiTables(prev => prev.filter(table => table.id !== id));
       setAoiRecommendations(prev => prev.filter(rec => rec.aoiTableId !== id));
+      console.log(`✅ AOI table deleted successfully: ${id}`);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete AOI table';
+      console.error('❌ Delete AOI table error:', err);
       setError(errorMessage);
       throw err;
     }
@@ -254,30 +180,17 @@ export const AOIProvider: React.FC<AOIProviderProps> = ({ children }) => {
     try {
       setError(null);
       
-      // Try API first
-      try {
-        const newRecommendation = await aoiAPI.createRecommendation({
-          ...recommendationData,
-          createdAt: new Date().toISOString()
-        });
-        
-        setAoiRecommendations(prev => [...prev, newRecommendation]);
-        return newRecommendation;
-      } catch (apiError) {
-        console.warn('API failed, using local state:', apiError);
-        
-        // Fallback to local state
-        const newRecommendation: AOIRecommendation = {
-          ...recommendationData,
-          id: Date.now(),
-          createdAt: new Date().toISOString()
-        };
-        
-        setAoiRecommendations(prev => [...prev, newRecommendation]);
-        return newRecommendation;
-      }
+      const newRecommendation = await aoiAPI.createRecommendation({
+        ...recommendationData,
+        createdAt: new Date().toISOString()
+      });
+      
+      setAoiRecommendations(prev => [...prev, newRecommendation]);
+      console.log(`✅ AOI recommendation created successfully:`, newRecommendation);
+      return newRecommendation;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to add recommendation';
+      console.error('❌ Create AOI recommendation error:', err);
       setError(errorMessage);
       throw err;
     }
@@ -287,29 +200,16 @@ export const AOIProvider: React.FC<AOIProviderProps> = ({ children }) => {
     try {
       setError(null);
       
-      // Try API first
-      try {
-        const updatedRecommendation = await aoiAPI.updateRecommendation(id, recommendationData);
-        
-        setAoiRecommendations(prev => prev.map(rec => 
-          rec.id === id ? updatedRecommendation : rec
-        ));
-        return updatedRecommendation;
-      } catch (apiError) {
-        console.warn('API failed, using local state:', apiError);
-        
-        // Fallback to local state
-        setAoiRecommendations(prev => prev.map(rec => 
-          rec.id === id ? { ...rec, ...recommendationData } : rec
-        ));
-        
-        const updatedRecommendation = aoiRecommendations.find(rec => rec.id === id);
-        if (!updatedRecommendation) throw new Error('Recommendation not found');
-        
-        return { ...updatedRecommendation, ...recommendationData };
-      }
+      const updatedRecommendation = await aoiAPI.updateRecommendation(id, recommendationData);
+      
+      setAoiRecommendations(prev => prev.map(rec => 
+        rec.id === id ? updatedRecommendation : rec
+      ));
+      console.log(`✅ AOI recommendation updated successfully:`, updatedRecommendation);
+      return updatedRecommendation;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to update recommendation';
+      console.error('❌ Update AOI recommendation error:', err);
       setError(errorMessage);
       throw err;
     }
@@ -319,17 +219,34 @@ export const AOIProvider: React.FC<AOIProviderProps> = ({ children }) => {
     try {
       setError(null);
       
-      // Try API first
-      try {
-        await aoiAPI.deleteRecommendation(id);
-      } catch (apiError) {
-        console.warn('API failed, using local state:', apiError);
+      // Find the recommendation to be deleted to get its table ID and number
+      const targetRecommendation = aoiRecommendations.find(rec => rec.id === id);
+      if (!targetRecommendation) {
+        throw new Error('Recommendation not found');
       }
       
-      // Remove from local state
-      setAoiRecommendations(prev => prev.filter(rec => rec.id !== id));
+      await aoiAPI.deleteRecommendation(id);
+      
+      // Remove from local state and renumber remaining recommendations
+      setAoiRecommendations(prev => {
+        // Remove the deleted recommendation
+        const filtered = prev.filter(rec => rec.id !== id);
+        
+        // Renumber all recommendations for the same table that have higher numbers
+        const renumbered = filtered.map(rec => {
+          if (rec.aoiTableId === targetRecommendation.aoiTableId && rec.no > targetRecommendation.no) {
+            return { ...rec, no: rec.no - 1 };
+          }
+          return rec;
+        });
+        
+        return renumbered;
+      });
+      
+      console.log(`✅ AOI recommendation deleted and renumbered successfully: ${id}`);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete recommendation';
+      console.error('❌ Delete AOI recommendation error:', err);
       setError(errorMessage);
       throw err;
     }
