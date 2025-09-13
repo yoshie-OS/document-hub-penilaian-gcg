@@ -32,6 +32,144 @@ import {
   ChevronRight
 } from 'lucide-react';
 
+// Multi-Select Component untuk Organ Perusahaan
+const OrganPerusahaanMultiSelect = ({ value, onChange }: { value: string; onChange: (value: string) => void }) => {
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [inputValue, setInputValue] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+  const predefinedOptions = [
+    'RUPS',
+    'DEWAN KOMISARIS', 
+    'SEKDEKOM',
+    'KOMITE',
+    'DIREKSI',
+    'SEKRETARIS PERUSAHAAN'
+  ];
+
+  // Parse value ke array saat component di-mount atau value berubah
+  useEffect(() => {
+    if (value) {
+      const items = value.split(', ').filter(item => item.trim() !== '');
+      setSelectedItems(items);
+    } else {
+      setSelectedItems([]);
+    }
+  }, [value]);
+
+  // Handle click outside to close dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Update parent saat selectedItems berubah
+  const updateParent = (items: string[]) => {
+    const newValue = items.join(', ');
+    onChange(newValue);
+  };
+
+  const addItem = (item: string) => {
+    if (item && !selectedItems.includes(item)) {
+      const newItems = [...selectedItems, item];
+      setSelectedItems(newItems);
+      updateParent(newItems);
+    }
+  };
+
+  const removeItem = (itemToRemove: string) => {
+    const newItems = selectedItems.filter(item => item !== itemToRemove);
+    setSelectedItems(newItems);
+    updateParent(newItems);
+  };
+
+  const handleInputKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && inputValue.trim()) {
+      e.preventDefault();
+      addItem(inputValue.trim());
+      setInputValue('');
+    }
+  };
+
+  return (
+    <div className="w-full" ref={dropdownRef}>
+      {/* Selected items display */}
+      {selectedItems.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-2">
+          {selectedItems.map((item, index) => (
+            <Badge 
+              key={index} 
+              variant="secondary" 
+              className="bg-blue-100 text-blue-800 hover:bg-blue-200 cursor-pointer"
+              onClick={() => removeItem(item)}
+            >
+              {item} ×
+            </Badge>
+          ))}
+        </div>
+      )}
+      
+      {/* Input area */}
+      <div className="relative">
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Input
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={handleInputKeyDown}
+              placeholder="Ketik organ perusahaan dan tekan Enter..."
+              onFocus={() => setIsOpen(true)}
+            />
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setIsOpen(!isOpen)}
+            className="px-3"
+          >
+            <ChevronDown className="w-4 h-4" />
+          </Button>
+        </div>
+
+        {/* Dropdown dengan opsi predefined */}
+        {isOpen && (
+          <div className="absolute top-full left-0 right-0 z-10 mt-1 bg-white border border-gray-200 rounded-md shadow-lg">
+            <div className="py-1 max-h-48 overflow-y-auto">
+              {predefinedOptions
+                .filter(option => !selectedItems.includes(option))
+                .map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 cursor-pointer"
+                  onClick={() => {
+                    addItem(option);
+                    setIsOpen(false);
+                  }}
+                >
+                  {option}
+                </button>
+              ))}
+              {predefinedOptions.filter(option => !selectedItems.includes(option)).length === 0 && (
+                <div className="px-3 py-2 text-sm text-gray-500">
+                  Semua opsi sudah dipilih
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const AOIManagement = () => {
   const { isSidebarOpen } = useSidebar();
   const { selectedYear, setSelectedYear, availableYears } = useYear();
@@ -643,30 +781,11 @@ const AOIManagement = () => {
                             </div>
                             <div>
                               <Label>Organ Perusahaan yang menindaklanjuti</Label>
-                              <div className="grid grid-cols-2 gap-2">
-                                <Select
-                                  value={recommendationForm.pihakTerkait}
-                                  onValueChange={(value) => setRecommendationForm(prev => ({ ...prev, pihakTerkait: value, organPerusahaan: value }))}
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Pilih (opsional)" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="RUPS">RUPS</SelectItem>
-                                    <SelectItem value="DEWAN KOMISARIS">Dewan Komisaris</SelectItem>
-                                    <SelectItem value="SEKDEKOM">Sekdekom</SelectItem>
-                                    <SelectItem value="KOMITE">Komite</SelectItem>
-                                    <SelectItem value="DIREKSI">Direksi</SelectItem>
-                                    <SelectItem value="SEKRETARIS PERUSAHAAN">Sekretaris Perusahaan</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                                <Input
-                                  value={recommendationForm.organPerusahaan}
-                                  onChange={(e) => setRecommendationForm(prev => ({ ...prev, organPerusahaan: e.target.value }))}
-                                  placeholder="Atau ketik manual (opsional)"
-                                />
-                              </div>
-                              <p className="text-[11px] text-gray-500 mt-1">Jika memilih dari daftar akan otomatis terisi; Anda juga bisa mengetik manual.</p>
+                              <OrganPerusahaanMultiSelect
+                                value={recommendationForm.pihakTerkait}
+                                onChange={(value) => setRecommendationForm(prev => ({ ...prev, pihakTerkait: value, organPerusahaan: value }))}
+                              />
+                              <p className="text-[11px] text-gray-500 mt-1">Pilih satu atau beberapa dari daftar, atau tambahkan kustom dengan mengetik dan tekan Enter.</p>
                             </div>
                             {/* Direktorat/Subdirektorat/Divisi dihapus dari dialog item; sudah ditentukan di tabel */}
                             <div>
@@ -750,7 +869,21 @@ const AOIManagement = () => {
                                          <div className="text-xs">{rec.aspekAOI || '-'}</div>
                                        </TableCell>
                                        <TableCell className="text-center">
-                                         <div className="text-xs">{rec.pihakTerkait || '-'}</div>
+                                         <div className="text-xs">
+                                           {rec.pihakTerkait ? (
+                                             rec.pihakTerkait.includes(', ') ? (
+                                               <div className="flex flex-wrap justify-center gap-1">
+                                                 {rec.pihakTerkait.split(', ').map((item, index) => (
+                                                   <Badge key={index} variant="outline" className="text-[10px] px-1 py-0">
+                                                     {item}
+                                                   </Badge>
+                                                 ))}
+                                               </div>
+                                             ) : (
+                                               rec.pihakTerkait
+                                             )
+                                           ) : '-'}
+                                         </div>
                                        </TableCell>
                                        <TableCell>
                                          <div className="flex gap-2 justify-center">
@@ -807,7 +940,21 @@ const AOIManagement = () => {
                                          <div className="text-xs">{rec.aspekAOI || '-'}</div>
                                        </TableCell>
                                        <TableCell className="text-center">
-                                         <div className="text-xs">{rec.pihakTerkait || '-'}</div>
+                                         <div className="text-xs">
+                                           {rec.pihakTerkait ? (
+                                             rec.pihakTerkait.includes(', ') ? (
+                                               <div className="flex flex-wrap justify-center gap-1">
+                                                 {rec.pihakTerkait.split(', ').map((item, index) => (
+                                                   <Badge key={index} variant="outline" className="text-[10px] px-1 py-0">
+                                                     {item}
+                                                   </Badge>
+                                                 ))}
+                                               </div>
+                                             ) : (
+                                               rec.pihakTerkait
+                                             )
+                                           ) : '-'}
+                                         </div>
                                        </TableCell>
                                        <TableCell>
                                          <div className="flex gap-2 justify-center">

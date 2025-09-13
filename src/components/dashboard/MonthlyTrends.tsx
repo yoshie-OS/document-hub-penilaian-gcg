@@ -30,6 +30,9 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
   // State untuk mengelola expanded view per subdirektorat
   const [expandedSubdirs, setExpandedSubdirs] = useState<Set<string>>(new Set());
   
+  // State untuk memaksa re-render saat assignments berubah
+  const [assignmentsUpdateTrigger, setAssignmentsUpdateTrigger] = useState(0);
+  
   // Ukuran dinamis chart agar tidak perlu scroll horizontal - MOVED UP BEFORE EARLY RETURN
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerWidth, setContainerWidth] = useState<number>(0);
@@ -45,6 +48,16 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
     });
     ro.observe(el);
     return () => ro.disconnect();
+  }, []);
+  
+  // Listen for assignment updates dari PengaturanBaru
+  useEffect(() => {
+    const handleAssignmentsUpdate = () => {
+      setAssignmentsUpdateTrigger(prev => prev + 1);
+    };
+    
+    window.addEventListener('assignmentsUpdated', handleAssignmentsUpdate);
+    return () => window.removeEventListener('assignmentsUpdated', handleAssignmentsUpdate);
   }, []);
   
   // Auto-highlight effect - will be added after chartData declaration to avoid reference issues
@@ -110,9 +123,11 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
       // Hilangkan awalan "Sub Direktorat " agar rapi
       const cleanName = subName.replace(/^\s*Sub\s*Direktorat\s*/i, '').trim();
       
-      // Hitung target dari assignments untuk subdirektorat ini
-      // Target = total checklist items yang diassign ke divisi yang berada di bawah subdirektorat ini + assignment langsung ke subdirektorat
-      const subdirAssignments = yearAssignments.filter(a => {
+      // Hitung target dari assignments PLUS checklist items dengan PIC
+      // Target = formal assignments + checklist items yang memiliki PIC dari subdirektorat/divisi ini
+      
+      // 1. Formal assignments dari localStorage
+      const subdirFormalAssignments = yearAssignments.filter(a => {
         // Assignment langsung ke subdirektorat
         if (a.assignmentType === 'subdirektorat' && a.subdirektorat === subName) {
           return true;
@@ -129,6 +144,42 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
         
         return false;
       });
+      
+      // 2. Checklist items dengan PIC yang belongs to this subdirektorat
+      const checklistItemsWithPIC = yearChecklist.filter(item => {
+        if (!item.pic || item.pic.trim() === '') return false;
+        
+        // Check if PIC adalah subdirektorat ini
+        if (item.pic === subName) return true;
+        
+        // Check if PIC adalah divisi yang berada di bawah subdirektorat ini
+        const divisiUnderSubdir = divisi.filter(d => {
+          const subdir = strukturSubdirektorat.find(s => s.id === d.subdirektoratId);
+          return subdir && subdir.nama === subName;
+        });
+        
+        return divisiUnderSubdir.some(d => d.nama === item.pic);
+      });
+      
+      // Remove duplicates berdasarkan checklistId (jika ada item yang sudah punya formal assignment DAN PIC)
+      const formalAssignmentIds = new Set(subdirFormalAssignments.map(a => a.checklistId));
+      const uniqueChecklistItems = checklistItemsWithPIC.filter(item => 
+        !formalAssignmentIds.has(item.id)
+      );
+      
+      // Gabungkan untuk hitung target
+      const subdirAssignments = [
+        ...subdirFormalAssignments,
+        ...uniqueChecklistItems.map(item => ({
+          checklistId: item.id,
+          tahun: selectedYear,
+          aspek: item.aspek,
+          deskripsi: item.deskripsi,
+          assignmentType: item.pic === subName ? 'subdirektorat' : 'divisi' as 'divisi' | 'subdirektorat',
+          ...(item.pic === subName ? { subdirektorat: item.pic } : { divisi: item.pic })
+        }))
+      ];
+      
       const target = subdirAssignments.length;
       
       // Hitung progress dari dokumen yang sudah diupload untuk subdirektorat ini
@@ -228,7 +279,7 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
         status
       };
     }).filter(Boolean); // Filter out null values
-  }, [selectedYear, checklist, getFilesByYear, strukturSubdirektorat]);
+  }, [selectedYear, checklist, getFilesByYear, strukturSubdirektorat, divisi, assignmentsUpdateTrigger]);
 
   // Auto-highlight effect - placed after chartData declaration to avoid reference issues
   useEffect(() => {

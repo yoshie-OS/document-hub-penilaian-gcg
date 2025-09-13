@@ -188,14 +188,14 @@ const AssignmentDropdown = ({
             : isLocked
               ? `Terkunci (${assignmentType === 'divisi' ? 'Divisi' : 'Subdirektorat'})`
               : currentAssignmentLabel 
-                ? `Ditugaskan ke: ${currentAssignmentLabel}`
+                ? currentAssignmentLabel
                 : `Tugas ${assignmentType === 'divisi' ? 'Divisi' : 'Subdirektorat'}`}>
           {isLoading 
             ? 'Assigning...'
               : isLocked
                 ? `Terkunci (${assignmentType === 'divisi' ? 'Divisi' : 'Subdirektorat'})`
             : currentAssignmentLabel 
-                  ? `Ditugaskan ke: ${currentAssignmentLabel}`
+                  ? currentAssignmentLabel
                   : `Tugas ${assignmentType === 'divisi' ? 'Divisi' : 'Subdirektorat'}`}
           </span>
         </span>
@@ -1914,15 +1914,39 @@ const PengaturanBaru = () => {
 
   // Handle assignment checklist ke divisi atau subdirektorat
   const handleAssignment = async (checklistId: number, targetName: string, aspek: string, deskripsi: string) => {
-    // Jika targetName kosong, reset PIC field
+    const year = selectedYear || new Date().getFullYear();
+    
+    // Jika targetName kosong, reset PIC field dan hapus assignment
     if (!targetName || targetName.trim() === '') {
       try {
-        await editChecklist(checklistId, aspek, deskripsi, '', selectedYear || new Date().getFullYear());
+        await editChecklist(checklistId, aspek, deskripsi, '', year);
         
         // Update local state
         setChecklistItems(prev => prev.map(item => 
           item.id === checklistId ? { ...item, pic: '' } : item
         ));
+        
+        // Remove assignment dari localStorage
+        const storedAssignments = localStorage.getItem('checklistAssignments');
+        if (storedAssignments) {
+          try {
+            const allAssignments = JSON.parse(storedAssignments);
+            const filteredAssignments = allAssignments.filter((assignment: any) => 
+              !(assignment.checklistId === checklistId && assignment.tahun === year)
+            );
+            localStorage.setItem('checklistAssignments', JSON.stringify(filteredAssignments));
+            
+            // Update local assignments state
+            setAssignments(prev => prev.filter(a => a.checklistId !== checklistId));
+            
+            // Dispatch custom event untuk memberitahu dashboard components
+            window.dispatchEvent(new CustomEvent('assignmentsUpdated', { 
+              detail: { checklistId, targetName: '', year } 
+            }));
+          } catch (error) {
+            console.error('Error removing assignment:', error);
+          }
+        }
         
         // Track the change for consistency
         trackItemChange(checklistId);
@@ -1948,15 +1972,71 @@ const PengaturanBaru = () => {
 
     // Save PIC assignment to backend
     try {
-      await editChecklist(checklistId, aspek, deskripsi, targetName, selectedYear || new Date().getFullYear());
+      await editChecklist(checklistId, aspek, deskripsi, targetName, year);
       
       // Update local state
       setChecklistItems(prev => prev.map(item => 
         item.id === checklistId ? { ...item, pic: targetName } : item
       ));
       
+      // Determine assignment type and create assignment record for dashboard
+      const isDivisi = divisi?.some(d => d.nama === targetName);
+      const isSubdirektorat = subdirektorat?.some(s => s.nama === targetName);
+      
+      if (isDivisi || isSubdirektorat) {
+        // Create assignment record untuk dashboard components
+        const newAssignment = {
+          checklistId,
+          tahun: year,
+          aspek,
+          deskripsi,
+          assignmentType: isDivisi ? 'divisi' : 'subdirektorat' as 'divisi' | 'subdirektorat',
+          ...(isDivisi ? { divisi: targetName } : { subdirektorat: targetName })
+        };
+        
+        // Update checklistAssignments localStorage
+        const storedAssignments = localStorage.getItem('checklistAssignments');
+        let allAssignments: any[] = [];
+        
+        if (storedAssignments) {
+          try {
+            allAssignments = JSON.parse(storedAssignments);
+          } catch (error) {
+            console.error('Error parsing stored assignments:', error);
+            allAssignments = [];
+          }
+        }
+        
+        // Remove existing assignment for this checklist item (if any)
+        allAssignments = allAssignments.filter((assignment: any) => 
+          !(assignment.checklistId === checklistId && assignment.tahun === year)
+        );
+        
+        // Add new assignment
+        allAssignments.push(newAssignment);
+        localStorage.setItem('checklistAssignments', JSON.stringify(allAssignments));
+        
+        // Update local assignments state
+        setAssignments(prev => {
+          const filtered = prev.filter(a => a.checklistId !== checklistId);
+          return [...filtered, newAssignment];
+        });
+        
+        // Dispatch custom event untuk memberitahu dashboard components
+        window.dispatchEvent(new CustomEvent('assignmentsUpdated', { 
+          detail: { checklistId, targetName, year } 
+        }));
+        
+        console.log('Assignment saved to localStorage:', newAssignment);
+      }
+      
       // Track the change for consistency
       trackItemChange(checklistId);
+      
+      // Always dispatch event untuk dashboard update (even if no formal assignment was created)
+      window.dispatchEvent(new CustomEvent('assignmentsUpdated', { 
+        detail: { checklistId, targetName, year } 
+      }));
       
       toast({
         title: "Assignment Berhasil",
