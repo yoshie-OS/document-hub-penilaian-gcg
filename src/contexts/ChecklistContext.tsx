@@ -42,6 +42,8 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     console.log('ChecklistContext: useEffect triggered - starting data load');
     
+    // Load fresh data from Supabase while preserving user authentication
+    
     const loadDataFromSupabase = async () => {
       try {
         console.log('ChecklistContext: loadDataFromSupabase function called');
@@ -56,12 +58,13 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
               tahun: item.tahun
             }));
             setAspects(mappedAspects);
-            localStorage.setItem("aspects", JSON.stringify(mappedAspects));
+            // REMOVED localStorage.setItem for multi-user support
             console.log('ChecklistContext: Loaded aspects from Supabase', mappedAspects.length);
           }
         } else {
           console.error('ChecklistContext: Failed to load aspects from Supabase');
-          loadAspectsFromLocalStorage();
+          // DISABLED: loadAspectsFromLocalStorage(); // Force fresh start
+          setAspects([]);
         }
 
         // Load checklist from Supabase API
@@ -123,7 +126,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
             
             setChecklist(mappedChecklist);
             // Save fresh data to localStorage for next load
-            localStorage.setItem("checklistGCG", JSON.stringify(mappedChecklist));
+            // REMOVED localStorage.setItem for multi-user support - data stays in Supabase only
             console.log('ChecklistContext: Loaded checklist from Supabase', mappedChecklist.length);
           }
         } else {
@@ -346,7 +349,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
     return checklist.filter(item => item.tahun === year);
   };
 
-  const getAspectsByYear = async (year: number): Promise<Aspek[]> => {
+  const getAspectsByYear = useCallback(async (year: number): Promise<Aspek[]> => {
     // Return empty array if year is invalid
     if (!year || year === null || year === undefined || isNaN(year)) {
       console.warn('getAspectsByYear called with invalid year:', year);
@@ -377,7 +380,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
       }
       return [];
     }
-  };
+  }, []); // Fixed: Empty dependency array prevents infinite re-creation
 
   const initializeYearData = (year: number) => {
     const existingData = checklist.filter(item => item.tahun === year);
@@ -547,7 +550,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
       };
       const updated = [...aspects, newAspek];
       setAspects(updated);
-      localStorage.setItem("aspects", JSON.stringify(updated));
+      // REMOVED localStorage.setItem for multi-user support
       
       // Trigger update event
       window.dispatchEvent(new CustomEvent('aspectsUpdated', {
@@ -563,7 +566,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
       a.id === id ? { ...a, nama: newNama } : a
     );
     setAspects(updated);
-    localStorage.setItem("aspects", JSON.stringify(updated));
+    // REMOVED localStorage.setItem for multi-user support
     
     // Update checklist items that use this aspect
     const updatedChecklist = checklist.map(item => 
@@ -572,7 +575,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
         : item
     );
     setChecklist(updatedChecklist);
-    localStorage.setItem("checklistGCG", JSON.stringify(updatedChecklist));
+    // REMOVED localStorage.setItem for multi-user support
     
     // Trigger update events
     window.dispatchEvent(new CustomEvent('aspectsUpdated', {
@@ -615,7 +618,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
         : item
     );
     setChecklist(updatedChecklist);
-    localStorage.setItem("checklistGCG", JSON.stringify(updatedChecklist));
+    // REMOVED localStorage.setItem for multi-user support
     
     // Trigger update events
     window.dispatchEvent(new CustomEvent('aspectsUpdated', {
@@ -663,7 +666,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
       console.log(`ChecklistContext: Cleaned up from ${allAspects.length} to ${uniqueAspects.length} aspects`);
       
       setAspects(uniqueAspects);
-      localStorage.setItem('aspects', JSON.stringify(uniqueAspects));
+      // REMOVED localStorage.setItem for multi-user support
     }
   }, []);
 

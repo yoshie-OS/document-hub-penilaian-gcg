@@ -39,6 +39,12 @@ const generatePassword = () => {
   return password;
 };
 
+// Helper function untuk generate checklist ID (year + row format)
+const generateChecklistId = (year: number, rowNumber: number): number => {
+  const yearDigits = year % 100; // Get last two digits of year
+  return parseInt(`${yearDigits}${rowNumber}`);
+};
+
 // Helper function untuk debounce
 const debounce = <T extends (...args: any[]) => any>(
   func: T,
@@ -837,7 +843,7 @@ const PengaturanBaru = () => {
     setChecklistItems(allChecklist);
     setOriginalChecklistItems(allChecklist);
     
-  }, [checklist, selectedYear]);
+  }, [selectedYear]); // Only reload when year changes, not when checklist context updates
   
   // Effect untuk auto-save checklist items saat ada perubahan
   // Gunakan useCallback untuk mencegah re-render berlebihan
@@ -845,7 +851,7 @@ const PengaturanBaru = () => {
     debounce((items: ChecklistItem[]) => {
       if (items.length > 0 && selectedYear) {
         // Auto-save ke localStorage setiap kali ada perubahan
-        localStorage.setItem('checklistGCG', JSON.stringify(items));
+        // REMOVED localStorage.setItem - data goes to Supabase via ChecklistContext
         
         // Trigger update di ChecklistContext untuk konsistensi data
         // Pastikan data dalam format yang benar untuk ChecklistContext
@@ -871,10 +877,10 @@ const PengaturanBaru = () => {
     [selectedYear]
   );
 
-  // Effect untuk auto-save dengan debouncing
-  useEffect(() => {
-    debouncedSave(checklistItems);
-  }, [checklistItems, debouncedSave]);
+  // Effect untuk auto-save dengan debouncing - DISABLED TO PREVENT INFINITE LOOP
+  // useEffect(() => {
+  //   debouncedSave(checklistItems);
+  // }, [checklistItems, debouncedSave]);
   
   // Effect untuk load assignments dari database (not localStorage)
   useEffect(() => {
@@ -1048,6 +1054,11 @@ const PengaturanBaru = () => {
   const [showUserDialog, setShowUserDialog] = useState(false);
       const [editingUser, setEditingUser] = useState<User | null>(null);
     const [showPassword, setShowPassword] = useState(false);
+  const [showSuperAdminDialog, setShowSuperAdminDialog] = useState(false);
+  const [superAdminForm, setSuperAdminForm] = useState({
+    email: 'arsippostgcg@gmail.com',
+    password: 'postarsipGCG.'
+  });
     
     // State untuk editing struktur organisasi
     const [editingDirektorat, setEditingDirektorat] = useState<{ id: number; nama: string; deskripsi: string } | null>(null);
@@ -1309,7 +1320,7 @@ const PengaturanBaru = () => {
       usersFromYear.forEach((user: User) => {
         const newUser: User = {
           ...user,
-          id: Date.now() + Math.random(), // Generate new ID
+          id: generateChecklistId(toYear, Math.floor(Math.random() * 10000) + 1), // Generate proper year+row ID
           tahun: toYear
         };
         
@@ -1320,10 +1331,10 @@ const PengaturanBaru = () => {
       // Jika tidak ada super admin, tambahkan
       if (!hasSuperAdmin) {
         const superAdminUser = {
-          id: Date.now() + 1000,
+          id: generateChecklistId(toYear, 9999), // Super admin gets high row number
           tahun: toYear,
-          email: 'superadmin@posindonesia.co.id',
-          password: 'superadmin123',
+          email: 'arsippostgcg@gmail.com',
+          password: 'postarsipGCG.',
           role: 'superadmin' as 'superadmin' | 'admin' | 'user',
           name: 'Super Administrator',
           direktorat: 'Direksi',
@@ -1334,13 +1345,13 @@ const PengaturanBaru = () => {
       }
 
       // Persist ke localStorage
-      const allUsers: User[] = [...(users || []), ...usersFromYear.map((u: User) => ({ ...u, id: Date.now() + Math.random(), tahun: toYear }))];
+      const allUsers: User[] = [...(users || []), ...usersFromYear.map((u: User, index: number) => ({ ...u, id: generateChecklistId(toYear, 10000 + index), tahun: toYear }))];
       if (!hasSuperAdmin) {
         allUsers.push({
-          id: Date.now() + 1000,
+          id: generateChecklistId(toYear, 9998), // Super admin gets high row number
           tahun: toYear,
-          email: 'superadmin@posindonesia.co.id',
-          password: 'superadmin123',
+          email: 'arsippostgcg@gmail.com',
+          password: 'postarsipGCG.',
           role: 'superadmin' as 'superadmin' | 'admin' | 'user',
           name: 'Super Administrator',
           direktorat: 'Direksi',
@@ -1348,7 +1359,7 @@ const PengaturanBaru = () => {
           divisi: 'Direksi'
         });
       }
-      localStorage.setItem('users', JSON.stringify(allUsers));
+      // REMOVED localStorage.setItem - users should be stored in Supabase
 
       console.log(`Manajemen akun berhasil di-copy dari tahun ${fromYear} ke ${toYear}`);
     } catch (error) {
@@ -1364,10 +1375,11 @@ const PengaturanBaru = () => {
       const checklistFromYear = checklist?.filter(c => c.tahun === fromYear) || [];
       
       // Copy checklist items dengan tahun baru
-      const newChecklistItems = checklistFromYear.map(item => ({
+      const newChecklistItems = checklistFromYear.map((item, index) => ({
         ...item,
-        id: Date.now() + Math.random(), // Generate new ID
-        tahun: toYear
+        id: generateChecklistId(toYear, (index + 1)), // Generate proper year+row ID
+        tahun: toYear,
+        rowNumber: index + 1
       }));
 
       // Update checklist items state
@@ -1375,7 +1387,7 @@ const PengaturanBaru = () => {
       
       // Persist ke localStorage dengan key yang sama dengan ChecklistContext
       const allChecklistItems = [...(checklistItems || []), ...newChecklistItems];
-      localStorage.setItem('checklistGCG', JSON.stringify(allChecklistItems));
+      // REMOVED localStorage.setItem - data goes to Supabase via ChecklistContext
       
       // Trigger update di ChecklistContext
       window.dispatchEvent(new CustomEvent('checklistUpdated', {
@@ -1390,15 +1402,15 @@ const PengaturanBaru = () => {
 
       // Copy assignments jika ada
       const assignmentsFromYear = assignments?.filter(a => a.tahun === fromYear) || [];
-      const newAssignments = assignmentsFromYear.map(assignment => ({
+      const newAssignments = assignmentsFromYear.map((assignment, index) => ({
         ...assignment,
-        id: Date.now() + Math.random(), // Generate new ID
+        id: generateChecklistId(toYear, 20000 + index), // Generate proper year+row ID for assignments
         tahun: toYear,
         assignedAt: new Date()
       }));
 
       setAssignments(prev => [...prev, ...newAssignments]);
-      localStorage.setItem('checklistAssignments', JSON.stringify([...assignments || [], ...newAssignments]));
+      // REMOVED localStorage.setItem - assignments should be stored in Supabase
 
       console.log(`Kelola dokumen berhasil di-copy dari tahun ${fromYear} ke ${toYear}`);
     } catch (error) {
@@ -1426,14 +1438,14 @@ const PengaturanBaru = () => {
       if (checklistData) {
         const parsed = JSON.parse(checklistData);
         const filtered = parsed.filter((item: any) => item.tahun !== year);
-        localStorage.setItem('checklistGCG', JSON.stringify(filtered));
+        // REMOVED localStorage.setItem - data goes to Supabase via ChecklistContext
       }
       
       const assignmentsData = localStorage.getItem('checklistAssignments');
       if (assignmentsData) {
         const parsed = JSON.parse(assignmentsData);
         const filtered = parsed.filter((item: any) => item.tahun !== year);
-        localStorage.setItem('checklistAssignments', JSON.stringify(filtered));
+        // REMOVED localStorage.setItem - assignments should be stored in Supabase
       }
       
       // Dispatch event untuk memberitahu context lain bahwa tahun baru dibuat tanpa copy
@@ -1688,7 +1700,7 @@ const PengaturanBaru = () => {
         
         // Update localStorage for consistency
         const updatedUsers = [...users, newUser];
-        localStorage.setItem('users', JSON.stringify(updatedUsers));
+        // REMOVED localStorage.setItem - users should be stored in Supabase
 
         toast({
           title: "Berhasil!",
@@ -1753,7 +1765,7 @@ const PengaturanBaru = () => {
       
       // Update localStorage for consistency
       const updatedUsers = users.filter(u => u.id !== userId);
-      localStorage.setItem('users', JSON.stringify(updatedUsers));
+      // REMOVED localStorage.setItem - users should be stored in Supabase
       
       toast({
         title: "Berhasil!",
@@ -1783,7 +1795,7 @@ const PengaturanBaru = () => {
       const defaultUsers: User[] = [];
 
       setUsers(prev => [...prev, ...defaultUsers]);
-      localStorage.setItem('users', JSON.stringify([...users, ...defaultUsers]));
+      // REMOVED localStorage.setItem - users should be stored in Supabase
       
       setSetupProgress(prev => ({ ...prev, manajemenAkun: true }));
       
@@ -1795,6 +1807,64 @@ const PengaturanBaru = () => {
       toast({
         title: "Error",
         description: "Gagal menginisialisasi user data",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Handler untuk update super admin credentials
+  const handleSuperAdminSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    try {
+      // Find super admin user
+      const superAdminUser = users?.find(user => user.role === 'superadmin');
+      if (!superAdminUser) {
+        throw new Error('Super admin user not found');
+      }
+
+      // Update via database API instead of localStorage
+      const response = await fetch(`http://localhost:5000/api/users/${superAdminUser.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: superAdminForm.email,
+          password: superAdminForm.password
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const updatedUser = await response.json();
+
+      // Update local state
+      const updatedUsers = users?.map(user => 
+        user.id === superAdminUser.id ? { 
+          ...user, 
+          email: superAdminForm.email, 
+          password: superAdminForm.password 
+        } : user
+      ) || [];
+      
+      setUsers(updatedUsers);
+      
+      setShowSuperAdminDialog(false);
+      
+      toast({
+        title: "Berhasil!",
+        description: "Kredensial Super Admin berhasil diperbarui ke database",
+      });
+
+      console.log('Super admin updated via API:', updatedUser);
+    } catch (error) {
+      console.error('Error updating super admin:', error);
+      toast({
+        title: "Error",
+        description: "Gagal memperbarui kredensial Super Admin ke database",
         variant: "destructive"
       });
     }
@@ -1954,7 +2024,7 @@ const PengaturanBaru = () => {
       });
       
       // Persist to localStorage
-      localStorage.setItem('checklistGCG', JSON.stringify(updatedItems));
+      // REMOVED localStorage.setItem - data goes to Supabase via ChecklistContext
       
       // Trigger update di ChecklistContext dengan format yang benar
       const contextData = updatedItems.map(item => ({
@@ -2012,7 +2082,7 @@ const PengaturanBaru = () => {
             const filteredAssignments = allAssignments.filter((assignment: any) => 
               !(assignment.checklistId === checklistId && assignment.tahun === year)
             );
-            localStorage.setItem('checklistAssignments', JSON.stringify(filteredAssignments));
+            // REMOVED localStorage.setItem - assignments should be stored in Supabase
             
             // Update local assignments state
             setAssignments(prev => prev.filter(a => a.checklistId !== checklistId));
@@ -2092,7 +2162,7 @@ const PengaturanBaru = () => {
         
         // Add new assignment
         allAssignments.push(newAssignment);
-        localStorage.setItem('checklistAssignments', JSON.stringify(allAssignments));
+        // REMOVED localStorage.setItem - assignments should be stored in Supabase
         
         // Update local assignments state
         setAssignments(prev => {
@@ -2417,14 +2487,34 @@ const PengaturanBaru = () => {
       const currentItem = checklistItems.find(item => item.id === itemId);
       if (!currentItem) return;
       
-      // Save to backend using editChecklist
-      await editChecklist(
-        currentItem.id, 
-        currentItem.aspek || '', 
-        currentItem.deskripsi || '', 
-        currentItem.pic || '',
-        selectedYear || new Date().getFullYear()
-      );
+      const year = selectedYear || new Date().getFullYear();
+      
+      // Check if this is a new item or existing item
+      if (newItems.has(itemId)) {
+        // NEW ITEM: Call addChecklist to create in backend
+        await addChecklist(
+          currentItem.aspek || '', 
+          currentItem.deskripsi || '', 
+          currentItem.pic || '',
+          year
+        );
+        
+        // Remove from newItems since it's now saved to backend
+        setNewItems(prev => {
+          const updated = new Set(prev);
+          updated.delete(itemId);
+          return updated;
+        });
+      } else {
+        // EXISTING ITEM: Call editChecklist to update in backend
+        await editChecklist(
+          currentItem.id, 
+          currentItem.aspek || '', 
+          currentItem.deskripsi || '', 
+          currentItem.pic || '',
+          year
+        );
+      }
       
       // Update original data for this specific item
       setOriginalChecklistItems(prev => 
@@ -2495,7 +2585,7 @@ const PengaturanBaru = () => {
   // Helper function untuk sync data dengan ChecklistContext
   const syncDataWithContext = (data: ChecklistItem[]) => {
     // Simpan ke localStorage
-    localStorage.setItem('checklistGCG', JSON.stringify(data));
+    // REMOVED localStorage.setItem - data goes to Supabase via ChecklistContext
     
     // Format data untuk context
     const contextData = data.map(item => ({
@@ -3302,6 +3392,14 @@ const PengaturanBaru = () => {
                        <Copy className="w-4 h-4 mr-2" />
                        Gunakan Data Default
                      </Button>
+                     <Button 
+                       onClick={() => setShowSuperAdminDialog(true)}
+                       variant="outline"
+                       className="border-orange-600 text-orange-600 hover:bg-orange-50"
+                     >
+                       <Settings className="w-4 h-4 mr-2" />
+                       Edit Super Admin
+                     </Button>
                    </div>
 
                    {/* Data Overview */}
@@ -3456,13 +3554,16 @@ const PengaturanBaru = () => {
                        <div className="flex flex-wrap gap-3">
                        <Button 
                          onClick={() => {
+                           const currentYear = selectedYear || new Date().getFullYear();
+                           const nextRowNumber = Math.max(...checklistItems.filter(item => item.tahun === currentYear).map(item => item.rowNumber || 0), 0) + 1;
                            const newItem: ChecklistItem = {
-                             id: Date.now(),
+                             id: generateChecklistId(currentYear, nextRowNumber),
                              aspek: '',
                              deskripsi: '',
                              status: 'pending',
                              catatan: '',
-                             tahun: selectedYear || new Date().getFullYear()
+                             tahun: currentYear,
+                             rowNumber: nextRowNumber
                            };
                            setChecklistItems(prev => [...prev, newItem]);
                            setNewItems(prev => new Set(prev).add(newItem.id));
@@ -3805,13 +3906,16 @@ const PengaturanBaru = () => {
                 {/* Tambah Item Baru floating - Icon only */}
                 <Button
                   onClick={() => {
+                    const currentYear = selectedYear || new Date().getFullYear();
+                    const nextRowNumber = Math.max(...checklistItems.filter(item => item.tahun === currentYear).map(item => item.rowNumber || 0), 0) + 1;
                     const newItem: ChecklistItem = {
-                      id: Date.now(),
+                      id: generateChecklistId(currentYear, nextRowNumber),
                       aspek: '',
                       deskripsi: '',
                       status: 'pending',
                       catatan: '',
-                      tahun: selectedYear || new Date().getFullYear()
+                      tahun: currentYear,
+                      rowNumber: nextRowNumber
                     };
                     setChecklistItems(prev => [...prev, newItem]);
                     setNewItems(prev => new Set(prev).add(newItem.id));
@@ -4448,6 +4552,70 @@ const PengaturanBaru = () => {
                           });
                         }}
                         className="flex-1 border-blue-600 text-blue-600 hover:bg-blue-50"
+                      >
+                        Batal
+                      </Button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {/* Dialog Super Admin Edit */}
+            {showSuperAdminDialog && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+                <div className="bg-white rounded-lg p-6 w-full max-w-md border border-orange-200 shadow-xl">
+                  <h3 className="text-lg font-semibold text-orange-900 mb-4 flex items-center">
+                    <Settings className="w-5 h-5 mr-2" />
+                    Edit Kredensial Super Admin
+                  </h3>
+                  <form onSubmit={handleSuperAdminSubmit} className="space-y-4">
+                    <div>
+                      <Label htmlFor="superadmin-email" className="text-sm font-medium text-orange-700">
+                        Email Super Admin
+                      </Label>
+                      <Input
+                        id="superadmin-email"
+                        type="email"
+                        value={superAdminForm.email}
+                        onChange={(e) => setSuperAdminForm(prev => ({ ...prev, email: e.target.value }))}
+                        className="border-orange-200 focus:border-orange-500"
+                        placeholder="Email super admin"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="superadmin-password" className="text-sm font-medium text-orange-700">
+                        Password Super Admin
+                      </Label>
+                      <Input
+                        id="superadmin-password"
+                        type="password"
+                        value={superAdminForm.password}
+                        onChange={(e) => setSuperAdminForm(prev => ({ ...prev, password: e.target.value }))}
+                        className="border-orange-200 focus:border-orange-500"
+                        placeholder="Password super admin"
+                        required
+                      />
+                    </div>
+                    <div className="flex space-x-3 pt-4">
+                      <Button 
+                        type="submit"
+                        className="flex-1 bg-orange-600 hover:bg-orange-700"
+                      >
+                        Simpan Perubahan
+                      </Button>
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        onClick={() => {
+                          setShowSuperAdminDialog(false);
+                          setSuperAdminForm({
+                            email: 'arsippostgcg@gmail.com',
+                            password: 'postarsipGCG.'
+                          });
+                        }}
+                        className="flex-1 border-orange-600 text-orange-600 hover:bg-orange-50"
                       >
                         Batal
                       </Button>

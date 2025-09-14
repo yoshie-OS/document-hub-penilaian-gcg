@@ -184,7 +184,7 @@ const Login = () => {
             </div>
 
             {/* Login Form */}
-            <Card className="border-0 shadow-2xl bg-white/95 backdrop-blur-md">
+            <Card className="border-0 shadow-2xl bg-white/30 backdrop-blur-md">
               <CardContent className="p-8">
                 <div className="text-center mb-8">
                   <h2 className="text-2xl font-bold text-blue-900 mb-2">Masuk ke Sistem</h2>
@@ -267,18 +267,6 @@ const Login = () => {
                   </Button>
                 </form>
 
-                {/* Demo Account Info */}
-                <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <h4 className="text-sm font-medium text-blue-900 mb-2 flex items-center space-x-2">
-                    <CheckCircle className="w-4 h-4" />
-                    <span>Demo Credentials</span>
-                  </h4>
-                  <div className="space-y-1 text-sm text-blue-800">
-                    <p><span className="font-medium">Super Admin:</span> superadmin@posindonesia.co.id / admin123</p>
-                    <p><span className="font-medium">Admin:</span> admin@posindonesia.co.id / admin123</p>
-                    <p><span className="font-medium">User:</span> user@posindonesia.co.id / user123</p>
-                  </div>
-                </div>
 
 
               </CardContent>

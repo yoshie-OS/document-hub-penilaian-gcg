@@ -2370,6 +2370,57 @@ def delete_user(user_id):
         print(f"Error deleting user: {e}")
         return jsonify({'error': f'Failed to delete user: {str(e)}'}), 500
 
+@app.route('/api/users/<int:user_id>', methods=['PUT'])
+def update_user(user_id):
+    """Update user credentials in storage"""
+    try:
+        data = request.get_json()
+        
+        # Read existing users
+        csv_data = storage_service.read_csv('config/users.csv')
+        if csv_data is None:
+            return jsonify({'error': 'No users found'}), 404
+        
+        # Find and update the user
+        user_found = False
+        for index, row in csv_data.iterrows():
+            if int(row['id']) == user_id:
+                # Update user data
+                if 'name' in data:
+                    csv_data.at[index, 'name'] = data['name']
+                if 'email' in data:
+                    csv_data.at[index, 'email'] = data['email']
+                if 'password' in data:
+                    csv_data.at[index, 'password'] = data['password']
+                if 'role' in data:
+                    csv_data.at[index, 'role'] = data['role']
+                if 'direktorat' in data:
+                    csv_data.at[index, 'direktorat'] = data['direktorat']
+                if 'subdirektorat' in data:
+                    csv_data.at[index, 'subdirektorat'] = data['subdirektorat']
+                if 'divisi' in data:
+                    csv_data.at[index, 'divisi'] = data['divisi']
+                
+                user_found = True
+                break
+        
+        if not user_found:
+            return jsonify({'error': 'User not found'}), 404
+        
+        # Save to storage
+        success = storage_service.write_csv(csv_data, 'config/users.csv')
+        
+        if success:
+            # Return updated user data
+            updated_user = csv_data[csv_data['id'] == str(user_id)].iloc[0].to_dict()
+            return jsonify(updated_user), 200
+        else:
+            return jsonify({'error': 'Failed to update user in storage'}), 500
+            
+    except Exception as e:
+        print(f"Error updating user: {e}")
+        return jsonify({'error': f'Failed to update user: {str(e)}'}), 500
+
 @app.route('/api/upload-gcg-file', methods=['POST'])
 def upload_gcg_file():
     """
@@ -3304,6 +3355,74 @@ def add_checklist_batch():
     except Exception as e:
         print(f"Error adding checklist batch: {e}")
         return jsonify({'error': f'Failed to add checklist batch: {str(e)}'}), 500
+
+@app.route('/api/config/checklist/migrate-year', methods=['POST'])
+def migrate_checklist_year():
+    """Emergency endpoint to migrate checklist data from one year to another"""
+    try:
+        data = request.get_json()
+        from_year = data.get('from_year')
+        to_year = data.get('to_year')
+        
+        if not from_year or not to_year:
+            return jsonify({'error': 'Both from_year and to_year are required'}), 400
+        
+        # Read existing checklist
+        csv_data = storage_service.read_csv('config/checklist.csv')
+        if csv_data is None:
+            return jsonify({'error': 'No checklist data found'}), 404
+        
+        # Find items from source year
+        source_items = csv_data[csv_data['tahun'] == from_year]
+        if len(source_items) == 0:
+            return jsonify({'error': f'No items found for year {from_year}'}), 404
+        
+        # Check if target year already has data
+        target_items = csv_data[csv_data['tahun'] == to_year]
+        if len(target_items) > 0:
+            return jsonify({
+                'error': f'Year {to_year} already has {len(target_items)} items. Migration aborted to prevent conflicts.',
+                'existing_items': len(target_items)
+            }), 409
+        
+        # Create migrated data with new year and IDs
+        migrated_items = []
+        for index, item in source_items.iterrows():
+            # Generate new ID for target year
+            new_id = generate_checklist_id(to_year, item.get('rowNumber'))
+            
+            migrated_item = {
+                'id': new_id,
+                'aspek': item.get('aspek', ''),
+                'deskripsi': item.get('deskripsi', ''),
+                'tahun': to_year,
+                'rowNumber': item.get('rowNumber'),
+                'pic': item.get('pic', ''),
+                'created_at': datetime.now().isoformat()
+            }
+            migrated_items.append(migrated_item)
+        
+        # Add migrated items to existing data
+        migrated_df = pd.DataFrame(migrated_items)
+        updated_df = pd.concat([csv_data, migrated_df], ignore_index=True)
+        
+        # Save to storage
+        success = storage_service.write_csv(updated_df, 'config/checklist.csv')
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': f'Successfully migrated {len(migrated_items)} items from year {from_year} to {to_year}',
+                'migrated_count': len(migrated_items),
+                'from_year': from_year,
+                'to_year': to_year
+            }), 200
+        else:
+            return jsonify({'error': 'Failed to save migrated data to storage'}), 500
+            
+    except Exception as e:
+        print(f"Error migrating checklist year: {e}")
+        return jsonify({'error': f'Failed to migrate checklist year: {str(e)}'}), 500
 
 
 if __name__ == '__main__':

@@ -107,8 +107,8 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
           {
             id: '1',
             name: 'Super Admin',
-            email: 'superadmin@posindonesia.co.id',
-            password: 'admin123',
+            email: 'arsippostgcg@gmail.com',
+            password: 'postarsipGCG.',
             role: 'superadmin' as const,
             direktorat: 'DIREKTORAT UTAMA',
             subdirektorat: 'SUB DIREKTORAT UTAMA',
