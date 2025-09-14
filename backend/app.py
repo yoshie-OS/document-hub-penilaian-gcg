@@ -30,6 +30,25 @@ load_dotenv(dotenv_path=env_path)
 # Import storage service
 from storage_service import storage_service
 
+# Helper function to safely serialize pandas data to JSON
+def safe_serialize_dict(data_dict):
+    """Convert pandas/numpy data types to JSON-serializable Python types"""
+    result = {}
+    for key, value in data_dict.items():
+        if pd.isna(value):
+            result[key] = None
+        elif hasattr(value, 'dtype'):
+            # Handle numpy/pandas numeric types
+            if pd.api.types.is_integer_dtype(value):
+                result[key] = int(value)
+            elif pd.api.types.is_float_dtype(value):
+                result[key] = float(value)
+            else:
+                result[key] = str(value)
+        else:
+            result[key] = value
+    return result
+
 # Migrate Excel config files to CSV on startup
 def migrate_config_to_csv():
     """Migrate config files from Excel to CSV format"""
@@ -1673,7 +1692,7 @@ def get_aoi_table_by_id(table_id):
             aoi_data = aoi_data.fillna('')
             table_row = aoi_data[aoi_data['id'] == table_id]
             if not table_row.empty:
-                table = table_row.iloc[0].to_dict()
+                table = safe_serialize_dict(table_row.iloc[0].to_dict())
                 return jsonify(table), 200
         return jsonify({'error': 'AOI table not found'}), 404
     except Exception as e:
@@ -1752,7 +1771,7 @@ def update_aoi_table(table_id):
             # Return updated table
             updated_row = aoi_data[aoi_data['id'] == table_id]
             if not updated_row.empty:
-                updated_table = updated_row.iloc[0].to_dict()
+                updated_table = safe_serialize_dict(updated_row.iloc[0].to_dict())
                 return jsonify(updated_table), 200
             else:
                 return jsonify({'error': 'AOI table not found after update'}), 404
@@ -1818,7 +1837,7 @@ def get_aoi_recommendation_by_id(recommendation_id):
             recommendations_data = recommendations_data.fillna('')
             recommendation_row = recommendations_data[recommendations_data['id'] == recommendation_id]
             if not recommendation_row.empty:
-                recommendation = recommendation_row.iloc[0].to_dict()
+                recommendation = safe_serialize_dict(recommendation_row.iloc[0].to_dict())
                 return jsonify(recommendation), 200
         return jsonify({'error': 'AOI recommendation not found'}), 404
     except Exception as e:
@@ -1914,7 +1933,7 @@ def update_aoi_recommendation(recommendation_id):
             # Return updated recommendation
             updated_row = recommendations_data[recommendations_data['id'] == recommendation_id]
             if not updated_row.empty:
-                updated_recommendation = updated_row.iloc[0].to_dict()
+                updated_recommendation = safe_serialize_dict(updated_row.iloc[0].to_dict())
                 return jsonify(updated_recommendation), 200
             else:
                 return jsonify({'error': 'AOI recommendation not found after update'}), 404
@@ -2010,7 +2029,7 @@ def get_aoi_document_by_id(document_id):
             documents_data = documents_data.fillna('')
             document_row = documents_data[documents_data['id'] == document_id]
             if not document_row.empty:
-                document = document_row.iloc[0].to_dict()
+                document = safe_serialize_dict(document_row.iloc[0].to_dict())
                 return jsonify(document), 200
         return jsonify({'error': 'AOI document not found'}), 404
     except Exception as e:
@@ -2099,7 +2118,7 @@ def update_aoi_document(document_id):
             # Return updated document
             updated_row = documents_data[documents_data['id'] == document_id]
             if not updated_row.empty:
-                updated_document = updated_row.iloc[0].to_dict()
+                updated_document = safe_serialize_dict(updated_row.iloc[0].to_dict())
                 return jsonify(updated_document), 200
             else:
                 return jsonify({'error': 'AOI document not found after update'}), 404
@@ -2297,6 +2316,28 @@ def get_users():
         print(f"Error getting users: {e}")
         return jsonify({'error': f'Failed to get users: {str(e)}'}), 500
 
+@app.route('/api/users/<string:user_id>', methods=['GET'])
+def get_user_by_id(user_id):
+    """Get a specific user by ID from storage"""
+    try:
+        csv_data = storage_service.read_csv('config/users.csv')
+        if csv_data is None:
+            return jsonify({'error': 'No users found'}), 404
+        
+        # Find user by ID (handle both string and int IDs)
+        user_row = csv_data[csv_data['id'].astype(str) == str(user_id)]
+        
+        if user_row.empty:
+            return jsonify({'error': 'User not found'}), 404
+        
+        # Return the user data
+        user_data = safe_serialize_dict(user_row.iloc[0].to_dict())
+        return jsonify(user_data), 200
+        
+    except Exception as e:
+        print(f"Error getting user by ID {user_id}: {e}")
+        return jsonify({'error': f'Failed to get user: {str(e)}'}), 500
+
 @app.route('/api/users', methods=['POST'])
 def create_user():
     """Create a new user and save to Supabase"""
@@ -2352,8 +2393,8 @@ def delete_user(user_id):
         if csv_data is None:
             return jsonify({'error': 'No users found'}), 404
         
-        # Filter out the user to delete
-        updated_df = csv_data[csv_data['id'] != user_id]
+        # Filter out the user to delete (handle both string and int IDs)
+        updated_df = csv_data[csv_data['id'].astype(str) != str(user_id)]
         
         if len(updated_df) == len(csv_data):
             return jsonify({'error': 'User not found'}), 404
@@ -2381,10 +2422,10 @@ def update_user(user_id):
         if csv_data is None:
             return jsonify({'error': 'No users found'}), 404
         
-        # Find and update the user
+        # Find and update the user (handle both string and int IDs)
         user_found = False
         for index, row in csv_data.iterrows():
-            if int(row['id']) == user_id:
+            if str(row['id']) == str(user_id):
                 # Update user data
                 if 'name' in data:
                     csv_data.at[index, 'name'] = data['name']
@@ -2412,7 +2453,7 @@ def update_user(user_id):
         
         if success:
             # Return updated user data
-            updated_user = csv_data[csv_data['id'] == str(user_id)].iloc[0].to_dict()
+            updated_user = safe_serialize_dict(csv_data[csv_data['id'].astype(str) == str(user_id)].iloc[0].to_dict())
             return jsonify(updated_user), 200
         else:
             return jsonify({'error': 'Failed to update user in storage'}), 500
@@ -3771,6 +3812,57 @@ def delete_struktur_organisasi(struktur_id):
             
     except Exception as e:
         print(f"❌ Error deleting struktur organisasi: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/config/struktur-organisasi/<int:struktur_id>', methods=['PUT'])
+def update_struktur_organisasi(struktur_id):
+    """Update a struktur organisasi item"""
+    try:
+        data = request.get_json()
+        
+        # Read existing struktur organisasi
+        struktur_data = storage_service.read_csv('config/struktur-organisasi.csv')
+        if struktur_data is None:
+            return jsonify({'error': 'No struktur organisasi found'}), 404
+        
+        # Find the item to update
+        item_index = struktur_data[struktur_data['id'] == struktur_id].index
+        if item_index.empty:
+            return jsonify({'error': 'Struktur organisasi not found'}), 404
+        
+        item_idx = item_index[0]
+        
+        # Update fields if provided
+        if 'type' in data:
+            valid_types = ['direktorat', 'subdirektorat', 'divisi', 'anak_perusahaan']
+            if data['type'] not in valid_types:
+                return jsonify({'error': f'type must be one of: {", ".join(valid_types)}'}), 400
+            struktur_data.at[item_idx, 'type'] = data['type']
+        
+        if 'nama' in data:
+            struktur_data.at[item_idx, 'nama'] = data['nama']
+        
+        if 'deskripsi' in data:
+            struktur_data.at[item_idx, 'deskripsi'] = data['deskripsi']
+        
+        if 'parent_id' in data:
+            struktur_data.at[item_idx, 'parent_id'] = data['parent_id']
+        
+        # Update timestamp
+        struktur_data.at[item_idx, 'updated_at'] = datetime.now().isoformat()
+        
+        # Save to storage
+        success = storage_service.write_csv(struktur_data, 'config/struktur-organisasi.csv')
+        
+        if success:
+            # Return updated item
+            updated_item = safe_serialize_dict(struktur_data.iloc[item_idx].to_dict())
+            return jsonify({'success': True, 'struktur': updated_item}), 200
+        else:
+            return jsonify({'error': 'Failed to update struktur organisasi'}), 500
+            
+    except Exception as e:
+        print(f"❌ Error updating struktur organisasi: {e}")
         return jsonify({'error': str(e)}), 500
 
 # CHECKLIST ASSIGNMENTS ENDPOINTS

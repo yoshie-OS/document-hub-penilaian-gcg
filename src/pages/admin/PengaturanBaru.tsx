@@ -773,18 +773,46 @@ const PengaturanBaru = () => {
     }
   }, [direktorat, subdirektorat, anakPerusahaan, divisi]);
 
-  // Effect untuk load users dari localStorage
+  // Effect untuk load users dari backend API
   useEffect(() => {
-    const storedUsers = localStorage.getItem('users');
-    if (storedUsers) {
+    const loadUsersFromAPI = async () => {
       try {
-        const parsedUsers = JSON.parse(storedUsers);
-        setUsers(parsedUsers);
+        const response = await fetch('http://localhost:5000/api/users');
+        if (response.ok) {
+          const apiUsers = await response.json();
+          setUsers(apiUsers);
+          console.log('PengaturanBaru: Loaded users from API', apiUsers.length);
+        } else {
+          console.error('PengaturanBaru: Failed to load users from API');
+          // Fallback to localStorage if API fails
+          const storedUsers = localStorage.getItem('users');
+          if (storedUsers) {
+            try {
+              const parsedUsers = JSON.parse(storedUsers);
+              setUsers(parsedUsers);
+            } catch (error) {
+              console.error('Error parsing users:', error);
+              setUsers([]);
+            }
+          }
+        }
       } catch (error) {
-        console.error('Error parsing users:', error);
-        setUsers([]);
+        console.error('PengaturanBaru: Error loading users from API:', error);
+        // Fallback to localStorage if API fails
+        const storedUsers = localStorage.getItem('users');
+        if (storedUsers) {
+          try {
+            const parsedUsers = JSON.parse(storedUsers);
+            setUsers(parsedUsers);
+          } catch (error) {
+            console.error('Error parsing users:', error);
+            setUsers([]);
+          }
+        }
       }
-    }
+    };
+
+    loadUsersFromAPI();
   }, []);
 
   // Effect untuk mengupdate progress manajemen akun
