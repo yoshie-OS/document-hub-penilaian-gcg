@@ -876,24 +876,33 @@ const PengaturanBaru = () => {
     debouncedSave(checklistItems);
   }, [checklistItems, debouncedSave]);
   
-  // Effect untuk load assignments dari localStorage
+  // Effect untuk load assignments dari database (not localStorage)
   useEffect(() => {
-    const storedAssignments = localStorage.getItem('checklistAssignments');
-    if (storedAssignments) {
+    const fetchAssignmentsFromDatabase = async () => {
       try {
-        const parsedAssignments = JSON.parse(storedAssignments);
-        // Filter assignments berdasarkan tahun yang dipilih
-        if (selectedYear) {
-          const yearAssignments = parsedAssignments.filter((a: any) => a.tahun === selectedYear);
-          setAssignments(yearAssignments);
+        const response = await fetch('http://localhost:5000/api/config/assignments');
+        if (response.ok) {
+          const data = await response.json();
+          const allAssignments = data.assignments || [];
+          
+          // Filter assignments berdasarkan tahun yang dipilih
+          if (selectedYear) {
+            const yearAssignments = allAssignments.filter((a: any) => a.tahun === selectedYear);
+            setAssignments(yearAssignments);
+          } else {
+            setAssignments(allAssignments);
+          }
         } else {
-          setAssignments(parsedAssignments);
+          console.error('Failed to fetch assignments from database');
+          setAssignments([]);
         }
       } catch (error) {
-        console.error('Error parsing assignments:', error);
+        console.error('Error fetching assignments from database:', error);
         setAssignments([]);
       }
-    }
+    };
+
+    fetchAssignmentsFromDatabase();
   }, [selectedYear]);
 
   // Effect to load aspects for selected year
@@ -3739,12 +3748,12 @@ const PengaturanBaru = () => {
                                     {hasItemChanges(item.id) && (
                                       <Button
                                         variant="ghost"
-                                        size="sm"
+                                        size="default"
                                         onClick={() => handleSaveItem(item.id)}
                                         className="text-blue-600 hover:text-blue-700"
                                         title="Simpan perubahan"
                                       >
-                                        <CheckCircle className="w-4 h-4" />
+                                        <CheckCircle className="w-6 h-6" />
                                       </Button>
                                     )}
                                     
@@ -3752,12 +3761,12 @@ const PengaturanBaru = () => {
                                     {hasItemChanges(item.id) && (
                                       <Button
                                         variant="ghost"
-                                        size="sm"
+                                        size="default"
                                         onClick={() => handleCancelItemChanges(item.id)}
                                         className="text-orange-600 hover:text-orange-700"
                                         title="Batal perubahan"
                                       >
-                                        <X className="w-4 h-4" />
+                                        <X className="w-6 h-6" />
                                       </Button>
                                     )}
                                     
