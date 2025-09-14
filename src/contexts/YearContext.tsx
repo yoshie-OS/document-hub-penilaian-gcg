@@ -84,6 +84,14 @@ export const YearProvider: React.FC<YearProviderProps> = ({ children }) => {
     }
   }, [availableYears]);
 
+  // Auto-select the most recent year when years are loaded and no year is selected
+  useEffect(() => {
+    if (availableYears.length > 0 && selectedYear === null) {
+      setSelectedYear(availableYears[0]); // Years are sorted descending, so [0] is most recent
+      console.log('YearContext: Auto-selected year', availableYears[0]);
+    }
+  }, [availableYears, selectedYear]);
+
   const addYear = async (year: number) => {
     if (!availableYears.includes(year)) {
       // Ensure no leftover data exists for this year before adding

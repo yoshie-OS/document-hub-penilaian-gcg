@@ -292,7 +292,7 @@ const FileUploadSection = memo(({
           <Input
             type="file"
             onChange={onFileChange}
-            accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.markdown,text/plain,text/markdown"
             className="hidden"
             id="file-upload"
             key={`file-input-${selectedFile ? selectedFile.name : 'empty'}`}
@@ -1009,11 +1009,11 @@ const FileUploadDialog: React.FC<FileUploadDialogProps> = ({
   const validateAndSetFile = useCallback((file: File) => {
     console.log('validateAndSetFile called with:', file);
     
-    // Validate file size (10MB limit)
-    if (file.size > 10 * 1024 * 1024) {
+    // Validate file size (16MB limit)
+    if (file.size > 16 * 1024 * 1024) {
       toast({
         title: "File terlalu besar",
-        description: "Ukuran file maksimal 10MB",
+        description: "Ukuran file maksimal 16MB",
         variant: "destructive"
       });
       return false;

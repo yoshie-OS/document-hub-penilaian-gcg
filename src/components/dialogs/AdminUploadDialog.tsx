@@ -82,7 +82,7 @@ const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
 
   // File validation
   const validateFile = (file: File): boolean => {
-    const maxSize = 10 * 1024 * 1024; // 10MB
+    const maxSize = 16 * 1024 * 1024; // 16MB
     const allowedTypes = [
       'application/pdf',
       'application/msword',
@@ -96,7 +96,7 @@ const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
     if (file.size > maxSize) {
       toast({
         title: "File terlalu besar",
-        description: "Ukuran file maksimal 10MB",
+        description: "Ukuran file maksimal 16MB",
         variant: "destructive"
       });
       return false;
@@ -372,12 +372,12 @@ const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
                   <span className="text-gray-500"> atau drag and drop</span>
                 </Label>
                 <p className="text-xs text-gray-500 mt-2">
-                  PDF, Word, Excel, atau gambar (maks. 10MB)
+                  PDF, Word, Excel, gambar, txt atau markdown (maks. 16MB)
                 </p>
                 <Input
                   id="file-upload"
                   type="file"
-                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.txt,.md,.markdown,text/plain,text/markdown"
                   onChange={handleFileSelect}
                   className="hidden"
                 />

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Sidebar from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
 import { PageHeaderPanel, YearSelectorPanel } from '@/components/panels';
@@ -87,166 +87,91 @@ const ArsipDokumen = () => {
     return getDocumentsByYear(selectedYear);
   }, [selectedYear, getDocumentsByYear]);
 
-  // Get all documents with user information
+  // State for loading and API data
+  const [isLoadingFiles, setIsLoadingFiles] = useState(false);
+  const [apiFiles, setApiFiles] = useState<any[]>([]);
+
+  // Fetch files from Supabase API when year changes
+  useEffect(() => {
+    const fetchFilesFromAPI = async () => {
+      console.log('🔍 ArsipDokumen fetchFilesFromAPI triggered, selectedYear:', selectedYear);
+      
+      if (!selectedYear) {
+        console.log('🔍 ArsipDokumen: No selectedYear, clearing files');
+        setApiFiles([]);
+        return;
+      }
+
+      console.log('🔍 ArsipDokumen: Starting API fetch for year', selectedYear);
+      setIsLoadingFiles(true);
+      try {
+        const apiUrl = `http://localhost:5000/api/uploaded-files?year=${selectedYear}`;
+        console.log('🔍 ArsipDokumen: Calling API:', apiUrl);
+        
+        const response = await fetch(apiUrl);
+        console.log('🔍 ArsipDokumen: API response status:', response.status);
+        
+        if (!response.ok) {
+          throw new Error(`API call failed: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('🔍 ArsipDokumen: API response data:', data);
+        console.log('🔍 ArsipDokumen: Files count:', data.files?.length || 0);
+        setApiFiles(data.files || []);
+      } catch (error) {
+        console.error('❌ Error fetching files from API:', error);
+        setApiFiles([]);
+      } finally {
+        setIsLoadingFiles(false);
+        console.log('🔍 ArsipDokumen: Finished API fetch');
+      }
+    };
+
+    fetchFilesFromAPI();
+  }, [selectedYear]);
+
+  // Get all documents with user information from API data
   const allDocuments = useMemo(() => {
+    if (!selectedYear || isLoadingFiles) return [];
+    
     try {
-      // Get files from FileUploadContext
-      const yearFiles = selectedYear ? getFilesByYear(selectedYear) : [];
-      
-      // Get documents from DocumentMetadataContext
-      const yearDocuments = selectedYear ? documents.filter(doc => doc.year === selectedYear) : [];
-      
-      console.log('=== DEBUG ARSIP DOKUMEN ===');
-      console.log('Selected Year:', selectedYear);
-      console.log('Year Files (FileUploadContext):', yearFiles);
-      console.log('Year Documents (DocumentMetadataContext):', yearDocuments);
-      console.log('All Documents (DocumentMetadataContext):', documents);
-      
-      // Debug: Check catatan in files
-      yearFiles.forEach((file, index) => {
-        console.log(`File ${index}:`, {
-          fileName: file.fileName,
-          catatan: file.catatan,
-          catatanType: typeof file.catatan,
-          catatanLength: file.catatan?.length
-        });
-      });
-      
-      // Check localStorage for uploaded files
-      const localStorageFiles = JSON.parse(localStorage.getItem('uploadedFiles') || '[]');
-      const yearLocalStorageFiles = selectedYear ? localStorageFiles.filter((f: any) => f.year === selectedYear) : [];
-      console.log('LocalStorage Files for year:', yearLocalStorageFiles);
-      
-      // Check localStorage for document metadata
-      const localStorageMetadata = JSON.parse(localStorage.getItem('documentMetadata') || '[]');
-      const yearLocalStorageMetadata = selectedYear ? localStorageMetadata.filter((f: any) => f.year === selectedYear) : [];
-      console.log('LocalStorage Metadata for year:', yearLocalStorageMetadata);
-      
-      // Combine and enrich with user information
-      const enrichedDocuments: DocumentWithUser[] = yearFiles.map(file => {
-        console.log('\n--- Processing File ---');
-        console.log('File:', file);
+      // Convert API files to DocumentWithUser format
+      const enrichedDocuments: DocumentWithUser[] = apiFiles.map(file => {
+        // Get user details from users for contact info
+        const users = JSON.parse(localStorage.getItem('users') || '[]');
+        const userData = users.find((u: any) => u.name === file.uploadedBy);
         
-        // Try multiple matching strategies
-        console.log('\n--- Matching Process for', file.fileName, '---');
-        console.log('File checklistId:', file.checklistId);
-        console.log('File year:', file.year);
-        
-        let docMetadata = yearDocuments.find(doc => 
-          doc.fileName === file.fileName && doc.year === file.year
-        );
-        console.log('Match by fileName + year:', docMetadata);
-        
-        // If no match found, try matching by checklistId
-        if (!docMetadata && file.checklistId) {
-          docMetadata = yearDocuments.find(doc => 
-            doc.checklistId === file.checklistId && doc.year === file.year
-          );
-          console.log('Match by checklistId + year:', docMetadata);
-        }
-        
-        // If still no match, try matching by fileName only
-        if (!docMetadata) {
-          docMetadata = yearDocuments.find(doc => 
-            doc.fileName === file.fileName
-          );
-          console.log('Match by fileName only:', docMetadata);
-        }
-        
-        // If still no match, try matching by checklistId only
-        if (!docMetadata && file.checklistId) {
-          docMetadata = yearDocuments.find(doc => 
-            doc.checklistId === file.checklistId
-          );
-          console.log('Match by checklistId only:', docMetadata);
-        }
-        
-        console.log('Final metadata match for', file.fileName, ':', docMetadata);
-
-        // Determine user role and information
-        let userRole: 'superadmin' | 'admin' = 'admin';
-        let uploadedBy = 'Unknown User';
-        let userDirektorat = '';
-        let userSubdirektorat = '';
-        let userDivisi = '';
-        let userWhatsApp = '';
-        let userEmail = '';
-
-        if (docMetadata) {
-          // This is from admin upload
-          userRole = 'admin';
-          uploadedBy = docMetadata.uploadedBy || 'Unknown Admin';
-          userDirektorat = docMetadata.direktorat || '';
-          userSubdirektorat = docMetadata.subdirektorat || '';
-          userDivisi = docMetadata.division || '';
-          
-          console.log('✅ Admin upload detected:', {
-            uploadedBy,
-            userDirektorat,
-            userSubdirektorat,
-            userDivisi
-          });
-          
-          // Get user details from localStorage or context
-          const users = JSON.parse(localStorage.getItem('users') || '[]');
-          console.log('Users in localStorage:', users);
-          const userData = users.find((u: any) => u.name === docMetadata.uploadedBy);
-          if (userData) {
-            userWhatsApp = userData.whatsapp || '';
-            userEmail = userData.email || '';
-            console.log('✅ User data found:', userData);
-          } else {
-            console.log('❌ User data NOT found for:', docMetadata.uploadedBy);
-          }
-        } else {
-          // This is from superadmin upload
-          userRole = 'superadmin';
-          uploadedBy = 'Superadmin';
-          userDirektorat = 'Superadmin';
-          userSubdirektorat = 'Superadmin';
-          userDivisi = 'Superadmin';
-          
-          console.log('❌ Superadmin upload detected for:', file.fileName);
-          console.log('Reason: No matching metadata found');
-        }
-
-        const enrichedDoc = {
+        return {
           id: file.id,
           fileName: file.fileName,
-          fileSize: file.fileSize,
-          uploadDate: file.uploadDate,
+          fileSize: file.fileSize || 0,
+          uploadDate: new Date(file.uploadDate),
           year: file.year,
           checklistId: file.checklistId,
           checklistDescription: file.checklistDescription,
           aspect: file.aspect,
-          status: file.status,
+          status: file.status || 'uploaded',
           subdirektorat: file.subdirektorat,
-          catatan: file.catatan, // Tambahkan catatan dari file
-          uploadedBy,
-          userRole,
-          userDirektorat,
-          userSubdirektorat,
-          userDivisi,
-          userWhatsApp,
-          userEmail
+          catatan: file.catatan,
+          uploadedBy: file.uploadedBy || 'Unknown User',
+          userRole: file.uploadedBy ? 'admin' : 'superadmin',
+          userDirektorat: file.userDirektorat || 'Unknown',
+          userSubdirektorat: file.userSubdirektorat || 'Unknown', 
+          userDivisi: file.userDivisi || 'Unknown',
+          userWhatsApp: userData?.whatsapp || '',
+          userEmail: userData?.email || ''
         };
-        
-        console.log('Final enriched document:', enrichedDoc);
-        return enrichedDoc;
       });
-
-      console.log('\n=== FINAL RESULT ===');
-      console.log('Final enriched documents:', enrichedDocuments);
-      console.log('=== END DEBUG ===\n');
       
       return enrichedDocuments.sort((a, b) => 
         new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime()
       );
     } catch (error) {
-      console.error('Error processing documents:', error);
+      console.error('Error processing API files:', error);
       return [];
     }
-  }, [selectedYear, getFilesByYear, documents]);
+  }, [selectedYear, apiFiles, isLoadingFiles]);
 
   // Filter documents based on selected criteria
   const filteredDocuments = useMemo(() => {
@@ -312,32 +237,49 @@ const ArsipDokumen = () => {
   };
 
   // Handle download single document
-  const handleDownload = (doc: DocumentWithUser) => {
-    // Create a temporary link to download the file
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(new Blob(['File content'], { type: 'application/octet-stream' }));
-    link.download = doc.fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleDownload = async (doc: DocumentWithUser) => {
+    try {
+      // Fetch the actual file from Supabase API
+      const response = await fetch(`http://localhost:5000/api/download-file/${doc.id}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to download file');
+      }
+      
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = doc.fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Download error:', error);
+      alert('Gagal mendownload file. Silakan coba lagi.');
+    }
   };
 
   // Handle delete document
-  const handleDelete = (doc: DocumentWithUser) => {
+  const handleDelete = async (doc: DocumentWithUser) => {
     if (confirm(`Apakah Anda yakin ingin menghapus dokumen "${doc.fileName}"?\n\nDokumen ini akan dihapus secara permanen dari sistem.`)) {
       try {
-        // Delete from FileUploadContext
-        const currentFiles = JSON.parse(localStorage.getItem('uploadedFiles') || '[]');
-        const updatedFiles = currentFiles.filter((file: any) => file.id !== doc.id);
-        localStorage.setItem('uploadedFiles', JSON.stringify(updatedFiles));
+        // Delete from Supabase API
+        const response = await fetch(`http://localhost:5000/api/uploaded-files/${doc.id}`, {
+          method: 'DELETE'
+        });
         
-        // Delete from DocumentMetadataContext
-        const currentMetadata = JSON.parse(localStorage.getItem('documentMetadata') || '[]');
-        const updatedMetadata = currentMetadata.filter((meta: any) => meta.id !== doc.id);
-        localStorage.setItem('documentMetadata', JSON.stringify(updatedMetadata));
+        if (!response.ok) {
+          throw new Error('Failed to delete document');
+        }
         
-        // Trigger page refresh to update UI
-        window.location.reload();
+        // Refresh the API data
+        const refreshResponse = await fetch(`http://localhost:5000/api/uploaded-files?year=${selectedYear}`);
+        if (refreshResponse.ok) {
+          const refreshData = await refreshResponse.json();
+          setApiFiles(refreshData.files || []);
+        }
         
         alert('Dokumen berhasil dihapus!');
       } catch (error) {
@@ -463,28 +405,45 @@ const ArsipDokumen = () => {
       // Create ZIP file
       const zip = new JSZip();
       
-      // Add documents to ZIP
-      documentsToDownload.forEach((doc, index) => {
-        // Create mock file content for each document
-        const fileContent = `Mock file content for ${doc.fileName}\n\n` +
-          `File: ${doc.fileName}\n` +
-          `Uploaded by: ${doc.uploadedBy}\n` +
-          `Direktorat: ${doc.userDirektorat || 'N/A'}\n` +
-          `Subdirektorat: ${doc.userSubdirektorat || 'N/A'}\n` +
-          `Divisi: ${doc.userDivisi || 'N/A'}\n` +
-          `Aspect: ${doc.aspect || 'N/A'}\n` +
-          `Checklist Description: ${doc.checklistDescription || 'N/A'}\n` +
-          `Upload Date: ${new Date(doc.uploadDate).toLocaleDateString('id-ID')}\n` +
-          `Status: ${doc.status}\n\n` +
-          `This is a placeholder file for demonstration purposes.`;
+      // Add documents to ZIP - fetch real files from API
+      for (let index = 0; index < documentsToDownload.length; index++) {
+        const doc = documentsToDownload[index];
+        try {
+          // Fetch the actual file content from Supabase API
+          const response = await fetch(`http://localhost:5000/api/download-file/${doc.id}`);
+          
+          if (response.ok) {
+            const fileBlob = await response.blob();
+            const folderPath = `${doc.userDirektorat || 'Unknown'}/${doc.userSubdirektorat || 'Unknown'}`;
+            zip.file(`${folderPath}/${doc.fileName}`, fileBlob);
+          } else {
+            // If file fetch fails, add a placeholder with metadata
+            const fileContent = `File could not be downloaded: ${doc.fileName}\n\n` +
+              `File: ${doc.fileName}\n` +
+              `Uploaded by: ${doc.uploadedBy}\n` +
+              `Direktorat: ${doc.userDirektorat || 'N/A'}\n` +
+              `Subdirektorat: ${doc.userSubdirektorat || 'N/A'}\n` +
+              `Divisi: ${doc.userDivisi || 'N/A'}\n` +
+              `Aspect: ${doc.aspect || 'N/A'}\n` +
+              `Checklist Description: ${doc.checklistDescription || 'N/A'}\n` +
+              `Upload Date: ${new Date(doc.uploadDate).toLocaleDateString('id-ID')}\n` +
+              `Status: ${doc.status}\n\n` +
+              `Error: File could not be retrieved from storage.`;
 
-        // Add file to ZIP with proper folder structure
-        const folderPath = `${doc.userDirektorat || 'Unknown'}/${doc.userSubdirektorat || 'Unknown'}`;
-        zip.file(`${folderPath}/${doc.fileName}`, fileContent);
+            const folderPath = `${doc.userDirektorat || 'Unknown'}/${doc.userSubdirektorat || 'Unknown'}`;
+            zip.file(`${folderPath}/${doc.fileName}.txt`, fileContent);
+          }
+        } catch (error) {
+          console.error(`Error fetching file ${doc.fileName}:`, error);
+          // Add error placeholder
+          const errorContent = `Error downloading: ${doc.fileName}\n\nError: ${error}`;
+          const folderPath = `${doc.userDirektorat || 'Unknown'}/${doc.userSubdirektorat || 'Unknown'}`;
+          zip.file(`${folderPath}/${doc.fileName}_ERROR.txt`, errorContent);
+        }
         
         // Update progress
         setDownloadProgress(Math.round(((index + 1) / documentsToDownload.length) * 90));
-      });
+      }
 
       // Generate ZIP file
       const zipBlob = await zip.generateAsync({ type: 'blob' });

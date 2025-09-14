@@ -76,7 +76,7 @@ CORS(app,
 # Configuration
 UPLOAD_FOLDER = Path(__file__).parent / 'uploads'
 OUTPUT_FOLDER = Path(__file__).parent / 'outputs'
-ALLOWED_EXTENSIONS = {'xlsx', 'xls', 'pdf', 'png', 'jpg', 'jpeg'}
+ALLOWED_EXTENSIONS = {'xlsx', 'xls', 'pdf', 'png', 'jpg', 'jpeg', 'txt', 'md', 'markdown'}
 
 # Ensure directories exist
 UPLOAD_FOLDER.mkdir(exist_ok=True)
@@ -1416,7 +1416,8 @@ def get_uploaded_files():
             # Return empty list if no files exist yet
             return jsonify({'files': []}), 200
         
-        # Convert DataFrame to list of dictionaries
+        # Convert DataFrame to list of dictionaries, replacing NaN with None
+        files_data = files_data.fillna('')  # Replace NaN with empty strings
         files_list = files_data.to_dict('records')
         
         # Filter by year if provided
@@ -1469,7 +1470,12 @@ def create_uploaded_file():
             'aspect': data.get('aspect', 'Tidak Diberikan Aspek'),
             'subdirektorat': data.get('subdirektorat'),
             'catatan': data.get('catatan'),
-            'status': 'uploaded'
+            'status': 'uploaded',
+            'supabaseFilePath': data.get('supabaseFilePath'),
+            'uploadedBy': data.get('uploadedBy', 'Unknown User'),
+            'userDirektorat': data.get('userDirektorat', 'Unknown'),
+            'userSubdirektorat': data.get('userSubdirektorat', 'Unknown'),
+            'userDivisi': data.get('userDivisi', 'Unknown')
         }
         
         # Add to DataFrame
@@ -1488,9 +1494,9 @@ def create_uploaded_file():
         print(f"Error creating uploaded file: {e}")
         return jsonify({'error': f'Failed to create uploaded file: {str(e)}'}), 500
 
-@app.route('/api/uploaded-files/<file_id>', methods=['DELETE'])
-def delete_uploaded_file(file_id):
-    """Delete an uploaded file record from Supabase storage."""
+@app.route('/api/fix-uploaded-files-schema', methods=['POST'])
+def fix_uploaded_files_schema():
+    """Add missing user information columns to uploaded-files.xlsx"""
     try:
         # Read existing files data
         files_data = storage_service.read_excel('uploaded-files.xlsx')
@@ -1498,24 +1504,149 @@ def delete_uploaded_file(file_id):
         if files_data is None:
             return jsonify({'error': 'No files data found'}), 404
         
-        # Find and remove the file
-        initial_count = len(files_data)
-        files_data = files_data[files_data['id'] != file_id]
+        # Check if user columns already exist
+        missing_columns = []
+        required_user_columns = ['uploadedBy', 'userRole', 'userDirektorat', 'userSubdirektorat', 'userDivisi']
         
-        if len(files_data) == initial_count:
-            return jsonify({'error': 'File not found'}), 404
+        for col in required_user_columns:
+            if col not in files_data.columns:
+                missing_columns.append(col)
+        
+        if not missing_columns:
+            return jsonify({
+                'success': True,
+                'message': 'All user columns already exist',
+                'columns': required_user_columns
+            }), 200
+        
+        # Add missing columns with default values
+        for col in missing_columns:
+            if col == 'uploadedBy':
+                files_data[col] = 'Unknown User'
+            elif col == 'userRole':
+                files_data[col] = 'user'  # Default role
+            else:
+                files_data[col] = 'Unknown'
+        
+        print(f"📝 Adding missing user columns: {missing_columns}")
         
         # Save updated data
         success = storage_service.write_excel(files_data, 'uploaded-files.xlsx')
         
         if success:
-            return jsonify({'success': True}), 200
+            return jsonify({
+                'success': True,
+                'message': f'Added missing user columns: {missing_columns}',
+                'addedColumns': missing_columns,
+                'totalRecords': len(files_data)
+            }), 200
+        else:
+            return jsonify({'error': 'Failed to save changes to storage'}), 500
+            
+    except Exception as e:
+        print(f"Error fixing uploaded files schema: {e}")
+        return jsonify({'error': f'Failed to fix schema: {str(e)}'}), 500
+
+@app.route('/api/uploaded-files/<file_id>', methods=['DELETE'])
+def delete_uploaded_file(file_id):
+    """Delete an uploaded file record and actual file from Supabase storage."""
+    try:
+        # Read existing files data
+        files_data = storage_service.read_excel('uploaded-files.xlsx')
+        
+        if files_data is None:
+            return jsonify({'error': 'No files data found'}), 404
+        
+        # Find the file record to get the file path
+        file_record = files_data[files_data['id'] == file_id]
+        if file_record.empty:
+            return jsonify({'error': 'File not found'}), 404
+        
+        # Get the Supabase file path
+        supabase_file_path = file_record.iloc[0].get('supabaseFilePath')
+        
+        # Delete the actual file from Supabase storage if path exists
+        if supabase_file_path and storage_service.storage_mode == 'supabase':
+            try:
+                response = storage_service.supabase.storage.from_(storage_service.bucket_name).remove([supabase_file_path])
+                print(f"🗑️ Deleted file from Supabase storage: {supabase_file_path}")
+            except Exception as file_delete_error:
+                print(f"⚠️ Warning: Failed to delete file from storage: {file_delete_error}")
+                # Continue with database record deletion even if file deletion fails
+        
+        # Remove the file record from database
+        initial_count = len(files_data)
+        files_data = files_data[files_data['id'] != file_id]
+        
+        if len(files_data) == initial_count:
+            return jsonify({'error': 'File record not found'}), 404
+        
+        # Save updated data
+        success = storage_service.write_excel(files_data, 'uploaded-files.xlsx')
+        
+        if success:
+            return jsonify({
+                'success': True, 
+                'message': f'File deleted from both database and storage',
+                'deletedFilePath': supabase_file_path
+            }), 200
         else:
             return jsonify({'error': 'Failed to save changes to storage'}), 500
             
     except Exception as e:
         print(f"Error deleting uploaded file: {e}")
         return jsonify({'error': f'Failed to delete uploaded file: {str(e)}'}), 500
+
+@app.route('/api/download-file/<file_id>', methods=['GET'], endpoint='download_uploaded_file')
+def download_uploaded_file(file_id):
+    """Download a file from Supabase storage using its file ID."""
+    try:
+        # Read file metadata to get the Supabase path
+        files_data = storage_service.read_excel('uploaded-files.xlsx')
+        
+        if files_data is None:
+            return jsonify({'error': 'No files data found'}), 404
+        
+        # Find the file record
+        file_record = files_data[files_data['id'] == file_id]
+        
+        if file_record.empty:
+            return jsonify({'error': 'File not found'}), 404
+        
+        file_info = file_record.iloc[0]
+        supabase_file_path = file_info.get('supabaseFilePath')
+        filename = file_info.get('fileName', 'download')
+        
+        if not supabase_file_path:
+            return jsonify({'error': 'File path not found in database'}), 404
+        
+        # Download file from Supabase storage
+        if storage_service.storage_mode == 'supabase':
+            try:
+                # Download from Supabase
+                response = storage_service.supabase.storage.from_(storage_service.bucket_name).download(supabase_file_path)
+                
+                # Create a response with the file data
+                response_obj = make_response(response)
+                response_obj.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+                response_obj.headers['Content-Type'] = 'application/octet-stream'
+                
+                return response_obj
+                
+            except Exception as download_error:
+                print(f"Error downloading from Supabase: {download_error}")
+                return jsonify({'error': f'Failed to download file from storage: {str(download_error)}'}), 500
+        else:
+            # For local storage, construct the full path
+            local_file_path = Path(__file__).parent.parent / supabase_file_path
+            if local_file_path.exists():
+                return send_file(str(local_file_path), as_attachment=True, download_name=filename)
+            else:
+                return jsonify({'error': 'File not found in local storage'}), 404
+        
+    except Exception as e:
+        print(f"Error downloading file: {e}")
+        return jsonify({'error': f'Failed to download file: {str(e)}'}), 500
 
 # AOI TABLES ENDPOINTS
 @app.route('/api/aoiTables', methods=['GET'])
@@ -2367,6 +2498,13 @@ def upload_gcg_file():
             print(f"🔧 DEBUG: Upload exception: {upload_error}")
             return jsonify({'error': f'Failed to upload file: {str(upload_error)}'}), 500
         
+        # Get user information from form (if provided)
+        uploaded_by = request.form.get('uploadedBy', 'Unknown User')
+        user_role = request.form.get('userRole', 'user')  # Default to 'user' role
+        user_direktorat = request.form.get('userDirektorat', 'Unknown')
+        user_subdirektorat = request.form.get('userSubdirektorat', 'Unknown')
+        user_divisi = request.form.get('userDivisi', 'Unknown')
+        
         # Create file record
         file_record = {
             'id': file_id,
@@ -2380,7 +2518,12 @@ def upload_gcg_file():
             'subdirektorat': subdirektorat,
             'catatan': catatan,
             'status': 'uploaded',
-            'supabaseFilePath': supabase_file_path
+            'supabaseFilePath': supabase_file_path,
+            'uploadedBy': uploaded_by,
+            'userRole': user_role,
+            'userDirektorat': user_direktorat,
+            'userSubdirektorat': user_subdirektorat,
+            'userDivisi': user_divisi
         }
         
         # Add to uploaded files database

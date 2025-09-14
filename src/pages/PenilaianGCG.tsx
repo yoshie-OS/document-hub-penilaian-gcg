@@ -1627,7 +1627,7 @@ const PenilaianGCG = () => {
               type="file"
               id="file-upload"
               className="hidden"
-              accept=".xlsx,.xls,.pdf,.png,.jpg,.jpeg"
+              accept=".xlsx,.xls,.pdf,.png,.jpg,.jpeg,.txt,.md,.markdown,text/plain,text/markdown"
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) {

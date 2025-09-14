@@ -211,7 +211,7 @@ const AOIManagement = () => {
     aoiTableId: 0,
     jenis: 'REKOMENDASI' as 'REKOMENDASI' | 'SARAN',
     isi: '',
-    tingkatUrgensi: 'TINGGI' as 'RENDAH' | 'SEDANG' | 'TINGGI' | 'SANGAT_TINGGI' | 'KRITIS',
+    tingkatUrgensi: 'TIDAK_ADA' as 'RENDAH' | 'SEDANG' | 'TINGGI' | 'SANGAT_TINGGI' | 'KRITIS' | 'TIDAK_ADA',
     aspekAOI: '',
     pihakTerkait: 'DIREKSI',
     organPerusahaan: 'DIREKSI',
@@ -241,27 +241,31 @@ const AOIManagement = () => {
   const handleTableSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!selectedYear || !tableForm.targetDirektorat.trim()) {
+    if (!selectedYear) {
       toast({
         title: "Data tidak lengkap",
-        description: "Minimal pilih tahun dan direktorat tujuan AOI",
+        description: "Pilih tahun untuk AOI",
         variant: "destructive"
       });
       return;
     }
 
-    // Compute targetType based on deepest selection
-    const computedTargetType = tableForm.targetDivisi
+    // Compute targetType based on deepest selection (excluding "Tidak ada")
+    const computedTargetType = (tableForm.targetDivisi && tableForm.targetDivisi !== 'Tidak ada')
       ? 'divisi'
-      : tableForm.targetSubdirektorat
+      : (tableForm.targetSubdirektorat && tableForm.targetSubdirektorat !== 'Tidak ada')
         ? 'subdirektorat'
-        : 'direktorat';
+        : (tableForm.targetDirektorat && tableForm.targetDirektorat !== 'Tidak ada')
+          ? 'direktorat'
+          : 'direktorat'; // Default to direktorat if all are "Tidak ada"
 
     // Auto-generate table name: AOI GCG <tahun> - <target path>
     const targetPath = [tableForm.targetDirektorat, tableForm.targetSubdirektorat, tableForm.targetDivisi]
-      .filter(Boolean)
+      .filter(item => item && item !== 'Tidak ada')
       .join(' / ');
-    const autoName = `AOI GCG ${selectedYear} - ${targetPath}`;
+    const autoName = targetPath 
+      ? `AOI GCG ${selectedYear} - ${targetPath}`
+      : `AOI GCG ${selectedYear}`; // No organizational assignment
 
     const payload = {
       nama: autoName,
@@ -339,7 +343,7 @@ const AOIManagement = () => {
       aoiTableId: currentTableId,
       jenis: 'REKOMENDASI',
       isi: '',
-      tingkatUrgensi: 'TINGGI',
+      tingkatUrgensi: 'TIDAK_ADA',
       aspekAOI: '',
       pihakTerkait: 'DIREKSI',
       organPerusahaan: 'DIREKSI',
@@ -419,6 +423,11 @@ const AOIManagement = () => {
 
   // Render star rating
   const renderStars = (rating: string) => {
+    // Return blank for "Tidak ada" option
+    if (rating === 'TIDAK_ADA') {
+      return null;
+    }
+    
     const ratingMap: Record<string, number> = {
       'RENDAH': 1,
       'SEDANG': 2,
@@ -527,16 +536,21 @@ const AOIManagement = () => {
                     <div>
                       <Label>Direktorat</Label>
                       <Select
-                        value={yearDirektorat.find(d => d.nama === tableForm.targetDirektorat)?.id.toString() || ''}
+                        value={tableForm.targetDirektorat === 'Tidak ada' ? 'tidak-ada' : (yearDirektorat.find(d => d.nama === tableForm.targetDirektorat)?.id.toString() || '')}
                         onValueChange={(value) => {
-                          const d = yearDirektorat.find(x => x.id.toString() === value);
-                          setTableForm(prev => ({ ...prev, targetDirektorat: d?.nama || '', targetSubdirektorat: '', targetDivisi: '' }));
+                          if (value === 'tidak-ada') {
+                            setTableForm(prev => ({ ...prev, targetDirektorat: 'Tidak ada', targetSubdirektorat: 'Tidak ada', targetDivisi: 'Tidak ada' }));
+                          } else {
+                            const d = yearDirektorat.find(x => x.id.toString() === value);
+                            setTableForm(prev => ({ ...prev, targetDirektorat: d?.nama || '', targetSubdirektorat: '', targetDivisi: '' }));
+                          }
                         }}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Pilih Direktorat" />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="tidak-ada">Tidak ada</SelectItem>
                           {yearDirektorat.map(d => (
                             <SelectItem key={d.id} value={d.id.toString()}>{d.nama}</SelectItem>
                           ))}
@@ -546,17 +560,22 @@ const AOIManagement = () => {
                     <div>
                       <Label>Subdirektorat</Label>
                       <Select
-                        disabled={!tableForm.targetDirektorat}
-                        value={yearSubdirektorat.find(s => s.nama === tableForm.targetSubdirektorat)?.id.toString() || ''}
+                        disabled={!tableForm.targetDirektorat || tableForm.targetDirektorat === 'Tidak ada'}
+                        value={tableForm.targetSubdirektorat === 'Tidak ada' ? 'tidak-ada' : (yearSubdirektorat.find(s => s.nama === tableForm.targetSubdirektorat)?.id.toString() || '')}
                         onValueChange={(value) => {
-                          const s = yearSubdirektorat.find(x => x.id.toString() === value);
-                          setTableForm(prev => ({ ...prev, targetSubdirektorat: s?.nama || '', targetDivisi: '' }));
+                          if (value === 'tidak-ada') {
+                            setTableForm(prev => ({ ...prev, targetSubdirektorat: 'Tidak ada', targetDivisi: 'Tidak ada' }));
+                          } else {
+                            const s = yearSubdirektorat.find(x => x.id.toString() === value);
+                            setTableForm(prev => ({ ...prev, targetSubdirektorat: s?.nama || '', targetDivisi: '' }));
+                          }
                         }}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Pilih Subdirektorat" />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="tidak-ada">Tidak ada</SelectItem>
                           {getSubdirektoratByDirektorat(yearDirektorat.find(d => d.nama === tableForm.targetDirektorat)?.id || 0).map(s => (
                             <SelectItem key={s.id} value={s.id.toString()}>{s.nama}</SelectItem>
                           ))}
@@ -566,17 +585,22 @@ const AOIManagement = () => {
                     <div>
                       <Label>Divisi</Label>
                       <Select
-                        disabled={!tableForm.targetSubdirektorat}
-                        value={yearDivisi.find(v => v.nama === tableForm.targetDivisi)?.id.toString() || ''}
+                        disabled={!tableForm.targetSubdirektorat || tableForm.targetSubdirektorat === 'Tidak ada'}
+                        value={tableForm.targetDivisi === 'Tidak ada' ? 'tidak-ada' : (yearDivisi.find(v => v.nama === tableForm.targetDivisi)?.id.toString() || '')}
                         onValueChange={(value) => {
-                          const v = yearDivisi.find(x => x.id.toString() === value);
-                          setTableForm(prev => ({ ...prev, targetDivisi: v?.nama || '' }));
+                          if (value === 'tidak-ada') {
+                            setTableForm(prev => ({ ...prev, targetDivisi: 'Tidak ada' }));
+                          } else {
+                            const v = yearDivisi.find(x => x.id.toString() === value);
+                            setTableForm(prev => ({ ...prev, targetDivisi: v?.nama || '' }));
+                          }
                         }}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Pilih Divisi" />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="tidak-ada">Tidak ada</SelectItem>
                           {getDivisiBySubdirektorat(yearSubdirektorat.find(s => s.nama === tableForm.targetSubdirektorat)?.id || 0).map(v => (
                             <SelectItem key={v.id} value={v.id.toString()}>{v.nama}</SelectItem>
                           ))}
@@ -641,7 +665,7 @@ const AOIManagement = () => {
                             <span>{(table.nama?.split(' - ')[0]) || table.nama}</span>
                           </div>
                           <div className="flex items-center gap-4">
-                            {table.targetDirektorat ? (
+                            {table.targetDirektorat && table.targetDirektorat !== 'Tidak ada' ? (
                               <div className="flex flex-col items-start">
                                 <span className="text-[10px] text-gray-500">Direktorat</span>
                                 <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 text-[11px]">
@@ -649,7 +673,7 @@ const AOIManagement = () => {
                                 </span>
                               </div>
                             ) : null}
-                            {table.targetSubdirektorat ? (
+                            {table.targetSubdirektorat && table.targetSubdirektorat !== 'Tidak ada' ? (
                               <div className="flex flex-col items-start">
                                 <span className="text-[10px] text-gray-500">Subdirektorat</span>
                                 <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-800 border border-green-200 text-[11px]">
@@ -657,7 +681,7 @@ const AOIManagement = () => {
                                 </span>
                               </div>
                             ) : null}
-                            {table.targetDivisi ? (
+                            {table.targetDivisi && table.targetDivisi !== 'Tidak ada' ? (
                               <div className="flex flex-col items-start">
                                 <span className="text-[10px] text-gray-500">Divisi</span>
                                 <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200 text-[11px]">
@@ -754,12 +778,13 @@ const AOIManagement = () => {
                                 <Label htmlFor="tingkatUrgensi">Tingkat Urgensi</Label>
                                 <Select
                                   value={recommendationForm.tingkatUrgensi}
-                                  onValueChange={(value) => setRecommendationForm(prev => ({ ...prev, tingkatUrgensi: value as 'RENDAH' | 'SEDANG' | 'TINGGI' | 'SANGAT_TINGGI' | 'KRITIS' }))}
+                                  onValueChange={(value) => setRecommendationForm(prev => ({ ...prev, tingkatUrgensi: value as 'RENDAH' | 'SEDANG' | 'TINGGI' | 'SANGAT_TINGGI' | 'KRITIS' | 'TIDAK_ADA' }))}
                                 >
                                   <SelectTrigger>
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
+                                    <SelectItem value="TIDAK_ADA">Tidak ada</SelectItem>
                                     <SelectItem value="RENDAH">⭐ Rendah</SelectItem>
                                     <SelectItem value="SEDANG">⭐⭐ Sedang</SelectItem>
                                     <SelectItem value="TINGGI">⭐⭐⭐ Tinggi</SelectItem>
@@ -809,7 +834,7 @@ const AOIManagement = () => {
                                     aoiTableId: 0,
                                     jenis: 'REKOMENDASI',
                                     isi: '',
-                                    tingkatUrgensi: 'TINGGI',
+                                    tingkatUrgensi: 'TIDAK_ADA',
                                     aspekAOI: '',
                                     pihakTerkait: 'DIREKSI',
                                     organPerusahaan: 'DIREKSI',
