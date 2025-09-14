@@ -15,6 +15,7 @@ import { useYear } from '@/contexts/YearContext';
 import { useStrukturPerusahaan } from '@/contexts/StrukturPerusahaanContext';
 import { useAOIDocument } from '@/contexts/AOIDocumentContext';
 import { CatatanDialog } from '@/components/dialogs/CatatanDialog';
+import { useToast } from '@/hooks/use-toast';
 import JSZip from 'jszip';
 import { 
   FileText, 
@@ -61,7 +62,8 @@ const ArsipDokumen = () => {
   const { documents } = useDocumentMetadata();
   const { user } = useUser();
   const { direktorat: direktoratData, subdirektorat: subDirektoratData, divisi: divisiData } = useStrukturPerusahaan();
-  const { getDocumentsByYear } = useAOIDocument();
+  const { getDocumentsByYear, deleteDocument: deleteAOIDocument } = useAOIDocument();
+  const { toast } = useToast();
 
   // Filter states
   const [selectedDirektorat, setSelectedDirektorat] = useState<string | null>(null);
@@ -320,18 +322,26 @@ const ArsipDokumen = () => {
   const handleDeleteAOI = (doc: any) => {
     if (confirm(`Apakah Anda yakin ingin menghapus dokumen AOI "${doc.fileName}"?\n\nDokumen ini akan dihapus secara permanen dari sistem.`)) {
       try {
-        // Delete from AOIDocumentContext
-        const currentAOIDocs = JSON.parse(localStorage.getItem('aoiDocuments') || '[]');
-        const updatedAOIDocs = currentAOIDocs.filter((aoiDoc: any) => aoiDoc.id !== doc.id);
-        localStorage.setItem('aoiDocuments', JSON.stringify(updatedAOIDocs));
+        // Use the AOI context method to delete the document
+        // The deleteDocument method expects aoiRecommendationId
+        deleteAOIDocument(doc.aoiRecommendationId);
         
-        // Trigger page refresh to update UI
-        window.location.reload();
+        // Show success toast notification
+        toast({
+          title: "Dokumen berhasil dihapus",
+          description: `Dokumen AOI "${doc.fileName}" telah dihapus dari sistem.`,
+        });
         
-        alert('Dokumen AOI berhasil dihapus!');
+        console.log(`Successfully deleted AOI document: ${doc.fileName}`);
       } catch (error) {
         console.error('Error deleting AOI document:', error);
-        alert('Gagal menghapus dokumen AOI. Silakan coba lagi.');
+        
+        // Show error toast notification
+        toast({
+          title: "Gagal menghapus dokumen",
+          description: "Terjadi kesalahan saat menghapus dokumen AOI. Silakan coba lagi.",
+          variant: "destructive"
+        });
       }
     }
   };

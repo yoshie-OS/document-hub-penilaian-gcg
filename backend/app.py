@@ -2986,7 +2986,7 @@ def add_checklist():
 
 @app.route('/api/config/checklist/<int:checklist_id>', methods=['PUT'])
 def update_checklist(checklist_id):
-    """Update an existing checklist item"""
+    """Update an existing checklist item and transfer files if PIC changes"""
     try:
         data = request.get_json()
         
@@ -2995,17 +2995,109 @@ def update_checklist(checklist_id):
         if checklist_data is None:
             return jsonify({'error': 'No checklist found'}), 404
         
+        # Find the existing item
+        existing_item = checklist_data[checklist_data['id'] == checklist_id]
+        if existing_item.empty:
+            return jsonify({'error': 'Checklist item not found'}), 404
+        
+        # Get old values for comparison
+        old_pic = existing_item.iloc[0].get('pic', '')
+        old_tahun = existing_item.iloc[0].get('tahun', '')
+        new_pic = data.get('pic', '')
+        new_tahun = data.get('tahun', old_tahun)
+        
+        # Debug logging
+        print(f"DEBUG: Checklist {checklist_id} PIC change check:")
+        print(f"  Old PIC: '{old_pic}'")
+        print(f"  New PIC: '{new_pic}'")
+        print(f"  Old Year: '{old_tahun}'")
+        print(f"  New Year: '{new_tahun}'")
+        
+        # Check if PIC or year is changing - this requires file transfer
+        pic_changed = old_pic != new_pic
+        year_changed = str(old_tahun) != str(new_tahun)
+        files_transferred = False
+        transfer_errors = []
+        
+        print(f"  PIC changed: {pic_changed}")
+        print(f"  Year changed: {year_changed}")
+        print(f"  Both old and new PIC exist: {bool(old_pic and new_pic)}")
+        
+        # If PIC changes, delete existing files from old location
+        if pic_changed and old_pic:
+            try:
+                # Define old directory path (apply same naming transformation as file upload)
+                from werkzeug.utils import secure_filename
+                old_pic_clean = secure_filename(old_pic.replace(' ', '_'))
+                old_dir = f"gcg-documents/{old_tahun}/{old_pic_clean}/{checklist_id}/"
+                
+                print(f"PIC change detected for checklist {checklist_id}")
+                print(f"Deleting existing files from: {old_dir}")
+                
+                # Delete files from old directory
+                if storage_service.storage_mode == 'supabase':
+                    # For Supabase, list and delete files in the old directory
+                    try:
+                        response = storage_service.supabase.storage.from_(storage_service.bucket_name).list(old_dir)
+                        if response:
+                            files_to_delete = [f for f in response if f.get('name') and not f.get('name').endswith('/')]
+                            
+                            if files_to_delete:
+                                # Delete all files
+                                files_to_remove = [f"{old_dir}{file_obj['name']}" for file_obj in files_to_delete]
+                                try:
+                                    storage_service.supabase.storage.from_(storage_service.bucket_name).remove(files_to_remove)
+                                    print(f"Successfully deleted {len(files_to_delete)} files from old PIC location")
+                                    files_transferred = True  # Mark as handled
+                                except Exception as delete_error:
+                                    error_msg = f"Failed to delete files: {str(delete_error)}"
+                                    print(error_msg)
+                                    transfer_errors.append(error_msg)
+                                
+                    except Exception as list_error:
+                        print(f"Error listing files in old directory: {str(list_error)}")
+                        
+                else:
+                    # For local storage, delete the old directory
+                    import os
+                    import shutil
+                    
+                    old_local_dir = os.path.join('data', old_dir.replace('/', os.sep))
+                    
+                    if os.path.exists(old_local_dir):
+                        try:
+                            shutil.rmtree(old_local_dir)
+                            print(f"Successfully deleted old directory: {old_local_dir}")
+                            files_transferred = True  # Mark as handled
+                        except Exception as delete_error:
+                            error_msg = f"Failed to delete old directory: {str(delete_error)}"
+                            print(error_msg)
+                            transfer_errors.append(error_msg)
+                            
+            except Exception as delete_error:
+                error_msg = f"General error during file deletion: {str(delete_error)}"
+                print(error_msg)
+                transfer_errors.append(error_msg)
+        
         # Update the checklist item
         checklist_data.loc[checklist_data['id'] == checklist_id, 'aspek'] = data.get('aspek', '')
         checklist_data.loc[checklist_data['id'] == checklist_id, 'deskripsi'] = data.get('deskripsi', '')
-        checklist_data.loc[checklist_data['id'] == checklist_id, 'pic'] = data.get('pic', '')
-        checklist_data.loc[checklist_data['id'] == checklist_id, 'tahun'] = data.get('tahun')
+        checklist_data.loc[checklist_data['id'] == checklist_id, 'pic'] = new_pic
+        checklist_data.loc[checklist_data['id'] == checklist_id, 'tahun'] = new_tahun
         
         # Save to storage
         success = storage_service.write_csv(checklist_data, 'config/checklist.csv')
         
         if success:
-            return jsonify({'success': True}), 200
+            response_data = {'success': True}
+            if files_transferred:
+                response_data['files_transferred'] = True
+                response_data['message'] = f"Checklist updated and files transferred to new PIC directory"
+            if transfer_errors:
+                response_data['transfer_errors'] = transfer_errors
+                response_data['warning'] = f"Checklist updated but some files failed to transfer: {len(transfer_errors)} errors"
+            
+            return jsonify(response_data), 200
         else:
             return jsonify({'error': 'Failed to update checklist'}), 500
             
@@ -3036,6 +3128,80 @@ def delete_checklist(checklist_id):
     except Exception as e:
         print(f"Error deleting checklist: {e}")
         return jsonify({'error': f'Failed to delete checklist: {str(e)}'}), 500
+
+@app.route('/api/check-files-exist/<int:checklist_id>', methods=['GET'])
+def check_files_exist(checklist_id):
+    """Check if files exist for a checklist item"""
+    try:
+        year = request.args.get('year', str(datetime.now().year))
+        
+        # Get checklist item to find current PIC
+        checklist_data = storage_service.read_csv('config/checklist.csv')
+        if checklist_data is None or checklist_data.empty:
+            return jsonify({'hasFiles': False}), 200
+        
+        # Find the checklist item
+        existing_item = checklist_data[checklist_data['id'] == checklist_id]
+        if existing_item.empty:
+            return jsonify({'hasFiles': False}), 200
+        
+        current_pic = existing_item.iloc[0].get('pic', '')
+        if not current_pic:
+            return jsonify({'hasFiles': False}), 200
+        
+        # Check if files exist in Supabase
+        if storage_service.storage_mode == 'supabase':
+            from werkzeug.utils import secure_filename
+            pic_clean = secure_filename(current_pic.replace(' ', '_'))
+            directory_path = f"gcg-documents/{year}/{pic_clean}/{checklist_id}/"
+            
+            try:
+                response = storage_service.supabase.storage.from_(storage_service.bucket_name).list(directory_path)
+                if not response:
+                    return jsonify({'hasFiles': False}), 200
+                
+                # Filter out placeholder files and directories
+                real_files = [
+                    f for f in response 
+                    if f.get('name') and 
+                    not f.get('name').endswith('/') and  # Not a directory
+                    not f.get('name').startswith('.') and  # Not a hidden file
+                    not f.get('name').lower().startswith('placeholder') and  # Not a placeholder
+                    f.get('metadata', {}).get('size', 0) > 0  # Has actual content
+                ]
+                
+                has_files = len(real_files) > 0
+                print(f"🔍 DEBUG: Checking files for {directory_path}: found {len(response)} items, {len(real_files)} real files")
+                return jsonify({'hasFiles': has_files}), 200
+            except Exception as e:
+                print(f"Error checking Supabase files: {e}")
+                return jsonify({'hasFiles': False}), 200
+        else:
+            # For local storage, check if directory exists and has files
+            import os
+            from pathlib import Path
+            from werkzeug.utils import secure_filename
+            pic_clean = secure_filename(current_pic.replace(' ', '_'))
+            directory_path = Path(__file__).parent.parent / f"gcg-documents/{year}/{pic_clean}/{checklist_id}/"
+            
+            if directory_path.exists():
+                # Filter out placeholder files and hidden files
+                real_files = [
+                    f for f in directory_path.iterdir() 
+                    if f.is_file() and 
+                    not f.name.startswith('.') and 
+                    not f.name.lower().startswith('placeholder') and
+                    f.stat().st_size > 0
+                ]
+                has_files = len(real_files) > 0
+                print(f"🔍 DEBUG: Checking local files for {directory_path}: found {len(list(directory_path.iterdir()))} items, {len(real_files)} real files")
+                return jsonify({'hasFiles': has_files}), 200
+            else:
+                return jsonify({'hasFiles': False}), 200
+    
+    except Exception as e:
+        print(f"Error checking files existence: {e}")
+        return jsonify({'hasFiles': False}), 200
 
 @app.route('/api/config/checklist/clear', methods=['DELETE'])
 def clear_checklist():

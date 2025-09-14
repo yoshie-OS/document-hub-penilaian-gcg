@@ -25,6 +25,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { Calendar, Building2, Users, FileText, Settings, Plus, CheckCircle, Trash2, Edit, Copy, Eye, EyeOff, X, Briefcase, Building, UserCheck, FileCheck, ChevronRight, ArrowRight, Target, ChevronUp, RefreshCw } from 'lucide-react';
 import { PageHeaderPanel } from '@/components/panels';
 import { DEFAULT_STRUKTUR_ORGANISASI, getStrukturOrganisasiSummary } from '../../data/defaultStrukturOrganisasi';
+import { PICChangeConfirmationDialog } from '@/components/ui/pic-change-confirmation-dialog';
 
 // Helper functions untuk password
 const generatePassword = () => {
@@ -85,8 +86,22 @@ const AssignmentDropdown = ({
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [pendingAssignment, setPendingAssignment] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { divisi, subdirektorat } = useStrukturPerusahaan();
+  
+  // Check if files exist for a checklist item
+  const checkIfFilesExist = async (checklistId: number): Promise<boolean> => {
+    try {
+      const response = await fetch(`http://localhost:5000/api/check-files-exist/${checklistId}?year=${selectedYear}`);
+      const data = await response.json();
+      return data.hasFiles || false;
+    } catch (error) {
+      console.error('Error checking files:', error);
+      return false; // Assume no files on error to avoid blocking
+    }
+  };
   
   // Filter dan sort berdasarkan assignment type
   const optionNames = useMemo(() => {
@@ -114,14 +129,54 @@ const AssignmentDropdown = ({
   const handleAssign = async (value: string) => {
     setIsLoading(true);
     try {
+      // Check if files exist for this checklist item before assignment
+      const hasFiles = await checkIfFilesExist(item.id);
+      
+      if (hasFiles && currentAssignmentLabel && value !== currentAssignmentLabel) {
+        // Show custom confirmation dialog for existing files
+        setPendingAssignment(value);
+        setShowConfirmDialog(true);
+        setIsLoading(false);
+        return; // Wait for user confirmation
+      }
+      
+      // If no files exist or same assignment, proceed directly
+      await proceedWithAssignment(value);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const proceedWithAssignment = async (value: string) => {
+    try {
       // Simulate async operation untuk menghindari lag
       await new Promise(resolve => setTimeout(resolve, 10));
       onAssign(item.id, value, item.aspek, item.deskripsi);
       setIsOpen(false);
       setSearchTerm(''); // Reset search term setelah assign
+    } catch (error) {
+      console.error('Error during assignment:', error);
+    }
+  };
+
+  const handleConfirmAssignment = async () => {
+    if (!pendingAssignment) return;
+    
+    setShowConfirmDialog(false);
+    setIsLoading(true);
+    
+    try {
+      await proceedWithAssignment(pendingAssignment);
     } finally {
+      setPendingAssignment(null);
       setIsLoading(false);
     }
+  };
+
+  const handleCancelAssignment = () => {
+    setShowConfirmDialog(false);
+    setPendingAssignment(null);
+    setIsLoading(false);
   };
 
   const handleToggleDropdown = () => {
@@ -279,6 +334,15 @@ const AssignmentDropdown = ({
             )}
         </div>
       )}
+      
+      {/* Custom Confirmation Dialog */}
+      <PICChangeConfirmationDialog
+        isOpen={showConfirmDialog}
+        onConfirm={handleConfirmAssignment}
+        onCancel={handleCancelAssignment}
+        newPIC={pendingAssignment || ''}
+        checklistDescription={item.deskripsi}
+      />
     </div>
   );
 };
