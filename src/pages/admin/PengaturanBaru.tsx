@@ -22,10 +22,11 @@ import { ActionButton } from '@/components/panels';
 
 // Pilihan subdirektorat sekarang diambil dari StrukturPerusahaanContext (berdasarkan tahun aktif)
 import { Toaster } from '@/components/ui/toaster';
-import { Calendar, Building2, Users, FileText, Settings, Plus, CheckCircle, Trash2, Edit, Copy, Eye, EyeOff, X, Briefcase, Building, UserCheck, FileCheck, ChevronRight, ArrowRight, Target, ChevronUp, RefreshCw } from 'lucide-react';
+import { Calendar, Building2, Users, FileText, Settings, Plus, CheckCircle, Trash2, Edit, Copy, Eye, EyeOff, X, Briefcase, Building, UserCheck, FileCheck, ChevronRight, ArrowRight, Target, ChevronUp, RefreshCw, AlertTriangle } from 'lucide-react';
 import { PageHeaderPanel } from '@/components/panels';
 import { DEFAULT_STRUKTUR_ORGANISASI, getStrukturOrganisasiSummary } from '../../data/defaultStrukturOrganisasi';
 import { PICChangeConfirmationDialog } from '@/components/ui/pic-change-confirmation-dialog';
+import { BulkDeleteConfirmationDialog } from '@/components/ui/bulk-delete-confirmation-dialog';
 
 // Helper functions untuk password
 const generatePassword = () => {
@@ -738,6 +739,10 @@ const PengaturanBaru = () => {
     kelolaDokumen: false
   });
   const [copySourceYear, setCopySourceYear] = useState<number | null>(null);
+
+  // State untuk bulk delete functionality
+  const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   
   // State untuk dialog tambah tahun
   const [showTahunDialog, setShowTahunDialog] = useState(false);
@@ -2341,6 +2346,62 @@ const PengaturanBaru = () => {
     }
   };
 
+  // Handle bulk delete confirmation
+  const handleBulkDelete = async () => {
+    if (!selectedYear) {
+      toast({
+        title: "Error",
+        description: "Pilih tahun terlebih dahulu!",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsBulkDeleting(true);
+    
+    try {
+      const response = await fetch(`http://localhost:5000/api/bulk-delete/${selectedYear}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete year data');
+      }
+
+      const result = await response.json();
+      
+      // Remove year from available years
+      removeYear(selectedYear);
+      
+      // Clear all local state for the deleted year
+      setChecklistItems([]);
+      setOriginalChecklistItems([]);
+      setAssignments([]);
+      setCurrentYearAspects([]);
+      setHasUnsavedChanges(false);
+      setItemChanges(new Set());
+      
+      // Close dialog
+      setShowBulkDeleteDialog(false);
+      
+      // Show success message with summary
+      toast({
+        title: "Data berhasil dihapus!",
+        description: `Semua data untuk tahun ${selectedYear} telah dihapus secara permanen.`,
+      });
+      
+    } catch (error) {
+      console.error('Error during bulk delete:', error);
+      toast({
+        title: "Error",
+        description: "Gagal menghapus data. Silakan coba lagi.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
+
   // Handle save individual item
   const handleSaveItem = async (itemId: number) => {
     try {
@@ -2639,14 +2700,30 @@ const PengaturanBaru = () => {
                     </div>
                   </div>
                   
-                  {selectedYear && (
-                    <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-100 to-blue-200 rounded-full border border-blue-300 shadow-sm">
-                      <div className="w-2 h-2 bg-blue-500 rounded-full mr-2 animate-pulse"></div>
-                      <span className="text-sm font-semibold text-blue-800">
-                        Tahun Aktif: {selectedYear}
-                      </span>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-4">
+                    {selectedYear && (
+                      <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-100 to-blue-200 rounded-full border border-blue-300 shadow-sm">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full mr-2 animate-pulse"></div>
+                        <span className="text-sm font-semibold text-blue-800">
+                          Tahun Aktif: {selectedYear}
+                        </span>
+                      </div>
+                    )}
+                    
+                    {selectedYear && (
+                      <Button
+                        onClick={() => setShowBulkDeleteDialog(true)}
+                        variant="destructive"
+                        size="sm"
+                        className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 
+                                 text-white shadow-md hover:shadow-lg transition-all duration-200 
+                                 border-0 px-4 py-2 rounded-lg font-semibold text-xs flex items-center gap-2"
+                      >
+                        <AlertTriangle className="w-4 h-4" />
+                        Hapus Semua Data Tahun {selectedYear}
+                      </Button>
+                    )}
+                  </div>
                   {!selectedYear && (
                     <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-yellow-100 to-yellow-200 rounded-full border border-yellow-300 shadow-sm">
                       <div className="w-2 h-2 bg-yellow-500 rounded-full mr-2 animate-pulse"></div>
@@ -2799,14 +2876,30 @@ const PengaturanBaru = () => {
                      </div>
                    </div>
                    
-                   {selectedYear && (
-                     <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-100 to-blue-200 rounded-full border border-blue-300 shadow-sm">
-                       <div className="w-2 h-2 bg-blue-500 rounded-full mr-2 animate-pulse"></div>
-                       <span className="text-sm font-semibold text-blue-800">
-                         Tahun Aktif: {selectedYear}
-                       </span>
-                     </div>
-                   )}
+                   <div className="flex items-center gap-4">
+                     {selectedYear && (
+                       <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-100 to-blue-200 rounded-full border border-blue-300 shadow-sm">
+                         <div className="w-2 h-2 bg-blue-500 rounded-full mr-2 animate-pulse"></div>
+                         <span className="text-sm font-semibold text-blue-800">
+                           Tahun Aktif: {selectedYear}
+                         </span>
+                       </div>
+                     )}
+                     
+                     {selectedYear && (
+                       <Button
+                         onClick={() => setShowBulkDeleteDialog(true)}
+                         variant="destructive"
+                         size="sm"
+                         className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 
+                                  text-white shadow-md hover:shadow-lg transition-all duration-200 
+                                  border-0 px-4 py-2 rounded-lg font-semibold text-xs flex items-center gap-2"
+                       >
+                         <AlertTriangle className="w-4 h-4" />
+                         Hapus Semua Data Tahun {selectedYear}
+                       </Button>
+                     )}
+                   </div>
                    {!selectedYear && (
                      <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-yellow-100 to-yellow-200 rounded-full border border-yellow-300 shadow-sm">
                        <div className="w-2 h-2 bg-yellow-500 rounded-full mr-2 animate-pulse"></div>
@@ -3149,14 +3242,30 @@ const PengaturanBaru = () => {
                      </div>
                    </div>
                    
-                   {selectedYear && (
-                     <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-100 to-blue-200 rounded-full border border-blue-300 shadow-sm">
-                       <div className="w-2 h-2 bg-blue-500 rounded-full mr-2 animate-pulse"></div>
-                       <span className="text-sm font-semibold text-blue-800">
-                         Tahun Aktif: {selectedYear}
-                       </span>
-                     </div>
-                   )}
+                   <div className="flex items-center gap-4">
+                     {selectedYear && (
+                       <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-100 to-blue-200 rounded-full border border-blue-300 shadow-sm">
+                         <div className="w-2 h-2 bg-blue-500 rounded-full mr-2 animate-pulse"></div>
+                         <span className="text-sm font-semibold text-blue-800">
+                           Tahun Aktif: {selectedYear}
+                         </span>
+                       </div>
+                     )}
+                     
+                     {selectedYear && (
+                       <Button
+                         onClick={() => setShowBulkDeleteDialog(true)}
+                         variant="destructive"
+                         size="sm"
+                         className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 
+                                  text-white shadow-md hover:shadow-lg transition-all duration-200 
+                                  border-0 px-4 py-2 rounded-lg font-semibold text-xs flex items-center gap-2"
+                       >
+                         <AlertTriangle className="w-4 h-4" />
+                         Hapus Semua Data Tahun {selectedYear}
+                       </Button>
+                     )}
+                   </div>
                    {!selectedYear && (
                      <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-yellow-100 to-yellow-200 rounded-full border border-yellow-300 shadow-sm">
                        <div className="w-2 h-2 bg-yellow-500 rounded-full mr-2 animate-pulse"></div>
@@ -3299,14 +3408,30 @@ const PengaturanBaru = () => {
                      </div>
                    </div>
                    
-                   {selectedYear && (
-                     <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-100 to-blue-200 rounded-full border border-blue-300 shadow-sm">
-                       <div className="w-2 h-2 bg-blue-500 rounded-full mr-2 animate-pulse"></div>
-                       <span className="text-sm font-semibold text-blue-800">
-                         Tahun Aktif: {selectedYear}
-                       </span>
-                     </div>
-                   )}
+                   <div className="flex items-center gap-4">
+                     {selectedYear && (
+                       <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-100 to-blue-200 rounded-full border border-blue-300 shadow-sm">
+                         <div className="w-2 h-2 bg-blue-500 rounded-full mr-2 animate-pulse"></div>
+                         <span className="text-sm font-semibold text-blue-800">
+                           Tahun Aktif: {selectedYear}
+                         </span>
+                       </div>
+                     )}
+                     
+                     {selectedYear && (
+                       <Button
+                         onClick={() => setShowBulkDeleteDialog(true)}
+                         variant="destructive"
+                         size="sm"
+                         className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 
+                                  text-white shadow-md hover:shadow-lg transition-all duration-200 
+                                  border-0 px-4 py-2 rounded-lg font-semibold text-xs flex items-center gap-2"
+                       >
+                         <AlertTriangle className="w-4 h-4" />
+                         Hapus Semua Data Tahun {selectedYear}
+                       </Button>
+                     )}
+                   </div>
                    {!selectedYear && (
                      <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-yellow-100 to-yellow-200 rounded-full border border-yellow-300 shadow-sm">
                        <div className="w-2 h-2 bg-yellow-500 rounded-full mr-2 animate-pulse"></div>
@@ -4468,6 +4593,16 @@ const PengaturanBaru = () => {
 
          </div>
        </div>
+       
+       {/* Bulk Delete Confirmation Dialog */}
+       <BulkDeleteConfirmationDialog
+         isOpen={showBulkDeleteDialog}
+         onConfirm={handleBulkDelete}
+         onCancel={() => setShowBulkDeleteDialog(false)}
+         selectedYear={selectedYear || 0}
+         isLoading={isBulkDeleting}
+       />
+       
        <Toaster />
      </div>
    );

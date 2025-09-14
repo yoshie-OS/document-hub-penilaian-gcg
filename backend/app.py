@@ -3739,5 +3739,238 @@ def delete_row_files(year, pic_name, row_number):
         print(f"❌ Error deleting row files: {e}")
         return jsonify({'error': str(e)}), 500
 
+# Bulk delete endpoints for year data management
+@app.route('/api/bulk-delete/<int:year>/preview', methods=['GET'])
+def preview_bulk_delete(year):
+    """Preview what data would be deleted for a specific year"""
+    try:
+        print(f"📋 Previewing bulk delete for year {year}")
+        
+        # Initialize counters
+        preview_data = {
+            'year': year,
+            'checklist_items': 0,
+            'aspects': 0,
+            'users': 0,
+            'organizational_data': {
+                'direktorat': 0,
+                'subdirektorat': 0,
+                'divisi': 0
+            },
+            'uploaded_files': 0,
+            'total_items': 0
+        }
+        
+        # Count checklist items for the year
+        try:
+            checklist_data = storage_service.read_csv('config/checklist.csv')
+            if checklist_data is not None:
+                year_checklist = checklist_data[checklist_data['tahun'] == year]
+                preview_data['checklist_items'] = len(year_checklist)
+        except Exception as e:
+            print(f"⚠️ Error counting checklist items: {e}")
+        
+        # Count aspects for the year
+        try:
+            aspects_data = storage_service.read_csv('config/aspects.csv')
+            if aspects_data is not None:
+                year_aspects = aspects_data[aspects_data['tahun'] == year]
+                preview_data['aspects'] = len(year_aspects)
+        except Exception as e:
+            print(f"⚠️ Error counting aspects: {e}")
+        
+        # Count users for the year
+        try:
+            users_data = storage_service.read_csv('config/users.csv')
+            if users_data is not None:
+                year_users = users_data[users_data['tahun'] == year]
+                preview_data['users'] = len(year_users)
+        except Exception as e:
+            print(f"⚠️ Error counting users: {e}")
+        
+        # Count organizational data for the year
+        try:
+            org_data = storage_service.read_csv('config/struktur-organisasi.csv')
+            if org_data is not None:
+                year_org = org_data[org_data['tahun'] == year]
+                preview_data['organizational_data']['direktorat'] = len(year_org[year_org['jenis'] == 'direktorat'])
+                preview_data['organizational_data']['subdirektorat'] = len(year_org[year_org['jenis'] == 'subdirektorat'])
+                preview_data['organizational_data']['divisi'] = len(year_org[year_org['jenis'] == 'divisi'])
+        except Exception as e:
+            print(f"⚠️ Error counting organizational data: {e}")
+        
+        # Count uploaded files for the year
+        try:
+            files = storage_service.list_files(f"gcg-documents/{year}")
+            if files:
+                # Count only actual files, not directories
+                file_count = 0
+                for file_info in files:
+                    if not file_info.get('name', '').endswith('/'):
+                        file_count += 1
+                preview_data['uploaded_files'] = file_count
+        except Exception as e:
+            print(f"⚠️ Error counting uploaded files: {e}")
+        
+        # Calculate total items
+        preview_data['total_items'] = (
+            preview_data['checklist_items'] +
+            preview_data['aspects'] +
+            preview_data['users'] +
+            preview_data['organizational_data']['direktorat'] +
+            preview_data['organizational_data']['subdirektorat'] +
+            preview_data['organizational_data']['divisi'] +
+            preview_data['uploaded_files']
+        )
+        
+        print(f"✅ Preview complete for year {year}: {preview_data['total_items']} total items")
+        return jsonify(preview_data), 200
+        
+    except Exception as e:
+        print(f"❌ Error previewing bulk delete: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/bulk-delete/<int:year>', methods=['DELETE'])
+def bulk_delete_year_data(year):
+    """Delete all data for a specific year"""
+    try:
+        print(f"🗑️ Starting bulk delete for year {year}")
+        
+        deleted_summary = {
+            'year': year,
+            'checklist_items': 0,
+            'aspects': 0,
+            'users': 0,
+            'organizational_data': {
+                'direktorat': 0,
+                'subdirektorat': 0,
+                'divisi': 0
+            },
+            'uploaded_files': 0,
+            'assignments': 0
+        }
+        
+        # 1. Delete checklist items for the year
+        try:
+            checklist_data = storage_service.read_csv('config/checklist.csv')
+            if checklist_data is not None:
+                original_count = len(checklist_data)
+                year_checklist = checklist_data[checklist_data['tahun'] == year]
+                deleted_summary['checklist_items'] = len(year_checklist)
+                
+                # Keep only items not from this year
+                remaining_checklist = checklist_data[checklist_data['tahun'] != year]
+                success = storage_service.write_csv(remaining_checklist, 'config/checklist.csv')
+                if success:
+                    print(f"✅ Deleted {deleted_summary['checklist_items']} checklist items for year {year}")
+                else:
+                    print(f"❌ Failed to delete checklist items for year {year}")
+        except Exception as e:
+            print(f"⚠️ Error deleting checklist items: {e}")
+        
+        # 2. Delete aspects for the year
+        try:
+            aspects_data = storage_service.read_csv('config/aspects.csv')
+            if aspects_data is not None:
+                year_aspects = aspects_data[aspects_data['tahun'] == year]
+                deleted_summary['aspects'] = len(year_aspects)
+                
+                # Keep only aspects not from this year
+                remaining_aspects = aspects_data[aspects_data['tahun'] != year]
+                success = storage_service.write_csv(remaining_aspects, 'config/aspects.csv')
+                if success:
+                    print(f"✅ Deleted {deleted_summary['aspects']} aspects for year {year}")
+        except Exception as e:
+            print(f"⚠️ Error deleting aspects: {e}")
+        
+        # 3. Delete users for the year
+        try:
+            users_data = storage_service.read_csv('config/users.csv')
+            if users_data is not None:
+                year_users = users_data[users_data['tahun'] == year]
+                deleted_summary['users'] = len(year_users)
+                
+                # Keep only users not from this year
+                remaining_users = users_data[users_data['tahun'] != year]
+                success = storage_service.write_csv(remaining_users, 'config/users.csv')
+                if success:
+                    print(f"✅ Deleted {deleted_summary['users']} users for year {year}")
+        except Exception as e:
+            print(f"⚠️ Error deleting users: {e}")
+        
+        # 4. Delete organizational data for the year
+        try:
+            org_data = storage_service.read_csv('config/struktur-organisasi.csv')
+            if org_data is not None:
+                year_org = org_data[org_data['tahun'] == year]
+                deleted_summary['organizational_data']['direktorat'] = len(year_org[year_org['jenis'] == 'direktorat'])
+                deleted_summary['organizational_data']['subdirektorat'] = len(year_org[year_org['jenis'] == 'subdirektorat'])
+                deleted_summary['organizational_data']['divisi'] = len(year_org[year_org['jenis'] == 'divisi'])
+                
+                # Keep only organizational data not from this year
+                remaining_org = org_data[org_data['tahun'] != year]
+                success = storage_service.write_csv(remaining_org, 'config/struktur-organisasi.csv')
+                if success:
+                    total_org_deleted = sum(deleted_summary['organizational_data'].values())
+                    print(f"✅ Deleted {total_org_deleted} organizational items for year {year}")
+        except Exception as e:
+            print(f"⚠️ Error deleting organizational data: {e}")
+        
+        # 5. Delete assignments for the year
+        try:
+            assignments_data = storage_service.read_csv('config/checklist-assignments.csv')
+            if assignments_data is not None:
+                year_assignments = assignments_data[assignments_data['tahun'] == year]
+                deleted_summary['assignments'] = len(year_assignments)
+                
+                # Keep only assignments not from this year
+                remaining_assignments = assignments_data[assignments_data['tahun'] != year]
+                success = storage_service.write_csv(remaining_assignments, 'config/checklist-assignments.csv')
+                if success:
+                    print(f"✅ Deleted {deleted_summary['assignments']} assignments for year {year}")
+        except Exception as e:
+            print(f"⚠️ Error deleting assignments: {e}")
+        
+        # 6. Delete uploaded files for the year
+        try:
+            files = storage_service.list_files(f"gcg-documents/{year}")
+            if files:
+                file_count = 0
+                for file_info in files:
+                    file_path = f"gcg-documents/{year}/{file_info['name']}"
+                    success = storage_service.delete_file(file_path)
+                    if success:
+                        file_count += 1
+                deleted_summary['uploaded_files'] = file_count
+                print(f"✅ Deleted {file_count} uploaded files for year {year}")
+        except Exception as e:
+            print(f"⚠️ Error deleting uploaded files: {e}")
+        
+        # Calculate total deleted items
+        total_deleted = (
+            deleted_summary['checklist_items'] +
+            deleted_summary['aspects'] +
+            deleted_summary['users'] +
+            deleted_summary['organizational_data']['direktorat'] +
+            deleted_summary['organizational_data']['subdirektorat'] +
+            deleted_summary['organizational_data']['divisi'] +
+            deleted_summary['uploaded_files'] +
+            deleted_summary['assignments']
+        )
+        
+        print(f"🎉 Bulk delete completed for year {year}. Total items deleted: {total_deleted}")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Successfully deleted all data for year {year}',
+            'year': year,
+            'deleted_summary': deleted_summary,
+            'total_deleted': total_deleted
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ Error during bulk delete: {e}")
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
