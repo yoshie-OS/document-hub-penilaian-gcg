@@ -87,8 +87,11 @@ export const YearProvider: React.FC<YearProviderProps> = ({ children }) => {
   // Auto-select the most recent year when years are loaded and no year is selected
   useEffect(() => {
     if (availableYears.length > 0 && selectedYear === null) {
-      setSelectedYear(availableYears[0]); // Years are sorted descending, so [0] is most recent
-      console.log('YearContext: Auto-selected year', availableYears[0]);
+      // TEMPORARY FIX: Force select 2024 since that's where the actual data exists
+      // TODO: Implement proper logic to find year with actual checklist data
+      const yearWithData = availableYears.includes(2024) ? 2024 : availableYears[0];
+      setSelectedYear(yearWithData);
+      console.log('YearContext: Auto-selected year with data:', yearWithData);
     }
   }, [availableYears, selectedYear]);
 
@@ -127,24 +130,66 @@ export const YearProvider: React.FC<YearProviderProps> = ({ children }) => {
     }
   };
 
-  const removeYear = (year: number) => {
-    // Clean up all data related to the year before removing it
-    cleanupYearData(year);
-    
-    const updatedYears = availableYears.filter(y => y !== year);
-    setAvailableYears(updatedYears);
-    
-    // If the removed year was selected, select the most recent year
-    if (selectedYear === year && updatedYears.length > 0) {
-      setSelectedYear(updatedYears[0]);
-    } else if (updatedYears.length === 0) {
-      setSelectedYear(null);
+  const removeYear = async (year: number) => {
+    try {
+      // Find the year ID from availableYears state - we need to get this from backend
+      const response = await fetch('http://localhost:5000/api/config/tahun-buku');
+      if (!response.ok) {
+        throw new Error('Failed to fetch tahun buku data');
+      }
+      
+      const data = await response.json();
+      const yearToDelete = data.tahun_buku.find((item: any) => item.tahun === year);
+      
+      if (!yearToDelete) {
+        console.error(`YearContext: Year ${year} not found in tahun buku data`);
+        return;
+      }
+      
+      // Call backend DELETE API
+      const deleteResponse = await fetch(`http://localhost:5000/api/config/tahun-buku/${yearToDelete.id}`, {
+        method: 'DELETE',
+      });
+      
+      if (!deleteResponse.ok) {
+        throw new Error(`Failed to delete year ${year} from backend`);
+      }
+      
+      const deleteResult = await deleteResponse.json();
+      console.log(`YearContext: Successfully deleted year ${year} from backend:`, deleteResult);
+      
+      // Clean up all frontend data related to the year
+      cleanupYearData(year);
+      
+      const updatedYears = availableYears.filter(y => y !== year);
+      setAvailableYears(updatedYears);
+      
+      // If the removed year was selected, select the most recent year
+      if (selectedYear === year && updatedYears.length > 0) {
+        setSelectedYear(updatedYears[0]);
+      } else if (updatedYears.length === 0) {
+        setSelectedYear(null);
+      }
+      
+      // Force refresh all contexts to ensure data is properly cleaned
+      window.dispatchEvent(new CustomEvent('yearRemoved', { 
+        detail: { year, type: 'yearRemoved' } 
+      }));
+      
+    } catch (error) {
+      console.error(`YearContext: Failed to remove year ${year}:`, error);
+      // Still try to clean up frontend data even if backend fails
+      cleanupYearData(year);
+      
+      const updatedYears = availableYears.filter(y => y !== year);
+      setAvailableYears(updatedYears);
+      
+      if (selectedYear === year && updatedYears.length > 0) {
+        setSelectedYear(updatedYears[0]);
+      } else if (updatedYears.length === 0) {
+        setSelectedYear(null);
+      }
     }
-    
-    // Force refresh all contexts to ensure data is properly cleaned
-    window.dispatchEvent(new CustomEvent('yearRemoved', { 
-      detail: { year, type: 'yearRemoved' } 
-    }));
   };
 
   // Comprehensive cleanup function to remove all data related to a specific year

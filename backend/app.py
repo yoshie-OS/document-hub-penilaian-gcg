@@ -3501,6 +3501,55 @@ def add_tahun_buku():
         print(f"❌ Error adding tahun buku: {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/config/tahun-buku/<int:tahun_id>', methods=['DELETE'])
+def delete_tahun_buku(tahun_id):
+    """Delete a tahun buku by ID"""
+    try:
+        print(f"🗑️ Deleting tahun buku with ID: {tahun_id}")
+        
+        # Read existing tahun buku data
+        tahun_data = storage_service.read_csv('config/tahun-buku.csv')
+        
+        if tahun_data is None or tahun_data.empty:
+            return jsonify({'error': 'No tahun buku data found'}), 404
+            
+        # Check if tahun exists
+        if tahun_id not in tahun_data['id'].values:
+            return jsonify({'error': 'Tahun buku not found'}), 404
+        
+        # Get the year value before deletion for cleanup
+        year_to_delete = tahun_data[tahun_data['id'] == tahun_id]['tahun'].iloc[0]
+        print(f"🗑️ Deleting year: {year_to_delete}")
+        
+        # Remove the tahun buku entry
+        filtered_data = tahun_data[tahun_data['id'] != tahun_id]
+        
+        # Save updated data
+        success = storage_service.write_csv(filtered_data, 'config/tahun-buku.csv')
+        
+        if success:
+            print(f"✅ Successfully deleted tahun buku {tahun_id} (year {year_to_delete})")
+            
+            # Optional: Clean up related data for this year
+            # This is commented out to avoid accidental data loss
+            # You may want to add a query parameter ?cleanup=true to enable this
+            cleanup = request.args.get('cleanup', 'false').lower() == 'true'
+            if cleanup:
+                print(f"🧹 Cleaning up related data for year {year_to_delete}")
+                # Add cleanup logic here if needed
+            
+            return jsonify({
+                'success': True, 
+                'message': f'Tahun buku {year_to_delete} deleted successfully',
+                'deleted_year': int(year_to_delete)
+            }), 200
+        else:
+            return jsonify({'error': 'Failed to delete tahun buku'}), 500
+            
+    except Exception as e:
+        print(f"❌ Error deleting tahun buku: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/config/struktur-organisasi', methods=['GET'])
 def get_struktur_organisasi():
     """Get all struktur organisasi data"""

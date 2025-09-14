@@ -77,6 +77,17 @@ class StorageService:
             print(f"❌ Error checking file existence {file_path}: {e}")
             return False
     
+    def list_files(self, directory_path: str = "") -> list:
+        """List files in storage directory"""
+        try:
+            if self.storage_mode == 'supabase':
+                return self._list_files_supabase(directory_path)
+            else:
+                return self._list_files_local(directory_path)
+        except Exception as e:
+            print(f"❌ Error listing files in {directory_path}: {e}")
+            return []
+    
     # Local storage methods
     def _read_excel_local(self, file_path: str) -> pd.DataFrame:
         """Read Excel file from local storage"""
@@ -99,6 +110,25 @@ class StorageService:
         """Check if file exists in local storage"""
         full_path = Path(__file__).parent.parent / file_path
         return full_path.exists()
+    
+    def _list_files_local(self, directory_path: str) -> list:
+        """List files in local storage directory"""
+        full_path = Path(__file__).parent.parent / directory_path
+        if not full_path.exists():
+            return []
+        
+        files = []
+        if full_path.is_file():
+            # If the path is a file, return just that file
+            files.append(str(full_path.relative_to(Path(__file__).parent.parent)))
+        else:
+            # If it's a directory, list all files recursively
+            for file_path in full_path.rglob('*'):
+                if file_path.is_file():
+                    relative_path = str(file_path.relative_to(Path(__file__).parent.parent))
+                    files.append(relative_path)
+        
+        return files
     
     # Supabase storage methods
     def _read_excel_supabase(self, file_path: str) -> pd.DataFrame:
@@ -185,6 +215,33 @@ class StorageService:
             return any(f.get('name') == file_path.split('/')[-1] for f in files)
         except Exception:
             return False
+    
+    def _list_files_supabase(self, directory_path: str) -> list:
+        """List files in Supabase storage directory"""
+        try:
+            if directory_path:
+                # List files in specific directory/path
+                files = self.supabase.storage.from_(self.bucket_name).list(directory_path)
+            else:
+                # List all files in bucket root
+                files = self.supabase.storage.from_(self.bucket_name).list()
+            
+            file_paths = []
+            for file_info in files:
+                if isinstance(file_info, dict) and 'name' in file_info:
+                    # Build full path
+                    if directory_path:
+                        full_path = f"{directory_path}/{file_info['name']}"
+                    else:
+                        full_path = file_info['name']
+                    file_paths.append(full_path)
+            
+            print(f"📂 Listed {len(file_paths)} files in Supabase: {directory_path}")
+            return file_paths
+            
+        except Exception as e:
+            print(f"❌ Error listing Supabase files in {directory_path}: {e}")
+            return []
     
     # CSV methods
     def read_csv(self, file_path: str) -> Optional[pd.DataFrame]:
