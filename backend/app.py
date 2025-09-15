@@ -1667,6 +1667,67 @@ def download_uploaded_file(file_id):
         print(f"Error downloading file: {e}")
         return jsonify({'error': f'Failed to download file: {str(e)}'}), 500
 
+@app.route('/api/files/<file_id>/view', methods=['GET'])
+def view_file(file_id):
+    """Get a public view URL for a processed file."""
+    try:
+        # Find the processed file in OUTPUT_FOLDER
+        file_path = None
+        filename = None
+        
+        for output_file in OUTPUT_FOLDER.glob("processed_*.xlsx"):
+            # Extract file ID from filename
+            filename_parts = output_file.name.split('_', 2)
+            if len(filename_parts) >= 2 and filename_parts[1] == file_id:
+                file_path = output_file
+                filename = output_file.name
+                break
+        
+        if not file_path or not file_path.exists():
+            return jsonify({'success': False, 'error': 'File not found'}), 404
+        
+        # For processed files, return a download URL since we can't "view" Excel files in browser
+        return jsonify({
+            'success': True,
+            'url': f'http://localhost:5000/api/files/{file_id}/download',
+            'filename': filename
+        }), 200
+        
+    except Exception as e:
+        print(f"Error viewing file: {e}")
+        return jsonify({'success': False, 'error': f'Failed to view file: {str(e)}'}), 500
+
+@app.route('/api/files/<file_id>/download', methods=['GET'])
+def download_file_by_id(file_id):
+    """Download a processed file using its file ID."""
+    try:
+        # Find the processed file in OUTPUT_FOLDER
+        file_path = None
+        filename = None
+        
+        for output_file in OUTPUT_FOLDER.glob("processed_*.xlsx"):
+            # Extract file ID from filename
+            filename_parts = output_file.name.split('_', 2)
+            if len(filename_parts) >= 2 and filename_parts[1] == file_id:
+                file_path = output_file
+                filename = output_file.name
+                break
+        
+        if not file_path or not file_path.exists():
+            return jsonify({'error': 'File not found'}), 404
+        
+        # Send the file for download
+        return send_file(
+            str(file_path),
+            as_attachment=True,
+            download_name=filename,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        
+    except Exception as e:
+        print(f"Error downloading file: {e}")
+        return jsonify({'error': f'Failed to download file: {str(e)}'}), 500
+
 # AOI TABLES ENDPOINTS
 @app.route('/api/aoiTables', methods=['GET'])
 def get_aoi_tables():
@@ -2309,6 +2370,8 @@ def get_users():
     try:
         csv_data = storage_service.read_csv('config/users.csv')
         if csv_data is not None:
+            # Replace NaN values with a safe placeholder to prevent empty password login
+            csv_data = csv_data.fillna({'password': '[NO_PASSWORD_SET]'}).fillna('')
             users = csv_data.to_dict(orient='records')
             return jsonify(users), 200
         return jsonify([]), 200
@@ -2703,6 +2766,15 @@ def check_gcg_files():
         from supabase import create_client
         supabase = create_client(supabase_url, supabase_key)
         
+        # Load uploaded files metadata to get catatan information
+        try:
+            files_data = storage_service.read_excel('uploaded-files.xlsx')
+            if files_data is None:
+                files_data = pd.DataFrame()
+        except Exception as e:
+            print(f"Warning: Could not load uploaded-files.xlsx: {e}")
+            files_data = pd.DataFrame()
+        
         # Check each checklist ID for existing files
         file_statuses = {}
         
@@ -2738,6 +2810,30 @@ def check_gcg_files():
                 
                 if not file_found:
                     file_found = {'exists': False}
+                
+                # If file exists, try to get additional metadata from uploaded-files.xlsx
+                if file_found.get('exists') and not files_data.empty:
+                    try:
+                        # Find matching record in uploaded files data
+                        matching_file = files_data[
+                            (files_data['checklistId'] == checklist_id) & 
+                            (files_data['year'] == year)
+                        ]
+                        
+                        if not matching_file.empty:
+                            # Add metadata from uploaded-files.xlsx
+                            file_record = matching_file.iloc[0]
+                            file_found.update({
+                                'catatan': file_record.get('catatan', ''),
+                                'uploadedBy': file_record.get('uploadedBy', 'Unknown'),
+                                'subdirektorat': file_record.get('subdirektorat', ''),
+                                'aspect': file_record.get('aspect', ''),
+                                'checklistDescription': file_record.get('checklistDescription', ''),
+                                'checklistId': checklist_id,
+                                'id': f"supabase_{checklist_id}"
+                            })
+                    except Exception as e:
+                        print(f"Warning: Could not get metadata for checklist_id {checklist_id}: {e}")
                 
                 file_statuses[str(checklist_id)] = file_found
                 

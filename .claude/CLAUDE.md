@@ -263,3 +263,141 @@ curl -s http://localhost:5000/api/config/checklist?year=2025
 *Last Updated: 2025-09-13*  
 *Session Type: Complete Upload & Download System Overhaul*  
 *Status: ✅ PRODUCTION READY - All Core File Operations Working*
+
+# Latest Session: Catatan Button & Archive Implementation - September 15, 2025
+
+## Problem Report
+User reported two issues:
+1. **Catatan Button Not Appearing**: "ketika user upload tedus nambahin catatan di upload mereka, dibagian action button catatan masih belum muncul"
+2. **File Information Overflow**: "informasi file yang di upload masih over field"
+3. **Archive Menu**: Catatan functionality needed in arsip menu as well
+
+## Root Cause Analysis
+
+### 1. Catatan Button Visibility Issue
+**Backend API Gap**: The `/api/check-gcg-files` endpoint only checked if files existed in Supabase storage but didn't return catatan metadata from `uploaded-files.xlsx`.
+
+**Data Flow Problem**:
+- `isChecklistUploaded()` returned `true` when Supabase had the file
+- But `supabaseFileInfo` didn't include catatan data 
+- Catatan button depended on catatan data being available
+- Frontend fell back to localStorage, but Supabase took priority
+
+### 2. File Information Overflow
+**Investigation Result**: Already properly handled with CSS classes:
+- `truncate` for text truncation
+- `max-w-[200px]` for width constraints
+- `title` attribute for full filename on hover
+
+## Fixes Implemented
+
+### 1. Backend API Enhancement
+**File**: `/backend/app.py:2767-2835`
+**Change**: Modified `/api/check-gcg-files` to include catatan metadata
+
+```python
+# Load uploaded files metadata to get catatan information
+try:
+    files_data = storage_service.read_excel('uploaded-files.xlsx')
+    if files_data is None:
+        files_data = pd.DataFrame()
+except Exception as e:
+    print(f"Warning: Could not load uploaded-files.xlsx: {e}")
+    files_data = pd.DataFrame()
+
+# ... in file checking loop ...
+# If file exists, try to get additional metadata from uploaded-files.xlsx
+if file_found.get('exists') and not files_data.empty:
+    try:
+        # Find matching record in uploaded files data
+        matching_file = files_data[
+            (files_data['checklistId'] == checklist_id) & 
+            (files_data['year'] == year)
+        ]
+        
+        if not matching_file.empty:
+            # Add metadata from uploaded-files.xlsx
+            file_record = matching_file.iloc[0]
+            file_found.update({
+                'catatan': file_record.get('catatan', ''),
+                'uploadedBy': file_record.get('uploadedBy', 'Unknown'),
+                'subdirektorat': file_record.get('subdirektorat', ''),
+                'aspect': file_record.get('aspect', ''),
+                'checklistDescription': file_record.get('checklistDescription', ''),
+                'checklistId': checklist_id,
+                'id': f"supabase_{checklist_id}"
+            })
+    except Exception as e:
+        print(f"Warning: Could not get metadata for checklist_id {checklist_id}: {e}")
+```
+
+### 2. Complete Archive Implementation
+**File**: `/src/pages/ArsipDokumen.tsx`
+**Change**: Implemented full archive functionality from placeholder
+
+**Features Added**:
+- **Year Selection**: Consistent with other menu functionality
+- **Statistics Panel**: Shows total documents, archived documents, subdirektorat count, and GCG aspects
+- **Search & Filter**: By document name, filename, uploader, aspek, and subdirektorat
+- **Document Table**: With proper file information display and overflow handling
+- **Action Buttons**: View, Download, and Catatan buttons with backend integration
+- **Catatan Dialog**: Full catatan viewing functionality
+- **Supabase Integration**: Uses same backend API as monitoring menu
+
+**Table Structure**:
+- No, Aspek, Deskripsi Dokumen, Subdirektorat, Informasi File, Tanggal Upload, Aksi
+- File information with `truncate` and `max-w-[200px]` for overflow handling
+- Catatan button always available for uploaded documents
+
+### 3. File Information Overflow Handling
+**Status**: ✅ Already properly implemented in both menus
+- **MonitoringUploadGCG.tsx:1289-1294**: `truncate block max-w-[200px]`
+- **ArsipDokumen.tsx:621-627**: Same overflow handling applied
+
+## Files Modified
+
+### Backend Changes
+1. **backend/app.py:2767-2835**
+   - Enhanced `/api/check-gcg-files` endpoint to include catatan metadata
+   - Added `uploaded-files.xlsx` integration for complete file information
+
+### Frontend Changes  
+1. **src/pages/ArsipDokumen.tsx**
+   - Complete rewrite from placeholder to full functionality
+   - Added year selection, statistics, search/filter, and document table
+   - Integrated catatan dialog and file action buttons
+   - Proper file information overflow handling
+
+## Data Flow Updates
+
+### Enhanced File Status Check
+1. **Frontend** requests file status for year/subdirektorat
+2. **Backend** checks Supabase storage for file existence
+3. **Backend** queries `uploaded-files.xlsx` for metadata (including catatan)
+4. **Backend** returns combined file status + metadata
+5. **Frontend** receives complete file information including catatan
+6. **Catatan button** appears when file has catatan data
+
+### Archive Document Flow
+1. **Year Selection** filters available documents
+2. **Backend API** loads all uploaded documents with catatan metadata
+3. **Search/Filter** applied on frontend for performance
+4. **Action Buttons** use same backend endpoints as monitoring menu
+5. **File Information** properly truncated with hover for full details
+
+## Expected Resolution
+- ✅ **Catatan buttons** now appear correctly in both monitoring and archive menus
+- ✅ **File information overflow** properly handled with CSS truncation
+- ✅ **Archive functionality** fully implemented with catatan support
+- ✅ **Backend integration** provides complete metadata for all file operations
+
+## System Status
+- **Backend API**: Enhanced with catatan metadata support
+- **Frontend Archive**: Complete implementation with full functionality  
+- **File Handling**: Proper overflow management in both menus
+- **Catatan System**: Working across all document management features
+
+---
+*Last Updated: 2025-09-15*
+*Session Type: Catatan Integration & Archive Implementation* 
+*Status: ✅ COMPLETED*

@@ -269,28 +269,79 @@ const DashboardAdmin: React.FC = () => {
     }));
   }, [selectedYear]);
 
-  const handleViewDocument = (itemId: number) => {
+  const handleViewDocument = async (itemId: number) => {
     const item = checklistItems.find(item => item.id === itemId);
     if (item) {
-      // TODO: Implement document view dialog or redirect
       const uploadedFile = getFilesByYear(selectedYear || new Date().getFullYear())
         .find(file => file.checklistId === itemId);
       if (uploadedFile) {
-        alert(`Lihat dokumen: ${uploadedFile.fileName}`);
+        try {
+          // Get file URL from backend API
+          const response = await fetch(`http://localhost:5000/api/files/${uploadedFile.id}/view`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('authToken') || 'demo-token'}`,
+            },
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            if (result.success && result.url) {
+              // Open file in new tab/window
+              window.open(result.url, '_blank');
+            } else {
+              throw new Error(result.error || 'Failed to get file URL');
+            }
+          } else {
+            throw new Error(`Failed to view document: ${response.status}`);
+          }
+        } catch (error) {
+          console.error('Error viewing document:', error);
+          alert(`Gagal membuka dokumen: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
       } else {
         alert('Belum ada dokumen yang diupload untuk item ini');
       }
     }
   };
 
-  const handleDownloadDocument = (itemId: number) => {
+  const handleDownloadDocument = async (itemId: number) => {
     const item = checklistItems.find(item => item.id === itemId);
     if (item) {
-      // TODO: Implement document download
       const uploadedFile = getFilesByYear(selectedYear || new Date().getFullYear())
         .find(file => file.checklistId === itemId);
       if (uploadedFile) {
-        alert(`Download dokumen: ${uploadedFile.fileName}`);
+        try {
+          // Download file through backend API
+          const response = await fetch(`http://localhost:5000/api/files/${uploadedFile.id}/download`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('authToken') || 'demo-token'}`,
+            },
+          });
+          
+          if (response.ok) {
+            // Get the file blob
+            const blob = await response.blob();
+            
+            // Create download link
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = uploadedFile.fileName;
+            document.body.appendChild(link);
+            link.click();
+            
+            // Cleanup
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(url);
+          } else {
+            throw new Error(`Failed to download document: ${response.status}`);
+          }
+        } catch (error) {
+          console.error('Error downloading document:', error);
+          alert(`Gagal mendownload dokumen: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
       } else {
         alert('Belum ada dokumen yang diupload untuk item ini');
       }

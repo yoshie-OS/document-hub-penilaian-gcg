@@ -695,6 +695,7 @@ const PengaturanBaru = () => {
 
   // State untuk users
   const [users, setUsers] = useState<User[]>([]);
+  const [deletingUsers, setDeletingUsers] = useState<Set<number>>(new Set());
   
   // State untuk checklist management
   const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
@@ -1700,13 +1701,30 @@ const PengaturanBaru = () => {
       };
 
       if (editingUser) {
-        // For updates, we'd need a PUT endpoint - for now just show message
-        toast({
-          title: "Info",
-          description: "Edit user belum diimplementasikan dengan Supabase sync",
-          variant: "default"
+        // Update existing user via API
+        const response = await fetch(`http://localhost:5000/api/users/${editingUser.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(userData),
         });
-        return;
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const updatedUser = await response.json();
+        
+        // Update local state
+        setUsers(prev => prev.map(u => u.id === editingUser.id ? updatedUser : u));
+        
+        toast({
+          title: "Berhasil!",
+          description: "User berhasil diupdate dan disync ke Supabase",
+        });
+
+        console.log('PengaturanBaru: Successfully updated user via API', updatedUser);
       } else {
         // Create new user via API
         const response = await fetch('http://localhost:5000/api/users', {
@@ -1778,7 +1796,15 @@ const PengaturanBaru = () => {
   };
 
   const handleDeleteUser = async (userId: number) => {
+    // Prevent double deletion
+    if (deletingUsers.has(userId)) {
+      return;
+    }
+
     try {
+      // Mark user as being deleted
+      setDeletingUsers(prev => new Set(prev).add(userId));
+
       // Delete from Supabase via API
       const response = await fetch(`http://localhost:5000/api/users/${userId}`, {
         method: 'DELETE',
@@ -1807,6 +1833,13 @@ const PengaturanBaru = () => {
         title: "Error",
         description: "Gagal menghapus user dari Supabase",
         variant: "destructive"
+      });
+    } finally {
+      // Always clear the deleting state
+      setDeletingUsers(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(userId);
+        return newSet;
       });
     }
   };
@@ -3506,7 +3539,8 @@ const PengaturanBaru = () => {
                                    variant="ghost"
                                    size="sm"
                                    onClick={() => handleDeleteUser(item.id)}
-                                   className="text-red-600 hover:text-red-700"
+                                   disabled={deletingUsers.has(item.id)}
+                                   className="text-red-600 hover:text-red-700 disabled:opacity-50"
                                  >
                                    <Trash2 className="w-4 h-4" />
                                  </Button>

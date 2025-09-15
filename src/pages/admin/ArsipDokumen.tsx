@@ -313,9 +313,47 @@ const ArsipDokumen = () => {
   };
 
   // Handle revision for AOI document
-  const handleRevisionAOI = (doc: any) => {
-    // Mock revision functionality
-    alert(`Revisi untuk dokumen AOI: ${doc.fileName}\n\nPengirim: ${doc.userId}\nDirektorat: ${doc.userDirektorat}\nSubdirektorat: ${doc.userSubdirektorat}\n\nFitur revisi akan diimplementasikan di masa depan.`);
+  const handleRevisionAOI = async (doc: any) => {
+    const revisionReason = prompt('Masukkan alasan revisi:');
+    if (!revisionReason) return;
+
+    try {
+      // Update document status to require revision
+      const response = await fetch(`http://localhost:5000/api/aoiDocuments/${doc.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: 'revision_required',
+          revision_reason: revisionReason,
+          revised_at: new Date().toISOString(),
+          revised_by: 'admin' // Should be current user
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to mark document for revision');
+      }
+
+      // Show success notification
+      toast({
+        title: "Dokumen Diminta Revisi",
+        description: `Dokumen "${doc.fileName}" telah diminta untuk direvisi`,
+      });
+
+      // Refresh documents to show updated status
+      // This would trigger a re-fetch in the AOI context
+      window.location.reload(); // Simple approach - could be improved with context refresh
+
+    } catch (error) {
+      console.error('Error requesting revision:', error);
+      toast({
+        title: "Error",
+        description: "Gagal meminta revisi dokumen",
+        variant: "destructive"
+      });
+    }
   };
 
   // Handle delete AOI document

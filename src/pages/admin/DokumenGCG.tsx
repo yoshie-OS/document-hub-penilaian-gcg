@@ -78,6 +78,27 @@ const DokumenGCG = () => {
     subdirektorat: '',
     notes: ''
   });
+
+  // Load assignments from backend
+  useEffect(() => {
+    const loadAssignments = async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/config/assignments');
+        if (response.ok) {
+          const data = await response.json();
+          // Filter assignments for selected year
+          const yearAssignments = data.assignments.filter((assignment: any) => 
+            assignment.tahun === selectedYear
+          );
+          setAssignments(yearAssignments);
+        }
+      } catch (error) {
+        console.error('Error loading assignments:', error);
+      }
+    };
+
+    loadAssignments();
+  }, [selectedYear]);
   
   // Use years from global context
   const { availableYears } = useYear();
@@ -758,29 +779,53 @@ const DokumenGCG = () => {
       <FormDialog
         isOpen={isAssignmentDialogOpen}
         onClose={() => setIsAssignmentDialogOpen(false)}
-        onSubmit={() => {
+        onSubmit={async () => {
           if (!assignmentForm.subdirektorat.trim()) {
             alert('Pilih subdirektorat!');
             return;
           }
           
-          const newAssignment: ChecklistAssignment = {
-            id: Date.now(),
+          const newAssignment = {
             checklistId: selectedChecklistForAssignment?.id || 0,
             subdirektorat: assignmentForm.subdirektorat,
             aspek: selectedChecklistForAssignment?.aspek || '',
             deskripsi: selectedChecklistForAssignment?.deskripsi || '',
             tahun: selectedYear,
             assignedBy: user?.name || 'Super Admin',
-            assignedAt: new Date(),
             status: 'assigned',
             notes: assignmentForm.notes
           };
-          
-          setAssignments(prev => [...prev, newAssignment]);
-          setIsAssignmentDialogOpen(false);
-          setAssignmentForm({ subdirektorat: '', notes: '' });
-          alert('Assignment berhasil dibuat!');
+
+          try {
+            const response = await fetch('http://localhost:5000/api/config/assignments', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(newAssignment),
+            });
+
+            if (response.ok) {
+              // Reload assignments from backend
+              const assignmentsResponse = await fetch('http://localhost:5000/api/config/assignments');
+              if (assignmentsResponse.ok) {
+                const data = await assignmentsResponse.json();
+                const yearAssignments = data.assignments.filter((assignment: any) => 
+                  assignment.tahun === selectedYear
+                );
+                setAssignments(yearAssignments);
+              }
+              
+              setIsAssignmentDialogOpen(false);
+              setAssignmentForm({ subdirektorat: '', notes: '' });
+              alert('Assignment berhasil dibuat!');
+            } else {
+              throw new Error('Failed to create assignment');
+            }
+          } catch (error) {
+            console.error('Error creating assignment:', error);
+            alert('Gagal membuat assignment!');
+          }
         }}
         title="Assign Dokumen GCG"
         description="Tugaskan dokumen GCG ini kepada subdirektorat tertentu"
