@@ -27,7 +27,8 @@ BLACKBOX.md
 # Environment variables (contains Supabase credentials)
 .env
 
-# Local data storage (now using Supabase)
+# Local data storage (CSV configs and uploaded documents)
+data/
 web-output/
 backend/uploads/
 backend/outputs/
