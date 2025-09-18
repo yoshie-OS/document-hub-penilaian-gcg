@@ -71,12 +71,33 @@ Ensure you have the following installed:
 
 ### 4. Running the Application
 
-**Option 1: Using npm dev script (Recommended)**
+**🚀 Option 1: Double-Click Startup (Easiest!)**
+
+Three startup scripts are provided for Windows users:
+
+1. **`start-windows.bat`** (Full setup with checks) - **RECOMMENDED for first-time users**
+   - Double-click this file
+   - Automatically checks and installs dependencies
+   - Creates virtual environment if needed
+   - Opens browser automatically
+   - Shows detailed status information
+
+2. **`quick-start-windows.bat`** (Quick startup)
+   - For users who already have everything set up
+   - Faster startup, fewer checks
+   - Double-click and go!
+
+3. **`start-windows.ps1`** (PowerShell version)
+   - Modern PowerShell interface with colors
+   - Right-click → "Run with PowerShell"
+   - Best for Windows 10/11 users
+
+**Option 2: Using npm dev script**
 ```cmd
 npm run dev
 ```
 
-**Option 2: Manual startup**
+**Option 3: Manual startup**
 
 Terminal 1 (Backend):
 ```cmd

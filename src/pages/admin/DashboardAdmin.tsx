@@ -123,65 +123,37 @@ const DashboardAdmin: React.FC = () => {
   // Check if current year allows uploads - only the most recent year allows uploads
   const canUploadInCurrentYear = selectedYear === Math.max(...availableYears);
 
-  // Get checklist items berdasarkan tahun dan subdirektorat admin dari context
+  // Get checklist items berdasarkan tahun dan divisi admin dari context
   const checklistItems = useMemo(() => {
-    if (!selectedYear || !user?.subdirektorat) return [];
-    
+    if (!selectedYear || !user?.divisi) return [];
+
     try {
       // Get checklist items for selected year
       const yearChecklist = getChecklistByYear(selectedYear);
       console.log('Year checklist data:', yearChecklist);
-      
+
       if (!yearChecklist || yearChecklist.length === 0) {
         console.log('No checklist data for year:', selectedYear);
         return [];
       }
-      
-            // Get assignments untuk tahun dan subdirektorat admin
-      const storedAssignments = localStorage.getItem('checklistAssignments');
-      let adminAssignments: any[] = [];
-      
-      if (storedAssignments) {
-        try {
-          const allAssignments = JSON.parse(storedAssignments);
-          adminAssignments = allAssignments.filter((assignment: any) => {
-            if (assignment.tahun !== selectedYear) return false;
-            
-            // Assignment langsung ke subdirektorat admin
-            if (assignment.assignmentType === 'subdirektorat' && assignment.subdirektorat === user.subdirektorat) {
-              return true;
-            }
-            
-            // Assignment ke divisi yang berada di bawah subdirektorat admin
-            if (assignment.assignmentType === 'divisi' && assignment.divisi) {
-              // Cari divisi yang berada di bawah subdirektorat admin
-              const divisiUnderSubdir = divisi.filter(d => {
-                const subdir = subdirektorat.find(s => s.id === d.subdirektoratId);
-                return subdir && subdir.nama === user.subdirektorat;
-              });
-              return divisiUnderSubdir.some(d => d.nama === assignment.divisi);
-            }
-            
-            return false;
-          });
-        } catch (error) {
-          console.error('Error parsing assignments:', error);
-        }
-      }
-      
-      // Filter checklist items berdasarkan assignments admin
-      const assignedChecklistIds = new Set(adminAssignments.map(a => a.checklistId));
-      const assignedItems = yearChecklist.filter(item => assignedChecklistIds.has(item.id));
-      
-      console.log('Admin assignments for year and subdirektorat:', {
+
+      // FIXED: Admin users access data directly via PIC field matching their divisi
+      // Filter checklist items where PIC matches admin's divisi
+      const adminItems = yearChecklist.filter(item => {
+        // Check if this item is assigned to admin's divisi via PIC field
+        return item.pic === user.divisi;
+      });
+
+      console.log('Admin checklist items for divisi:', {
         year: selectedYear,
         subdirektorat: user.subdirektorat,
-        totalAssignments: adminAssignments.length,
-        assignedItems: assignedItems.length
+        divisi: user.divisi,
+        totalItems: yearChecklist.length,
+        adminItems: adminItems.length
       });
-      
+
       // Check if items are uploaded using FileUploadContext (real-time)
-      const itemsWithStatus = assignedItems.map(item => {
+      const itemsWithStatus = adminItems.map(item => {
         // Allow items without aspek (like superadmin does)
         if (!item.deskripsi) {
           console.warn('Invalid checklist item - missing deskripsi:', item);
