@@ -1,0 +1,4 @@
+"id","type","nama","deskripsi","parent_id","created_at","updated_at","kode","tahun","is_active"
+1758201827945401,"direktorat","Direktorat Teknologi Informasi","","","2025-09-18T20:23:47.945414","","","",""
+1758201849956133,"divisi","Divisi Software Development & Quality Assurance","","","2025-09-18T20:24:09.956136","2025-09-18T20:24:22.731102","","",""
+1758202614368505,"divisi","Divisi Test Batch","","","2025-09-18T20:36:54.368516","","",2025.0,True

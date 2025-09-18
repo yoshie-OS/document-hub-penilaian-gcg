@@ -4817,7 +4817,8 @@ const PengaturanBaru = () => {
                                         variant="outline"
                                         size="sm"
                                         onClick={() => handleDeleteAspek(aspek.id)}
-                                        className="text-red-600 hover:text-red-700 border-red-200"
+                                        disabled={deletingAspectIds.has(aspek.id)}
+                                        className="text-red-600 hover:text-red-700 border-red-200 disabled:opacity-50"
                                       >
                                         <Trash2 className="w-3 h-3" />
                                       </Button>

@@ -2598,64 +2598,44 @@ def upload_gcg_file():
         }
         content_type = content_type_map.get(file_extension, 'application/octet-stream')
         
-        # Upload to Supabase using storage service
+        # Upload to local storage using organized directory structure
         try:
-            from supabase import create_client
-            supabase_url = os.getenv('SUPABASE_URL')
-            supabase_key = os.getenv('SUPABASE_KEY')
-            bucket_name = os.getenv('SUPABASE_BUCKET')
-            
-            supabase = create_client(supabase_url, supabase_key)
-            
-            # Always try to upload, if exists it will automatically overwrite
-            safe_print(f"🔧 DEBUG: Uploading to path: {supabase_file_path}")
-            
+            safe_print(f"🔧 DEBUG: Uploading to local storage path: {supabase_file_path}")
+
+            # Create local file path
+            local_file_path = Path(__file__).parent.parent / 'data' / supabase_file_path
+            safe_print(f"🔧 DEBUG: Full local path: {local_file_path}")
+
             # First, delete ALL existing files in the directory to ensure clean overwrite
             try:
-                # Get the directory path (without filename)
-                directory_path = f"gcg-documents/{year_int}/{pic_name}/{checklist_id_int}"
+                # Clear the directory (keep the directory structure clean)
+                directory_path = local_file_path.parent
                 safe_print(f"🔧 DEBUG: Clearing directory: {directory_path}")
-                
-                # List all files in the directory
-                list_response = supabase.storage.from_(bucket_name).list(directory_path)
-                safe_print(f"🔧 DEBUG: Files found in directory: {len(list_response) if list_response else 0}")
-                
-                if list_response and len(list_response) > 0:
-                    # Filter out placeholder files and get real file paths
-                    files_to_delete = []
-                    for file_item in list_response:
-                        if file_item['name'] != '.emptyFolderPlaceholder':
-                            files_to_delete.append(f"{directory_path}/{file_item['name']}")
-                    
-                    if files_to_delete:
-                        safe_print(f"🔧 DEBUG: Deleting {len(files_to_delete)} existing files: {files_to_delete}")
-                        delete_response = supabase.storage.from_(bucket_name).remove(files_to_delete)
-                        safe_print(f"🔧 DEBUG: Delete existing files response: {delete_response}")
-                    else:
-                        safe_print(f"🔧 DEBUG: No real files to delete (only placeholders found)")
+
+                if directory_path.exists():
+                    # Remove all files in the directory but keep the directory structure
+                    for existing_file in directory_path.glob('*'):
+                        if existing_file.is_file():
+                            safe_print(f"🔧 DEBUG: Removing existing file: {existing_file}")
+                            existing_file.unlink()
                 else:
-                    safe_print(f"🔧 DEBUG: Directory is empty or doesn't exist")
-                    
+                    safe_print(f"🔧 DEBUG: Directory doesn't exist, will be created")
+
             except Exception as e:
                 safe_print(f"🔧 DEBUG: Error clearing directory (continuing anyway): {e}")
-            
-            # Now upload the new file
-            response = supabase.storage.from_(bucket_name).upload(
-                path=supabase_file_path,
-                file=file_data,
-                file_options={"content-type": content_type}
-            )
-            
-            # Check for any upload errors
-            if hasattr(response, 'error') and response.error:
-                safe_print(f"🔧 DEBUG: Upload error: {response.error}")
-                return jsonify({'error': f'Failed to upload file to storage: {response.error}'}), 500
-            
-            safe_print(f"🔧 DEBUG: File uploaded successfully to: {supabase_file_path}")
-            
+
+            # Create directory structure if it doesn't exist
+            local_file_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Save the file to local storage
+            with open(local_file_path, 'wb') as f:
+                f.write(file_data)
+
+            safe_print(f"🔧 DEBUG: File saved successfully to local storage: {local_file_path}")
+
         except Exception as upload_error:
-            safe_print(f"🔧 DEBUG: Upload exception: {upload_error}")
-            return jsonify({'error': f'Failed to upload file: {str(upload_error)}'}), 500
+            safe_print(f"🔧 DEBUG: Local upload exception: {upload_error}")
+            return jsonify({'error': f'Failed to save file to local storage: {str(upload_error)}'}), 500
         
         # Get user information from form (if provided)
         uploaded_by = request.form.get('uploadedBy', 'Unknown User')
@@ -2677,7 +2657,7 @@ def upload_gcg_file():
             'subdirektorat': subdirektorat,
             'catatan': catatan,
             'status': 'uploaded',
-            'supabaseFilePath': supabase_file_path,
+            'localFilePath': supabase_file_path,  # Keep same path structure for compatibility
             'uploadedBy': uploaded_by,
             'userRole': user_role,
             'userDirektorat': user_direktorat,
@@ -2706,7 +2686,7 @@ def upload_gcg_file():
                 return jsonify({
                     'success': True, 
                     'file': file_record,
-                    'message': 'File uploaded successfully to Supabase'
+                    'message': 'File uploaded successfully to local storage'
                 }), 201
             else:
                 safe_print(f"🔧 DEBUG: storage_service.write_excel returned False")
@@ -2787,30 +2767,37 @@ def check_gcg_files():
                 # New structure: gcg-documents/{year}/{PIC}/{checklist_id}/
                 folder_path = f"gcg-documents/{year}/{pic_name_clean}/{checklist_id}"
                 
-                # Try to list files in the row directory
+                # Check local storage for files in the directory
                 file_found = None
                 try:
-                    response = supabase.storage.from_(bucket_name).list(folder_path)
-                    if response and len(response) > 0:
-                        # Filter out placeholder files and get the first real file
-                        real_files = [f for f in response if f['name'] != '.emptyFolderPlaceholder']
-                        
+                    # Check local directory for files
+                    local_folder_path = Path(__file__).parent.parent / 'data' / folder_path
+
+                    if local_folder_path.exists() and local_folder_path.is_dir():
+                        # Get all files in the directory (excluding hidden files)
+                        real_files = [f for f in local_folder_path.iterdir() if f.is_file() and not f.name.startswith('.')]
+
                         if real_files:
                             # Get the first real file in the directory
                             file_info = real_files[0]
+                            file_stat = file_info.stat()
                             file_found = {
                                 'exists': True,
-                                'fileName': file_info['name'],
-                                'path': f"{folder_path}/{file_info['name']}",
-                                'size': file_info.get('metadata', {}).get('size', 0),
-                                'lastModified': file_info.get('updated_at')
+                                'fileName': file_info.name,
+                                'path': f"{folder_path}/{file_info.name}",
+                                'size': file_stat.st_size,
+                                'lastModified': datetime.fromtimestamp(file_stat.st_mtime).isoformat()
                             }
                         else:
-                            # Only placeholder files exist, treat as no file
+                            # Directory exists but no files
                             file_found = {'exists': False}
+                    else:
+                        # Directory doesn't exist
+                        file_found = {'exists': False}
                 except Exception as e:
-                    # Directory doesn't exist or is empty
+                    # Error accessing directory
                     file_found = {'exists': False}
+                    safe_print(f"Error checking local directory {folder_path}: {e}")
                 
                 if not file_found:
                     file_found = {'exists': False}
@@ -2895,42 +2882,32 @@ def download_gcg_file():
         # Clean PIC name
         pic_name_clean = secure_filename(pic_name)
         
-        # Initialize Supabase client
-        supabase_url = os.getenv('SUPABASE_URL')
-        supabase_key = os.getenv('SUPABASE_KEY')
-        bucket_name = os.getenv('SUPABASE_BUCKET')
-        
-        if not all([supabase_url, supabase_key, bucket_name]):
-            return jsonify({'error': 'Supabase configuration missing'}), 500
-        
-        from supabase import create_client
-        supabase = create_client(supabase_url, supabase_key)
-        
-        # Try to find the file in the directory structure
+        # Use local storage instead of Supabase
         folder_path = f"gcg-documents/{year}/{pic_name_clean}/{folder_id}"
-        
+
         try:
-            # List files in the directory
-            response = supabase.storage.from_(bucket_name).list(folder_path)
-            if not response or len(response) == 0:
-                return jsonify({'error': 'File not found'}), 404
-            
-            # Filter out placeholder files and get the first real file
-            real_files = [f for f in response if f['name'] != '.emptyFolderPlaceholder']
-            
+            # Check local directory for files
+            local_folder_path = Path(__file__).parent.parent / 'data' / folder_path
+
+            if not local_folder_path.exists() or not local_folder_path.is_dir():
+                return jsonify({'error': 'File directory not found'}), 404
+
+            # Get all files in the directory (excluding hidden files)
+            real_files = [f for f in local_folder_path.iterdir() if f.is_file() and not f.name.startswith('.')]
+
             if not real_files:
-                return jsonify({'error': 'No real files found (only placeholders)'}), 404
-            
+                return jsonify({'error': 'No files found in directory'}), 404
+
             # Get the first (and should be only) real file in the directory
-            file_info = real_files[0]
-            file_name = file_info['name']
-            file_path = f"{folder_path}/{file_name}"
-            
-            # Download the file
-            file_response = supabase.storage.from_(bucket_name).download(file_path)
-            
-            if not file_response:
-                return jsonify({'error': 'Failed to download file from storage'}), 500
+            file_path_obj = real_files[0]
+            file_name = file_path_obj.name
+
+            # Read the file from local storage
+            try:
+                with open(file_path_obj, 'rb') as f:
+                    file_response = f.read()
+            except Exception as e:
+                return jsonify({'error': f'Failed to read file from local storage: {str(e)}'}), 500
             
             # Return the file as a download with proper MIME type detection
             import mimetypes

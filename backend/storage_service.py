@@ -92,43 +92,59 @@ class StorageService:
     # Local storage methods
     def _read_excel_local(self, file_path: str) -> pd.DataFrame:
         """Read Excel file from local storage"""
-        full_path = Path(__file__).parent.parent / file_path
+        # Use data directory for organized local storage
+        full_path = Path(__file__).parent.parent / 'data' / file_path
         if full_path.exists():
             return pd.read_excel(str(full_path))
         else:
-            raise FileNotFoundError(f"Local file not found: {full_path}")
-    
+            # Fallback to old location for backward compatibility
+            fallback_path = Path(__file__).parent.parent / file_path
+            if fallback_path.exists():
+                return pd.read_excel(str(fallback_path))
+            raise FileNotFoundError(f"Local file not found: {full_path} or {fallback_path}")
+
     def _write_excel_local(self, df: pd.DataFrame, file_path: str) -> bool:
         """Write Excel file to local storage"""
         file_lock = self._get_file_lock(file_path)
         with file_lock:
-            full_path = Path(__file__).parent.parent / file_path
+            # Use data directory for organized local storage
+            full_path = Path(__file__).parent.parent / 'data' / file_path
             full_path.parent.mkdir(parents=True, exist_ok=True)
             df.to_excel(str(full_path), index=False)
+            safe_print(f"📁 Saved Excel file to local storage: {full_path}")
             return True
-    
+
     def _file_exists_local(self, file_path: str) -> bool:
         """Check if file exists in local storage"""
-        full_path = Path(__file__).parent.parent / file_path
-        return full_path.exists()
-    
+        # Check data directory first
+        full_path = Path(__file__).parent.parent / 'data' / file_path
+        if full_path.exists():
+            return True
+        # Fallback to old location for backward compatibility
+        fallback_path = Path(__file__).parent.parent / file_path
+        return fallback_path.exists()
+
     def _list_files_local(self, directory_path: str) -> list:
         """List files in local storage directory"""
-        full_path = Path(__file__).parent.parent / directory_path
+        # Use data directory for organized local storage
+        full_path = Path(__file__).parent.parent / 'data' / directory_path
         if not full_path.exists():
-            return []
-        
+            # Fallback to old location
+            full_path = Path(__file__).parent.parent / directory_path
+            if not full_path.exists():
+                return []
+
         files = []
         if full_path.is_file():
             # If the path is a file, return just that file
-            files.append(str(full_path.relative_to(Path(__file__).parent.parent)))
+            files.append(str(full_path.relative_to(Path(__file__).parent.parent / 'data')))
         else:
             # If it's a directory, list all files recursively
             for file_path in full_path.rglob('*'):
                 if file_path.is_file():
-                    relative_path = str(file_path.relative_to(Path(__file__).parent.parent))
+                    relative_path = str(file_path.relative_to(Path(__file__).parent.parent / 'data'))
                     files.append(relative_path)
-        
+
         return files
     
     # Supabase storage methods
@@ -270,21 +286,28 @@ class StorageService:
     # Local CSV methods
     def _read_csv_local(self, file_path: str) -> pd.DataFrame:
         """Read CSV file from local storage"""
-        full_path = Path(__file__).parent.parent / file_path
+        # Use data directory for organized local storage
+        full_path = Path(__file__).parent.parent / 'data' / file_path
         if full_path.exists():
             return pd.read_csv(str(full_path))
         else:
-            raise FileNotFoundError(f"Local file not found: {full_path}")
-    
+            # Fallback to old location for backward compatibility
+            fallback_path = Path(__file__).parent.parent / file_path
+            if fallback_path.exists():
+                return pd.read_csv(str(fallback_path))
+            raise FileNotFoundError(f"Local file not found: {full_path} or {fallback_path}")
+
     def _write_csv_local(self, df: pd.DataFrame, file_path: str) -> bool:
         """Write CSV file to local storage"""
         file_lock = self._get_file_lock(file_path)
         with file_lock:
-            full_path = Path(__file__).parent.parent / file_path
+            # Use data directory for organized local storage
+            full_path = Path(__file__).parent.parent / 'data' / file_path
             full_path.parent.mkdir(parents=True, exist_ok=True)
             # Save with proper CSV quoting for string fields only
             import csv
             df.to_csv(str(full_path), index=False, quoting=csv.QUOTE_NONNUMERIC)
+            safe_print(f"📁 Saved CSV file to local storage: {full_path}")
             return True
     
     # Supabase CSV methods
