@@ -2376,6 +2376,11 @@ def get_users():
         if csv_data is not None:
             # Replace NaN values with a safe placeholder to prevent empty password login
             csv_data = csv_data.fillna({'password': '[NO_PASSWORD_SET]'}).fillna('')
+
+            # Ensure WhatsApp field is treated as string, not float
+            if 'whatsapp' in csv_data.columns:
+                csv_data['whatsapp'] = csv_data['whatsapp'].astype(str).replace('nan', '').str.replace(r'\.0$', '', regex=True)
+
             users = csv_data.to_dict(orient='records')
             return jsonify(users), 200
         return jsonify([]), 200
@@ -2426,7 +2431,7 @@ def create_user():
             'tahun': data.get('tahun'),
             'created_at': datetime.now().isoformat(),
             'is_active': True,
-            'whatsapp': data.get('whatsapp', '')
+            'whatsapp': str(data.get('whatsapp', '')) if data.get('whatsapp') else ''
         }
         
         # Read existing users
@@ -2510,7 +2515,7 @@ def update_user(user_id):
                 if 'divisi' in data:
                     csv_data.at[index, 'divisi'] = data['divisi']
                 if 'whatsapp' in data:
-                    csv_data.at[index, 'whatsapp'] = data['whatsapp']
+                    csv_data.at[index, 'whatsapp'] = str(data['whatsapp']) if data['whatsapp'] else ''
 
                 user_found = True
                 break

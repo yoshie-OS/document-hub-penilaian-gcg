@@ -1,3 +1,4 @@
 "id","name","email","password","role","direktorat","subdirektorat","divisi","status","tahun","created_at","is_active","whatsapp"
 1,"Super Admin","admin@posindo.id","[NO_PASSWORD_SET]","superadmin","Direktorat Utama","Sekretaris Perusahaan","Sekretaris Perusahaan","active","","","",""
 2,"Test Admin","test.admin@posindo.id","[NO_PASSWORD_SET]","admin","Direktorat Utama","Corporate Communication","Corporate Communication","active","","","",""
+548096321,"a","a@a.c","","admin","Direktorat Teknologi Informasi","","","",2024.0,"2025-09-18T22:37:14.404641",1.0,6281382605127.0
