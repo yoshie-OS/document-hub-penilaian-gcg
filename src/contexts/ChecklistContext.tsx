@@ -35,6 +35,7 @@ interface ChecklistContextType {
 const ChecklistContext = createContext<ChecklistContextType | undefined>(undefined);
 
 export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
+  console.log('ChecklistProvider: Component initialized');
   const [checklist, setChecklist] = useState<ChecklistGCG[]>([]);
   const [aspects, setAspects] = useState<Aspek[]>([]);
 
@@ -69,68 +70,94 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
 
         // Load checklist from Supabase API
         console.log('ChecklistContext: Fetching checklist from API...');
-        const checklistResponse = await fetch('http://localhost:5000/api/config/checklist');
+        const checklistResponse = await fetch('http://localhost:5000/api/config/checklist', {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+          mode: 'cors',
+          credentials: 'same-origin'
+        });
+
+        console.log('ChecklistContext: Response status:', checklistResponse.status, checklistResponse.statusText);
+        console.log('ChecklistContext: Response headers:', Object.fromEntries(checklistResponse.headers.entries()));
+
         if (checklistResponse.ok) {
-          const checklistData = await checklistResponse.json();
-          console.log('ChecklistContext: Raw API response:', checklistData.checklist?.length || 0, 'items');
-          if (checklistData.checklist && Array.isArray(checklistData.checklist)) {
-            const mappedChecklist = checklistData.checklist
-              .filter((item: any) => {
-                // Filter out corrupted data where deskripsi is null/invalid
-                if (!item.deskripsi && item.aspek && item.aspek.includes('deskripsi')) {
-                  // This is corrupted data - try to extract from the aspek field
-                  try {
-                    const parsedData = JSON.parse(item.aspek.replace(/'/g, '"'));
-                    const isValid = parsedData.deskripsi && parsedData.tahun;
-                    console.log('ChecklistContext: Corrupted item recovery - valid:', isValid, 'desc:', parsedData.deskripsi?.substring(0, 30));
-                    return isValid;
-                  } catch (e) {
-                    console.error('ChecklistContext: Failed to parse corrupted item:', e);
-                    return false;
+          try {
+            // Use .json() instead of .text() + JSON.parse()
+            const checklistData = await checklistResponse.json();
+            console.log('ChecklistContext: Successfully parsed JSON, items count:', checklistData.checklist?.length || 0);
+
+            if (checklistData.checklist && Array.isArray(checklistData.checklist)) {
+              console.log('ChecklistContext: Raw checklist data from API:', checklistData.checklist);
+
+              // Debug each item before filtering
+              checklistData.checklist.forEach((item: any, index: number) => {
+                console.log(`ChecklistContext: Item ${index + 1}:`, {
+                  id: item.id,
+                  deskripsi: item.deskripsi,
+                  tahun: item.tahun,
+                  aspek: item.aspek,
+                  hasItem: !!item,
+                  hasDeskripsi: !!item.deskripsi,
+                  hasTahun: !!item.tahun,
+                  deskripsiType: typeof item.deskripsi,
+                  tahunType: typeof item.tahun,
+                  deskripsiLength: item.deskripsi?.length,
+                  willPassFilter: !!(item && item.deskripsi && item.tahun)
+                });
+              });
+
+              // Simplified mapping - remove complex filtering logic that might cause issues
+              const mappedChecklist = checklistData.checklist
+                .filter((item: any) => {
+                  // Simple validation - must have deskripsi and tahun
+                  const passes = item && item.deskripsi && item.tahun;
+                  if (!passes) {
+                    console.warn('ChecklistContext: Item filtered out:', {
+                      item,
+                      reason: !item ? 'no item' : !item.deskripsi ? 'no deskripsi' : 'no tahun'
+                    });
                   }
-                }
-                const isValidNormal = item.deskripsi && item.tahun;
-                console.log('ChecklistContext: Normal item - valid:', isValidNormal, 'desc:', item.deskripsi?.substring(0, 30));
-                return isValidNormal;
-              })
-              .map((item: any) => {
-                // Handle corrupted data by extracting from aspek field
-                if (!item.deskripsi && item.aspek && item.aspek.includes('deskripsi')) {
-                  try {
-                    const parsedData = JSON.parse(item.aspek.replace(/'/g, '"'));
-                    console.log('ChecklistContext: Recovering corrupted data:', parsedData.deskripsi.substring(0, 50));
-                    return {
-                      id: item.id,
-                      aspek: parsedData.aspek || '',
-                      deskripsi: parsedData.deskripsi || '',
-                      pic: parsedData.pic || '',
-                      tahun: parsedData.tahun,
-                      rowNumber: item.rowNumber
-                    };
-                  } catch (e) {
-                    console.error('ChecklistContext: Failed to recover corrupted data:', e);
-                    return null;
-                  }
-                }
-                // Normal data mapping
-                return {
+                  return passes;
+                })
+                .map((item: any) => ({
                   id: item.id,
                   aspek: item.aspek || '',
                   deskripsi: item.deskripsi || '',
                   pic: item.pic || '',
                   tahun: item.tahun,
                   rowNumber: item.rowNumber
-                };
-              })
-              .filter(Boolean); // Remove null items
-            
-            setChecklist(mappedChecklist);
-            // Save fresh data to localStorage for next load
-            // REMOVED localStorage.setItem for multi-user support - data stays in Supabase only
-            console.log('ChecklistContext: Loaded checklist from Supabase', mappedChecklist.length);
+                }));
+
+              console.log('ChecklistContext: Final mapped checklist:', {
+                originalCount: checklistData.checklist.length,
+                filteredCount: mappedChecklist.length,
+                itemsWithPIC: mappedChecklist.map(item => ({ id: item.id, pic: item.pic, deskripsi: item.deskripsi }))
+              });
+
+              setChecklist(mappedChecklist);
+              // Save fresh data to localStorage for next load
+              localStorage.setItem("checklistGCG", JSON.stringify(mappedChecklist));
+              console.log('ChecklistContext: Loaded checklist from Supabase', mappedChecklist.length);
+            }
+          } catch (parseError) {
+            console.error('ChecklistContext: JSON parse error:', parseError);
+            console.error('ChecklistContext: Failed response details:', {
+              url: checklistResponse.url,
+              status: checklistResponse.status,
+              statusText: checklistResponse.statusText,
+              headers: Object.fromEntries(checklistResponse.headers.entries())
+            });
+            setChecklist([]);
           }
         } else {
-          console.error('ChecklistContext: Failed to load checklist from Supabase');
+          console.error('ChecklistContext: Failed to load checklist from Supabase', {
+            status: checklistResponse.status,
+            statusText: checklistResponse.statusText,
+            url: checklistResponse.url
+          });
           setChecklist([]); // Start with empty instead of localStorage
         }
 
@@ -329,13 +356,13 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
 
     // Listen for storage events (from other tabs/windows)
     window.addEventListener('storage', handleStorageChange);
-    
-    // Also check localStorage periodically for changes
-    const interval = setInterval(handleStorageChange, 1000);
+
+    // REMOVED: Periodic localStorage polling that was causing PIC assignment conflicts
+    // const interval = setInterval(handleStorageChange, 1000);
     
     return () => {
       window.removeEventListener('storage', handleStorageChange);
-      clearInterval(interval);
+      // clearInterval(interval); // No longer needed
     };
   }, [checklist]);
 
@@ -466,10 +493,48 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
+      const result = await response.json();
+
+      // Handle file transfer feedback
+      if (result.files_transferred) {
+        console.log('ChecklistContext: ✅ Files successfully transferred to new PIC directory');
+
+        // Dispatch transfer success event for UI feedback
+        window.dispatchEvent(new CustomEvent('fileTransferSuccess', {
+          detail: {
+            checklistId: id,
+            message: result.message || 'Files transferred successfully',
+            transferredFiles: true
+          }
+        }));
+      } else if (result.transfer_errors && result.transfer_errors.length > 0) {
+        console.warn('ChecklistContext: ⚠️ File transfer had errors:', result.transfer_errors);
+
+        // Dispatch transfer error event for UI feedback
+        window.dispatchEvent(new CustomEvent('fileTransferError', {
+          detail: {
+            checklistId: id,
+            errors: result.transfer_errors,
+            warning: result.warning || 'Some files failed to transfer'
+          }
+        }));
+      }
+
       console.log('ChecklistContext: Successfully updated checklist in Supabase');
     } catch (error) {
       console.error('ChecklistContext: Failed to update checklist in Supabase:', error);
+
+      // Dispatch general error event
+      window.dispatchEvent(new CustomEvent('fileTransferError', {
+        detail: {
+          checklistId: id,
+          errors: [error instanceof Error ? error.message : 'Unknown error'],
+          warning: 'Failed to update checklist and transfer files'
+        }
+      }));
+
+      throw error; // Re-throw to let calling component handle it
     }
 
     const updated = checklist.map((c) => (c.id === id ? { ...c, aspek, deskripsi, pic, tahun: year } : c));
@@ -1006,14 +1071,16 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  console.log('ChecklistProvider: Rendering with checklist data:', checklist.length, 'items');
+
   return (
-    <ChecklistContext.Provider value={{ 
-      checklist, 
+    <ChecklistContext.Provider value={{
+      checklist,
       aspects,
       getChecklistByYear,
       getAspectsByYear,
-      addChecklist, 
-      editChecklist, 
+      addChecklist,
+      editChecklist,
       deleteChecklist,
       addAspek,
       editAspek,

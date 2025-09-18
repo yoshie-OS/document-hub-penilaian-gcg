@@ -12,13 +12,14 @@ import { useYear } from '@/contexts/YearContext';
 import { useDocumentMetadata } from '@/contexts/DocumentMetadataContext';
 import { useFileUpload } from '@/contexts/FileUploadContext';
 import { useChecklist } from '@/contexts/ChecklistContext';
+import { useToast } from '@/hooks/use-toast';
 import { CatatanDialog } from '@/components/dialogs';
-import { 
-  Archive, 
-  Search, 
-  FileText, 
-  Download, 
-  Eye, 
+import {
+  Archive,
+  Search,
+  FileText,
+  Download,
+  Eye,
   Calendar,
   Users,
   Filter,
@@ -28,7 +29,8 @@ import {
   TrendingUp,
   Building,
   UserCheck,
-  Loader2
+  Loader2,
+  RefreshCw
 } from 'lucide-react';
 
 interface CatatanDocumentState {
@@ -43,6 +45,12 @@ const ArsipDokumen = () => {
   const { documents } = useDocumentMetadata();
   const { getFilesByYear } = useFileUpload();
   const { checklist } = useChecklist();
+  const { toast } = useToast();
+
+  // State for bulk download and refresh
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // State for search and filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -363,6 +371,130 @@ const ArsipDokumen = () => {
     }
   }, [getUploadedDocument, checklist]);
 
+  // Handle bulk download of all documents
+  const handleBulkDownload = async () => {
+    if (!selectedYear) {
+      toast({
+        title: "Error",
+        description: "Pilih tahun terlebih dahulu",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsDownloading(true);
+    setDownloadProgress(0);
+
+    try {
+      const response = await fetch('http://localhost:5000/api/bulk-download-all-documents', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          year: selectedYear,
+          includeGCG: true,
+          includeAOI: true,
+          includeChecklist: true
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      // Get filename from Content-Disposition header
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let filename = `All_Documents_${selectedYear}.zip`;
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="([^"]+)"|filename=([^;\s]+)/);
+        if (filenameMatch) {
+          filename = filenameMatch[1] || filenameMatch[2];
+        }
+      }
+
+      // Download the ZIP file
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      setDownloadProgress(100);
+      toast({
+        title: "✅ Download Berhasil",
+        description: `File ${filename} berhasil didownload`,
+        duration: 5000
+      });
+
+    } catch (error) {
+      console.error('Bulk download error:', error);
+      toast({
+        title: "❌ Download Gagal",
+        description: error instanceof Error ? error.message : "Terjadi kesalahan saat download",
+        variant: "destructive"
+      });
+    } finally {
+      setIsDownloading(false);
+      setDownloadProgress(0);
+    }
+  };
+
+  // Handle refresh tracking tables
+  const handleRefreshTables = async () => {
+    if (!selectedYear) {
+      toast({
+        title: "Error",
+        description: "Pilih tahun terlebih dahulu",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsRefreshing(true);
+    try {
+      const response = await fetch('http://localhost:5000/api/refresh-tracking-tables', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          year: selectedYear
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      toast({
+        title: "✅ Refresh Berhasil",
+        description: `Dibersihkan: ${result.gcgCleaned || 0} record GCG, ${result.aoiCleaned || 0} record AOI`,
+        duration: 5000
+      });
+
+      // Refresh the file status after cleaning
+      setSupabaseFileStatus({});
+      setSupabaseFileInfo({});
+
+    } catch (error) {
+      console.error('Refresh error:', error);
+      toast({
+        title: "❌ Refresh Gagal",
+        description: error instanceof Error ? error.message : "Terjadi kesalahan saat refresh",
+        variant: "destructive"
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   // Get aspect icon
   const getAspectIcon = useCallback((aspekName: string) => {
     if (aspekName === 'KESELURUHAN') return TrendingUp;
@@ -389,6 +521,22 @@ const ArsipDokumen = () => {
           <PageHeaderPanel
             title="Arsip Dokumen"
             subtitle="Kelola dan unduh dokumen yang telah diupload"
+            actions={[
+              {
+                label: isRefreshing ? "Refreshing..." : "Refresh Tabel",
+                onClick: handleRefreshTables,
+                icon: <RefreshCw className="w-4 h-4" />,
+                variant: "outline" as const,
+                disabled: isRefreshing || fileStatusLoading || isDownloading
+              },
+              {
+                label: isDownloading ? `Downloading... ${downloadProgress}%` : "Download Semua",
+                onClick: handleBulkDownload,
+                icon: <Download className="w-4 h-4" />,
+                variant: "outline" as const,
+                disabled: isDownloading || isRefreshing || fileStatusLoading
+              }
+            ]}
           />
 
           {/* Year Selector Panel */}

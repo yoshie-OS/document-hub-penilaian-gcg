@@ -281,7 +281,9 @@ class StorageService:
         with file_lock:
             full_path = Path(__file__).parent.parent / file_path
             full_path.parent.mkdir(parents=True, exist_ok=True)
-            df.to_csv(str(full_path), index=False)
+            # Save with proper CSV quoting for string fields only
+            import csv
+            df.to_csv(str(full_path), index=False, quoting=csv.QUOTE_NONNUMERIC)
             return True
     
     # Supabase CSV methods
@@ -333,8 +335,10 @@ class StorageService:
                 temp_path = temp_file.name
             
             try:
-                # Save DataFrame to temp file
-                df.to_csv(temp_path, index=False)
+                # Save DataFrame to temp file with proper CSV quoting
+                # Use QUOTE_NONNUMERIC to only quote string fields (not numbers)
+                import csv
+                df.to_csv(temp_path, index=False, quoting=csv.QUOTE_NONNUMERIC)
                 print(f"🔍 DEBUG: Saved to temp file: {temp_path}")
                 
                 # Upload to Supabase

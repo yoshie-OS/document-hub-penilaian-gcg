@@ -17,11 +17,11 @@ import { useAOI } from '@/contexts/AOIContext';
 import { useStrukturPerusahaan } from '@/contexts/StrukturPerusahaanContext';
 import { useToast } from '@/hooks/use-toast';
 import { PageHeaderPanel, YearSelectorPanel, AOIPanel } from '@/components/panels';
-import { 
-  Plus, 
-  Edit, 
-  Trash2, 
-  Star, 
+import {
+  Plus,
+  Edit,
+  Trash2,
+  Star,
   Calendar,
   Users,
   FileText,
@@ -185,6 +185,7 @@ const AOIManagement = () => {
   } = useAOI();
   const { direktorat, subdirektorat, divisi } = useStrukturPerusahaan();
   const { toast } = useToast();
+
 
   // State untuk dialog
   const [isTableDialogOpen, setIsTableDialogOpen] = useState(false);
@@ -455,10 +456,11 @@ const AOIManagement = () => {
   // Get next recommendation number for a table
   const getNextRecommendationNumber = (tableId: number) => {
     const tableRecs = getTableRecommendations(tableId);
-    
+
     // Since we use sequential numbering (no gaps), just count existing + 1
     return tableRecs.length + 1;
   };
+
 
   if (!selectedYear) {
     return (

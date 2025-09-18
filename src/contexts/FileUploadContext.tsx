@@ -114,6 +114,25 @@ export const FileUploadProvider: React.FC<{ children: ReactNode }> = ({ children
         // Refresh the files list to get updated data from backend
         const updatedFiles = await fetchFiles();
         setUploadedFiles(updatedFiles);
+
+        // Dispatch events to notify other components about the upload
+        window.dispatchEvent(new CustomEvent('fileUploaded', {
+          detail: {
+            checklistId: checklistId,
+            rowNumber: rowNumber,
+            year: year,
+            fileName: file.name,
+            success: true
+          }
+        }));
+
+        window.dispatchEvent(new CustomEvent('uploadedFilesChanged', {
+          detail: {
+            type: 'fileUploaded',
+            files: updatedFiles,
+            year: year
+          }
+        }));
       } else {
         throw new Error(result.error || 'Upload failed');
       }

@@ -2823,12 +2823,18 @@ def check_gcg_files():
                         if not matching_file.empty:
                             # Add metadata from uploaded-files.xlsx
                             file_record = matching_file.iloc[0]
+
+                            # Convert pandas NaN values to proper defaults for JSON serialization
+                            def safe_get(record, key, default=''):
+                                value = record.get(key, default)
+                                return default if pd.isna(value) else str(value)
+
                             file_found.update({
-                                'catatan': file_record.get('catatan', ''),
-                                'uploadedBy': file_record.get('uploadedBy', 'Unknown'),
-                                'subdirektorat': file_record.get('subdirektorat', ''),
-                                'aspect': file_record.get('aspect', ''),
-                                'checklistDescription': file_record.get('checklistDescription', ''),
+                                'catatan': safe_get(file_record, 'catatan', ''),
+                                'uploadedBy': safe_get(file_record, 'uploadedBy', 'Unknown'),
+                                'subdirektorat': safe_get(file_record, 'subdirektorat', ''),
+                                'aspect': safe_get(file_record, 'aspect', ''),
+                                'checklistDescription': safe_get(file_record, 'checklistDescription', ''),
                                 'checklistId': checklist_id,
                                 'id': f"supabase_{checklist_id}"
                             })
@@ -2966,6 +2972,9 @@ def get_aspects():
         if aspects_data is None:
             return jsonify({'aspects': []}), 200
             
+        # Replace NaN values with empty strings before converting to dict
+        aspects_data = aspects_data.fillna('')
+
         # Convert DataFrame to list of dictionaries
         aspects_list = aspects_data.to_dict('records')
         
@@ -3096,6 +3105,17 @@ def get_checklist():
         if checklist_data is not None:
             # Replace NaN values with empty strings before converting to dict
             checklist_data = checklist_data.fillna('')
+
+            # Filter by year if provided
+            year = request.args.get('year')
+            if year:
+                try:
+                    year_int = int(year)
+                    checklist_data = checklist_data[checklist_data['tahun'] == year_int]
+                    print(f"DEBUG: Filtered checklist for year {year_int}, found {len(checklist_data)} items")
+                except ValueError:
+                    print(f"WARNING: Invalid year parameter: {year}")
+
             checklist_items = checklist_data.to_dict(orient='records')
             return jsonify({'checklist': checklist_items}), 200
         return jsonify({'checklist': []}), 200
@@ -3145,12 +3165,12 @@ def add_checklist():
         # Generate checklist ID using year + ID sequence (not row position)
         checklist_id = generate_checklist_id(year, next_id_sequence)
         
-        # Create checklist object
+        # Create checklist object - ensure all string fields are properly converted
         checklist_data = {
             'id': checklist_id,
-            'aspek': data.get('aspek', ''),
-            'deskripsi': data.get('deskripsi', ''),
-            'pic': data.get('pic', ''),
+            'aspek': str(data.get('aspek', '')),
+            'deskripsi': str(data.get('deskripsi', '')),
+            'pic': str(data.get('pic', '')),
             'tahun': year,
             'rowNumber': next_row_number,
             'created_at': datetime.now().isoformat()
@@ -3211,66 +3231,128 @@ def update_checklist(checklist_id):
         print(f"  Year changed: {year_changed}")
         print(f"  Both old and new PIC exist: {bool(old_pic and new_pic)}")
         
-        # If PIC changes, delete existing files from old location
-        if pic_changed and old_pic:
+        # If PIC changes, transfer existing files from old location to new location
+        if pic_changed and old_pic and new_pic:
             try:
-                # Define old directory path (apply same naming transformation as file upload)
+                # Define old and new directory paths
                 from werkzeug.utils import secure_filename
                 old_pic_clean = secure_filename(old_pic.replace(' ', '_'))
-                old_dir = f"gcg-documents/{old_tahun}/{old_pic_clean}/{checklist_id}/"
-                
+                new_pic_clean = secure_filename(new_pic.replace(' ', '_'))
+                old_dir = f"gcg-documents/{old_tahun}/{old_pic_clean}/{checklist_id}"
+                new_dir = f"gcg-documents/{new_tahun}/{new_pic_clean}/{checklist_id}"
+
                 print(f"PIC change detected for checklist {checklist_id}")
-                print(f"Deleting existing files from: {old_dir}")
-                
-                # Delete files from old directory
+                print(f"Transferring files from: {old_dir}")
+                print(f"                    to: {new_dir}")
+
+                # Transfer files between directories
                 if storage_service.storage_mode == 'supabase':
-                    # For Supabase, list and delete files in the old directory
+                    # For Supabase, list files in old directory, copy to new, then delete old
                     try:
                         response = storage_service.supabase.storage.from_(storage_service.bucket_name).list(old_dir)
                         if response:
-                            files_to_delete = [f for f in response if f.get('name') and not f.get('name').endswith('/')]
-                            
-                            if files_to_delete:
-                                # Delete all files
-                                files_to_remove = [f"{old_dir}{file_obj['name']}" for file_obj in files_to_delete]
-                                try:
-                                    storage_service.supabase.storage.from_(storage_service.bucket_name).remove(files_to_remove)
-                                    print(f"Successfully deleted {len(files_to_delete)} files from old PIC location")
-                                    files_transferred = True  # Mark as handled
-                                except Exception as delete_error:
-                                    error_msg = f"Failed to delete files: {str(delete_error)}"
-                                    print(error_msg)
+                            files_to_transfer = [f for f in response if f.get('name') and not f.get('name').endswith('/') and not f.get('name').startswith('.')]
+
+                            if files_to_transfer:
+                                transferred_files = []
+                                failed_transfers = []
+
+                                # Step 1: Copy each file to new location
+                                for file_obj in files_to_transfer:
+                                    old_file_path = f"{old_dir}/{file_obj['name']}"
+                                    new_file_path = f"{new_dir}/{file_obj['name']}"
+
+                                    try:
+                                        # Download file from old location
+                                        download_response = storage_service.supabase.storage.from_(storage_service.bucket_name).download(old_file_path)
+                                        if download_response:
+                                            # Upload file to new location
+                                            # First try upload, if it fails due to existing file, use update instead
+                                            try:
+                                                upload_response = storage_service.supabase.storage.from_(storage_service.bucket_name).upload(
+                                                    path=new_file_path,
+                                                    file=download_response
+                                                )
+                                            except Exception as upload_error:
+                                                if "Duplicate" in str(upload_error) or "already exists" in str(upload_error):
+                                                    # File exists, use update instead
+                                                    upload_response = storage_service.supabase.storage.from_(storage_service.bucket_name).update(
+                                                        path=new_file_path,
+                                                        file=download_response
+                                                    )
+                                                else:
+                                                    raise upload_error
+
+                                            if not (hasattr(upload_response, 'error') and upload_response.error):
+                                                transferred_files.append((old_file_path, new_file_path))
+                                                print(f"✅ Transferred: {file_obj['name']}")
+                                            else:
+                                                failed_transfers.append(f"Upload failed for {file_obj['name']}: {upload_response.error}")
+                                        else:
+                                            failed_transfers.append(f"Download failed for {file_obj['name']}")
+
+                                    except Exception as transfer_error:
+                                        failed_transfers.append(f"Transfer error for {file_obj['name']}: {str(transfer_error)}")
+
+                                # Step 2: If all transfers successful, delete old files
+                                if len(transferred_files) == len(files_to_transfer) and not failed_transfers:
+                                    try:
+                                        old_files_to_remove = [old_path for old_path, new_path in transferred_files]
+                                        delete_response = storage_service.supabase.storage.from_(storage_service.bucket_name).remove(old_files_to_remove)
+                                        print(f"✅ Successfully transferred {len(transferred_files)} files from {old_pic} to {new_pic}")
+                                        files_transferred = True
+                                    except Exception as delete_error:
+                                        error_msg = f"Files copied but failed to delete originals: {str(delete_error)}"
+                                        print(f"⚠️ {error_msg}")
+                                        transfer_errors.append(error_msg)
+                                        files_transferred = True  # Still consider successful since files are in new location
+                                else:
+                                    # Some transfers failed
+                                    error_msg = f"Failed to transfer {len(failed_transfers)} files: {'; '.join(failed_transfers)}"
+                                    print(f"❌ {error_msg}")
                                     transfer_errors.append(error_msg)
-                                
+                            else:
+                                print(f"ℹ️ No files to transfer in directory: {old_dir}")
+                                files_transferred = True  # No files to transfer is considered success
+
                     except Exception as list_error:
-                        print(f"Error listing files in old directory: {str(list_error)}")
-                        
+                        error_msg = f"Error listing files in old directory: {str(list_error)}"
+                        print(f"❌ {error_msg}")
+                        transfer_errors.append(error_msg)
+
                 else:
-                    # For local storage, delete the old directory
+                    # For local storage, move the directory
                     import os
                     import shutil
-                    
+
                     old_local_dir = os.path.join('data', old_dir.replace('/', os.sep))
-                    
+                    new_local_dir = os.path.join('data', new_dir.replace('/', os.sep))
+
                     if os.path.exists(old_local_dir):
                         try:
-                            shutil.rmtree(old_local_dir)
-                            print(f"Successfully deleted old directory: {old_local_dir}")
-                            files_transferred = True  # Mark as handled
-                        except Exception as delete_error:
-                            error_msg = f"Failed to delete old directory: {str(delete_error)}"
-                            print(error_msg)
+                            # Create new directory structure
+                            os.makedirs(os.path.dirname(new_local_dir), exist_ok=True)
+                            # Move directory
+                            shutil.move(old_local_dir, new_local_dir)
+                            print(f"✅ Successfully moved local directory from {old_local_dir} to {new_local_dir}")
+                            files_transferred = True
+                        except Exception as move_error:
+                            error_msg = f"Failed to move local directory: {str(move_error)}"
+                            print(f"❌ {error_msg}")
                             transfer_errors.append(error_msg)
-                            
-            except Exception as delete_error:
-                error_msg = f"General error during file deletion: {str(delete_error)}"
-                print(error_msg)
+                    else:
+                        print(f"ℹ️ No local directory to transfer: {old_local_dir}")
+                        files_transferred = True  # No directory to transfer is considered success
+
+            except Exception as transfer_error:
+                error_msg = f"General error during file transfer: {str(transfer_error)}"
+                print(f"❌ {error_msg}")
                 transfer_errors.append(error_msg)
         
-        # Update the checklist item
-        checklist_data.loc[checklist_data['id'] == checklist_id, 'aspek'] = data.get('aspek', '')
-        checklist_data.loc[checklist_data['id'] == checklist_id, 'deskripsi'] = data.get('deskripsi', '')
-        checklist_data.loc[checklist_data['id'] == checklist_id, 'pic'] = new_pic
+        # Update the checklist item - ensure all string fields are properly converted
+        checklist_data.loc[checklist_data['id'] == checklist_id, 'aspek'] = str(data.get('aspek', ''))
+        checklist_data.loc[checklist_data['id'] == checklist_id, 'deskripsi'] = str(data.get('deskripsi', ''))
+        checklist_data.loc[checklist_data['id'] == checklist_id, 'pic'] = str(new_pic)
         checklist_data.loc[checklist_data['id'] == checklist_id, 'tahun'] = new_tahun
         
         # Save to storage
@@ -3460,13 +3542,14 @@ def add_checklist_batch():
         else:
             checklist_df = pd.DataFrame()
         
-        # Process each item in the batch
+        # Process each item in the batch - ensure all string fields are properly converted
         batch_data = []
         for item in items:
             checklist_data = {
                 'id': generate_checklist_id(item.get('tahun'), item.get('rowNumber')),
-                'aspek': item.get('aspek', ''),
-                'deskripsi': item.get('deskripsi', ''),
+                'aspek': str(item.get('aspek', '')),
+                'deskripsi': str(item.get('deskripsi', '')),
+                'pic': str(item.get('pic', '')),
                 'tahun': item.get('tahun'),
                 'rowNumber': item.get('rowNumber'),
                 'created_at': datetime.now().isoformat()
@@ -3992,13 +4075,13 @@ def add_assignment():
         
         # Read existing assignments
         existing_data = storage_service.read_csv('config/checklist-assignments.csv')
-        if existing_data is not None:
+        if existing_data is not None and not existing_data.empty:
             assignments_df = existing_data
+            # Remove existing assignment for this checklistId if exists
+            assignments_df = assignments_df[assignments_df['checklistId'] != assignment_data['checklistId']]
         else:
+            # Create empty DataFrame with proper columns
             assignments_df = pd.DataFrame()
-        
-        # Remove existing assignment for this checklistId if exists
-        assignments_df = assignments_df[assignments_df['checklistId'] != assignment_data['checklistId']]
         
         # Add new assignment
         new_assignment_df = pd.DataFrame([assignment_data])
@@ -4327,6 +4410,385 @@ def bulk_delete_year_data(year):
     except Exception as e:
         print(f"❌ Error during bulk delete: {e}")
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/bulk-download-all-documents', methods=['POST'])
+def bulk_download_all_documents():
+    """Download all GCG and AOI documents organized by division, including checklist.csv"""
+    import zipfile
+    import io
+    import tempfile
+    from datetime import datetime
+
+    try:
+        data = request.get_json()
+        year = data.get('year')
+        include_gcg = data.get('includeGCG', True)
+        include_aoi = data.get('includeAOI', True)
+        include_checklist = data.get('includeChecklist', True)
+
+        if not year:
+            return jsonify({'error': 'Year is required'}), 400
+
+        print(f"🔍 Starting bulk download for year {year}")
+
+        # Create a temporary file for the ZIP
+        temp_zip = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
+
+        with zipfile.ZipFile(temp_zip.name, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            files_added = 0
+
+            # Add checklist.csv for reference
+            if include_checklist:
+                try:
+                    checklist_data = storage_service.read_csv(f'config/checklist-{year}.csv')
+                    if checklist_data is None:
+                        # Try without year suffix
+                        checklist_data = storage_service.read_csv('config/checklist.csv')
+                        if checklist_data is not None:
+                            # Filter by year
+                            checklist_data = checklist_data[checklist_data['tahun'] == year]
+
+                    if checklist_data is not None and not checklist_data.empty:
+                        csv_content = checklist_data.to_csv(index=False)
+                        zipf.writestr(f'checklist_{year}.csv', csv_content)
+                        files_added += 1
+                        print(f"✅ Added checklist_{year}.csv")
+                except Exception as e:
+                    print(f"⚠️ Could not add checklist: {e}")
+
+            # Download GCG documents organized by division
+            if include_gcg:
+                try:
+                    print(f"📄 Processing GCG documents...")
+
+                    # List all files in gcg-documents/{year}/
+                    gcg_prefix = f"gcg-documents/{year}"
+                    gcg_files = storage_service.supabase.storage.from_(storage_service.bucket_name).list(gcg_prefix)
+
+                    if gcg_files:
+                        for division_folder in gcg_files:
+                            if division_folder['name'] == '.emptyFolderPlaceholder':
+                                continue
+
+                            division_name = division_folder['name']
+                            print(f"📁 Processing division: {division_name}")
+
+                            # List files in this division
+                            division_path = f"{gcg_prefix}/{division_name}"
+                            checklist_folders = storage_service.supabase.storage.from_(storage_service.bucket_name).list(division_path)
+
+                            if checklist_folders:
+                                for checklist_folder in checklist_folders:
+                                    if checklist_folder['name'] == '.emptyFolderPlaceholder':
+                                        continue
+
+                                    checklist_id = checklist_folder['name']
+                                    checklist_path = f"{division_path}/{checklist_id}"
+
+                                    # List actual files in this checklist folder
+                                    files_in_checklist = storage_service.supabase.storage.from_(storage_service.bucket_name).list(checklist_path)
+
+                                    if files_in_checklist:
+                                        for file_item in files_in_checklist:
+                                            if file_item['name'] == '.emptyFolderPlaceholder':
+                                                continue
+
+                                            file_path = f"{checklist_path}/{file_item['name']}"
+
+                                            try:
+                                                # Download file from Supabase
+                                                file_response = storage_service.supabase.storage.from_(storage_service.bucket_name).download(file_path)
+
+                                                # Add to ZIP with organized structure
+                                                zip_path = f"GCG_Documents/{division_name}/Checklist_{checklist_id}/{file_item['name']}"
+                                                zipf.writestr(zip_path, file_response)
+                                                files_added += 1
+                                                print(f"✅ Added GCG: {zip_path}")
+
+                                            except Exception as e:
+                                                print(f"❌ Failed to download GCG file {file_path}: {e}")
+
+                except Exception as e:
+                    print(f"❌ Error processing GCG documents: {e}")
+
+            # Download AOI documents organized by division
+            if include_aoi:
+                try:
+                    print(f"📋 Processing AOI documents...")
+
+                    # List all files in aoi-documents/{year}/
+                    aoi_prefix = f"aoi-documents/{year}"
+                    aoi_files = storage_service.supabase.storage.from_(storage_service.bucket_name).list(aoi_prefix)
+
+                    if aoi_files:
+                        for division_folder in aoi_files:
+                            if division_folder['name'] == '.emptyFolderPlaceholder':
+                                continue
+
+                            division_name = division_folder['name']
+                            print(f"📁 Processing AOI division: {division_name}")
+
+                            # List files in this division
+                            division_path = f"{aoi_prefix}/{division_name}"
+                            recommendation_folders = storage_service.supabase.storage.from_(storage_service.bucket_name).list(division_path)
+
+                            if recommendation_folders:
+                                for rec_folder in recommendation_folders:
+                                    if rec_folder['name'] == '.emptyFolderPlaceholder':
+                                        continue
+
+                                    rec_id = rec_folder['name']
+                                    rec_path = f"{division_path}/{rec_id}"
+
+                                    # List actual files in this recommendation folder
+                                    files_in_rec = storage_service.supabase.storage.from_(storage_service.bucket_name).list(rec_path)
+
+                                    if files_in_rec:
+                                        for file_item in files_in_rec:
+                                            if file_item['name'] == '.emptyFolderPlaceholder':
+                                                continue
+
+                                            file_path = f"{rec_path}/{file_item['name']}"
+
+                                            try:
+                                                # Download file from Supabase
+                                                file_response = storage_service.supabase.storage.from_(storage_service.bucket_name).download(file_path)
+
+                                                # Add to ZIP with organized structure
+                                                zip_path = f"AOI_Documents/{division_name}/Recommendation_{rec_id}/{file_item['name']}"
+                                                zipf.writestr(zip_path, file_response)
+                                                files_added += 1
+                                                print(f"✅ Added AOI: {zip_path}")
+
+                                            except Exception as e:
+                                                print(f"❌ Failed to download AOI file {file_path}: {e}")
+
+                except Exception as e:
+                    print(f"❌ Error processing AOI documents: {e}")
+
+        print(f"📦 ZIP creation complete. Total files: {files_added}")
+
+        if files_added == 0:
+            return jsonify({'error': 'No documents found for the specified year'}), 404
+
+        # Read the ZIP file and prepare response
+        with open(temp_zip.name, 'rb') as zip_file:
+            zip_data = zip_file.read()
+
+        # Clean up temp file
+        os.unlink(temp_zip.name)
+
+        # Create response
+        filename = f"All_Documents_{year}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+        response = make_response(zip_data)
+        response.headers['Content-Type'] = 'application/zip'
+        response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+        response.headers['Content-Length'] = len(zip_data)
+
+        print(f"✅ Bulk download complete: {filename} ({len(zip_data)} bytes)")
+        return response
+
+    except Exception as e:
+        print(f"❌ Bulk download error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Failed to create bulk download: {str(e)}'}), 500
+
+@app.route('/api/refresh-tracking-tables', methods=['POST'])
+def refresh_tracking_tables():
+    """
+    Validate tracking files against actual Supabase storage and clean up orphaned records.
+    Checks both uploaded-files.xlsx (GCG) and aoi-documents.csv (AOI) against actual files in Supabase.
+    """
+    try:
+        data = request.get_json()
+        year = data.get('year')
+
+        if not year:
+            return jsonify({'error': 'Year is required'}), 400
+
+        print(f"🔍 Starting tracking tables refresh for year {year}")
+
+        gcg_cleaned = 0
+        aoi_cleaned = 0
+
+        # 1. Clean GCG documents tracking (uploaded-files.xlsx)
+        try:
+            print(f"📄 Checking GCG documents tracking...")
+
+            # Read uploaded-files.xlsx
+            uploaded_files_data = storage_service.read_excel('uploaded-files.xlsx')
+            if uploaded_files_data is not None and not uploaded_files_data.empty:
+                initial_count = len(uploaded_files_data)
+
+                # Filter for the specified year
+                year_files = uploaded_files_data[uploaded_files_data['year'] == year].copy()
+                other_years = uploaded_files_data[uploaded_files_data['year'] != year].copy()
+
+                if not year_files.empty:
+                    valid_records = []
+
+                    for index, row in year_files.iterrows():
+                        try:
+                            # Extract file information
+                            pic_name = str(row.get('subdirektorat', ''))
+                            checklist_id = row.get('checklistId', '')
+                            year_val = row.get('year', year)
+
+                            if not pic_name or not checklist_id:
+                                print(f"⚠️ Skipping invalid record: missing PIC or checklist ID")
+                                continue
+
+                            # Clean PIC name for path
+                            from werkzeug.utils import secure_filename
+                            pic_clean = secure_filename(pic_name.replace(' ', '_'))
+
+                            # Check if directory exists in Supabase
+                            directory_path = f"gcg-documents/{year_val}/{pic_clean}/{checklist_id}"
+
+                            try:
+                                list_response = storage_service.supabase.storage.from_(storage_service.bucket_name).list(directory_path)
+
+                                # Check if directory has actual files (not just placeholders)
+                                has_real_files = False
+                                if list_response:
+                                    for file_item in list_response:
+                                        if (file_item.get('name') and
+                                            file_item.get('name') != '.emptyFolderPlaceholder' and
+                                            not file_item.get('name').startswith('.')):
+                                            has_real_files = True
+                                            break
+
+                                if has_real_files:
+                                    valid_records.append(row)
+                                    print(f"✅ Valid GCG record: {directory_path}")
+                                else:
+                                    print(f"❌ Orphaned GCG record (no files): {directory_path}")
+                                    gcg_cleaned += 1
+
+                            except Exception as e:
+                                print(f"❌ Error checking GCG directory {directory_path}: {e}")
+                                gcg_cleaned += 1
+
+                        except Exception as e:
+                            print(f"❌ Error processing GCG record: {e}")
+                            gcg_cleaned += 1
+
+                    # Rebuild the dataframe with valid records + other years
+                    if valid_records:
+                        valid_year_df = pd.DataFrame(valid_records)
+                        updated_df = pd.concat([other_years, valid_year_df], ignore_index=True)
+                    else:
+                        updated_df = other_years
+
+                    # Save cleaned data
+                    if len(updated_df) != initial_count:
+                        success = storage_service.write_excel(updated_df, 'uploaded-files.xlsx')
+                        if success:
+                            print(f"✅ Cleaned {gcg_cleaned} orphaned GCG records")
+                        else:
+                            print(f"❌ Failed to save cleaned GCG data")
+
+        except Exception as e:
+            print(f"❌ Error cleaning GCG tracking: {e}")
+
+        # 2. Clean AOI documents tracking (aoi-documents.csv)
+        try:
+            print(f"📋 Checking AOI documents tracking...")
+
+            # Read aoi-documents.csv
+            aoi_docs_data = storage_service.read_csv('config/aoi-documents.csv')
+            if aoi_docs_data is not None and not aoi_docs_data.empty:
+                initial_count = len(aoi_docs_data)
+
+                # Filter for the specified year
+                year_docs = aoi_docs_data[aoi_docs_data['tahun'] == year].copy()
+                other_years = aoi_docs_data[aoi_docs_data['tahun'] != year].copy()
+
+                if not year_docs.empty:
+                    valid_records = []
+
+                    for index, row in year_docs.iterrows():
+                        try:
+                            # Extract file information
+                            subdirektorat = str(row.get('subdirektorat', ''))
+                            recommendation_id = row.get('aoiRecommendationId', '')
+                            year_val = row.get('tahun', year)
+
+                            if not subdirektorat or not recommendation_id:
+                                print(f"⚠️ Skipping invalid AOI record: missing subdirektorat or recommendation ID")
+                                continue
+
+                            # Clean subdirektorat name for path
+                            from werkzeug.utils import secure_filename
+                            subdirektorat_clean = secure_filename(subdirektorat.replace(' ', '_'))
+
+                            # Check if directory exists in Supabase
+                            directory_path = f"aoi-documents/{year_val}/{subdirektorat_clean}/{recommendation_id}"
+
+                            try:
+                                list_response = storage_service.supabase.storage.from_(storage_service.bucket_name).list(directory_path)
+
+                                # Check if directory has actual files (not just placeholders)
+                                has_real_files = False
+                                if list_response:
+                                    for file_item in list_response:
+                                        if (file_item.get('name') and
+                                            file_item.get('name') != '.emptyFolderPlaceholder' and
+                                            not file_item.get('name').startswith('.')):
+                                            has_real_files = True
+                                            break
+
+                                if has_real_files:
+                                    valid_records.append(row)
+                                    print(f"✅ Valid AOI record: {directory_path}")
+                                else:
+                                    print(f"❌ Orphaned AOI record (no files): {directory_path}")
+                                    aoi_cleaned += 1
+
+                            except Exception as e:
+                                print(f"❌ Error checking AOI directory {directory_path}: {e}")
+                                aoi_cleaned += 1
+
+                        except Exception as e:
+                            print(f"❌ Error processing AOI record: {e}")
+                            aoi_cleaned += 1
+
+                    # Rebuild the dataframe with valid records + other years
+                    if valid_records:
+                        valid_year_df = pd.DataFrame(valid_records)
+                        updated_df = pd.concat([other_years, valid_year_df], ignore_index=True)
+                    else:
+                        updated_df = other_years
+
+                    # Save cleaned data
+                    if len(updated_df) != initial_count:
+                        success = storage_service.write_csv(updated_df, 'config/aoi-documents.csv')
+                        if success:
+                            print(f"✅ Cleaned {aoi_cleaned} orphaned AOI records")
+                        else:
+                            print(f"❌ Failed to save cleaned AOI data")
+
+        except Exception as e:
+            print(f"❌ Error cleaning AOI tracking: {e}")
+
+        print(f"🎉 Tracking tables refresh complete for year {year}")
+        print(f"📊 Summary: GCG cleaned: {gcg_cleaned}, AOI cleaned: {aoi_cleaned}")
+
+        return jsonify({
+            'success': True,
+            'message': f'Tracking tables refreshed for year {year}',
+            'year': year,
+            'gcgCleaned': gcg_cleaned,
+            'aoiCleaned': aoi_cleaned,
+            'totalCleaned': gcg_cleaned + aoi_cleaned
+        }), 200
+
+    except Exception as e:
+        print(f"❌ Error during tracking tables refresh: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Failed to refresh tracking tables: {str(e)}'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

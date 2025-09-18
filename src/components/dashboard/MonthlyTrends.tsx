@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useFileUpload } from '@/contexts/FileUploadContext';
+import { useDocumentMetadata } from '@/contexts/DocumentMetadataContext';
 import { useChecklist } from '@/contexts/ChecklistContext';
 import { useYear } from '@/contexts/YearContext';
 import { useStrukturPerusahaan } from '@/contexts/StrukturPerusahaanContext';
@@ -24,6 +25,7 @@ interface SubdirektoratProgress {
 const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
   const { selectedYear } = useYear();
   const { getFilesByYear } = useFileUpload();
+  const { getDocumentsByYear } = useDocumentMetadata();
   const { checklist } = useChecklist();
   const { subdirektorat: strukturSubdirektorat, divisi } = useStrukturPerusahaan();
   
@@ -50,14 +52,35 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
     return () => ro.disconnect();
   }, []);
   
-  // Listen for assignment updates dari PengaturanBaru
+  // Listen for assignment and file upload updates
   useEffect(() => {
     const handleAssignmentsUpdate = () => {
+      console.log('MonthlyTrends: Assignments updated, refreshing data...');
       setAssignmentsUpdateTrigger(prev => prev + 1);
     };
-    
+
+    const handleFileUploadUpdate = () => {
+      console.log('MonthlyTrends: Files updated, refreshing data...');
+      setAssignmentsUpdateTrigger(prev => prev + 1);
+    };
+
+    const handleChecklistUpdate = () => {
+      console.log('MonthlyTrends: Checklist updated, refreshing data...');
+      setAssignmentsUpdateTrigger(prev => prev + 1);
+    };
+
+    // Listen for various update events
     window.addEventListener('assignmentsUpdated', handleAssignmentsUpdate);
-    return () => window.removeEventListener('assignmentsUpdated', handleAssignmentsUpdate);
+    window.addEventListener('checklistAssignmentsChanged', handleAssignmentsUpdate);
+    window.addEventListener('fileUploadComplete', handleFileUploadUpdate);
+    window.addEventListener('checklistUpdated', handleChecklistUpdate);
+
+    return () => {
+      window.removeEventListener('assignmentsUpdated', handleAssignmentsUpdate);
+      window.removeEventListener('checklistAssignmentsChanged', handleAssignmentsUpdate);
+      window.removeEventListener('fileUploadComplete', handleFileUploadUpdate);
+      window.removeEventListener('checklistUpdated', handleChecklistUpdate);
+    };
   }, []);
   
   // Auto-highlight effect - will be added after chartData declaration to avoid reference issues
@@ -81,20 +104,47 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
     
     // Get checklist items dan uploaded files untuk tahun yang dipilih
     const yearChecklist = checklist?.filter(item => item.tahun === selectedYear) || [];
-    const yearFiles = getFilesByYear(selectedYear) || [];
+
+    // Try to get files from both FileUploadContext and DocumentMetadataContext
+    const filesFromUploadContext = getFilesByYear(selectedYear) || [];
+    const filesFromDocumentContext = getDocumentsByYear(selectedYear) || [];
+
+    // Use whichever has more data, or combine them
+    let yearFiles = filesFromUploadContext;
+    if (filesFromDocumentContext.length > filesFromUploadContext.length) {
+      yearFiles = filesFromDocumentContext;
+      console.log('MonthlyTrends: Using DocumentMetadata files:', yearFiles.length);
+    } else {
+      console.log('MonthlyTrends: Using FileUpload files:', yearFiles.length);
+    }
+
+    // Additional debugging
+    console.log('MonthlyTrends: FileUpload context files:', filesFromUploadContext);
+    console.log('MonthlyTrends: DocumentMetadata context files:', filesFromDocumentContext);
+    console.log('MonthlyTrends: Final yearFiles:', yearFiles);
 
     // Get assignments untuk tahun yang dipilih
     const storedAssignments = localStorage.getItem('checklistAssignments');
     let yearAssignments: any[] = [];
-    
+
+    console.log('MonthlyTrends: Raw assignments from localStorage:', storedAssignments);
+
     if (storedAssignments) {
       try {
         const allAssignments = JSON.parse(storedAssignments);
-        yearAssignments = allAssignments.filter((assignment: any) => 
-          assignment.tahun === selectedYear
-        );
+        console.log('MonthlyTrends: Parsed all assignments:', allAssignments);
+
+        yearAssignments = allAssignments.filter((assignment: any) => {
+          // Handle both numeric and string year comparisons
+          const assignmentYear = typeof assignment.tahun === 'string'
+            ? parseInt(assignment.tahun)
+            : assignment.tahun;
+          return assignmentYear === selectedYear;
+        });
+
+        console.log('MonthlyTrends: Filtered assignments for year', selectedYear, ':', yearAssignments);
       } catch (error) {
-        console.error('Error parsing assignments:', error);
+        console.error('MonthlyTrends: Error parsing assignments:', error);
       }
     }
 
@@ -279,7 +329,7 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
         status
       };
     }).filter(Boolean); // Filter out null values
-  }, [selectedYear, checklist, getFilesByYear, strukturSubdirektorat, divisi, assignmentsUpdateTrigger]);
+  }, [selectedYear, checklist, getFilesByYear, getDocumentsByYear, strukturSubdirektorat, divisi, assignmentsUpdateTrigger]);
 
   // Auto-highlight effect - placed after chartData declaration to avoid reference issues
   useEffect(() => {

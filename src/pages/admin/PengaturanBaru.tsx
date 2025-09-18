@@ -762,6 +762,38 @@ const PengaturanBaru = () => {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
+  // Effect untuk handle file transfer feedback events
+  useEffect(() => {
+    const handleTransferSuccess = (event: CustomEvent) => {
+      const { checklistId, message } = event.detail;
+      toast({
+        title: "✅ File Transfer Berhasil",
+        description: message || `File berhasil dipindahkan ke PIC baru untuk checklist ID ${checklistId}`,
+        duration: 5000,
+      });
+    };
+
+    const handleTransferError = (event: CustomEvent) => {
+      const { checklistId, errors, warning } = event.detail;
+      toast({
+        title: "⚠️ File Transfer Error",
+        description: warning || `Gagal memindahkan file untuk checklist ID ${checklistId}: ${errors?.join(', ')}`,
+        variant: "destructive",
+        duration: 8000,
+      });
+    };
+
+    // Add event listeners
+    window.addEventListener('fileTransferSuccess', handleTransferSuccess as EventListener);
+    window.addEventListener('fileTransferError', handleTransferError as EventListener);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('fileTransferSuccess', handleTransferSuccess as EventListener);
+      window.removeEventListener('fileTransferError', handleTransferError as EventListener);
+    };
+  }, [toast]);
+
   // Effect untuk mengupdate progress struktur organisasi
   useEffect(() => {
     // Progress struktur organisasi tidak bergantung pada tahun tertentu
@@ -831,48 +863,7 @@ const PengaturanBaru = () => {
     ensureAspectsForAllYears();
   }, [ensureAspectsForAllYears]);
 
-  // Effect untuk load checklist dari context (removed localStorage dependency)
-  useEffect(() => {
-    console.log('PengaturanBaru: Loading checklist data for year', selectedYear);
-    console.log('PengaturanBaru: Context checklist data:', {
-      total: checklist?.length || 0,
-      selectedYear: selectedYear
-    });
-    
-    let allChecklist: ChecklistItem[] = [];
-    
-    // Load from ChecklistContext (Supabase data)
-    if (checklist && selectedYear) {
-      // Filter data context berdasarkan tahun yang dipilih
-      const contextFiltered = checklist.filter(item => item.tahun === selectedYear);
-      allChecklist = contextFiltered.map(item => ({
-        ...item,
-        status: 'pending' as const,
-        catatan: '',
-        tahun: item.tahun || selectedYear,
-        id: item.id,
-        aspek: item.aspek || '',
-        deskripsi: item.deskripsi || '',
-        pic: item.pic || '',
-        rowNumber: item.rowNumber
-      }));
-      console.log('PengaturanBaru: Loaded from ChecklistContext', {
-        contextTotal: checklist.length,
-        selectedYear: selectedYear,
-        filteredForYear: allChecklist.length
-      });
-    }
-    
-    console.log('PengaturanBaru: Setting checklist items', {
-      count: allChecklist.length,
-      items: allChecklist.slice(0, 3) // Show first 3 items for debugging
-    });
-    
-    // Update state
-    setChecklistItems(allChecklist);
-    setOriginalChecklistItems(allChecklist);
-    
-  }, [selectedYear]); // Only reload when year changes, not when checklist context updates
+  // Removed redundant useEffect - data sync is handled by the effect at line 960 which depends on [checklist, selectedYear]
   
   // Effect untuk auto-save checklist items saat ada perubahan
   // Gunakan useCallback untuk mencegah re-render berlebihan
@@ -955,6 +946,106 @@ const PengaturanBaru = () => {
     };
     loadAspects();
   }, [selectedYear, getAspectsByYear]);
+
+  // Function to load assignments and merge with checklist data
+  const loadAssignmentsAndMergeData = async (checklistData: any[]) => {
+    try {
+      const assignmentsResponse = await fetch('http://localhost:5000/api/config/assignments');
+      if (assignmentsResponse.ok) {
+        const assignmentsData = await assignmentsResponse.json();
+        const assignments = assignmentsData.assignments || [];
+
+        // Merge assignments with checklist data
+        const mergedData = checklistData.map(item => {
+          const assignment = assignments.find((a: any) =>
+            a.checklistId === item.id && a.year === item.tahun
+          );
+          return {
+            ...item,
+            pic: assignment ? assignment.assignedTo : item.pic || ''
+          };
+        });
+
+        console.log('PengaturanBaru: Merged checklist with assignments:', {
+          originalItems: checklistData.length,
+          assignmentsFound: assignments.length,
+          mergedItems: mergedData.length
+        });
+
+        return mergedData;
+      }
+    } catch (error) {
+      console.error('PengaturanBaru: Error loading assignments:', error);
+    }
+    return checklistData; // Return original data if assignments loading fails
+  };
+
+  // Effect untuk sync checklist data dari ChecklistContext ke checklistItems
+  useEffect(() => {
+    console.log('PengaturanBaru: Syncing checklist data from context', {
+      checklistLength: checklist?.length || 0,
+      checklistItemsLength: checklistItems?.length || 0,
+      selectedYear: selectedYear
+    });
+
+    if (checklist && checklist.length > 0 && selectedYear) {
+      console.log('PengaturanBaru: Filtering checklist for year', {
+        selectedYear,
+        totalItems: checklist.length,
+        allItems: checklist.map(item => ({ id: item.id, tahun: item.tahun, deskripsi: item.deskripsi?.substring(0, 50) + '...' }))
+      });
+
+      // Filter by selectedYear first
+      const filteredItems = checklist.filter(item => {
+        const matches = item.tahun === selectedYear;
+        if (!matches) {
+          console.log('PengaturanBaru: Item filtered out by year:', {
+            item: { id: item.id, tahun: item.tahun, deskripsi: item.deskripsi?.substring(0, 30) + '...' },
+            selectedYear,
+            matches
+          });
+        }
+        return matches;
+      });
+
+      // Load assignments and merge with checklist data
+      loadAssignmentsAndMergeData(filteredItems).then(mergedItems => {
+        // Map merged data to ChecklistItem format
+        const mappedItems = mergedItems.map((item) => {
+        const mappedItem = {
+          id: item.id,
+          aspek: item.aspek || '',
+          deskripsi: item.deskripsi || '',
+          pic: item.pic || '', // ✅ Include PIC field from context
+          status: 'pending' as const,
+          catatan: '',
+          tahun: item.tahun || selectedYear,
+          rowNumber: item.rowNumber || 1
+        };
+
+        // Debug each item's PIC assignment
+        console.log(`PengaturanBaru: Mapping item ${item.id}:`, {
+          originalPic: item.pic,
+          mappedPic: mappedItem.pic,
+          deskripsi: item.deskripsi
+        });
+
+        return mappedItem;
+        });
+
+        setChecklistItems(mappedItems);
+        setOriginalChecklistItems(mappedItems); // Also update original items for change tracking
+        console.log('PengaturanBaru: Updated checklistItems from context with assignments', {
+          totalItems: checklist.length,
+          filteredForYear: filteredItems.length,
+          mappedItems: mappedItems.length,
+          finalItems: mappedItems.map(item => ({ id: item.id, tahun: item.tahun, pic: item.pic, deskripsi: item.deskripsi?.substring(0, 30) + '...' }))
+        });
+      });
+    } else {
+      console.log('PengaturanBaru: No checklist data available from context or no year selected');
+    }
+  }, [checklist, selectedYear]);
 
   // Effect untuk mengupdate progress kelola dokumen
   useEffect(() => {
@@ -2121,145 +2212,20 @@ const PengaturanBaru = () => {
 
 
 
-  // Handle assignment checklist ke divisi atau subdirektorat
-  const handleAssignment = async (checklistId: number, targetName: string, aspek: string, deskripsi: string) => {
-    const year = selectedYear || new Date().getFullYear();
-    
-    // Jika targetName kosong, reset PIC field dan hapus assignment
-    if (!targetName || targetName.trim() === '') {
-      try {
-        await editChecklist(checklistId, aspek, deskripsi, '', year);
-        
-        // Update local state
-        setChecklistItems(prev => prev.map(item => 
-          item.id === checklistId ? { ...item, pic: '' } : item
-        ));
-        
-        // Remove assignment dari localStorage
-        const storedAssignments = localStorage.getItem('checklistAssignments');
-        if (storedAssignments) {
-          try {
-            const allAssignments = JSON.parse(storedAssignments);
-            const filteredAssignments = allAssignments.filter((assignment: any) => 
-              !(assignment.checklistId === checklistId && assignment.tahun === year)
-            );
-            // REMOVED localStorage.setItem - assignments should be stored in Supabase
-            
-            // Update local assignments state
-            setAssignments(prev => prev.filter(a => a.checklistId !== checklistId));
-            
-            // Dispatch custom event untuk memberitahu dashboard components
-            window.dispatchEvent(new CustomEvent('assignmentsUpdated', { 
-              detail: { checklistId, targetName: '', year } 
-            }));
-          } catch (error) {
-            console.error('Error removing assignment:', error);
-          }
-        }
-        
-        // Track the change for consistency
-        trackItemChange(checklistId);
-        
-        toast({
-          title: "Assignment Direset",
-          description: "PIC berhasil dihapus dari checklist.",
-          variant: "default",
-        });
-      } catch (error) {
-        console.error('Error resetting PIC:', error);
-        toast({
-          title: "Error",
-          description: "Gagal mereset PIC. Silakan coba lagi.",
-          variant: "destructive",
-        });
-      }
-      return;
-    }
+  // Handle assignment checklist ke divisi atau subdirektorat (FRONTEND ONLY)
+  const handleAssignment = (checklistId: number, targetName: string, aspek: string, deskripsi: string) => {
+    // ONLY update frontend state - NO backend calls until blue checkmark clicked
+    setChecklistItems(prev => prev.map(item =>
+      item.id === checklistId ? { ...item, pic: targetName } : item
+    ));
 
-    // Allow direct reassignment - no conflict check needed
-    // Users can change assignments directly without resetting first
+    // Track the change for blue checkmark visibility
+    trackItemChange(checklistId);
 
-    // Save PIC assignment to backend
-    try {
-      await editChecklist(checklistId, aspek, deskripsi, targetName, year);
-      
-      // Update local state
-      setChecklistItems(prev => prev.map(item => 
-        item.id === checklistId ? { ...item, pic: targetName } : item
-      ));
-      
-      // Determine assignment type and create assignment record for dashboard
-      const isDivisi = divisi?.some(d => d.nama === targetName);
-      const isSubdirektorat = subdirektorat?.some(s => s.nama === targetName);
-      
-      if (isDivisi || isSubdirektorat) {
-        // Create assignment record untuk dashboard components
-        const newAssignment = {
-          checklistId,
-          tahun: year,
-          aspek,
-          deskripsi,
-          assignmentType: isDivisi ? 'divisi' : 'subdirektorat' as 'divisi' | 'subdirektorat',
-          ...(isDivisi ? { divisi: targetName } : { subdirektorat: targetName })
-        };
-        
-        // Update checklistAssignments localStorage
-        const storedAssignments = localStorage.getItem('checklistAssignments');
-        let allAssignments: any[] = [];
-        
-        if (storedAssignments) {
-          try {
-            allAssignments = JSON.parse(storedAssignments);
-          } catch (error) {
-            console.error('Error parsing stored assignments:', error);
-            allAssignments = [];
-          }
-        }
-        
-        // Remove existing assignment for this checklist item (if any)
-        allAssignments = allAssignments.filter((assignment: any) => 
-          !(assignment.checklistId === checklistId && assignment.tahun === year)
-        );
-        
-        // Add new assignment
-        allAssignments.push(newAssignment);
-        // REMOVED localStorage.setItem - assignments should be stored in Supabase
-        
-        // Update local assignments state
-        setAssignments(prev => {
-          const filtered = prev.filter(a => a.checklistId !== checklistId);
-          return [...filtered, newAssignment];
-        });
-        
-        // Dispatch custom event untuk memberitahu dashboard components
-        window.dispatchEvent(new CustomEvent('assignmentsUpdated', { 
-          detail: { checklistId, targetName, year } 
-        }));
-        
-        console.log('Assignment saved to localStorage:', newAssignment);
-      }
-      
-      // Track the change for consistency
-      trackItemChange(checklistId);
-      
-      // Always dispatch event untuk dashboard update (even if no formal assignment was created)
-      window.dispatchEvent(new CustomEvent('assignmentsUpdated', { 
-        detail: { checklistId, targetName, year } 
-      }));
-      
-      toast({
-        title: "Assignment Berhasil",
-        description: `Dokumen berhasil ditugaskan ke ${targetName}`,
-        variant: "default",
-      });
-    } catch (error) {
-      console.error('Error assigning PIC:', error);
-      toast({
-        title: "Error",
-        description: "Gagal menugaskan dokumen. Silakan coba lagi.",
-        variant: "destructive",
-      });
-    }
+    toast({
+      title: "PIC Assignment Changed",
+      description: `Assignment changed to ${targetName}. Click blue checkmark to save permanently.`,
+    });
   };
 
   // Helper function untuk konversi angka ke angka romawi
@@ -2547,19 +2513,62 @@ const PengaturanBaru = () => {
     try {
       const currentItem = checklistItems.find(item => item.id === itemId);
       if (!currentItem) return;
-      
+
       const year = selectedYear || new Date().getFullYear();
-      
+
+      // Save PIC assignment to assignments API if PIC exists
+      if (currentItem.pic && currentItem.pic.trim() !== '') {
+        const assignmentPayload = {
+          checklistId: itemId,
+          assignedTo: currentItem.pic,
+          assignmentType: divisi?.some(d => d.nama === currentItem.pic) ? 'divisi' : 'subdirektorat',
+          year
+        };
+
+        const assignmentResponse = await fetch('http://localhost:5000/api/config/assignments', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(assignmentPayload)
+        });
+
+        if (!assignmentResponse.ok) {
+          throw new Error(`Assignment API error! status: ${assignmentResponse.status}`);
+        }
+
+        // Update local assignments state
+        const isDivisi = divisi?.some(d => d.nama === currentItem.pic);
+        const newAssignment = {
+          checklistId: itemId,
+          tahun: year,
+          aspek: currentItem.aspek || '',
+          deskripsi: currentItem.deskripsi || '',
+          assignmentType: isDivisi ? 'divisi' : 'subdirektorat' as 'divisi' | 'subdirektorat',
+          ...(isDivisi ? { divisi: currentItem.pic } : { subdirektorat: currentItem.pic })
+        };
+
+        setAssignments(prev => {
+          const filtered = prev.filter(a => a.checklistId !== itemId);
+          return [...filtered, newAssignment];
+        });
+
+        // Dispatch event for dashboard updates
+        window.dispatchEvent(new CustomEvent('assignmentsUpdated', {
+          detail: { checklistId: itemId, targetName: currentItem.pic, year }
+        }));
+      }
+
       // Check if this is a new item or existing item
       if (newItems.has(itemId)) {
         // NEW ITEM: Call addChecklist to create in backend
         await addChecklist(
-          currentItem.aspek || '', 
-          currentItem.deskripsi || '', 
+          currentItem.aspek || '',
+          currentItem.deskripsi || '',
           currentItem.pic || '',
           year
         );
-        
+
         // Remove from newItems since it's now saved to backend
         setNewItems(prev => {
           const updated = new Set(prev);
@@ -2569,38 +2578,39 @@ const PengaturanBaru = () => {
       } else {
         // EXISTING ITEM: Call editChecklist to update in backend
         await editChecklist(
-          currentItem.id, 
-          currentItem.aspek || '', 
-          currentItem.deskripsi || '', 
+          currentItem.id,
+          currentItem.aspek || '',
+          currentItem.deskripsi || '',
           currentItem.pic || '',
           year
         );
       }
-      
+
       // Update original data for this specific item
-      setOriginalChecklistItems(prev => 
-        prev.map(item => 
-          item.id === itemId 
+      setOriginalChecklistItems(prev =>
+        prev.map(item =>
+          item.id === itemId
             ? checklistItems.find(ci => ci.id === itemId) || item
             : item
         )
       );
-      
+
       // Remove from item changes
       setItemChanges(prev => {
         const newSet = new Set(prev);
         newSet.delete(itemId);
         return newSet;
       });
-      
+
       // Sync data dengan context menggunakan helper function
       syncDataWithContext(checklistItems);
-      
+
       toast({
         title: "Berhasil!",
-        description: "Item berhasil disimpan",
+        description: "Item berhasil disimpan ke Supabase",
       });
     } catch (error) {
+      console.error('Error saving item:', error);
       toast({
         title: "Error",
         description: "Gagal menyimpan item",
