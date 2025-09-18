@@ -2425,7 +2425,8 @@ def create_user():
             'divisi': data.get('divisi', ''),
             'tahun': data.get('tahun'),
             'created_at': datetime.now().isoformat(),
-            'is_active': True
+            'is_active': True,
+            'whatsapp': data.get('whatsapp', '')
         }
         
         # Read existing users
@@ -2508,7 +2509,9 @@ def update_user(user_id):
                     csv_data.at[index, 'subdirektorat'] = data['subdirektorat']
                 if 'divisi' in data:
                     csv_data.at[index, 'divisi'] = data['divisi']
-                
+                if 'whatsapp' in data:
+                    csv_data.at[index, 'whatsapp'] = data['whatsapp']
+
                 user_found = True
                 break
         
