@@ -7,6 +7,10 @@ import asyncio
 import aiohttp
 import json
 import time
+from windows_utils import safe_print, set_console_encoding
+
+# Set console encoding for Windows compatibility
+set_console_encoding()
 
 async def create_struktur_item(session, item_type, nama, deskripsi, parent_id=None):
     """Create a single struktur organisasi item"""
@@ -22,19 +26,19 @@ async def create_struktur_item(session, item_type, nama, deskripsi, parent_id=No
         async with session.post(url, json=data) as response:
             if response.status in [200, 201]:  # Both OK and Created are success
                 result = await response.json()
-                print(f"✅ Created {item_type}: {nama}")
+                safe_print(f"✅ Created {item_type}: {nama}")
                 return result.get('struktur', {}).get('id')
             else:
                 text = await response.text()
-                print(f"❌ Failed to create {item_type}: {nama} - {response.status} - {text}")
+                safe_print(f"❌ Failed to create {item_type}: {nama} - {response.status} - {text}")
                 return None
     except Exception as e:
-        print(f"❌ Exception creating {item_type}: {nama} - {e}")
+        safe_print(f"❌ Exception creating {item_type}: {nama} - {e}")
         return None
 
 async def test_concurrent_writes():
     """Test concurrent writes to verify file locking works"""
-    print("🔥 Testing concurrent writes to verify file locking...")
+    safe_print("🔥 Testing concurrent writes to verify file locking...")
     
     # Create 20 concurrent requests
     test_items = [
@@ -59,11 +63,11 @@ async def test_concurrent_writes():
         successful = sum(1 for r in results if r is not None and not isinstance(r, Exception))
         failed = len(results) - successful
         
-        print(f"\n📊 Results:")
-        print(f"   Total requests: {len(test_items)}")
-        print(f"   Successful: {successful}")
-        print(f"   Failed: {failed}")
-        print(f"   Time taken: {end_time - start_time:.2f} seconds")
+        safe_print(f"\n📊 Results:")
+        safe_print(f"   Total requests: {len(test_items)}")
+        safe_print(f"   Successful: {successful}")
+        safe_print(f"   Failed: {failed}")
+        safe_print(f"   Time taken: {end_time - start_time:.2f} seconds")
         
         # Verify data persistence
         await asyncio.sleep(2)  # Wait for all writes to complete
@@ -72,12 +76,12 @@ async def test_concurrent_writes():
             if response.status == 200:
                 data = await response.json()
                 total_count = len(data['direktorat']) + len(data['subdirektorat']) + len(data['divisi'])
-                print(f"   Total items in storage: {total_count}")
-                print(f"   Direktorat: {len(data['direktorat'])}")
-                print(f"   Subdirektorat: {len(data['subdirektorat'])}")  
-                print(f"   Divisi: {len(data['divisi'])}")
+                safe_print(f"   Total items in storage: {total_count}")
+                safe_print(f"   Direktorat: {len(data['direktorat'])}")
+                safe_print(f"   Subdirektorat: {len(data['subdirektorat'])}")  
+                safe_print(f"   Divisi: {len(data['divisi'])}")
             else:
-                print(f"   ❌ Failed to fetch final data: {response.status}")
+                safe_print(f"   ❌ Failed to fetch final data: {response.status}")
 
 if __name__ == "__main__":
     asyncio.run(test_concurrent_writes())

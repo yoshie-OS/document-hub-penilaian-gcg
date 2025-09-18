@@ -21,6 +21,10 @@ from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import pandas as pd
 from dotenv import load_dotenv
+from windows_utils import safe_print, set_console_encoding
+
+# Set console encoding for Windows compatibility
+set_console_encoding()
 
 # Load environment variables from parent directory
 from pathlib import Path
@@ -57,16 +61,16 @@ def migrate_config_to_csv():
         if storage_service.file_exists('config/aspects.xlsx'):
             aspects_data = storage_service.read_excel('config/aspects.xlsx')
             if aspects_data is not None and not storage_service.file_exists('config/aspects.csv'):
-                print("🔄 Migrating aspects from Excel to CSV...")
+                safe_print("🔄 Migrating aspects from Excel to CSV...")
                 success = storage_service.write_csv(aspects_data, 'config/aspects.csv')
                 if success:
-                    print("✅ Successfully migrated aspects to CSV")
+                    safe_print("✅ Successfully migrated aspects to CSV")
                 else:
-                    print("❌ Failed to migrate aspects to CSV")
+                    safe_print("❌ Failed to migrate aspects to CSV")
             else:
-                print("📋 Aspects CSV already exists or no Excel data to migrate")
+                safe_print("📋 Aspects CSV already exists or no Excel data to migrate")
     except Exception as e:
-        print(f"⚠️ Error during config migration: {e}")
+        safe_print(f"⚠️ Error during config migration: {e}")
 
 # Run migration on startup
 migrate_config_to_csv()
@@ -142,32 +146,32 @@ def upload_file():
     - aspect: (optional) GCG aspect
     """
     try:
-        print(f"🔧 DEBUG: Upload request received")
-        print(f"🔧 DEBUG: Request files: {list(request.files.keys())}")
+        safe_print(f"🔧 DEBUG: Upload request received")
+        safe_print(f"🔧 DEBUG: Request files: {list(request.files.keys())}")
         
         # Check if file is present
         if 'file' not in request.files:
-            print(f"🔧 DEBUG: No file in request")
+            safe_print(f"🔧 DEBUG: No file in request")
             return jsonify({'error': 'No file provided'}), 400
         
         file = request.files['file']
-        print(f"🔧 DEBUG: File received: {file.filename}")
+        safe_print(f"🔧 DEBUG: File received: {file.filename}")
         
         if file.filename == '':
-            print(f"🔧 DEBUG: Empty filename")
+            safe_print(f"🔧 DEBUG: Empty filename")
             return jsonify({'error': 'No file selected'}), 400
         
         if not allowed_file(file.filename):
-            print(f"🔧 DEBUG: File type not allowed: {file.filename}")
+            safe_print(f"🔧 DEBUG: File type not allowed: {file.filename}")
             return jsonify({'error': 'File type not allowed'}), 400
         
-        print(f"🔧 DEBUG: File validation passed")
+        safe_print(f"🔧 DEBUG: File validation passed")
         
         try:
-            print(f"🔧 DEBUG: Starting file processing...")
+            safe_print(f"🔧 DEBUG: Starting file processing...")
             # Generate unique filename
             file_id = str(uuid.uuid4())
-            print(f"🔧 DEBUG: Generated file_id: {file_id}")
+            safe_print(f"🔧 DEBUG: Generated file_id: {file_id}")
             original_filename = secure_filename(file.filename)
             filename_parts = original_filename.rsplit('.', 1)
             unique_filename = f"{file_id}_{filename_parts[0]}.{filename_parts[1]}"
@@ -189,7 +193,7 @@ def upload_file():
             file_type = get_file_type(original_filename)
             
             if file_type == 'excel':
-                print(f"🔧 DEBUG: Processing Excel file using core system (subprocess)...")
+                safe_print(f"🔧 DEBUG: Processing Excel file using core system (subprocess)...")
                 processing_result = None  # Force use of subprocess method
                 
                 # DISABLED: Accurate processing has pandas column selection issue
@@ -197,7 +201,7 @@ def upload_file():
             
             # Use subprocess method for all file types (Excel, PDF, Image)
             if file_type in ['excel', 'pdf', 'image']:
-                print(f"🔧 DEBUG: Processing {file_type} file using core system...")
+                safe_print(f"🔧 DEBUG: Processing {file_type} file using core system...")
                 
                 try:
                     import time
@@ -211,8 +215,8 @@ def upload_file():
                         "-v"
                     ]
                     
-                    print(f"🔧 DEBUG: Running command: {' '.join(cmd)}")
-                    print(f"🔧 DEBUG: Working directory: {project_root}")
+                    safe_print(f"🔧 DEBUG: Running command: {' '.join(cmd)}")
+                    safe_print(f"🔧 DEBUG: Working directory: {project_root}")
                     
                     result = subprocess.run(
                         cmd,
@@ -223,11 +227,11 @@ def upload_file():
                     )
                     
                     end_time = time.time()
-                    print(f"🔧 DEBUG: Core system completed in {end_time - start_time:.2f} seconds")
-                    print(f"🔧 DEBUG: Return code: {result.returncode}")
-                    print(f"🔧 DEBUG: STDOUT: {result.stdout}")
+                    safe_print(f"🔧 DEBUG: Core system completed in {end_time - start_time:.2f} seconds")
+                    safe_print(f"🔧 DEBUG: Return code: {result.returncode}")
+                    safe_print(f"🔧 DEBUG: STDOUT: {result.stdout}")
                     if result.stderr:
-                        print(f"🔧 DEBUG: STDERR: {result.stderr}")
+                        safe_print(f"🔧 DEBUG: STDERR: {result.stderr}")
                     
                     if result.returncode == 0:
                         processing_result = {
@@ -253,9 +257,9 @@ def upload_file():
                         'error': 'Processing timeout (3 minutes exceeded)'
                     }
                 except Exception as e:
-                    print(f"🔧 DEBUG: EXCEPTION in subprocess call: {e}")
+                    safe_print(f"🔧 DEBUG: EXCEPTION in subprocess call: {e}")
                     import traceback
-                    print(f"🔧 DEBUG: Full traceback: {traceback.format_exc()}")
+                    safe_print(f"🔧 DEBUG: Full traceback: {traceback.format_exc()}")
                     processing_result = {
                         'success': False,
                         'method': f'{file_type}_processing',
@@ -282,15 +286,15 @@ def upload_file():
             try:
                 # Read the processed Excel file
                 df = pd.read_excel(str(output_path))
-                print(f"🔧 DEBUG: Loaded DataFrame with {len(df)} rows")
-                print(f"🔧 DEBUG: DataFrame columns: {list(df.columns)}")
-                print(f"🔧 DEBUG: DataFrame head:\n{df.head()}")
+                safe_print(f"🔧 DEBUG: Loaded DataFrame with {len(df)} rows")
+                safe_print(f"🔧 DEBUG: DataFrame columns: {list(df.columns)}")
+                safe_print(f"🔧 DEBUG: DataFrame head:\n{df.head()}")
                 
                 # Extract key metrics
                 indicator_rows = df[df['Type'] == 'indicator'] if 'Type' in df.columns else df
                 subtotal_rows = df[df['Type'] == 'subtotal'] if 'Type' in df.columns else pd.DataFrame()
                 total_rows = df[df['Type'] == 'total'] if 'Type' in df.columns else pd.DataFrame()
-                print(f"🔧 DEBUG: Found {len(indicator_rows)} indicator rows")
+                safe_print(f"🔧 DEBUG: Found {len(indicator_rows)} indicator rows")
                 
                 extracted_data = {
                     'total_rows': int(len(df)),
@@ -340,9 +344,9 @@ def upload_file():
                                 sheet_df = pd.read_excel(str(input_path), sheet_name=sheet_name)
                                 
                                 # Debug: Print sheet info
-                                print(f"🔧 DEBUG: Analyzing sheet '{sheet_name}' with {len(sheet_df)} rows")
-                                print(f"🔧 DEBUG: Sheet columns: {list(sheet_df.columns)}")
-                                print(f"🔧 DEBUG: First few rows:\n{sheet_df.head()}")
+                                safe_print(f"🔧 DEBUG: Analyzing sheet '{sheet_name}' with {len(sheet_df)} rows")
+                                safe_print(f"🔧 DEBUG: Sheet columns: {list(sheet_df.columns)}")
+                                safe_print(f"🔧 DEBUG: First few rows:\n{sheet_df.head()}")
                                 
                                 # Simple heuristic: BRIEF has fewer rows, DETAILED has more
                                 if len(sheet_df) <= 15:
@@ -352,7 +356,7 @@ def upload_file():
                                     if len(sheet_df) >= 3 and len(sheet_df) <= 20:  # More flexible range
                                         brief_sheet_data = []
                                         
-                                        print(f"🔧 DEBUG: Attempting BRIEF extraction from sheet '{sheet_name}'")
+                                        safe_print(f"🔧 DEBUG: Attempting BRIEF extraction from sheet '{sheet_name}'")
                                         
                                         for idx, row in sheet_df.iterrows():
                                             # Extract BRIEF data for aspect summary
@@ -387,13 +391,13 @@ def upload_file():
                                                     brief_row['penjelasan'] = str(row[col]).strip() if pd.notna(row[col]) else ''
                                             
                                             # Debug: show what we extracted for this row
-                                            print(f"🔧 DEBUG: Row {idx}: {brief_row}")
+                                            safe_print(f"🔧 DEBUG: Row {idx}: {brief_row}")
                                             
                                             # Add row if it has meaningful data (aspek is required)
                                             if brief_row.get('aspek') and brief_row.get('aspek').strip() and brief_row.get('aspek') != 'nan':
                                                 brief_sheet_data.append(brief_row)
                                         
-                                        print(f"🔧 DEBUG: Successfully extracted {len(brief_sheet_data)} BRIEF summary rows from sheet '{sheet_name}'")
+                                        safe_print(f"🔧 DEBUG: Successfully extracted {len(brief_sheet_data)} BRIEF summary rows from sheet '{sheet_name}'")
                                         
                                 else:
                                     sheet_type = 'DETAILED'
@@ -442,9 +446,9 @@ def upload_file():
         return jsonify(response_data), 200
         
     except Exception as e:
-        print(f"🔧 DEBUG: Exception occurred: {str(e)}")
+        safe_print(f"🔧 DEBUG: Exception occurred: {str(e)}")
         import traceback
-        print(f"🔧 DEBUG: Full traceback: {traceback.format_exc()}")
+        safe_print(f"🔧 DEBUG: Full traceback: {traceback.format_exc()}")
         return jsonify({'error': f'Upload failed: {str(e)}'}), 500
 
 @app.route('/api/download/<file_id>', methods=['GET'])
@@ -540,7 +544,7 @@ def save_assessment():
     """
     try:
         data = request.json
-        print(f"🔧 DEBUG: Received save request with data keys: {data.keys()}")
+        safe_print(f"🔧 DEBUG: Received save request with data keys: {data.keys()}")
         
         # Create assessment record
         assessment_id = f"{data.get('year', 'unknown')}_{data.get('auditor', 'unknown')}_{str(uuid.uuid4())[:8]}"
@@ -554,25 +558,25 @@ def save_assessment():
             try:
                 current_year = data.get('year')
                 
-                print(f"🔧 DEBUG: Loading existing XLSX with {len(existing_df)} rows")
-                print(f"🔧 DEBUG: Current year to save: {current_year}")
-                print(f"🔧 DEBUG: Existing years in file: {existing_df['Tahun'].unique().tolist()}")
+                safe_print(f"🔧 DEBUG: Loading existing XLSX with {len(existing_df)} rows")
+                safe_print(f"🔧 DEBUG: Current year to save: {current_year}")
+                safe_print(f"🔧 DEBUG: Existing years in file: {existing_df['Tahun'].unique().tolist()}")
                 
                 # COMPLETELY REMOVE all existing data for this year (this handles deletions)
                 if current_year:
                     original_count = len(existing_df)
                     existing_df = existing_df[existing_df['Tahun'] != current_year]
                     removed_count = original_count - len(existing_df)
-                    print(f"🔧 DEBUG: COMPLETELY REMOVED {removed_count} rows for year {current_year} (including deletions)")
-                    print(f"🔧 DEBUG: Preserved {len(existing_df)} rows from other years")
+                    safe_print(f"🔧 DEBUG: COMPLETELY REMOVED {removed_count} rows for year {current_year} (including deletions)")
+                    safe_print(f"🔧 DEBUG: Preserved {len(existing_df)} rows from other years")
                 
                 # Convert remaining data back to list format
                 for _, row in existing_df.iterrows():
                     all_rows.append(row.to_dict())
                     
-                print(f"🔧 DEBUG: Starting with {len(all_rows)} rows from other years")
+                safe_print(f"🔧 DEBUG: Starting with {len(all_rows)} rows from other years")
             except Exception as e:
-                print(f"WARNING: Could not read existing XLSX: {e}")
+                safe_print(f"WARNING: Could not read existing XLSX: {e}")
         
         # Process new data and add to all_rows
         year = data.get('year', 'unknown')
@@ -617,7 +621,7 @@ def save_assessment():
         # Process aspect summary data (if provided)
         aspect_summary_data = data.get('aspectSummaryData', [])
         if aspect_summary_data:
-            print(f"🔧 DEBUG: Processing {len(aspect_summary_data)} aspect summary rows")
+            safe_print(f"🔧 DEBUG: Processing {len(aspect_summary_data)} aspect summary rows")
             
             for summary_row in aspect_summary_data:
                 section = summary_row.get('aspek', '')
@@ -681,7 +685,7 @@ def save_assessment():
             )
             
             if has_meaningful_total:
-                print(f"🔧 DEBUG: Processing separate totalData: {total_data}")
+                safe_print(f"🔧 DEBUG: Processing separate totalData: {total_data}")
                 
                 total_row = {
                     'Level': "4",
@@ -699,9 +703,9 @@ def save_assessment():
                     'Export_Date': saved_at[:10]
                 }
                 all_rows.append(total_row)
-                print(f"🔧 DEBUG: Added totalData row to all_rows")
+                safe_print(f"🔧 DEBUG: Added totalData row to all_rows")
             else:
-                print(f"🔧 DEBUG: Skipping totalData - no meaningful values")
+                safe_print(f"🔧 DEBUG: Skipping totalData - no meaningful values")
         
         # Convert to DataFrame and save XLSX
         if all_rows:
@@ -709,7 +713,7 @@ def save_assessment():
             
             # Remove any duplicate rows
             df_unique = df.drop_duplicates(subset=['Tahun', 'Section', 'No', 'Deskripsi'], keep='last')
-            print(f"🔧 DEBUG: Removed {len(df) - len(df_unique)} duplicate rows")
+            safe_print(f"🔧 DEBUG: Removed {len(df) - len(df_unique)} duplicate rows")
             
             # Custom sorting: year → aspek → no, then organize headers and subtotals properly
             def sort_key(row):
@@ -745,9 +749,9 @@ def save_assessment():
             # Save XLSX using storage service
             success = storage_service.write_excel(df_sorted, 'web-output/output.xlsx')
             if success:
-                print(f"SUCCESS: Saved to output.xlsx with {len(df_sorted)} rows (sorted: year->aspek->no->type)")
+                safe_print(f"SUCCESS: Saved to output.xlsx with {len(df_sorted)} rows (sorted: year->aspek->no->type)")
             else:
-                print(f"ERROR: Failed to save output.xlsx")
+                safe_print(f"ERROR: Failed to save output.xlsx")
             
         return jsonify({
             'success': True,
@@ -757,7 +761,7 @@ def save_assessment():
         })
         
     except Exception as e:
-        print(f"ERROR: Error saving assessment: {str(e)}")
+        safe_print(f"ERROR: Error saving assessment: {str(e)}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -782,7 +786,7 @@ def delete_year_data():
                 'error': 'Year parameter is required'
             }), 400
         
-        print(f"🗑️ DEBUG: Received delete request for year: {year_to_delete}")
+        safe_print(f"🗑️ DEBUG: Received delete request for year: {year_to_delete}")
         
         # Load existing XLSX data
         existing_df = storage_service.read_excel('web-output/output.xlsx')
@@ -794,9 +798,9 @@ def delete_year_data():
             }), 404
         
         try:
-            print(f"🔧 DEBUG: Loading existing XLSX with {len(existing_df)} rows")
-            print(f"🔧 DEBUG: Year to delete: {year_to_delete}")
-            print(f"🔧 DEBUG: Existing years in file: {existing_df['Tahun'].unique().tolist()}")
+            safe_print(f"🔧 DEBUG: Loading existing XLSX with {len(existing_df)} rows")
+            safe_print(f"🔧 DEBUG: Year to delete: {year_to_delete}")
+            safe_print(f"🔧 DEBUG: Existing years in file: {existing_df['Tahun'].unique().tolist()}")
             
             # Check if the year exists in the data
             if year_to_delete not in existing_df['Tahun'].values:
@@ -810,8 +814,8 @@ def delete_year_data():
             filtered_df = existing_df[existing_df['Tahun'] != year_to_delete]
             deleted_count = original_count - len(filtered_df)
             
-            print(f"🗑️ DEBUG: Deleted {deleted_count} rows for year {year_to_delete}")
-            print(f"🔧 DEBUG: Remaining {len(filtered_df)} rows from other years")
+            safe_print(f"🗑️ DEBUG: Deleted {deleted_count} rows for year {year_to_delete}")
+            safe_print(f"🔧 DEBUG: Remaining {len(filtered_df)} rows from other years")
             
             # Save the filtered data back to the XLSX file
             if len(filtered_df) > 0:
@@ -842,9 +846,9 @@ def delete_year_data():
                 df_sorted = filtered_df.loc[filtered_df.apply(sort_key, axis=1).sort_values().index]
                 success = storage_service.write_excel(df_sorted, 'web-output/output.xlsx')
                 if success:
-                    print(f"SUCCESS: Updated output.xlsx with {len(df_sorted)} rows (deleted {deleted_count} rows for year {year_to_delete})")
+                    safe_print(f"SUCCESS: Updated output.xlsx with {len(df_sorted)} rows (deleted {deleted_count} rows for year {year_to_delete})")
                 else:
-                    print(f"ERROR: Failed to update output.xlsx after deletion")
+                    safe_print(f"ERROR: Failed to update output.xlsx after deletion")
             else:
                 # If no data remains, create an empty file with just headers
                 empty_df = pd.DataFrame(columns=['Level', 'Type', 'Section', 'No', 'Deskripsi', 
@@ -852,12 +856,12 @@ def delete_year_data():
                                                'Jenis_Asesmen', 'Export_Date'])
                 success = storage_service.write_excel(empty_df, 'web-output/output.xlsx')
                 if success:
-                    print(f"SUCCESS: Created empty output.xlsx file (all data deleted)")
+                    safe_print(f"SUCCESS: Created empty output.xlsx file (all data deleted)")
                 else:
-                    print(f"ERROR: Failed to create empty output.xlsx file")
+                    safe_print(f"ERROR: Failed to create empty output.xlsx file")
             
         except Exception as e:
-            print(f"ERROR: Could not process XLSX file: {e}")
+            safe_print(f"ERROR: Could not process XLSX file: {e}")
             return jsonify({
                 'success': False,
                 'error': f'Could not process XLSX file: {str(e)}'
@@ -871,7 +875,7 @@ def delete_year_data():
         })
         
     except Exception as e:
-        print(f"ERROR: Error deleting year data: {str(e)}")
+        safe_print(f"ERROR: Error deleting year data: {str(e)}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -898,7 +902,7 @@ def load_assessment_by_year(year):
         year_df = df[df['Tahun'] == year]
         
         if len(year_df) > 0:
-            print(f"🔧 DEBUG: Processing {len(year_df)} rows for year {year}")
+            safe_print(f"🔧 DEBUG: Processing {len(year_df)} rows for year {year}")
             
             # Detect format: BRIEF or DETAILED based on data types
             indicator_rows = year_df[year_df['Type'] == 'indicator']
@@ -908,8 +912,8 @@ def load_assessment_by_year(year):
             is_detailed = len(indicator_rows) > 10 and len(subtotal_rows) > 0
             format_type = 'DETAILED' if is_detailed else 'BRIEF'
             
-            print(f"🔧 DEBUG: Detected format: {format_type}")
-            print(f"🔧 DEBUG: Found {len(indicator_rows)} indicators, {len(subtotal_rows)} subtotals, {len(header_rows)} headers")
+            safe_print(f"🔧 DEBUG: Detected format: {format_type}")
+            safe_print(f"🔧 DEBUG: Found {len(indicator_rows)} indicators, {len(subtotal_rows)} subtotals, {len(header_rows)} headers")
             
             # Process indicator data for main table (both BRIEF and DETAILED)
             main_table_data = []
@@ -961,7 +965,7 @@ def load_assessment_by_year(year):
                         'penjelasan': str(penjelasan)
                     })
             
-            print(f"🔧 DEBUG: Processed {len(main_table_data)} indicators, {len(aspek_summary_data)} aspect summaries")
+            safe_print(f"🔧 DEBUG: Processed {len(main_table_data)} indicators, {len(aspek_summary_data)} aspect summaries")
             
             # Get auditor and jenis_asesmen from first row
             auditor = year_df.iloc[0].get('Penilai', 'Unknown') if len(year_df) > 0 else 'Unknown'
@@ -987,7 +991,7 @@ def load_assessment_by_year(year):
             })
             
     except Exception as e:
-        print(f"ERROR: Error loading year {year}: {str(e)}")
+        safe_print(f"ERROR: Error loading year {year}: {str(e)}")
         return jsonify({
             'success': False,
             'error': str(e),
@@ -1011,9 +1015,9 @@ def get_dashboard_data():
                 'message': 'No dashboard data available. Please save some assessments first.'
             })
         
-        print(f"🔧 DEBUG: Dashboard loading {len(df)} rows from output.xlsx")
-        print(f"🔧 DEBUG: Years in file: {df['Tahun'].unique().tolist()}")
-        print(f"🔧 DEBUG: Sample rows: {df[['Tahun', 'Section', 'Skor']].head().to_dict('records')}")
+        safe_print(f"🔧 DEBUG: Dashboard loading {len(df)} rows from output.xlsx")
+        safe_print(f"🔧 DEBUG: Years in file: {df['Tahun'].unique().tolist()}")
+        safe_print(f"🔧 DEBUG: Sample rows: {df[['Tahun', 'Section', 'Skor']].head().to_dict('records')}")
         
         # Convert to dashboard format
         dashboard_data = []
@@ -1071,7 +1075,7 @@ def get_dashboard_data():
         })
         
     except Exception as e:
-        print(f"ERROR: Error loading dashboard data: {str(e)}")
+        safe_print(f"ERROR: Error loading dashboard data: {str(e)}")
         return jsonify({
             'success': False,
             'error': str(e),
@@ -1132,7 +1136,7 @@ def get_aspek_data():
         })
         
     except Exception as e:
-        print(f"ERROR: Error loading aspek data: {e}")
+        safe_print(f"ERROR: Error loading aspek data: {e}")
         return jsonify({
             'success': False,
             'error': str(e),
@@ -1171,7 +1175,7 @@ def _cleanup_orphaned_data_internal():
             assessments_data['assessments'] = cleaned_assessments
             with open(assessments_path, 'w') as f:
                 json.dump(assessments_data, f, indent=2)
-            print(f"🔄 Auto-cleaned {orphaned_count} orphaned entries")
+            safe_print(f"🔄 Auto-cleaned {orphaned_count} orphaned entries")
     
     return orphaned_count
 
@@ -1185,7 +1189,7 @@ def get_indicator_data():
         try:
             _cleanup_orphaned_data_internal()
         except Exception as cleanup_error:
-            print(f"WARNING: Auto-cleanup failed: {cleanup_error}")
+            safe_print(f"WARNING: Auto-cleanup failed: {cleanup_error}")
         
         # Read XLSX data
         df = storage_service.read_excel('web-output/output.xlsx')
@@ -1223,7 +1227,7 @@ def get_indicator_data():
         })
         
     except Exception as e:
-        print(f"ERROR: Error loading indicator data: {e}")
+        safe_print(f"ERROR: Error loading indicator data: {e}")
         return jsonify({
             'success': False,
             'error': str(e),
@@ -1241,14 +1245,14 @@ def get_gcg_chart_data():
         df = storage_service.read_excel('web-output/output.xlsx')
         
         if df is None:
-            print(f"WARNING: output.xlsx not found or empty")
+            safe_print(f"WARNING: output.xlsx not found or empty")
             return jsonify({
                 'success': True,
                 'data': [],
                 'message': 'No chart data available. Please save some assessments first.'
             })
         
-        print(f"INFO: GCG Chart Data: Loading {len(df)} rows from output.xlsx")
+        safe_print(f"INFO: GCG Chart Data: Loading {len(df)} rows from output.xlsx")
         
         # Convert to graphics-2 GCGData format
         gcg_data = []
@@ -1298,7 +1302,7 @@ def get_gcg_chart_data():
         })
         
     except Exception as e:
-        print(f"ERROR: Error loading GCG chart data: {str(e)}")
+        safe_print(f"ERROR: Error loading GCG chart data: {str(e)}")
         return jsonify({
             'success': False,
             'error': str(e),
@@ -1316,7 +1320,7 @@ def get_gcg_mapping():
         gcg_mapping_path = Path(__file__).parent.parent / 'GCG_MAPPING.csv'
         
         if not gcg_mapping_path.exists():
-            print(f"WARNING: GCG_MAPPING.csv not found at: {gcg_mapping_path}")
+            safe_print(f"WARNING: GCG_MAPPING.csv not found at: {gcg_mapping_path}")
             return jsonify({
                 'success': False,
                 'error': 'GCG mapping file not found',
@@ -1351,7 +1355,7 @@ def get_gcg_mapping():
         })
         
     except Exception as e:
-        print(f"ERROR: Error loading GCG mapping: {str(e)}")
+        safe_print(f"ERROR: Error loading GCG mapping: {str(e)}")
         return jsonify({
             'success': False,
             'error': str(e),
@@ -1371,9 +1375,9 @@ def cleanup_orphaned_data():
         df = storage_service.read_excel('web-output/output.xlsx')
         if df is not None:
             xlsx_years = set(df['Tahun'].unique())
-            print(f"INFO: Found years in output.xlsx: {sorted(xlsx_years)}")
+            safe_print(f"INFO: Found years in output.xlsx: {sorted(xlsx_years)}")
         else:
-            print("WARNING: output.xlsx not found - will clean all assessments.json entries")
+            safe_print("WARNING: output.xlsx not found - will clean all assessments.json entries")
         
         # Clean up assessments.json
         orphaned_count = 0
@@ -1391,17 +1395,17 @@ def cleanup_orphaned_data():
                     cleaned_assessments.append(assessment)
                 else:
                     orphaned_count += 1
-                    print(f"CLEANUP: Removing orphaned assessment for year {year}")
+                    safe_print(f"CLEANUP: Removing orphaned assessment for year {year}")
             
             # Save cleaned data
             assessments_data['assessments'] = cleaned_assessments
             with open(assessments_path, 'w') as f:
                 json.dump(assessments_data, f, indent=2)
                 
-            print(f"SUCCESS: Cleaned up {orphaned_count} orphaned entries from assessments.json")
-            print(f"INFO: Kept {len(cleaned_assessments)} valid entries")
+            safe_print(f"SUCCESS: Cleaned up {orphaned_count} orphaned entries from assessments.json")
+            safe_print(f"INFO: Kept {len(cleaned_assessments)} valid entries")
         else:
-            print("WARNING: assessments.json not found - nothing to clean")
+            safe_print("WARNING: assessments.json not found - nothing to clean")
         
         return jsonify({
             'success': True,
@@ -1413,7 +1417,7 @@ def cleanup_orphaned_data():
         })
         
     except Exception as e:
-        print(f"ERROR: Error during cleanup: {e}")
+        safe_print(f"ERROR: Error during cleanup: {e}")
         return jsonify({
             'success': False,
             'error': str(e),
@@ -1450,7 +1454,7 @@ def get_uploaded_files():
         return jsonify({'files': files_list}), 200
         
     except Exception as e:
-        print(f"Error getting uploaded files: {e}")
+        safe_print(f"Error getting uploaded files: {e}")
         return jsonify({'error': f'Failed to get uploaded files: {str(e)}'}), 500
 
 @app.route('/api/uploaded-files', methods=['POST'])
@@ -1510,7 +1514,7 @@ def create_uploaded_file():
             return jsonify({'error': 'Failed to save file to storage'}), 500
             
     except Exception as e:
-        print(f"Error creating uploaded file: {e}")
+        safe_print(f"Error creating uploaded file: {e}")
         return jsonify({'error': f'Failed to create uploaded file: {str(e)}'}), 500
 
 @app.route('/api/fix-uploaded-files-schema', methods=['POST'])
@@ -1547,7 +1551,7 @@ def fix_uploaded_files_schema():
             else:
                 files_data[col] = 'Unknown'
         
-        print(f"📝 Adding missing user columns: {missing_columns}")
+        safe_print(f"📝 Adding missing user columns: {missing_columns}")
         
         # Save updated data
         success = storage_service.write_excel(files_data, 'uploaded-files.xlsx')
@@ -1563,7 +1567,7 @@ def fix_uploaded_files_schema():
             return jsonify({'error': 'Failed to save changes to storage'}), 500
             
     except Exception as e:
-        print(f"Error fixing uploaded files schema: {e}")
+        safe_print(f"Error fixing uploaded files schema: {e}")
         return jsonify({'error': f'Failed to fix schema: {str(e)}'}), 500
 
 @app.route('/api/uploaded-files/<file_id>', methods=['DELETE'])
@@ -1588,9 +1592,9 @@ def delete_uploaded_file(file_id):
         if supabase_file_path and storage_service.storage_mode == 'supabase':
             try:
                 response = storage_service.supabase.storage.from_(storage_service.bucket_name).remove([supabase_file_path])
-                print(f"🗑️ Deleted file from Supabase storage: {supabase_file_path}")
+                safe_print(f"🗑️ Deleted file from Supabase storage: {supabase_file_path}")
             except Exception as file_delete_error:
-                print(f"⚠️ Warning: Failed to delete file from storage: {file_delete_error}")
+                safe_print(f"⚠️ Warning: Failed to delete file from storage: {file_delete_error}")
                 # Continue with database record deletion even if file deletion fails
         
         # Remove the file record from database
@@ -1613,7 +1617,7 @@ def delete_uploaded_file(file_id):
             return jsonify({'error': 'Failed to save changes to storage'}), 500
             
     except Exception as e:
-        print(f"Error deleting uploaded file: {e}")
+        safe_print(f"Error deleting uploaded file: {e}")
         return jsonify({'error': f'Failed to delete uploaded file: {str(e)}'}), 500
 
 @app.route('/api/download-file/<file_id>', methods=['GET'], endpoint='download_uploaded_file')
@@ -1653,7 +1657,7 @@ def download_uploaded_file(file_id):
                 return response_obj
                 
             except Exception as download_error:
-                print(f"Error downloading from Supabase: {download_error}")
+                safe_print(f"Error downloading from Supabase: {download_error}")
                 return jsonify({'error': f'Failed to download file from storage: {str(download_error)}'}), 500
         else:
             # For local storage, construct the full path
@@ -1664,7 +1668,7 @@ def download_uploaded_file(file_id):
                 return jsonify({'error': 'File not found in local storage'}), 404
         
     except Exception as e:
-        print(f"Error downloading file: {e}")
+        safe_print(f"Error downloading file: {e}")
         return jsonify({'error': f'Failed to download file: {str(e)}'}), 500
 
 @app.route('/api/files/<file_id>/view', methods=['GET'])
@@ -1694,7 +1698,7 @@ def view_file(file_id):
         }), 200
         
     except Exception as e:
-        print(f"Error viewing file: {e}")
+        safe_print(f"Error viewing file: {e}")
         return jsonify({'success': False, 'error': f'Failed to view file: {str(e)}'}), 500
 
 @app.route('/api/files/<file_id>/download', methods=['GET'])
@@ -1725,7 +1729,7 @@ def download_file_by_id(file_id):
         )
         
     except Exception as e:
-        print(f"Error downloading file: {e}")
+        safe_print(f"Error downloading file: {e}")
         return jsonify({'error': f'Failed to download file: {str(e)}'}), 500
 
 # AOI TABLES ENDPOINTS
@@ -1741,7 +1745,7 @@ def get_aoi_tables():
             return jsonify(aoi_tables), 200
         return jsonify([]), 200
     except Exception as e:
-        print(f"Error getting AOI tables: {e}")
+        safe_print(f"Error getting AOI tables: {e}")
         return jsonify([]), 200
 
 @app.route('/api/aoiTables/<int:table_id>', methods=['GET'])
@@ -1757,7 +1761,7 @@ def get_aoi_table_by_id(table_id):
                 return jsonify(table), 200
         return jsonify({'error': 'AOI table not found'}), 404
     except Exception as e:
-        print(f"Error getting AOI table {table_id}: {e}")
+        safe_print(f"Error getting AOI table {table_id}: {e}")
         return jsonify({'error': f'Failed to get AOI table: {str(e)}'}), 500
 
 @app.route('/api/aoiTables', methods=['POST'])
@@ -1802,7 +1806,7 @@ def create_aoi_table():
             return jsonify({'error': 'Failed to save AOI table'}), 500
             
     except Exception as e:
-        print(f"Error creating AOI table: {e}")
+        safe_print(f"Error creating AOI table: {e}")
         return jsonify({'error': f'Failed to create AOI table: {str(e)}'}), 500
 
 @app.route('/api/aoiTables/<int:table_id>', methods=['PUT'])
@@ -1840,7 +1844,7 @@ def update_aoi_table(table_id):
             return jsonify({'error': 'Failed to update AOI table'}), 500
             
     except Exception as e:
-        print(f"Error updating AOI table {table_id}: {e}")
+        safe_print(f"Error updating AOI table {table_id}: {e}")
         return jsonify({'error': f'Failed to update AOI table: {str(e)}'}), 500
 
 @app.route('/api/aoiTables/<int:table_id>', methods=['DELETE'])
@@ -1864,7 +1868,7 @@ def delete_aoi_table(table_id):
             return jsonify({'error': 'Failed to delete AOI table'}), 500
             
     except Exception as e:
-        print(f"Error deleting AOI table {table_id}: {e}")
+        safe_print(f"Error deleting AOI table {table_id}: {e}")
         return jsonify({'error': f'Failed to delete AOI table: {str(e)}'}), 500
 
 # AOI RECOMMENDATIONS ENDPOINTS
@@ -1886,7 +1890,7 @@ def get_aoi_recommendations():
             return jsonify(recommendations), 200
         return jsonify([]), 200
     except Exception as e:
-        print(f"Error getting AOI recommendations: {e}")
+        safe_print(f"Error getting AOI recommendations: {e}")
         return jsonify([]), 200
 
 @app.route('/api/aoiRecommendations/<int:recommendation_id>', methods=['GET'])
@@ -1902,7 +1906,7 @@ def get_aoi_recommendation_by_id(recommendation_id):
                 return jsonify(recommendation), 200
         return jsonify({'error': 'AOI recommendation not found'}), 404
     except Exception as e:
-        print(f"Error getting AOI recommendation {recommendation_id}: {e}")
+        safe_print(f"Error getting AOI recommendation {recommendation_id}: {e}")
         return jsonify({'error': f'Failed to get AOI recommendation: {str(e)}'}), 500
 
 @app.route('/api/aoiRecommendations', methods=['POST'])
@@ -1962,7 +1966,7 @@ def create_aoi_recommendation():
             return jsonify({'error': 'Failed to save AOI recommendation'}), 500
             
     except Exception as e:
-        print(f"Error creating AOI recommendation: {e}")
+        safe_print(f"Error creating AOI recommendation: {e}")
         return jsonify({'error': f'Failed to create AOI recommendation: {str(e)}'}), 500
 
 @app.route('/api/aoiRecommendations/<int:recommendation_id>', methods=['PUT'])
@@ -2002,7 +2006,7 @@ def update_aoi_recommendation(recommendation_id):
             return jsonify({'error': 'Failed to update AOI recommendation'}), 500
             
     except Exception as e:
-        print(f"Error updating AOI recommendation {recommendation_id}: {e}")
+        safe_print(f"Error updating AOI recommendation {recommendation_id}: {e}")
         return jsonify({'error': f'Failed to update AOI recommendation: {str(e)}'}), 500
 
 @app.route('/api/aoiRecommendations/<int:recommendation_id>', methods=['DELETE'])
@@ -2051,7 +2055,7 @@ def delete_aoi_recommendation(recommendation_id):
             return jsonify({'error': 'Failed to delete AOI recommendation'}), 500
             
     except Exception as e:
-        print(f"Error deleting AOI recommendation {recommendation_id}: {e}")
+        safe_print(f"Error deleting AOI recommendation {recommendation_id}: {e}")
         return jsonify({'error': f'Failed to delete AOI recommendation: {str(e)}'}), 500
 
 # AOI DOCUMENTS ENDPOINTS
@@ -2078,7 +2082,7 @@ def get_aoi_documents():
             return jsonify(documents), 200
         return jsonify([]), 200
     except Exception as e:
-        print(f"Error getting AOI documents: {e}")
+        safe_print(f"Error getting AOI documents: {e}")
         return jsonify([]), 200
 
 @app.route('/api/aoiDocuments/<string:document_id>', methods=['GET'])
@@ -2094,7 +2098,7 @@ def get_aoi_document_by_id(document_id):
                 return jsonify(document), 200
         return jsonify({'error': 'AOI document not found'}), 404
     except Exception as e:
-        print(f"Error getting AOI document {document_id}: {e}")
+        safe_print(f"Error getting AOI document {document_id}: {e}")
         return jsonify({'error': f'Failed to get AOI document: {str(e)}'}), 500
 
 @app.route('/api/aoiDocuments', methods=['POST'])
@@ -2144,7 +2148,7 @@ def create_aoi_document():
             return jsonify({'error': 'Failed to save AOI document'}), 500
             
     except Exception as e:
-        print(f"Error creating AOI document: {e}")
+        safe_print(f"Error creating AOI document: {e}")
         return jsonify({'error': f'Failed to create AOI document: {str(e)}'}), 500
 
 @app.route('/api/aoiDocuments/<string:document_id>', methods=['PUT'])
@@ -2187,7 +2191,7 @@ def update_aoi_document(document_id):
             return jsonify({'error': 'Failed to update AOI document'}), 500
             
     except Exception as e:
-        print(f"Error updating AOI document {document_id}: {e}")
+        safe_print(f"Error updating AOI document {document_id}: {e}")
         return jsonify({'error': f'Failed to update AOI document: {str(e)}'}), 500
 
 @app.route('/api/aoiDocuments/<string:document_id>', methods=['DELETE'])
@@ -2211,7 +2215,7 @@ def delete_aoi_document(document_id):
             return jsonify({'error': 'Failed to delete AOI document'}), 500
             
     except Exception as e:
-        print(f"Error deleting AOI document {document_id}: {e}")
+        safe_print(f"Error deleting AOI document {document_id}: {e}")
         return jsonify({'error': f'Failed to delete AOI document: {str(e)}'}), 500
 
 @app.route('/api/upload-aoi-file', methods=['POST'])
@@ -2221,9 +2225,9 @@ def upload_aoi_file():
     This endpoint handles file uploads for Area of Improvement documents.
     """
     try:
-        print(f"🔧 DEBUG: AOI file upload request received")
-        print(f"🔧 DEBUG: Request files: {list(request.files.keys())}")
-        print(f"🔧 DEBUG: Request form: {dict(request.form)}")
+        safe_print(f"🔧 DEBUG: AOI file upload request received")
+        safe_print(f"🔧 DEBUG: Request files: {list(request.files.keys())}")
+        safe_print(f"🔧 DEBUG: Request form: {dict(request.form)}")
         
         # Get the uploaded file
         if 'file' not in request.files:
@@ -2233,7 +2237,7 @@ def upload_aoi_file():
         if file.filename == '':
             return jsonify({'error': 'No file selected'}), 400
         
-        print(f"🔧 DEBUG: File received: {file.filename}")
+        safe_print(f"🔧 DEBUG: File received: {file.filename}")
         
         # Get form data
         aoi_recommendation_id = request.form.get('aoiRecommendationId')
@@ -2265,27 +2269,27 @@ def upload_aoi_file():
         filename = secure_filename(file.filename)
         file_path = f"aoi-documents/{year_int}/{pic_name_clean}/{recommendation_id_int}/{filename}"
         
-        print(f"🔧 DEBUG: Uploading to path: {file_path}")
+        safe_print(f"🔧 DEBUG: Uploading to path: {file_path}")
         
         # Clear existing files in the recommendation directory first
         try:
             directory_path = f"aoi-documents/{year_int}/{pic_name_clean}/{recommendation_id_int}"
-            print(f"🔧 DEBUG: Clearing directory: {directory_path}")
+            safe_print(f"🔧 DEBUG: Clearing directory: {directory_path}")
             
             list_response = supabase.storage.from_(bucket_name).list(directory_path)
             if list_response and len(list_response) > 0:
-                print(f"🔧 DEBUG: Files found in directory: {len(list_response)}")
+                safe_print(f"🔧 DEBUG: Files found in directory: {len(list_response)}")
                 files_to_delete = []
                 for file_item in list_response:
                     if file_item['name'] != '.emptyFolderPlaceholder':
                         files_to_delete.append(f"{directory_path}/{file_item['name']}")
                 
                 if files_to_delete:
-                    print(f"🔧 DEBUG: Deleting {len(files_to_delete)} existing files: {files_to_delete}")
+                    safe_print(f"🔧 DEBUG: Deleting {len(files_to_delete)} existing files: {files_to_delete}")
                     delete_response = supabase.storage.from_(bucket_name).remove(files_to_delete)
-                    print(f"🔧 DEBUG: Delete existing files response: {delete_response}")
+                    safe_print(f"🔧 DEBUG: Delete existing files response: {delete_response}")
         except Exception as e:
-            print(f"Error clearing directory: {e}")
+            safe_print(f"Error clearing directory: {e}")
         
         # Initialize Supabase client
         from supabase import create_client
@@ -2306,10 +2310,10 @@ def upload_aoi_file():
         )
         
         if hasattr(upload_response, 'error') and upload_response.error:
-            print(f"🔧 DEBUG: Upload error: {upload_response.error}")
+            safe_print(f"🔧 DEBUG: Upload error: {upload_response.error}")
             return jsonify({'error': f'Failed to upload file: {upload_response.error}'}), 500
         
-        print(f"🔧 DEBUG: File uploaded successfully to: {file_path}")
+        safe_print(f"🔧 DEBUG: File uploaded successfully to: {file_path}")
         
         # Create AOI document record
         document_id = f"aoi_{generate_unique_id()}"
@@ -2348,7 +2352,7 @@ def upload_aoi_file():
         success = storage_service.write_csv(updated_df, 'config/aoi-documents.csv')
         
         if success:
-            print(f"🔧 DEBUG: AOI document record saved successfully")
+            safe_print(f"🔧 DEBUG: AOI document record saved successfully")
             return jsonify({
                 'message': 'AOI file uploaded successfully',
                 'documentId': document_id,
@@ -2359,9 +2363,9 @@ def upload_aoi_file():
             return jsonify({'error': 'Failed to save AOI document record'}), 500
             
     except Exception as e:
-        print(f"🔧 DEBUG: Exception in upload_aoi_file: {e}")
+        safe_print(f"🔧 DEBUG: Exception in upload_aoi_file: {e}")
         import traceback
-        print(f"🔧 DEBUG: Full traceback: {traceback.format_exc()}")
+        safe_print(f"🔧 DEBUG: Full traceback: {traceback.format_exc()}")
         return jsonify({'error': f'Failed to upload AOI file: {str(e)}'}), 500
 
 @app.route('/api/users', methods=['GET'])
@@ -2376,7 +2380,7 @@ def get_users():
             return jsonify(users), 200
         return jsonify([]), 200
     except Exception as e:
-        print(f"Error getting users: {e}")
+        safe_print(f"Error getting users: {e}")
         return jsonify({'error': f'Failed to get users: {str(e)}'}), 500
 
 @app.route('/api/users/<string:user_id>', methods=['GET'])
@@ -2398,7 +2402,7 @@ def get_user_by_id(user_id):
         return jsonify(user_data), 200
         
     except Exception as e:
-        print(f"Error getting user by ID {user_id}: {e}")
+        safe_print(f"Error getting user by ID {user_id}: {e}")
         return jsonify({'error': f'Failed to get user: {str(e)}'}), 500
 
 @app.route('/api/users', methods=['POST'])
@@ -2444,7 +2448,7 @@ def create_user():
             return jsonify({'error': 'Failed to save user to Supabase'}), 500
             
     except Exception as e:
-        print(f"Error creating user: {e}")
+        safe_print(f"Error creating user: {e}")
         return jsonify({'error': f'Failed to create user: {str(e)}'}), 500
 
 @app.route('/api/users/<int:user_id>', methods=['DELETE'])
@@ -2471,7 +2475,7 @@ def delete_user(user_id):
             return jsonify({'error': 'Failed to delete user from storage'}), 500
             
     except Exception as e:
-        print(f"Error deleting user: {e}")
+        safe_print(f"Error deleting user: {e}")
         return jsonify({'error': f'Failed to delete user: {str(e)}'}), 500
 
 @app.route('/api/users/<int:user_id>', methods=['PUT'])
@@ -2522,7 +2526,7 @@ def update_user(user_id):
             return jsonify({'error': 'Failed to update user in storage'}), 500
             
     except Exception as e:
-        print(f"Error updating user: {e}")
+        safe_print(f"Error updating user: {e}")
         return jsonify({'error': f'Failed to update user: {str(e)}'}), 500
 
 @app.route('/api/upload-gcg-file', methods=['POST'])
@@ -2532,20 +2536,20 @@ def upload_gcg_file():
     This endpoint is specifically for the monitoring upload feature.
     """
     try:
-        print(f"🔧 DEBUG: GCG file upload request received")
-        print(f"🔧 DEBUG: Request files: {list(request.files.keys())}")
-        print(f"🔧 DEBUG: Request form: {dict(request.form)}")
+        safe_print(f"🔧 DEBUG: GCG file upload request received")
+        safe_print(f"🔧 DEBUG: Request files: {list(request.files.keys())}")
+        safe_print(f"🔧 DEBUG: Request form: {dict(request.form)}")
         
         # Check if file is present
         if 'file' not in request.files:
-            print(f"🔧 DEBUG: No file in request")
+            safe_print(f"🔧 DEBUG: No file in request")
             return jsonify({'error': 'No file provided'}), 400
         
         file = request.files['file']
-        print(f"🔧 DEBUG: File received: {file.filename}")
+        safe_print(f"🔧 DEBUG: File received: {file.filename}")
         
         if file.filename == '':
-            print(f"🔧 DEBUG: Empty filename")
+            safe_print(f"🔧 DEBUG: Empty filename")
             return jsonify({'error': 'No file selected'}), 400
         
         # Get metadata from form
@@ -2604,17 +2608,17 @@ def upload_gcg_file():
             supabase = create_client(supabase_url, supabase_key)
             
             # Always try to upload, if exists it will automatically overwrite
-            print(f"🔧 DEBUG: Uploading to path: {supabase_file_path}")
+            safe_print(f"🔧 DEBUG: Uploading to path: {supabase_file_path}")
             
             # First, delete ALL existing files in the directory to ensure clean overwrite
             try:
                 # Get the directory path (without filename)
                 directory_path = f"gcg-documents/{year_int}/{pic_name}/{checklist_id_int}"
-                print(f"🔧 DEBUG: Clearing directory: {directory_path}")
+                safe_print(f"🔧 DEBUG: Clearing directory: {directory_path}")
                 
                 # List all files in the directory
                 list_response = supabase.storage.from_(bucket_name).list(directory_path)
-                print(f"🔧 DEBUG: Files found in directory: {len(list_response) if list_response else 0}")
+                safe_print(f"🔧 DEBUG: Files found in directory: {len(list_response) if list_response else 0}")
                 
                 if list_response and len(list_response) > 0:
                     # Filter out placeholder files and get real file paths
@@ -2624,16 +2628,16 @@ def upload_gcg_file():
                             files_to_delete.append(f"{directory_path}/{file_item['name']}")
                     
                     if files_to_delete:
-                        print(f"🔧 DEBUG: Deleting {len(files_to_delete)} existing files: {files_to_delete}")
+                        safe_print(f"🔧 DEBUG: Deleting {len(files_to_delete)} existing files: {files_to_delete}")
                         delete_response = supabase.storage.from_(bucket_name).remove(files_to_delete)
-                        print(f"🔧 DEBUG: Delete existing files response: {delete_response}")
+                        safe_print(f"🔧 DEBUG: Delete existing files response: {delete_response}")
                     else:
-                        print(f"🔧 DEBUG: No real files to delete (only placeholders found)")
+                        safe_print(f"🔧 DEBUG: No real files to delete (only placeholders found)")
                 else:
-                    print(f"🔧 DEBUG: Directory is empty or doesn't exist")
+                    safe_print(f"🔧 DEBUG: Directory is empty or doesn't exist")
                     
             except Exception as e:
-                print(f"🔧 DEBUG: Error clearing directory (continuing anyway): {e}")
+                safe_print(f"🔧 DEBUG: Error clearing directory (continuing anyway): {e}")
             
             # Now upload the new file
             response = supabase.storage.from_(bucket_name).upload(
@@ -2644,13 +2648,13 @@ def upload_gcg_file():
             
             # Check for any upload errors
             if hasattr(response, 'error') and response.error:
-                print(f"🔧 DEBUG: Upload error: {response.error}")
+                safe_print(f"🔧 DEBUG: Upload error: {response.error}")
                 return jsonify({'error': f'Failed to upload file to storage: {response.error}'}), 500
             
-            print(f"🔧 DEBUG: File uploaded successfully to: {supabase_file_path}")
+            safe_print(f"🔧 DEBUG: File uploaded successfully to: {supabase_file_path}")
             
         except Exception as upload_error:
-            print(f"🔧 DEBUG: Upload exception: {upload_error}")
+            safe_print(f"🔧 DEBUG: Upload exception: {upload_error}")
             return jsonify({'error': f'Failed to upload file: {str(upload_error)}'}), 500
         
         # Get user information from form (if provided)
@@ -2687,7 +2691,7 @@ def upload_gcg_file():
             if files_data is None:
                 files_data = pd.DataFrame()
         except Exception as db_error:
-            print(f"🔧 DEBUG: Error reading uploaded-files.xlsx: {db_error}")
+            safe_print(f"🔧 DEBUG: Error reading uploaded-files.xlsx: {db_error}")
             files_data = pd.DataFrame()
         
         new_row = pd.DataFrame([file_record])
@@ -2698,25 +2702,25 @@ def upload_gcg_file():
             success = storage_service.write_excel(files_data, 'uploaded-files.xlsx')
             
             if success:
-                print(f"🔧 DEBUG: File record saved successfully")
+                safe_print(f"🔧 DEBUG: File record saved successfully")
                 return jsonify({
                     'success': True, 
                     'file': file_record,
                     'message': 'File uploaded successfully to Supabase'
                 }), 201
             else:
-                print(f"🔧 DEBUG: storage_service.write_excel returned False")
+                safe_print(f"🔧 DEBUG: storage_service.write_excel returned False")
                 return jsonify({'error': 'File uploaded but failed to save record'}), 500
         except Exception as save_error:
-            print(f"🔧 DEBUG: Exception saving to storage: {save_error}")
+            safe_print(f"🔧 DEBUG: Exception saving to storage: {save_error}")
             import traceback
-            print(f"🔧 DEBUG: Full save traceback: {traceback.format_exc()}")
+            safe_print(f"🔧 DEBUG: Full save traceback: {traceback.format_exc()}")
             return jsonify({'error': f'File uploaded but failed to save record: {str(save_error)}'}), 500
         
     except Exception as e:
-        print(f"🔧 DEBUG: Exception in upload_gcg_file: {e}")
+        safe_print(f"🔧 DEBUG: Exception in upload_gcg_file: {e}")
         import traceback
-        print(f"🔧 DEBUG: Full traceback: {traceback.format_exc()}")
+        safe_print(f"🔧 DEBUG: Full traceback: {traceback.format_exc()}")
         return jsonify({'error': f'Failed to upload GCG file: {str(e)}'}), 500
 
 @app.route('/api/check-gcg-files', methods=['POST'])
@@ -2724,29 +2728,29 @@ def check_gcg_files():
     """Check if GCG files exist in Supabase for given year, PIC and checklist IDs"""
     try:
         data = request.get_json()
-        print(f"🔍 DEBUG: check_gcg_files received data: {data}")
+        safe_print(f"🔍 DEBUG: check_gcg_files received data: {data}")
         
         pic_name = data.get('picName')
         checklist_ids = data.get('checklistIds', [])  # List of checklist IDs to check
         year = data.get('year')  # Year is required for new structure
         
-        print(f"🔍 DEBUG: pic_name={pic_name}, year={year}, checklist_ids={checklist_ids}")
+        safe_print(f"🔍 DEBUG: pic_name={pic_name}, year={year}, checklist_ids={checklist_ids}")
         
         # Support legacy row_numbers parameter for backward compatibility
         if not checklist_ids and data.get('rowNumbers'):
-            print(f"🔍 DEBUG: Using legacy rowNumbers: {data.get('rowNumbers')}")
+            safe_print(f"🔍 DEBUG: Using legacy rowNumbers: {data.get('rowNumbers')}")
             # Convert row numbers to checklist IDs (year_prefix * 10 + row_number)
             year_prefix = int(str(year)[-2:])
             row_numbers = data.get('rowNumbers', [])
-            print(f"🔍 DEBUG: Converting rowNumbers {row_numbers} with year_prefix {year_prefix}")
+            safe_print(f"🔍 DEBUG: Converting rowNumbers {row_numbers} with year_prefix {year_prefix}")
             checklist_ids = []
             for row_number in row_numbers:
                 try:
-                    print(f"🔍 DEBUG: Processing row_number: {row_number} (type: {type(row_number)})")
+                    safe_print(f"🔍 DEBUG: Processing row_number: {row_number} (type: {type(row_number)})")
                     checklist_id = year_prefix * 10 + int(row_number)
                     checklist_ids.append(checklist_id)
                 except ValueError as ve:
-                    print(f"❌ ERROR: Cannot convert row_number {row_number} to int: {ve}")
+                    safe_print(f"❌ ERROR: Cannot convert row_number {row_number} to int: {ve}")
                     return jsonify({'error': f'Invalid row number: {row_number}'}), 400
         
         if not pic_name or not checklist_ids or not year:
@@ -2772,7 +2776,7 @@ def check_gcg_files():
             if files_data is None:
                 files_data = pd.DataFrame()
         except Exception as e:
-            print(f"Warning: Could not load uploaded-files.xlsx: {e}")
+            safe_print(f"Warning: Could not load uploaded-files.xlsx: {e}")
             files_data = pd.DataFrame()
         
         # Check each checklist ID for existing files
@@ -2839,7 +2843,7 @@ def check_gcg_files():
                                 'id': f"supabase_{checklist_id}"
                             })
                     except Exception as e:
-                        print(f"Warning: Could not get metadata for checklist_id {checklist_id}: {e}")
+                        safe_print(f"Warning: Could not get metadata for checklist_id {checklist_id}: {e}")
                 
                 file_statuses[str(checklist_id)] = file_found
                 
@@ -2853,7 +2857,7 @@ def check_gcg_files():
         }), 200
         
     except Exception as e:
-        print(f"Error checking GCG files: {e}")
+        safe_print(f"Error checking GCG files: {e}")
         return jsonify({'error': f'Failed to check files: {str(e)}'}), 500
 
 @app.route('/api/download-gcg-file', methods=['POST'])
@@ -2951,7 +2955,7 @@ def download_gcg_file():
             return jsonify({'error': f'File not found or download failed: {str(e)}'}), 404
         
     except Exception as e:
-        print(f"Error downloading GCG file: {e}")
+        safe_print(f"Error downloading GCG file: {e}")
         return jsonify({'error': f'Failed to download file: {str(e)}'}), 500
 
 
@@ -2967,7 +2971,7 @@ def get_aspects():
         
         # Read aspects from storage (CSV for easier reading)
         aspects_data = storage_service.read_csv('config/aspects.csv')
-        print(f"🔍 DEBUG: Read CSV data: {aspects_data}")
+        safe_print(f"🔍 DEBUG: Read CSV data: {aspects_data}")
         
         if aspects_data is None:
             return jsonify({'aspects': []}), 200
@@ -2989,7 +2993,7 @@ def get_aspects():
         return jsonify({'aspects': aspects_list}), 200
         
     except Exception as e:
-        print(f"Error getting aspects: {e}")
+        safe_print(f"Error getting aspects: {e}")
         return jsonify({'aspects': []}), 200
 
 @app.route('/api/config/aspects', methods=['POST'])
@@ -3030,7 +3034,7 @@ def add_aspect():
             return jsonify({'error': 'Failed to save aspect'}), 500
             
     except Exception as e:
-        print(f"Error adding aspect: {e}")
+        safe_print(f"Error adding aspect: {e}")
         return jsonify({'error': f'Failed to add aspect: {str(e)}'}), 500
 
 @app.route('/api/config/aspects/<int:aspect_id>', methods=['PUT'])
@@ -3068,7 +3072,7 @@ def update_aspect(aspect_id):
             return jsonify({'error': 'Failed to update aspect'}), 500
             
     except Exception as e:
-        print(f"Error updating aspect: {e}")
+        safe_print(f"Error updating aspect: {e}")
         return jsonify({'error': f'Failed to update aspect: {str(e)}'}), 500
 
 @app.route('/api/config/aspects/<int:aspect_id>', methods=['DELETE'])
@@ -3092,7 +3096,7 @@ def delete_aspect(aspect_id):
             return jsonify({'error': 'Failed to delete aspect'}), 500
             
     except Exception as e:
-        print(f"Error deleting aspect: {e}")
+        safe_print(f"Error deleting aspect: {e}")
         return jsonify({'error': f'Failed to delete aspect: {str(e)}'}), 500
 
 # CHECKLIST ENDPOINTS
@@ -3112,15 +3116,15 @@ def get_checklist():
                 try:
                     year_int = int(year)
                     checklist_data = checklist_data[checklist_data['tahun'] == year_int]
-                    print(f"DEBUG: Filtered checklist for year {year_int}, found {len(checklist_data)} items")
+                    safe_print(f"DEBUG: Filtered checklist for year {year_int}, found {len(checklist_data)} items")
                 except ValueError:
-                    print(f"WARNING: Invalid year parameter: {year}")
+                    safe_print(f"WARNING: Invalid year parameter: {year}")
 
             checklist_items = checklist_data.to_dict(orient='records')
             return jsonify({'checklist': checklist_items}), 200
         return jsonify({'checklist': []}), 200
     except Exception as e:
-        print(f"Error getting checklist: {e}")
+        safe_print(f"Error getting checklist: {e}")
         return jsonify({'checklist': []}), 200
 
 @app.route('/api/config/checklist', methods=['POST'])
@@ -3189,7 +3193,7 @@ def add_checklist():
             return jsonify({'error': 'Failed to save checklist to Supabase'}), 500
             
     except Exception as e:
-        print(f"Error adding checklist: {e}")
+        safe_print(f"Error adding checklist: {e}")
         return jsonify({'error': f'Failed to add checklist: {str(e)}'}), 500
 
 @app.route('/api/config/checklist/<int:checklist_id>', methods=['PUT'])
@@ -3215,11 +3219,11 @@ def update_checklist(checklist_id):
         new_tahun = data.get('tahun', old_tahun)
         
         # Debug logging
-        print(f"DEBUG: Checklist {checklist_id} PIC change check:")
-        print(f"  Old PIC: '{old_pic}'")
-        print(f"  New PIC: '{new_pic}'")
-        print(f"  Old Year: '{old_tahun}'")
-        print(f"  New Year: '{new_tahun}'")
+        safe_print(f"DEBUG: Checklist {checklist_id} PIC change check:")
+        safe_print(f"  Old PIC: '{old_pic}'")
+        safe_print(f"  New PIC: '{new_pic}'")
+        safe_print(f"  Old Year: '{old_tahun}'")
+        safe_print(f"  New Year: '{new_tahun}'")
         
         # Check if PIC or year is changing - this requires file transfer
         pic_changed = old_pic != new_pic
@@ -3227,9 +3231,9 @@ def update_checklist(checklist_id):
         files_transferred = False
         transfer_errors = []
         
-        print(f"  PIC changed: {pic_changed}")
-        print(f"  Year changed: {year_changed}")
-        print(f"  Both old and new PIC exist: {bool(old_pic and new_pic)}")
+        safe_print(f"  PIC changed: {pic_changed}")
+        safe_print(f"  Year changed: {year_changed}")
+        safe_print(f"  Both old and new PIC exist: {bool(old_pic and new_pic)}")
         
         # If PIC changes, transfer existing files from old location to new location
         if pic_changed and old_pic and new_pic:
@@ -3241,9 +3245,9 @@ def update_checklist(checklist_id):
                 old_dir = f"gcg-documents/{old_tahun}/{old_pic_clean}/{checklist_id}"
                 new_dir = f"gcg-documents/{new_tahun}/{new_pic_clean}/{checklist_id}"
 
-                print(f"PIC change detected for checklist {checklist_id}")
-                print(f"Transferring files from: {old_dir}")
-                print(f"                    to: {new_dir}")
+                safe_print(f"PIC change detected for checklist {checklist_id}")
+                safe_print(f"Transferring files from: {old_dir}")
+                safe_print(f"                    to: {new_dir}")
 
                 # Transfer files between directories
                 if storage_service.storage_mode == 'supabase':
@@ -3285,7 +3289,7 @@ def update_checklist(checklist_id):
 
                                             if not (hasattr(upload_response, 'error') and upload_response.error):
                                                 transferred_files.append((old_file_path, new_file_path))
-                                                print(f"✅ Transferred: {file_obj['name']}")
+                                                safe_print(f"✅ Transferred: {file_obj['name']}")
                                             else:
                                                 failed_transfers.append(f"Upload failed for {file_obj['name']}: {upload_response.error}")
                                         else:
@@ -3299,25 +3303,25 @@ def update_checklist(checklist_id):
                                     try:
                                         old_files_to_remove = [old_path for old_path, new_path in transferred_files]
                                         delete_response = storage_service.supabase.storage.from_(storage_service.bucket_name).remove(old_files_to_remove)
-                                        print(f"✅ Successfully transferred {len(transferred_files)} files from {old_pic} to {new_pic}")
+                                        safe_print(f"✅ Successfully transferred {len(transferred_files)} files from {old_pic} to {new_pic}")
                                         files_transferred = True
                                     except Exception as delete_error:
                                         error_msg = f"Files copied but failed to delete originals: {str(delete_error)}"
-                                        print(f"⚠️ {error_msg}")
+                                        safe_print(f"⚠️ {error_msg}")
                                         transfer_errors.append(error_msg)
                                         files_transferred = True  # Still consider successful since files are in new location
                                 else:
                                     # Some transfers failed
                                     error_msg = f"Failed to transfer {len(failed_transfers)} files: {'; '.join(failed_transfers)}"
-                                    print(f"❌ {error_msg}")
+                                    safe_print(f"❌ {error_msg}")
                                     transfer_errors.append(error_msg)
                             else:
-                                print(f"ℹ️ No files to transfer in directory: {old_dir}")
+                                safe_print(f"ℹ️ No files to transfer in directory: {old_dir}")
                                 files_transferred = True  # No files to transfer is considered success
 
                     except Exception as list_error:
                         error_msg = f"Error listing files in old directory: {str(list_error)}"
-                        print(f"❌ {error_msg}")
+                        safe_print(f"❌ {error_msg}")
                         transfer_errors.append(error_msg)
 
                 else:
@@ -3334,19 +3338,19 @@ def update_checklist(checklist_id):
                             os.makedirs(os.path.dirname(new_local_dir), exist_ok=True)
                             # Move directory
                             shutil.move(old_local_dir, new_local_dir)
-                            print(f"✅ Successfully moved local directory from {old_local_dir} to {new_local_dir}")
+                            safe_print(f"✅ Successfully moved local directory from {old_local_dir} to {new_local_dir}")
                             files_transferred = True
                         except Exception as move_error:
                             error_msg = f"Failed to move local directory: {str(move_error)}"
-                            print(f"❌ {error_msg}")
+                            safe_print(f"❌ {error_msg}")
                             transfer_errors.append(error_msg)
                     else:
-                        print(f"ℹ️ No local directory to transfer: {old_local_dir}")
+                        safe_print(f"ℹ️ No local directory to transfer: {old_local_dir}")
                         files_transferred = True  # No directory to transfer is considered success
 
             except Exception as transfer_error:
                 error_msg = f"General error during file transfer: {str(transfer_error)}"
-                print(f"❌ {error_msg}")
+                safe_print(f"❌ {error_msg}")
                 transfer_errors.append(error_msg)
         
         # Update the checklist item - ensure all string fields are properly converted
@@ -3372,7 +3376,7 @@ def update_checklist(checklist_id):
             return jsonify({'error': 'Failed to update checklist'}), 500
             
     except Exception as e:
-        print(f"Error updating checklist: {e}")
+        safe_print(f"Error updating checklist: {e}")
         return jsonify({'error': f'Failed to update checklist: {str(e)}'}), 500
 
 @app.route('/api/config/checklist/<int:checklist_id>', methods=['DELETE'])
@@ -3396,7 +3400,7 @@ def delete_checklist(checklist_id):
             return jsonify({'error': 'Failed to delete checklist'}), 500
             
     except Exception as e:
-        print(f"Error deleting checklist: {e}")
+        safe_print(f"Error deleting checklist: {e}")
         return jsonify({'error': f'Failed to delete checklist: {str(e)}'}), 500
 
 @app.route('/api/check-files-exist/<int:checklist_id>', methods=['GET'])
@@ -3441,10 +3445,10 @@ def check_files_exist(checklist_id):
                 ]
                 
                 has_files = len(real_files) > 0
-                print(f"🔍 DEBUG: Checking files for {directory_path}: found {len(response)} items, {len(real_files)} real files")
+                safe_print(f"🔍 DEBUG: Checking files for {directory_path}: found {len(response)} items, {len(real_files)} real files")
                 return jsonify({'hasFiles': has_files}), 200
             except Exception as e:
-                print(f"Error checking Supabase files: {e}")
+                safe_print(f"Error checking Supabase files: {e}")
                 return jsonify({'hasFiles': False}), 200
         else:
             # For local storage, check if directory exists and has files
@@ -3464,13 +3468,13 @@ def check_files_exist(checklist_id):
                     f.stat().st_size > 0
                 ]
                 has_files = len(real_files) > 0
-                print(f"🔍 DEBUG: Checking local files for {directory_path}: found {len(list(directory_path.iterdir()))} items, {len(real_files)} real files")
+                safe_print(f"🔍 DEBUG: Checking local files for {directory_path}: found {len(list(directory_path.iterdir()))} items, {len(real_files)} real files")
                 return jsonify({'hasFiles': has_files}), 200
             else:
                 return jsonify({'hasFiles': False}), 200
     
     except Exception as e:
-        print(f"Error checking files existence: {e}")
+        safe_print(f"Error checking files existence: {e}")
         return jsonify({'hasFiles': False}), 200
 
 @app.route('/api/config/checklist/clear', methods=['DELETE'])
@@ -3487,7 +3491,7 @@ def clear_checklist():
             return jsonify({'error': 'Failed to clear checklist data'}), 500
             
     except Exception as e:
-        print(f"Error clearing checklist: {e}")
+        safe_print(f"Error clearing checklist: {e}")
         return jsonify({'error': f'Failed to clear checklist: {str(e)}'}), 500
 
 @app.route('/api/config/checklist/fix-ids', methods=['POST'])
@@ -3499,7 +3503,7 @@ def fix_checklist_ids():
         if existing_data is None or existing_data.empty:
             return jsonify({'error': 'No checklist data found'}), 404
         
-        print(f"🔧 DEBUG: Fixing IDs for {len(existing_data)} checklist items")
+        safe_print(f"🔧 DEBUG: Fixing IDs for {len(existing_data)} checklist items")
         
         # Update each item with correct ID
         for index, row in existing_data.iterrows():
@@ -3507,7 +3511,7 @@ def fix_checklist_ids():
             row_number = int(row['rowNumber'])
             correct_id = generate_checklist_id(year, row_number)
             existing_data.loc[index, 'id'] = correct_id
-            print(f"🔧 DEBUG: Row {row_number}: {row['id']} -> {correct_id}")
+            safe_print(f"🔧 DEBUG: Row {row_number}: {row['id']} -> {correct_id}")
         
         # Save updated data
         success = storage_service.write_csv(existing_data, 'config/checklist.csv')
@@ -3522,7 +3526,7 @@ def fix_checklist_ids():
             return jsonify({'error': 'Failed to save fixed checklist to storage'}), 500
             
     except Exception as e:
-        print(f"Error fixing checklist IDs: {e}")
+        safe_print(f"Error fixing checklist IDs: {e}")
         return jsonify({'error': f'Failed to fix checklist IDs: {str(e)}'}), 500
 
 @app.route('/api/config/checklist/batch', methods=['POST'])
@@ -3573,7 +3577,7 @@ def add_checklist_batch():
             return jsonify({'error': 'Failed to save checklist batch to storage'}), 500
             
     except Exception as e:
-        print(f"Error adding checklist batch: {e}")
+        safe_print(f"Error adding checklist batch: {e}")
         return jsonify({'error': f'Failed to add checklist batch: {str(e)}'}), 500
 
 @app.route('/api/config/checklist/migrate-year', methods=['POST'])
@@ -3641,17 +3645,17 @@ def migrate_checklist_year():
             return jsonify({'error': 'Failed to save migrated data to storage'}), 500
             
     except Exception as e:
-        print(f"Error migrating checklist year: {e}")
+        safe_print(f"Error migrating checklist year: {e}")
         return jsonify({'error': f'Failed to migrate checklist year: {str(e)}'}), 500
 
 
 if __name__ == '__main__':
-    print(">> Starting POS Data Cleaner 2 Web API")
-    print(f"   Upload folder: {UPLOAD_FOLDER}")
-    print(f"   Output folder: {OUTPUT_FOLDER}")
-    print("   CORS enabled for React frontend")
-    print("   Production system integrated")
-    print("   Server starting on http://localhost:5000")
+    safe_print(">> Starting POS Data Cleaner 2 Web API")
+    safe_print(f"   Upload folder: {UPLOAD_FOLDER}")
+    safe_print(f"   Output folder: {OUTPUT_FOLDER}")
+    safe_print("   CORS enabled for React frontend")
+    safe_print("   Production system integrated")
+    safe_print("   Server starting on http://localhost:5000")
     
 # =============================================================================
 # PENGATURAN BARU CONFIGURATION ENDPOINTS
@@ -3673,7 +3677,7 @@ def get_tahun_buku():
         return jsonify({'tahun_buku': tahun_list}), 200
         
     except Exception as e:
-        print(f"❌ Error getting tahun buku: {e}")
+        safe_print(f"❌ Error getting tahun buku: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/config/tahun-buku', methods=['POST'])
@@ -3718,14 +3722,14 @@ def add_tahun_buku():
             return jsonify({'error': 'Failed to save tahun buku'}), 500
             
     except Exception as e:
-        print(f"❌ Error adding tahun buku: {e}")
+        safe_print(f"❌ Error adding tahun buku: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/config/tahun-buku/<int:tahun_id>', methods=['DELETE'])
 def delete_tahun_buku(tahun_id):
     """Delete a tahun buku by ID"""
     try:
-        print(f"🗑️ Deleting tahun buku with ID: {tahun_id}")
+        safe_print(f"🗑️ Deleting tahun buku with ID: {tahun_id}")
         
         # Read existing tahun buku data
         tahun_data = storage_service.read_csv('config/tahun-buku.csv')
@@ -3739,7 +3743,7 @@ def delete_tahun_buku(tahun_id):
         
         # Get the year value before deletion for cleanup
         year_to_delete = tahun_data[tahun_data['id'] == tahun_id]['tahun'].iloc[0]
-        print(f"🗑️ Deleting year: {year_to_delete}")
+        safe_print(f"🗑️ Deleting year: {year_to_delete}")
         
         # Remove the tahun buku entry
         filtered_data = tahun_data[tahun_data['id'] != tahun_id]
@@ -3748,14 +3752,14 @@ def delete_tahun_buku(tahun_id):
         success = storage_service.write_csv(filtered_data, 'config/tahun-buku.csv')
         
         if success:
-            print(f"✅ Successfully deleted tahun buku {tahun_id} (year {year_to_delete})")
+            safe_print(f"✅ Successfully deleted tahun buku {tahun_id} (year {year_to_delete})")
             
             # Optional: Clean up related data for this year
             # This is commented out to avoid accidental data loss
             # You may want to add a query parameter ?cleanup=true to enable this
             cleanup = request.args.get('cleanup', 'false').lower() == 'true'
             if cleanup:
-                print(f"🧹 Cleaning up related data for year {year_to_delete}")
+                safe_print(f"🧹 Cleaning up related data for year {year_to_delete}")
                 # Add cleanup logic here if needed
             
             return jsonify({
@@ -3767,7 +3771,7 @@ def delete_tahun_buku(tahun_id):
             return jsonify({'error': 'Failed to delete tahun buku'}), 500
             
     except Exception as e:
-        print(f"❌ Error deleting tahun buku: {e}")
+        safe_print(f"❌ Error deleting tahun buku: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/config/struktur-organisasi', methods=['GET'])
@@ -3817,7 +3821,7 @@ def get_struktur_organisasi():
         return jsonify(result), 200
         
     except Exception as e:
-        print(f"❌ Error getting struktur organisasi: {e}")
+        safe_print(f"❌ Error getting struktur organisasi: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/config/struktur-organisasi', methods=['POST'])
@@ -3867,7 +3871,7 @@ def add_struktur_organisasi():
             return jsonify({'error': 'Failed to save struktur organisasi'}), 500
             
     except Exception as e:
-        print(f"❌ Error adding struktur organisasi: {e}")
+        safe_print(f"❌ Error adding struktur organisasi: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/config/struktur-organisasi/batch', methods=['POST'])
@@ -3877,12 +3881,12 @@ def add_struktur_organisasi_batch():
         data = request.get_json()
         items = data.get('items', [])
         
-        print(f"🔥 BATCH API CALLED: Received {len(items)} items")
+        safe_print(f"🔥 BATCH API CALLED: Received {len(items)} items")
         if items:
-            print(f"🔥 Sample item: {items[0]}")
+            safe_print(f"🔥 Sample item: {items[0]}")
         
         if not items:
-            print("❌ No items provided in batch request")
+            safe_print("❌ No items provided in batch request")
             return jsonify({'error': 'No items provided'}), 400
         
         # Read existing struktur organisasi
@@ -3911,7 +3915,7 @@ def add_struktur_organisasi_batch():
             if item.get('parent_original_id'):
                 mapped_parent_id = id_mappings.get(item['parent_original_id'])
                 if not mapped_parent_id:
-                    print(f"Warning: Could not find mapping for parent_original_id {item['parent_original_id']}")
+                    safe_print(f"Warning: Could not find mapping for parent_original_id {item['parent_original_id']}")
             elif item.get('parent_id'):
                 # Direct parent_id (for backward compatibility)
                 mapped_parent_id = item['parent_id']
@@ -3935,7 +3939,7 @@ def add_struktur_organisasi_batch():
             new_items.append(new_struktur)
             created_items.append(new_struktur.copy())  # For response
             
-            print(f"✓ Created {item.get('type')}: {item.get('nama')} (ID: {new_id}, Parent: {mapped_parent_id})")
+            safe_print(f"✓ Created {item.get('type')}: {item.get('nama')} (ID: {new_id}, Parent: {mapped_parent_id})")
         
         # Add all items to DataFrame in one operation
         if new_items:
@@ -3943,12 +3947,12 @@ def add_struktur_organisasi_batch():
             struktur_data = pd.concat([struktur_data, new_df], ignore_index=True)
         
         # Save to storage once
-        print(f"🔥 Saving {len(struktur_data)} total rows to CSV...")
+        safe_print(f"🔥 Saving {len(struktur_data)} total rows to CSV...")
         success = storage_service.write_csv(struktur_data, 'config/struktur-organisasi.csv')
         
         if success:
-            print(f"✅ Batch saved {len(new_items)} struktur organisasi items successfully!")
-            print(f"✅ Total rows in CSV: {len(struktur_data)}")
+            safe_print(f"✅ Batch saved {len(new_items)} struktur organisasi items successfully!")
+            safe_print(f"✅ Total rows in CSV: {len(struktur_data)}")
             return jsonify({
                 'success': True, 
                 'added_count': len(new_items), 
@@ -3956,13 +3960,13 @@ def add_struktur_organisasi_batch():
                 'id_mappings': id_mappings
             }), 201
         else:
-            print(f"❌ Failed to save struktur organisasi to CSV")
+            safe_print(f"❌ Failed to save struktur organisasi to CSV")
             return jsonify({'error': 'Failed to save struktur organisasi'}), 500
             
     except Exception as e:
-        print(f"❌ Error adding batch struktur organisasi: {e}")
+        safe_print(f"❌ Error adding batch struktur organisasi: {e}")
         import traceback
-        traceback.print_exc()
+        traceback.safe_print_exc()
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/config/struktur-organisasi/<int:struktur_id>', methods=['DELETE'])
@@ -3990,7 +3994,7 @@ def delete_struktur_organisasi(struktur_id):
             return jsonify({'error': 'Failed to delete struktur organisasi'}), 500
             
     except Exception as e:
-        print(f"❌ Error deleting struktur organisasi: {e}")
+        safe_print(f"❌ Error deleting struktur organisasi: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/config/struktur-organisasi/<int:struktur_id>', methods=['PUT'])
@@ -4041,7 +4045,7 @@ def update_struktur_organisasi(struktur_id):
             return jsonify({'error': 'Failed to update struktur organisasi'}), 500
             
     except Exception as e:
-        print(f"❌ Error updating struktur organisasi: {e}")
+        safe_print(f"❌ Error updating struktur organisasi: {e}")
         return jsonify({'error': str(e)}), 500
 
 # CHECKLIST ASSIGNMENTS ENDPOINTS
@@ -4056,7 +4060,7 @@ def get_assignments():
         else:
             return jsonify({'assignments': []}), 200
     except Exception as e:
-        print(f"❌ Error getting assignments: {e}")
+        safe_print(f"❌ Error getting assignments: {e}")
         return jsonify({'assignments': []}), 200
 
 @app.route('/api/config/assignments', methods=['POST'])
@@ -4096,7 +4100,7 @@ def add_assignment():
             return jsonify({'error': 'Failed to save assignment'}), 500
             
     except Exception as e:
-        print(f"❌ Error adding assignment: {e}")
+        safe_print(f"❌ Error adding assignment: {e}")
         return jsonify({'error': f'Failed to add assignment: {str(e)}'}), 500
 
 @app.route('/api/config/assignments/<int:checklist_id>', methods=['DELETE'])
@@ -4119,7 +4123,7 @@ def delete_assignment(checklist_id):
             return jsonify({'error': 'Failed to delete assignment'}), 500
             
     except Exception as e:
-        print(f"❌ Error deleting assignment: {e}")
+        safe_print(f"❌ Error deleting assignment: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/check-row-files/<int:year>/<pic_name>/<int:row_number>', methods=['GET'])
@@ -4140,7 +4144,7 @@ def check_row_files(year, pic_name, row_number):
         }), 200
         
     except Exception as e:
-        print(f"❌ Error checking row files: {e}")
+        safe_print(f"❌ Error checking row files: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/delete-row-files/<int:year>/<pic_name>/<int:row_number>', methods=['DELETE'])
@@ -4175,7 +4179,7 @@ def delete_row_files(year, pic_name, row_number):
         }), 200
         
     except Exception as e:
-        print(f"❌ Error deleting row files: {e}")
+        safe_print(f"❌ Error deleting row files: {e}")
         return jsonify({'error': str(e)}), 500
 
 # Bulk delete endpoints for year data management
@@ -4183,7 +4187,7 @@ def delete_row_files(year, pic_name, row_number):
 def preview_bulk_delete(year):
     """Preview what data would be deleted for a specific year"""
     try:
-        print(f"📋 Previewing bulk delete for year {year}")
+        safe_print(f"📋 Previewing bulk delete for year {year}")
         
         # Initialize counters
         preview_data = {
@@ -4207,7 +4211,7 @@ def preview_bulk_delete(year):
                 year_checklist = checklist_data[checklist_data['tahun'] == year]
                 preview_data['checklist_items'] = len(year_checklist)
         except Exception as e:
-            print(f"⚠️ Error counting checklist items: {e}")
+            safe_print(f"⚠️ Error counting checklist items: {e}")
         
         # Count aspects for the year
         try:
@@ -4216,7 +4220,7 @@ def preview_bulk_delete(year):
                 year_aspects = aspects_data[aspects_data['tahun'] == year]
                 preview_data['aspects'] = len(year_aspects)
         except Exception as e:
-            print(f"⚠️ Error counting aspects: {e}")
+            safe_print(f"⚠️ Error counting aspects: {e}")
         
         # Count users for the year
         try:
@@ -4225,7 +4229,7 @@ def preview_bulk_delete(year):
                 year_users = users_data[users_data['tahun'] == year]
                 preview_data['users'] = len(year_users)
         except Exception as e:
-            print(f"⚠️ Error counting users: {e}")
+            safe_print(f"⚠️ Error counting users: {e}")
         
         # Count organizational data for the year
         try:
@@ -4236,7 +4240,7 @@ def preview_bulk_delete(year):
                 preview_data['organizational_data']['subdirektorat'] = len(year_org[year_org['jenis'] == 'subdirektorat'])
                 preview_data['organizational_data']['divisi'] = len(year_org[year_org['jenis'] == 'divisi'])
         except Exception as e:
-            print(f"⚠️ Error counting organizational data: {e}")
+            safe_print(f"⚠️ Error counting organizational data: {e}")
         
         # Count uploaded files for the year
         try:
@@ -4249,7 +4253,7 @@ def preview_bulk_delete(year):
                         file_count += 1
                 preview_data['uploaded_files'] = file_count
         except Exception as e:
-            print(f"⚠️ Error counting uploaded files: {e}")
+            safe_print(f"⚠️ Error counting uploaded files: {e}")
         
         # Calculate total items
         preview_data['total_items'] = (
@@ -4262,18 +4266,18 @@ def preview_bulk_delete(year):
             preview_data['uploaded_files']
         )
         
-        print(f"✅ Preview complete for year {year}: {preview_data['total_items']} total items")
+        safe_print(f"✅ Preview complete for year {year}: {preview_data['total_items']} total items")
         return jsonify(preview_data), 200
         
     except Exception as e:
-        print(f"❌ Error previewing bulk delete: {e}")
+        safe_print(f"❌ Error previewing bulk delete: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/bulk-delete/<int:year>', methods=['DELETE'])
 def bulk_delete_year_data(year):
     """Delete all data for a specific year"""
     try:
-        print(f"🗑️ Starting bulk delete for year {year}")
+        safe_print(f"🗑️ Starting bulk delete for year {year}")
         
         deleted_summary = {
             'year': year,
@@ -4301,11 +4305,11 @@ def bulk_delete_year_data(year):
                 remaining_checklist = checklist_data[checklist_data['tahun'] != year]
                 success = storage_service.write_csv(remaining_checklist, 'config/checklist.csv')
                 if success:
-                    print(f"✅ Deleted {deleted_summary['checklist_items']} checklist items for year {year}")
+                    safe_print(f"✅ Deleted {deleted_summary['checklist_items']} checklist items for year {year}")
                 else:
-                    print(f"❌ Failed to delete checklist items for year {year}")
+                    safe_print(f"❌ Failed to delete checklist items for year {year}")
         except Exception as e:
-            print(f"⚠️ Error deleting checklist items: {e}")
+            safe_print(f"⚠️ Error deleting checklist items: {e}")
         
         # 2. Delete aspects for the year
         try:
@@ -4318,9 +4322,9 @@ def bulk_delete_year_data(year):
                 remaining_aspects = aspects_data[aspects_data['tahun'] != year]
                 success = storage_service.write_csv(remaining_aspects, 'config/aspects.csv')
                 if success:
-                    print(f"✅ Deleted {deleted_summary['aspects']} aspects for year {year}")
+                    safe_print(f"✅ Deleted {deleted_summary['aspects']} aspects for year {year}")
         except Exception as e:
-            print(f"⚠️ Error deleting aspects: {e}")
+            safe_print(f"⚠️ Error deleting aspects: {e}")
         
         # 3. Delete users for the year
         try:
@@ -4333,9 +4337,9 @@ def bulk_delete_year_data(year):
                 remaining_users = users_data[users_data['tahun'] != year]
                 success = storage_service.write_csv(remaining_users, 'config/users.csv')
                 if success:
-                    print(f"✅ Deleted {deleted_summary['users']} users for year {year}")
+                    safe_print(f"✅ Deleted {deleted_summary['users']} users for year {year}")
         except Exception as e:
-            print(f"⚠️ Error deleting users: {e}")
+            safe_print(f"⚠️ Error deleting users: {e}")
         
         # 4. Delete organizational data for the year
         try:
@@ -4351,9 +4355,9 @@ def bulk_delete_year_data(year):
                 success = storage_service.write_csv(remaining_org, 'config/struktur-organisasi.csv')
                 if success:
                     total_org_deleted = sum(deleted_summary['organizational_data'].values())
-                    print(f"✅ Deleted {total_org_deleted} organizational items for year {year}")
+                    safe_print(f"✅ Deleted {total_org_deleted} organizational items for year {year}")
         except Exception as e:
-            print(f"⚠️ Error deleting organizational data: {e}")
+            safe_print(f"⚠️ Error deleting organizational data: {e}")
         
         # 5. Delete assignments for the year
         try:
@@ -4366,9 +4370,9 @@ def bulk_delete_year_data(year):
                 remaining_assignments = assignments_data[assignments_data['tahun'] != year]
                 success = storage_service.write_csv(remaining_assignments, 'config/checklist-assignments.csv')
                 if success:
-                    print(f"✅ Deleted {deleted_summary['assignments']} assignments for year {year}")
+                    safe_print(f"✅ Deleted {deleted_summary['assignments']} assignments for year {year}")
         except Exception as e:
-            print(f"⚠️ Error deleting assignments: {e}")
+            safe_print(f"⚠️ Error deleting assignments: {e}")
         
         # 6. Delete uploaded files for the year
         try:
@@ -4381,9 +4385,9 @@ def bulk_delete_year_data(year):
                     if success:
                         file_count += 1
                 deleted_summary['uploaded_files'] = file_count
-                print(f"✅ Deleted {file_count} uploaded files for year {year}")
+                safe_print(f"✅ Deleted {file_count} uploaded files for year {year}")
         except Exception as e:
-            print(f"⚠️ Error deleting uploaded files: {e}")
+            safe_print(f"⚠️ Error deleting uploaded files: {e}")
         
         # Calculate total deleted items
         total_deleted = (
@@ -4397,7 +4401,7 @@ def bulk_delete_year_data(year):
             deleted_summary['assignments']
         )
         
-        print(f"🎉 Bulk delete completed for year {year}. Total items deleted: {total_deleted}")
+        safe_print(f"🎉 Bulk delete completed for year {year}. Total items deleted: {total_deleted}")
         
         return jsonify({
             'success': True,
@@ -4408,7 +4412,7 @@ def bulk_delete_year_data(year):
         }), 200
         
     except Exception as e:
-        print(f"❌ Error during bulk delete: {e}")
+        safe_print(f"❌ Error during bulk delete: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/bulk-download-all-documents', methods=['POST'])
@@ -4429,7 +4433,7 @@ def bulk_download_all_documents():
         if not year:
             return jsonify({'error': 'Year is required'}), 400
 
-        print(f"🔍 Starting bulk download for year {year}")
+        safe_print(f"🔍 Starting bulk download for year {year}")
 
         # Create a temporary file for the ZIP
         temp_zip = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
@@ -4452,14 +4456,14 @@ def bulk_download_all_documents():
                         csv_content = checklist_data.to_csv(index=False)
                         zipf.writestr(f'checklist_{year}.csv', csv_content)
                         files_added += 1
-                        print(f"✅ Added checklist_{year}.csv")
+                        safe_print(f"✅ Added checklist_{year}.csv")
                 except Exception as e:
-                    print(f"⚠️ Could not add checklist: {e}")
+                    safe_print(f"⚠️ Could not add checklist: {e}")
 
             # Download GCG documents organized by division
             if include_gcg:
                 try:
-                    print(f"📄 Processing GCG documents...")
+                    safe_print(f"📄 Processing GCG documents...")
 
                     # List all files in gcg-documents/{year}/
                     gcg_prefix = f"gcg-documents/{year}"
@@ -4471,7 +4475,7 @@ def bulk_download_all_documents():
                                 continue
 
                             division_name = division_folder['name']
-                            print(f"📁 Processing division: {division_name}")
+                            safe_print(f"📁 Processing division: {division_name}")
 
                             # List files in this division
                             division_path = f"{gcg_prefix}/{division_name}"
@@ -4503,18 +4507,18 @@ def bulk_download_all_documents():
                                                 zip_path = f"GCG_Documents/{division_name}/Checklist_{checklist_id}/{file_item['name']}"
                                                 zipf.writestr(zip_path, file_response)
                                                 files_added += 1
-                                                print(f"✅ Added GCG: {zip_path}")
+                                                safe_print(f"✅ Added GCG: {zip_path}")
 
                                             except Exception as e:
-                                                print(f"❌ Failed to download GCG file {file_path}: {e}")
+                                                safe_print(f"❌ Failed to download GCG file {file_path}: {e}")
 
                 except Exception as e:
-                    print(f"❌ Error processing GCG documents: {e}")
+                    safe_print(f"❌ Error processing GCG documents: {e}")
 
             # Download AOI documents organized by division
             if include_aoi:
                 try:
-                    print(f"📋 Processing AOI documents...")
+                    safe_print(f"📋 Processing AOI documents...")
 
                     # List all files in aoi-documents/{year}/
                     aoi_prefix = f"aoi-documents/{year}"
@@ -4526,7 +4530,7 @@ def bulk_download_all_documents():
                                 continue
 
                             division_name = division_folder['name']
-                            print(f"📁 Processing AOI division: {division_name}")
+                            safe_print(f"📁 Processing AOI division: {division_name}")
 
                             # List files in this division
                             division_path = f"{aoi_prefix}/{division_name}"
@@ -4558,15 +4562,15 @@ def bulk_download_all_documents():
                                                 zip_path = f"AOI_Documents/{division_name}/Recommendation_{rec_id}/{file_item['name']}"
                                                 zipf.writestr(zip_path, file_response)
                                                 files_added += 1
-                                                print(f"✅ Added AOI: {zip_path}")
+                                                safe_print(f"✅ Added AOI: {zip_path}")
 
                                             except Exception as e:
-                                                print(f"❌ Failed to download AOI file {file_path}: {e}")
+                                                safe_print(f"❌ Failed to download AOI file {file_path}: {e}")
 
                 except Exception as e:
-                    print(f"❌ Error processing AOI documents: {e}")
+                    safe_print(f"❌ Error processing AOI documents: {e}")
 
-        print(f"📦 ZIP creation complete. Total files: {files_added}")
+        safe_print(f"📦 ZIP creation complete. Total files: {files_added}")
 
         if files_added == 0:
             return jsonify({'error': 'No documents found for the specified year'}), 404
@@ -4585,13 +4589,13 @@ def bulk_download_all_documents():
         response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
         response.headers['Content-Length'] = len(zip_data)
 
-        print(f"✅ Bulk download complete: {filename} ({len(zip_data)} bytes)")
+        safe_print(f"✅ Bulk download complete: {filename} ({len(zip_data)} bytes)")
         return response
 
     except Exception as e:
-        print(f"❌ Bulk download error: {e}")
+        safe_print(f"❌ Bulk download error: {e}")
         import traceback
-        traceback.print_exc()
+        traceback.safe_print_exc()
         return jsonify({'error': f'Failed to create bulk download: {str(e)}'}), 500
 
 @app.route('/api/refresh-tracking-tables', methods=['POST'])
@@ -4607,14 +4611,14 @@ def refresh_tracking_tables():
         if not year:
             return jsonify({'error': 'Year is required'}), 400
 
-        print(f"🔍 Starting tracking tables refresh for year {year}")
+        safe_print(f"🔍 Starting tracking tables refresh for year {year}")
 
         gcg_cleaned = 0
         aoi_cleaned = 0
 
         # 1. Clean GCG documents tracking (uploaded-files.xlsx)
         try:
-            print(f"📄 Checking GCG documents tracking...")
+            safe_print(f"📄 Checking GCG documents tracking...")
 
             # Read uploaded-files.xlsx
             uploaded_files_data = storage_service.read_excel('uploaded-files.xlsx')
@@ -4636,7 +4640,7 @@ def refresh_tracking_tables():
                             year_val = row.get('year', year)
 
                             if not pic_name or not checklist_id:
-                                print(f"⚠️ Skipping invalid record: missing PIC or checklist ID")
+                                safe_print(f"⚠️ Skipping invalid record: missing PIC or checklist ID")
                                 continue
 
                             # Clean PIC name for path
@@ -4661,17 +4665,17 @@ def refresh_tracking_tables():
 
                                 if has_real_files:
                                     valid_records.append(row)
-                                    print(f"✅ Valid GCG record: {directory_path}")
+                                    safe_print(f"✅ Valid GCG record: {directory_path}")
                                 else:
-                                    print(f"❌ Orphaned GCG record (no files): {directory_path}")
+                                    safe_print(f"❌ Orphaned GCG record (no files): {directory_path}")
                                     gcg_cleaned += 1
 
                             except Exception as e:
-                                print(f"❌ Error checking GCG directory {directory_path}: {e}")
+                                safe_print(f"❌ Error checking GCG directory {directory_path}: {e}")
                                 gcg_cleaned += 1
 
                         except Exception as e:
-                            print(f"❌ Error processing GCG record: {e}")
+                            safe_print(f"❌ Error processing GCG record: {e}")
                             gcg_cleaned += 1
 
                     # Rebuild the dataframe with valid records + other years
@@ -4685,16 +4689,16 @@ def refresh_tracking_tables():
                     if len(updated_df) != initial_count:
                         success = storage_service.write_excel(updated_df, 'uploaded-files.xlsx')
                         if success:
-                            print(f"✅ Cleaned {gcg_cleaned} orphaned GCG records")
+                            safe_print(f"✅ Cleaned {gcg_cleaned} orphaned GCG records")
                         else:
-                            print(f"❌ Failed to save cleaned GCG data")
+                            safe_print(f"❌ Failed to save cleaned GCG data")
 
         except Exception as e:
-            print(f"❌ Error cleaning GCG tracking: {e}")
+            safe_print(f"❌ Error cleaning GCG tracking: {e}")
 
         # 2. Clean AOI documents tracking (aoi-documents.csv)
         try:
-            print(f"📋 Checking AOI documents tracking...")
+            safe_print(f"📋 Checking AOI documents tracking...")
 
             # Read aoi-documents.csv
             aoi_docs_data = storage_service.read_csv('config/aoi-documents.csv')
@@ -4716,7 +4720,7 @@ def refresh_tracking_tables():
                             year_val = row.get('tahun', year)
 
                             if not subdirektorat or not recommendation_id:
-                                print(f"⚠️ Skipping invalid AOI record: missing subdirektorat or recommendation ID")
+                                safe_print(f"⚠️ Skipping invalid AOI record: missing subdirektorat or recommendation ID")
                                 continue
 
                             # Clean subdirektorat name for path
@@ -4741,17 +4745,17 @@ def refresh_tracking_tables():
 
                                 if has_real_files:
                                     valid_records.append(row)
-                                    print(f"✅ Valid AOI record: {directory_path}")
+                                    safe_print(f"✅ Valid AOI record: {directory_path}")
                                 else:
-                                    print(f"❌ Orphaned AOI record (no files): {directory_path}")
+                                    safe_print(f"❌ Orphaned AOI record (no files): {directory_path}")
                                     aoi_cleaned += 1
 
                             except Exception as e:
-                                print(f"❌ Error checking AOI directory {directory_path}: {e}")
+                                safe_print(f"❌ Error checking AOI directory {directory_path}: {e}")
                                 aoi_cleaned += 1
 
                         except Exception as e:
-                            print(f"❌ Error processing AOI record: {e}")
+                            safe_print(f"❌ Error processing AOI record: {e}")
                             aoi_cleaned += 1
 
                     # Rebuild the dataframe with valid records + other years
@@ -4765,15 +4769,15 @@ def refresh_tracking_tables():
                     if len(updated_df) != initial_count:
                         success = storage_service.write_csv(updated_df, 'config/aoi-documents.csv')
                         if success:
-                            print(f"✅ Cleaned {aoi_cleaned} orphaned AOI records")
+                            safe_print(f"✅ Cleaned {aoi_cleaned} orphaned AOI records")
                         else:
-                            print(f"❌ Failed to save cleaned AOI data")
+                            safe_print(f"❌ Failed to save cleaned AOI data")
 
         except Exception as e:
-            print(f"❌ Error cleaning AOI tracking: {e}")
+            safe_print(f"❌ Error cleaning AOI tracking: {e}")
 
-        print(f"🎉 Tracking tables refresh complete for year {year}")
-        print(f"📊 Summary: GCG cleaned: {gcg_cleaned}, AOI cleaned: {aoi_cleaned}")
+        safe_print(f"🎉 Tracking tables refresh complete for year {year}")
+        safe_print(f"📊 Summary: GCG cleaned: {gcg_cleaned}, AOI cleaned: {aoi_cleaned}")
 
         return jsonify({
             'success': True,
@@ -4785,9 +4789,9 @@ def refresh_tracking_tables():
         }), 200
 
     except Exception as e:
-        print(f"❌ Error during tracking tables refresh: {e}")
+        safe_print(f"❌ Error during tracking tables refresh: {e}")
         import traceback
-        traceback.print_exc()
+        traceback.safe_print_exc()
         return jsonify({'error': f'Failed to refresh tracking tables: {str(e)}'}), 500
 
 if __name__ == '__main__':

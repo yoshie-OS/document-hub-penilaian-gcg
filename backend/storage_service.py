@@ -10,6 +10,7 @@ from typing import Optional
 import pandas as pd
 from supabase import create_client, Client
 from dotenv import load_dotenv
+from windows_utils import safe_print
 
 # Load environment variables from parent directory
 env_path = Path(__file__).parent.parent / '.env'
@@ -33,9 +34,9 @@ class StorageService:
                 raise ValueError("Missing Supabase configuration. Check your .env file.")
             
             self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
-            print(f"✅ Supabase storage initialized - Bucket: {self.bucket_name}")
+            safe_print(f"✅ Supabase storage initialized - Bucket: {self.bucket_name}")
         else:
-            print("✅ Local storage mode initialized")
+            safe_print("✅ Local storage mode initialized")
     
     def _get_file_lock(self, file_path: str) -> threading.Lock:
         """Get or create a threading lock for a specific file path"""
@@ -52,7 +53,7 @@ class StorageService:
             else:
                 return self._read_excel_local(file_path)
         except Exception as e:
-            print(f"❌ Error reading Excel file {file_path}: {e}")
+            safe_print(f"❌ Error reading Excel file {file_path}: {e}")
             return None
     
     def write_excel(self, df: pd.DataFrame, file_path: str) -> bool:
@@ -63,7 +64,7 @@ class StorageService:
             else:
                 return self._write_excel_local(df, file_path)
         except Exception as e:
-            print(f"❌ Error writing Excel file {file_path}: {e}")
+            safe_print(f"❌ Error writing Excel file {file_path}: {e}")
             return False
     
     def file_exists(self, file_path: str) -> bool:
@@ -74,7 +75,7 @@ class StorageService:
             else:
                 return self._file_exists_local(file_path)
         except Exception as e:
-            print(f"❌ Error checking file existence {file_path}: {e}")
+            safe_print(f"❌ Error checking file existence {file_path}: {e}")
             return False
     
     def list_files(self, directory_path: str = "") -> list:
@@ -85,7 +86,7 @@ class StorageService:
             else:
                 return self._list_files_local(directory_path)
         except Exception as e:
-            print(f"❌ Error listing files in {directory_path}: {e}")
+            safe_print(f"❌ Error listing files in {directory_path}: {e}")
             return []
     
     # Local storage methods
@@ -147,7 +148,7 @@ class StorageService:
             
             # Read with pandas
             df = pd.read_excel(temp_path)
-            print(f"📥 Downloaded and read Excel file: {file_path}")
+            safe_print(f"📥 Downloaded and read Excel file: {file_path}")
             return df
             
         finally:
@@ -199,7 +200,7 @@ class StorageService:
                     else:
                         raise upload_error
                 
-                print(f"📤 Uploaded Excel file: {file_path}")
+                safe_print(f"📤 Uploaded Excel file: {file_path}")
                 return True
                 
             finally:
@@ -236,11 +237,11 @@ class StorageService:
                         full_path = file_info['name']
                     file_paths.append(full_path)
             
-            print(f"📂 Listed {len(file_paths)} files in Supabase: {directory_path}")
+            safe_print(f"📂 Listed {len(file_paths)} files in Supabase: {directory_path}")
             return file_paths
             
         except Exception as e:
-            print(f"❌ Error listing Supabase files in {directory_path}: {e}")
+            safe_print(f"❌ Error listing Supabase files in {directory_path}: {e}")
             return []
     
     # CSV methods
@@ -252,7 +253,7 @@ class StorageService:
             else:
                 return self._read_csv_local(file_path)
         except Exception as e:
-            print(f"❌ Error reading CSV file {file_path}: {e}")
+            safe_print(f"❌ Error reading CSV file {file_path}: {e}")
             return None
     
     def write_csv(self, df: pd.DataFrame, file_path: str) -> bool:
@@ -263,7 +264,7 @@ class StorageService:
             else:
                 return self._write_csv_local(df, file_path)
         except Exception as e:
-            print(f"❌ Error writing CSV file {file_path}: {e}")
+            safe_print(f"❌ Error writing CSV file {file_path}: {e}")
             return False
     
     # Local CSV methods
@@ -289,7 +290,7 @@ class StorageService:
     # Supabase CSV methods
     def _read_csv_supabase(self, file_path: str) -> pd.DataFrame:
         """Read CSV file from Supabase storage"""
-        print(f"🔍 DEBUG: Starting Supabase CSV read for {file_path}")
+        safe_print(f"🔍 DEBUG: Starting Supabase CSV read for {file_path}")
         
         # Download file to temporary location
         with tempfile.NamedTemporaryFile(suffix='.csv', delete=False) as temp_file:
@@ -297,38 +298,38 @@ class StorageService:
         
         try:
             # Download from Supabase
-            print(f"🔍 DEBUG: Downloading from bucket: {self.bucket_name}")
+            safe_print(f"🔍 DEBUG: Downloading from bucket: {self.bucket_name}")
             response = self.supabase.storage.from_(self.bucket_name).download(file_path)
-            print(f"🔍 DEBUG: Download response size: {len(response)} bytes")
+            safe_print(f"🔍 DEBUG: Download response size: {len(response)} bytes")
             
             # Write to temp file
             with open(temp_path, 'wb') as f:
                 f.write(response)
-            print(f"🔍 DEBUG: Written to temp file: {temp_path}")
+            safe_print(f"🔍 DEBUG: Written to temp file: {temp_path}")
             
             # Read with pandas
             df = pd.read_csv(temp_path)
-            print(f"🔍 DEBUG: Read DataFrame shape: {df.shape}")
-            print(f"🔍 DEBUG: DataFrame preview:\n{df.head()}")
-            print(f"📥 Downloaded and read CSV file: {file_path}")
+            safe_print(f"🔍 DEBUG: Read DataFrame shape: {df.shape}")
+            safe_print(f"🔍 DEBUG: DataFrame preview:\n{df.head()}")
+            safe_print(f"📥 Downloaded and read CSV file: {file_path}")
             return df
             
         finally:
             # Clean up temp file
             if os.path.exists(temp_path):
                 os.unlink(temp_path)
-                print(f"🔍 DEBUG: Cleaned up temp file: {temp_path}")
+                safe_print(f"🔍 DEBUG: Cleaned up temp file: {temp_path}")
     
     def _write_csv_supabase(self, df: pd.DataFrame, file_path: str) -> bool:
         """Write CSV file to Supabase storage"""
-        print(f"🔍 DEBUG: Starting Supabase CSV write for {file_path}")
-        print(f"🔍 DEBUG: DataFrame shape: {df.shape}")
-        print(f"🔍 DEBUG: DataFrame preview:\n{df.head()}")
+        safe_print(f"🔍 DEBUG: Starting Supabase CSV write for {file_path}")
+        safe_print(f"🔍 DEBUG: DataFrame shape: {df.shape}")
+        safe_print(f"🔍 DEBUG: DataFrame preview:\n{df.head()}")
         
         # Get file lock to prevent race conditions
         file_lock = self._get_file_lock(file_path)
         with file_lock:
-            print(f"🔒 DEBUG: Acquired lock for {file_path}")
+            safe_print(f"🔒 DEBUG: Acquired lock for {file_path}")
             
             # Save to temporary location first
             with tempfile.NamedTemporaryFile(suffix='.csv', delete=False) as temp_file:
@@ -339,63 +340,63 @@ class StorageService:
                 # Use QUOTE_NONNUMERIC to only quote string fields (not numbers)
                 import csv
                 df.to_csv(temp_path, index=False, quoting=csv.QUOTE_NONNUMERIC)
-                print(f"🔍 DEBUG: Saved to temp file: {temp_path}")
+                safe_print(f"🔍 DEBUG: Saved to temp file: {temp_path}")
                 
                 # Upload to Supabase
                 with open(temp_path, 'rb') as f:
                     file_data = f.read()
-                print(f"🔍 DEBUG: Read {len(file_data)} bytes from temp file")
-                print(f"🔍 DEBUG: Bucket: {self.bucket_name}")
-                print(f"🔍 DEBUG: File path: {file_path}")
+                safe_print(f"🔍 DEBUG: Read {len(file_data)} bytes from temp file")
+                safe_print(f"🔍 DEBUG: Bucket: {self.bucket_name}")
+                safe_print(f"🔍 DEBUG: File path: {file_path}")
                 
                 # Try to upload, if file exists use update instead
                 try:
-                    print("🔍 DEBUG: Attempting upload...")
+                    safe_print("🔍 DEBUG: Attempting upload...")
                     response = self.supabase.storage.from_(self.bucket_name).upload(
                         path=file_path,
                         file=file_data,
                         file_options={"content-type": "text/csv"}
                     )
-                    print(f"🔍 DEBUG: Upload response: {response}")
+                    safe_print(f"🔍 DEBUG: Upload response: {response}")
                     
                     # Check for upload errors
                     if hasattr(response, 'error') and response.error:
-                        print(f"🔍 DEBUG: Upload error detected: {response.error}")
+                        safe_print(f"🔍 DEBUG: Upload error detected: {response.error}")
                         raise Exception(f"Upload error: {response.error}")
                     else:
-                        print("🔍 DEBUG: Upload successful!")
+                        safe_print("🔍 DEBUG: Upload successful!")
                         
                 except Exception as upload_error:
-                    print(f"🔍 DEBUG: Upload exception: {upload_error}")
+                    safe_print(f"🔍 DEBUG: Upload exception: {upload_error}")
                     # If upload fails, try update instead (file might already exist)
                     if "already exists" in str(upload_error).lower() or "duplicate" in str(upload_error).lower():
-                        print("🔍 DEBUG: File exists, attempting update...")
+                        safe_print("🔍 DEBUG: File exists, attempting update...")
                         response = self.supabase.storage.from_(self.bucket_name).update(
                             path=file_path,
                             file=file_data,
                             file_options={"content-type": "text/csv"}
                         )
-                        print(f"🔍 DEBUG: Update response: {response}")
+                        safe_print(f"🔍 DEBUG: Update response: {response}")
                         
                         # Check for update errors
                         if hasattr(response, 'error') and response.error:
-                            print(f"🔍 DEBUG: Update error detected: {response.error}")
+                            safe_print(f"🔍 DEBUG: Update error detected: {response.error}")
                             raise Exception(f"Update error: {response.error}")
                         else:
-                            print("🔍 DEBUG: Update successful!")
+                            safe_print("🔍 DEBUG: Update successful!")
                     else:
-                        print(f"🔍 DEBUG: Unhandled upload error: {upload_error}")
+                        safe_print(f"🔍 DEBUG: Unhandled upload error: {upload_error}")
                         raise upload_error
                 
-                print(f"📤 Uploaded CSV file: {file_path}")
-                print(f"🔒 DEBUG: Releasing lock for {file_path}")
+                safe_print(f"📤 Uploaded CSV file: {file_path}")
+                safe_print(f"🔒 DEBUG: Releasing lock for {file_path}")
                 return True
                 
             finally:
                 # Clean up temp file
                 if os.path.exists(temp_path):
                     os.unlink(temp_path)
-                    print(f"🔍 DEBUG: Cleaned up temp file: {temp_path}")
+                    safe_print(f"🔍 DEBUG: Cleaned up temp file: {temp_path}")
 
 # Global storage service instance
 storage_service = StorageService()
