@@ -71,7 +71,7 @@ const TahunTab: React.FC<TahunTabProps> = ({
                     <Input
                       id="year"
                       type="number"
-                      min="2020"
+                      min="1746"
                       max="2030"
                       value={newYear}
                       onChange={(e) => setNewYear(e.target.value)}

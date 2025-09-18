@@ -677,15 +677,16 @@ const PengaturanBaru = () => {
     useDefaultData
   } = useStrukturPerusahaan();
   const { user: currentUser } = useUser();
-  const { 
-    checklist, 
+  const {
+    checklist,
     aspects,
-    addChecklist, 
-    editChecklist, 
-    deleteChecklist, 
-    addAspek, 
-    editAspek, 
-    deleteAspek, 
+    deletingAspectIds,
+    addChecklist,
+    editChecklist,
+    deleteChecklist,
+    addAspek,
+    editAspek,
+    deleteAspek,
     initializeYearData,
     getAspectsByYear,
     ensureAspectsForAllYears,
@@ -2378,15 +2379,15 @@ const PengaturanBaru = () => {
   };
 
   const handleDeleteAspek = async (aspekId: number) => {
-    // Delete aspek using context
-    deleteAspek(aspekId, selectedYear);
-    
-    // Refresh aspects after successful delete
     try {
+      // Delete aspek using context - wait for completion
+      await deleteAspek(aspekId, selectedYear);
+
+      // Refresh aspects after successful delete
       const updatedAspects = await getAspectsByYear(selectedYear);
       setCurrentYearAspects(updatedAspects);
     } catch (error) {
-      console.error('Error refreshing aspects after delete:', error);
+      console.error('Error deleting aspek:', error);
     }
     
     toast({
@@ -2960,7 +2961,7 @@ const PengaturanBaru = () => {
                                 <Input
                                   id="year"
                                   type="number"
-                                  min="2020"
+                                  min="1746"
                                   max="2030"
                                   value={tahunForm.tahun || ''}
                                   onChange={(e) => setTahunForm({ ...tahunForm, tahun: parseInt(e.target.value) })}

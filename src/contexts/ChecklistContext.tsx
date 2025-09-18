@@ -18,6 +18,7 @@ export interface Aspek {
 interface ChecklistContextType {
   checklist: ChecklistGCG[];
   aspects: Aspek[];
+  deletingAspectIds: Set<number>;
   getChecklistByYear: (year: number) => ChecklistGCG[];
   getAspectsByYear: (year: number) => Promise<Aspek[]>;
   addChecklist: (aspek: string, deskripsi: string, pic: string, year: number) => Promise<void>;
@@ -38,6 +39,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
   console.log('ChecklistProvider: Component initialized');
   const [checklist, setChecklist] = useState<ChecklistGCG[]>([]);
   const [aspects, setAspects] = useState<Aspek[]>([]);
+  const [deletingAspectIds, setDeletingAspectIds] = useState<Set<number>>(new Set());
 
   // Load data from Supabase first, fallback to localStorage
   useEffect(() => {
@@ -289,8 +291,15 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
     const handleAspectsUpdate = (event: CustomEvent) => {
       if (event.detail?.type === 'aspectsUpdated') {
         const updatedAspects = event.detail.data;
-        setAspects(updatedAspects);
-        console.log('ChecklistContext: Aspects updated from PengaturanBaru', updatedAspects);
+
+        // Validate that updatedAspects is an array before setting
+        if (Array.isArray(updatedAspects)) {
+          setAspects(updatedAspects);
+          console.log('ChecklistContext: Aspects updated from PengaturanBaru', updatedAspects);
+        } else {
+          console.error('ChecklistContext: Invalid aspects data from PengaturanBaru:', updatedAspects);
+          // Keep existing aspects array instead of corrupting it
+        }
       }
     };
 
@@ -652,46 +661,95 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const deleteAspek = async (id: number, year: number) => {
+    console.log('ChecklistContext: deleteAspek called with:', { id, year, currentlyDeleting: Array.from(deletingAspectIds) });
+
+    // Prevent double-clicks
+    if (deletingAspectIds.has(id)) {
+      console.log('ChecklistContext: Delete already in progress for aspect:', id);
+      return;
+    }
+
+    // Safety check: ensure aspects is an array
+    if (!Array.isArray(aspects)) {
+      console.error('ChecklistContext: aspects is not an array:', aspects);
+      return;
+    }
+
+    console.log('ChecklistContext: Current aspects array:', aspects.length, 'items');
+
     const aspekToDelete = aspects.find(a => a.id === id);
-    if (!aspekToDelete) return;
-    
+    if (!aspekToDelete) {
+      console.warn('ChecklistContext: Aspect not found for deletion:', id, 'Available aspects:', aspects.map(a => a.id));
+      return;
+    }
+
+    console.log('ChecklistContext: Found aspect to delete:', aspekToDelete);
+
+    // Mark as deleting
+    console.log('ChecklistContext: Marking aspect as deleting:', id);
+    setDeletingAspectIds(prev => {
+      const newSet = new Set(prev).add(id);
+      console.log('ChecklistContext: Updated deleting set:', Array.from(newSet));
+      return newSet;
+    });
+
     try {
       // Delete from Supabase API
-      const response = await fetch(`http://localhost:5000/api/config/aspects/${id}`, {
-        method: 'DELETE',
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      try {
+        const response = await fetch(`http://localhost:5000/api/config/aspects/${id}`, {
+          method: 'DELETE',
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        console.log('ChecklistContext: Successfully deleted aspect from Supabase');
+      } catch (error) {
+        console.error('ChecklistContext: Failed to delete aspect from Supabase:', error);
+        // Continue with local deletion even if API fails
       }
-      
-      console.log('ChecklistContext: Successfully deleted aspect from Supabase');
-    } catch (error) {
-      console.error('ChecklistContext: Failed to delete aspect from Supabase:', error);
+
+      // Remove aspect from aspects list
+      // Safety check again before filtering
+      if (!Array.isArray(aspects)) {
+        console.error('ChecklistContext: aspects is not an array during filter operation:', aspects);
+        return;
+      }
+
+      const updatedAspects = aspects.filter(a => a.id !== id);
+      setAspects(updatedAspects);
+      localStorage.setItem("aspects", JSON.stringify(updatedAspects));
+
+      // IMPORTANT: Don't delete checklist items, just remove the aspect reference
+      // This ensures checklist items remain but without the deleted aspect
+      const updatedChecklist = checklist.map(item =>
+        item.aspek === aspekToDelete.nama && item.tahun === year
+          ? { ...item, aspek: '' } // Set to empty string instead of deleting
+          : item
+      );
+      setChecklist(updatedChecklist);
+      // REMOVED localStorage.setItem for multi-user support
+
+      // Trigger update events
+      window.dispatchEvent(new CustomEvent('aspectsUpdated', {
+        detail: { type: 'aspectsUpdated', data: updatedAspects }
+      }));
+      window.dispatchEvent(new CustomEvent('checklistUpdated', {
+        detail: { type: 'checklistUpdated', data: updatedChecklist }
+      }));
+
+    } finally {
+      // Always remove from deleting set
+      console.log('ChecklistContext: Cleaning up deletion state for aspect:', id);
+      setDeletingAspectIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(id);
+        console.log('ChecklistContext: Cleanup - deleting set now:', Array.from(newSet));
+        return newSet;
+      });
+      console.log('ChecklistContext: deleteAspek completed for:', id);
     }
-    
-    // Remove aspect from aspects list
-    const updatedAspects = aspects.filter(a => a.id !== id);
-    setAspects(updatedAspects);
-    localStorage.setItem("aspects", JSON.stringify(updatedAspects));
-    
-    // IMPORTANT: Don't delete checklist items, just remove the aspect reference
-    // This ensures checklist items remain but without the deleted aspect
-    const updatedChecklist = checklist.map(item => 
-      item.aspek === aspekToDelete.nama && item.tahun === year
-        ? { ...item, aspek: '' } // Set to empty string instead of deleting
-        : item
-    );
-    setChecklist(updatedChecklist);
-    // REMOVED localStorage.setItem for multi-user support
-    
-    // Trigger update events
-    window.dispatchEvent(new CustomEvent('aspectsUpdated', {
-      detail: { type: 'aspectsUpdated', data: updatedAspects }
-    }));
-    window.dispatchEvent(new CustomEvent('checklistUpdated', {
-      detail: { type: 'checklistUpdated', data: updatedChecklist }
-    }));
   };
 
   const ensureAllYearsHaveData = useCallback(() => {
@@ -1077,6 +1135,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
     <ChecklistContext.Provider value={{
       checklist,
       aspects,
+      deletingAspectIds,
       getChecklistByYear,
       getAspectsByYear,
       addChecklist,
