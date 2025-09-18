@@ -199,6 +199,7 @@ const DashboardStats = () => {
     window.addEventListener('assignmentsUpdated', handleDataUpdate);
     window.addEventListener('uploadedFilesChanged', handleDataUpdate);
     window.addEventListener('checklistAssignmentsChanged', handleDataUpdate);
+    window.addEventListener('checklistUpdated', handleDataUpdate);
 
     // Also listen to storage changes for real-time updates
     const handleStorageChange = (e: StorageEvent) => {
@@ -216,6 +217,7 @@ const DashboardStats = () => {
       window.removeEventListener('assignmentsUpdated', handleDataUpdate);
       window.removeEventListener('uploadedFilesChanged', handleDataUpdate);
       window.removeEventListener('checklistAssignmentsChanged', handleDataUpdate);
+      window.removeEventListener('checklistUpdated', handleDataUpdate);
       window.removeEventListener('storage', handleStorageChange);
     };
   }, [refreshFiles]);

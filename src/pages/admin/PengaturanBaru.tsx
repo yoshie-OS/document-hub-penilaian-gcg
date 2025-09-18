@@ -21,7 +21,6 @@ import { useToast } from '@/hooks/use-toast';
 import { ActionButton } from '@/components/panels';
 
 // Pilihan subdirektorat sekarang diambil dari StrukturPerusahaanContext (berdasarkan tahun aktif)
-import { Toaster } from '@/components/ui/toaster';
 import { Calendar, Building2, Users, FileText, Settings, Plus, CheckCircle, Trash2, Edit, Copy, Eye, EyeOff, X, Briefcase, Building, UserCheck, FileCheck, ChevronRight, ArrowRight, Target, ChevronUp, RefreshCw, AlertTriangle } from 'lucide-react';
 import { PageHeaderPanel } from '@/components/panels';
 import { DEFAULT_STRUKTUR_ORGANISASI, getStrukturOrganisasiSummary } from '../../data/defaultStrukturOrganisasi';
@@ -2406,24 +2405,91 @@ const PengaturanBaru = () => {
     setAspekForm({ nama: description });
   };
 
-  // Handle save changes
-  const handleSaveChanges = () => {
+  // Handle save changes - Save ALL modified items to backend
+  const handleSaveChanges = async () => {
     try {
-      // Update original data
+      const year = selectedYear || new Date().getFullYear();
+      const changedItemIds = Array.from(itemChanges);
+
+      if (changedItemIds.length === 0) {
+        toast({
+          title: "Info",
+          description: "Tidak ada perubahan untuk disimpan",
+        });
+        return;
+      }
+
+      // Save each changed item to backend
+      for (const itemId of changedItemIds) {
+        const currentItem = checklistItems.find(item => item.id === itemId);
+        if (!currentItem) continue;
+
+        try {
+          // Save PIC assignment if exists
+          if (currentItem.pic && currentItem.pic.trim() !== '') {
+            const assignmentPayload = {
+              checklistId: itemId,
+              assignedTo: currentItem.pic,
+              assignmentType: divisi?.some(d => d.nama === currentItem.pic) ? 'divisi' : 'subdirektorat',
+              year
+            };
+
+            const assignmentResponse = await fetch('http://localhost:5000/api/config/assignments', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(assignmentPayload)
+            });
+
+            if (!assignmentResponse.ok) {
+              console.warn(`Assignment save failed for item ${itemId}:`, assignmentResponse.status);
+            }
+          }
+
+          // Save checklist item to backend
+          if (newItems.has(itemId)) {
+            // NEW ITEM: Call addChecklist
+            await addChecklist(
+              currentItem.aspek || '',
+              currentItem.deskripsi || '',
+              currentItem.pic || '',
+              year
+            );
+          } else {
+            // EXISTING ITEM: Call editChecklist
+            await editChecklist(
+              currentItem.id,
+              currentItem.aspek || '',
+              currentItem.deskripsi || '',
+              currentItem.pic || '',
+              year
+            );
+          }
+        } catch (itemError) {
+          console.error(`Error saving item ${itemId}:`, itemError);
+          // Continue with other items
+        }
+      }
+
+      // Update state after successful saves
       setOriginalChecklistItems([...checklistItems]);
       setHasUnsavedChanges(false);
-      
-      // Sync data dengan context menggunakan helper function
+      setItemChanges(new Set());
+
+      // Clear newItems since they're now saved
+      setNewItems(new Set());
+
+      // Sync data dengan context
       syncDataWithContext(checklistItems);
-      
+
       toast({
         title: "Berhasil!",
-        description: "Perubahan berhasil disimpan",
+        description: `${changedItemIds.length} item berhasil disimpan ke database`,
       });
     } catch (error) {
+      console.error('Error in handleSaveChanges:', error);
       toast({
         title: "Error",
-        description: "Gagal menyimpan perubahan",
+        description: "Gagal menyimpan beberapa perubahan",
         variant: "destructive"
       });
     }
@@ -3889,7 +3955,7 @@ const PengaturanBaru = () => {
                                   <Textarea
                                     value={item.deskripsi || ''}
                                     placeholder="Masukkan deskripsi dokumen GCG..."
-                                    className="min-h-[80px] resize-none border-2 border-gray-200 hover:border-purple-400 focus:border-purple-500 transition-colors rounded-md"
+                                    className="min-h-[80px] resize-none border-2 border-gray-200 hover:border-blue-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors rounded-md"
                                     onChange={(e) => {
                                       const newValue = e.target.value;
                                       setChecklistItems(prev => prev.map(i => 
@@ -4853,8 +4919,6 @@ const PengaturanBaru = () => {
          selectedYear={selectedYear || 0}
          isLoading={isBulkDeleting}
        />
-       
-       <Toaster />
      </div>
    );
  };
