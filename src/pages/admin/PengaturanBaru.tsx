@@ -497,8 +497,7 @@ const DEFAULT_CHECKLIST_ITEMS = [
   "Kajian mengenai Struktur Organisasi Perusahaan",
   "Kebijakan Persyaratan jabatan/job specification untuk semua jabatan",
   "Pedoman Penyusunan SOP",
-  "Daftar SOP
-(Bisnis Utama)",
+  "Daftar SOP\n(Bisnis Utama)",
   "Daftar Reviu SOP",
   "Mekanisme pengambilan keputusan",
   "Pedoman Penyusunan RJPP",
@@ -527,8 +526,7 @@ const DEFAULT_CHECKLIST_ITEMS = [
   "Laporan berkala pencapaian kinerja setiap jabatan dalam Struktur Organisasi",
   "Laporan Manajemen (Triwulan I, II, III dan Tahunan)",
   "Uraian tugas dan tanggungjawab Direksi dan manajemen di bawahnya",
-  "Laporan pelaksanaan sistem manajemen kinerja secara tertulis dari Direksi kepada Komisaris 
-(Laporan manajemen)",
+  "Laporan pelaksanaan sistem manajemen kinerja secara tertulis dari Direksi kepada Komisaris \n(Laporan manajemen)",
   "Pengusulan insentif kinerja Direksi",
   "Kebijakan Teknologi Informasi",
   "IT Master Plan (dan Penjabarannya)",
@@ -685,7 +683,7 @@ const DEFAULT_CHECKLIST_ITEMS = [
   "KINERJA",
   "Laporan Keuangan Hasil Audit Tahun 2022, 2023,2024 (3 tahun terakhir)",
   "KPI direksi perusahaan selama 5 tahun.",
-  "Tingkat kematangan penerapan manajemen risiko selama 5 tahun (berdasarkan penilaian mandiri atau pihak eksternal) beserta Area of Improvementnya.",
+  "Tingkat kematangan penerapan manajemen risiko selama 5 tahun (berdasarkan penilaian mandiri atau pihak eksternal) beserta Area of Improvementnya."
 ];
 
 const PengaturanBaru = () => {
@@ -3802,15 +3800,6 @@ const PengaturanBaru = () => {
                            <Copy className="w-4 h-4 mr-2" />
                              Gunakan Data Default (285 Items)
                          </Button>
-                           
-                           <Button
-                             onClick={handleUseDefaultStruktur}
-                             variant="outline"
-                             className="border-green-600 text-green-600 hover:bg-green-700"
-                           >
-                             <Copy className="w-4 h-4 mr-2" />
-                             Gunakan Data Default Struktur Organisasi
-                           </Button>
                          </div>
                        )}
 

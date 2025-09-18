@@ -901,8 +901,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
   "Kajian mengenai Struktur Organisasi Perusahaan",
   "Kebijakan Persyaratan jabatan/job specification untuk semua jabatan",
   "Pedoman Penyusunan SOP",
-  "Daftar SOP
-(Bisnis Utama)",
+  "Daftar SOP\n(Bisnis Utama)",
   "Daftar Reviu SOP",
   "Mekanisme pengambilan keputusan",
   "Pedoman Penyusunan RJPP",
@@ -931,8 +930,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
   "Laporan berkala pencapaian kinerja setiap jabatan dalam Struktur Organisasi",
   "Laporan Manajemen (Triwulan I, II, III dan Tahunan)",
   "Uraian tugas dan tanggungjawab Direksi dan manajemen di bawahnya",
-  "Laporan pelaksanaan sistem manajemen kinerja secara tertulis dari Direksi kepada Komisaris 
-(Laporan manajemen)",
+  "Laporan pelaksanaan sistem manajemen kinerja secara tertulis dari Direksi kepada Komisaris \n(Laporan manajemen)",
   "Pengusulan insentif kinerja Direksi",
   "Kebijakan Teknologi Informasi",
   "IT Master Plan (dan Penjabarannya)",
@@ -1089,8 +1087,8 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
   "KINERJA",
   "Laporan Keuangan Hasil Audit Tahun 2022, 2023,2024 (3 tahun terakhir)",
   "KPI direksi perusahaan selama 5 tahun.",
-  "Tingkat kematangan penerapan manajemen risiko selama 5 tahun (berdasarkan penilaian mandiri atau pihak eksternal) beserta Area of Improvementnya.",
-      ];
+  "Tingkat kematangan penerapan manajemen risiko selama 5 tahun (berdasarkan penilaian mandiri atau pihak eksternal) beserta Area of Improvementnya."
+];
 
       // Clear existing data for this year to avoid duplicates
       const existingData = checklist.filter(item => item.tahun !== year);
