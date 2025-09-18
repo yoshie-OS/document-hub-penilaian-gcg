@@ -3689,7 +3689,7 @@ const PengaturanBaru = () => {
                                                            {/* Quick Actions */}
                      <div className="flex flex-wrap gap-3 items-center justify-between">
                        <div className="flex flex-wrap gap-3">
-                       <Button 
+                       <Button
                          onClick={() => {
                            const currentYear = selectedYear || new Date().getFullYear();
                            const nextRowNumber = Math.max(...checklistItems.filter(item => item.tahun === currentYear).map(item => item.rowNumber || 0), 0) + 1;
@@ -3704,17 +3704,33 @@ const PengaturanBaru = () => {
                            };
                            setChecklistItems(prev => [...prev, newItem]);
                            setNewItems(prev => new Set(prev).add(newItem.id));
-                           
+
+                           // Simpan ke localStorage dan update context
+                           const updatedItems = [...checklistItems, newItem];
+
+                           // Update original items untuk tracking changes
+                           setOriginalChecklistItems(prev => [...prev, newItem]);
+
+                           // Sync data dengan context menggunakan helper function
+                           syncDataWithContext(updatedItems);
+
+                           console.log('PengaturanBaru: Added new item via main button', {
+                             newItem,
+                             nextRowNumber,
+                             currentYear,
+                             totalItems: updatedItems.length
+                           });
+
                            // Auto-scroll ke item baru setelah state update
                            setTimeout(() => {
                              if (newItemRef.current) {
-                               newItemRef.current.scrollIntoView({ 
-                                 behavior: 'smooth', 
-                                 block: 'center' 
+                               newItemRef.current.scrollIntoView({
+                                 behavior: 'smooth',
+                                 block: 'center'
                                });
                              }
                            }, 100);
-                           
+
                            // Remove highlight after 5 seconds
                            setTimeout(() => {
                              setNewItems(prev => {
@@ -4066,7 +4082,7 @@ const PengaturanBaru = () => {
                     // Sync data dengan context menggunakan helper function
                     syncDataWithContext(updatedItems);
                     
-                    console.log('PengaturanBaru: Added new item', {
+                    console.log('PengaturanBaru: Added new item via floating button', {
                       newItem,
                       totalItems: updatedItems.length,
                       year: selectedYear
