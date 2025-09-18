@@ -105,17 +105,14 @@ export const userAPI = {
   
   // Login (custom endpoint)
   login: (email: string, password: string) => {
-    return apiCall('/users', {
-      method: 'GET',
-    }).then(users => {
-      const user = users.find((u: any) => u.email === email && u.password === password);
-      if (user) {
-        // In production, this should return a JWT token
-        localStorage.setItem('authToken', `user-${user.id}`);
-        localStorage.setItem('user', JSON.stringify(user));
-        return user;
-      }
-      throw new Error('Invalid credentials');
+    return apiCall('/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    }).then(user => {
+      // Store authentication data
+      localStorage.setItem('authToken', `user-${user.id}`);
+      localStorage.setItem('user', JSON.stringify(user));
+      return user;
     });
   },
   

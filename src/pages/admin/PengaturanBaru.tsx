@@ -1207,10 +1207,8 @@ const PengaturanBaru = () => {
       divisi && divisi.length > 0
     );
     
-    // Progress untuk manajemen akun - EXCLUDE superadmin dan hanya hitung admin untuk tahun yang dipilih
-    const hasUsers = selectedYear ? Boolean(
-      users && users.filter(u => u.tahun === selectedYear && u.role === 'admin').length > 0
-    ) : Boolean(users && users.filter(u => u.role === 'admin').length > 0);
+    // Progress untuk manajemen akun - EXCLUDE superadmin dan hanya hitung admin (users are global, not year-specific)
+    const hasUsers = Boolean(users && users.filter(u => u.role === 'admin').length > 0);
     
     // Progress untuk kelola dokumen - bisa diakses meskipun belum ada tahun
     const hasChecklist = Boolean(checklistItems && checklistItems.length > 0);
@@ -1788,7 +1786,7 @@ const PengaturanBaru = () => {
         subdirektorat: userForm.subdirektorat || '',
         divisi: userForm.divisi || '',
         whatsapp: userForm.whatsapp || '',
-        tahun: selectedYear || new Date().getFullYear()
+        tahun: null
       };
 
       if (editingUser) {
@@ -3544,20 +3542,20 @@ const PengaturanBaru = () => {
                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                        <div className="text-2xl font-bold text-blue-600">
-                         {users && users.filter(u => selectedYear ? u.tahun === selectedYear : true).length || 0}
+                         {users && users.length || 0}
                        </div>
                        <div className="text-sm text-blue-600">Total Users</div>
                      </div>
                      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                        <div className="text-2xl font-bold text-blue-600">
-                         {users && users.filter(u => selectedYear ? u.tahun === selectedYear && u.role === 'admin' : u.role === 'admin').length || 0}
+                         {users && users.filter(u => u.role === 'admin').length || 0}
                        </div>
                        <div className="text-sm text-blue-600">Admin</div>
                      </div>
 
                      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                        <div className="text-2xl font-bold text-blue-600">
-                         {users && users.filter(u => selectedYear ? u.tahun === selectedYear && u.role === 'superadmin' : u.role === 'superadmin').length || 0}
+                         {users && users.filter(u => u.role === 'superadmin').length || 0}
                        </div>
                        <div className="text-sm text-blue-600">Super Admin</div>
                      </div>
@@ -3581,8 +3579,8 @@ const PengaturanBaru = () => {
                          </TableRow>
                        </TableHeader>
                        <TableBody>
-                         {users && users.filter(u => selectedYear ? u.tahun === selectedYear : true).length > 0 ? 
-                           users.filter(u => selectedYear ? u.tahun === selectedYear : true).map((item) => (
+                         {users && users.length > 0 ?
+                           users.map((item) => (
                            <TableRow key={item.id}>
                              <TableCell className="font-medium">{item.name}</TableCell>
                              <TableCell>{item.email}</TableCell>

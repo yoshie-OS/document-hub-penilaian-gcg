@@ -2388,6 +2388,56 @@ def get_users():
         safe_print(f"Error getting users: {e}")
         return jsonify({'error': f'Failed to get users: {str(e)}'}), 500
 
+@app.route('/api/login', methods=['POST'])
+def login_user():
+    """Authenticate user with email and password"""
+    try:
+        data = request.get_json()
+        email = data.get('email', '').strip()
+        password = data.get('password', '').strip()
+
+        if not email or not password:
+            return jsonify({'error': 'Email and password are required'}), 400
+
+        # Read users from CSV
+        csv_data = storage_service.read_csv('config/users.csv')
+        if csv_data is None or csv_data.empty:
+            return jsonify({'error': 'No users found'}), 404
+
+        # Find user by email and password
+        user_match = csv_data[
+            (csv_data['email'].str.lower() == email.lower()) &
+            (csv_data['password'] == password) &
+            (csv_data['status'] == 'active')
+        ]
+
+        if user_match.empty:
+            return jsonify({'error': 'Invalid email or password'}), 401
+
+        # Get user data
+        user_data = user_match.iloc[0].to_dict()
+
+        # Remove password from response
+        if 'password' in user_data:
+            del user_data['password']
+
+        # Clean up NaN values and convert to appropriate types
+        for key, value in user_data.items():
+            if pd.isna(value) or str(value).lower() == 'nan':
+                user_data[key] = ''
+            else:
+                user_data[key] = str(value).replace('.0', '') if isinstance(value, (int, float)) else str(value)
+
+        # Convert id to string and add required fields
+        user_data['id'] = str(user_data['id'])
+        user_data['createdAt'] = user_data.get('created_at', '')
+
+        return jsonify(user_data), 200
+
+    except Exception as e:
+        safe_print(f"Error during login: {e}")
+        return jsonify({'error': f'Login failed: {str(e)}'}), 500
+
 @app.route('/api/users/<string:user_id>', methods=['GET'])
 def get_user_by_id(user_id):
     """Get a specific user by ID from storage"""
@@ -2424,11 +2474,13 @@ def create_user():
             'id': user_id,
             'name': data.get('name'),
             'email': data.get('email'),
+            'password': data.get('password', ''),
             'role': data.get('role'),
             'direktorat': data.get('direktorat', ''),
             'subdirektorat': data.get('subdirektorat', ''),
             'divisi': data.get('divisi', ''),
-            'tahun': data.get('tahun'),
+            'status': 'active',
+            'tahun': '',
             'created_at': datetime.now().isoformat(),
             'is_active': True,
             'whatsapp': str(data.get('whatsapp', '')) if data.get('whatsapp') else ''
@@ -2516,6 +2568,8 @@ def update_user(user_id):
                     csv_data.at[index, 'divisi'] = data['divisi']
                 if 'whatsapp' in data:
                     csv_data.at[index, 'whatsapp'] = str(data['whatsapp']) if data['whatsapp'] else ''
+                if 'tahun' in data:
+                    csv_data.at[index, 'tahun'] = data['tahun'] if data['tahun'] else ''
 
                 user_found = True
                 break

@@ -102,7 +102,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
           }
         }
         
-        // Fallback to mock data for demo purposes
+        // Fallback to hardcoded superadmin only
         const mockUsers = [
           {
             id: '1',
@@ -113,30 +113,6 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
             direktorat: 'DIREKTORAT UTAMA',
             subdirektorat: 'SUB DIREKTORAT UTAMA',
             divisi: 'DIVISI UTAMA',
-            createdAt: '2024-01-01T00:00:00.000Z',
-            status: 'active' as const
-          },
-          {
-            id: '2',
-            name: 'Admin GCG',
-            email: 'admin@posindonesia.co.id',
-            password: 'admin123',
-            role: 'admin' as const,
-            direktorat: 'DIREKTORAT BISNIS JASA KEUANGAN',
-            subdirektorat: 'SUB DIREKTORAT GOVERNMENT AND CORPORATE BUSINESS',
-            divisi: 'PENYALURAN DANA',
-            createdAt: '2024-01-01T00:00:00.000Z',
-            status: 'active' as const
-          },
-          {
-            id: '3',
-            name: 'User Regular',
-            email: 'user@posindonesia.co.id',
-            password: 'user123',
-            role: 'user' as const,
-            direktorat: 'DIREKTORAT BISNIS JASA KEUANGAN',
-            subdirektorat: 'SUB DIREKTORAT GOVERNMENT AND CORPORATE BUSINESS',
-            divisi: 'PENYALURAN DANA',
             createdAt: '2024-01-01T00:00:00.000Z',
             status: 'active' as const
           }
