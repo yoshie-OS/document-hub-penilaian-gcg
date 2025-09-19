@@ -142,7 +142,7 @@ const ArsipDokumen = () => {
       const enrichedDocuments: DocumentWithUser[] = apiFiles.map(file => {
         // Get user details from users for contact info
         const users = JSON.parse(localStorage.getItem('users') || '[]');
-        const userData = users.find((u: any) => u.name === file.uploadedBy);
+        const userData = users.find((u: any) => u.name === file.uploadedBy || u.email === file.uploadedBy);
         
         return {
           id: file.id,
@@ -157,10 +157,10 @@ const ArsipDokumen = () => {
           subdirektorat: file.subdirektorat,
           catatan: file.catatan,
           uploadedBy: file.uploadedBy || 'Unknown User',
-          userRole: file.uploadedBy ? 'admin' : 'superadmin',
-          userDirektorat: file.userDirektorat || 'Unknown',
-          userSubdirektorat: file.userSubdirektorat || 'Unknown', 
-          userDivisi: file.userDivisi || 'Unknown',
+          userRole: userData?.role || 'admin',
+          userDirektorat: userData?.direktorat || file.userDirektorat || 'Unknown',
+          userSubdirektorat: userData?.subdirektorat || file.userSubdirektorat || 'Unknown', 
+          userDivisi: userData?.divisi || file.userDivisi || 'Unknown',
           userWhatsApp: userData?.whatsapp || '',
           userEmail: userData?.email || ''
         };

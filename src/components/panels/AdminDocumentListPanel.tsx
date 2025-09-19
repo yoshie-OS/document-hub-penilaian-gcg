@@ -63,23 +63,39 @@ const AdminDocumentListPanel: React.FC<AdminDocumentListPanelProps> = ({
   useEffect(() => {
     const handleFileUpload = () => {
       console.log('AdminDocumentListPanel: File upload event received, forcing update');
-      setForceUpdate(prev => prev + 1);
+      // Add small delay to ensure data is refreshed
+      setTimeout(() => {
+        console.log('AdminDocumentListPanel: Force updating after file upload');
+        setForceUpdate(prev => prev + 1);
+      }, 100);
     };
 
     const handleDataUpdate = () => {
       console.log('AdminDocumentListPanel: Data update event received, forcing update');
-      setForceUpdate(prev => prev + 1);
+      // Add small delay to ensure data is refreshed
+      setTimeout(() => {
+        console.log('AdminDocumentListPanel: Force updating after data update');
+        setForceUpdate(prev => prev + 1);
+      }, 100);
     };
 
     // Listen to all relevant events for real-time updates
     window.addEventListener('fileUploaded', handleFileUpload);
     window.addEventListener('uploadedFilesChanged', handleDataUpdate);
     window.addEventListener('documentsUpdated', handleDataUpdate);
+    window.addEventListener('checklistUpdated', handleDataUpdate);
+    
+    // Add additional event listeners for better coverage
+    window.addEventListener('fileUploaded', handleDataUpdate);
+    window.addEventListener('uploadedFilesChanged', handleFileUpload);
 
     return () => {
       window.removeEventListener('fileUploaded', handleFileUpload);
       window.removeEventListener('uploadedFilesChanged', handleDataUpdate);
       window.removeEventListener('documentsUpdated', handleDataUpdate);
+      window.removeEventListener('checklistUpdated', handleDataUpdate);
+      window.removeEventListener('fileUploaded', handleDataUpdate);
+      window.removeEventListener('uploadedFilesChanged', handleFileUpload);
     };
   }, []);
 

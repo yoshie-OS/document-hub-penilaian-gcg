@@ -48,19 +48,36 @@ export const FileUploadProvider: React.FC<{ children: ReactNode }> = ({ children
     };
     
     loadFiles();
+    
+    // Add polling to ensure data is always fresh
+    const interval = setInterval(() => {
+      console.log('FileUploadContext: Polling for file updates...');
+      refreshFiles();
+    }, 3000); // Poll every 3 seconds for more aggressive updates
+    
+    return () => clearInterval(interval);
   }, []);
 
   // Fetch files from backend API
   const fetchFiles = async (): Promise<UploadedFile[]> => {
     try {
-      const response = await fetch('http://localhost:5000/api/files');
+      const response = await fetch('http://localhost:5000/api/uploaded-files');
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
       return data.files.map((file: any) => ({
-        ...file,
-        uploadDate: new Date(file.created)
+        id: file.id || file.fileId || Date.now().toString(),
+        fileName: file.fileName || file.filename,
+        fileSize: file.fileSize || file.size || 0,
+        uploadDate: new Date(file.uploadDate || file.created),
+        year: file.year || new Date().getFullYear(),
+        checklistId: file.checklistId,
+        checklistDescription: file.checklistDescription,
+        aspect: file.aspect,
+        status: file.status || 'uploaded',
+        subdirektorat: file.subdirektorat,
+        catatan: file.catatan || ''
       }));
     } catch (error) {
       console.error('Error fetching uploaded files:', error);
@@ -87,6 +104,9 @@ export const FileUploadProvider: React.FC<{ children: ReactNode }> = ({ children
 
   const uploadFile = async (file: File, year: number, checklistId?: number, checklistDescription?: string, aspect?: string, subdirektorat?: string, catatan?: string, rowNumber?: number) => {
     try {
+      // Get current user information
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      
       // Upload the file using the new GCG file upload endpoint
       const formData = new FormData();
       formData.append('file', file);
@@ -97,6 +117,13 @@ export const FileUploadProvider: React.FC<{ children: ReactNode }> = ({ children
       if (subdirektorat) formData.append('subdirektorat', subdirektorat);
       if (catatan) formData.append('catatan', catatan);
       if (rowNumber) formData.append('rowNumber', rowNumber.toString());
+      
+      // Add user information
+      formData.append('uploadedBy', currentUser.name || currentUser.email || 'Unknown User');
+      formData.append('userRole', currentUser.role || 'admin');
+      formData.append('userDirektorat', currentUser.direktorat || 'Unknown');
+      formData.append('userSubdirektorat', currentUser.subdirektorat || 'Unknown');
+      formData.append('userDivisi', currentUser.divisi || 'Unknown');
 
       const response = await fetch('http://localhost:5000/api/upload-gcg-file', {
         method: 'POST',
@@ -116,23 +143,38 @@ export const FileUploadProvider: React.FC<{ children: ReactNode }> = ({ children
         setUploadedFiles(updatedFiles);
 
         // Dispatch events to notify other components about the upload
-        window.dispatchEvent(new CustomEvent('fileUploaded', {
-          detail: {
-            checklistId: checklistId,
-            rowNumber: rowNumber,
-            year: year,
-            fileName: file.name,
-            success: true
-          }
-        }));
+        // Use setTimeout to ensure the state is updated before dispatching events
+        setTimeout(() => {
+          console.log('FileUploadContext: Dispatching events after successful upload');
+          
+          window.dispatchEvent(new CustomEvent('fileUploaded', {
+            detail: {
+              checklistId: checklistId,
+              rowNumber: rowNumber,
+              year: year,
+              fileName: file.name,
+              success: true
+            }
+          }));
 
-        window.dispatchEvent(new CustomEvent('uploadedFilesChanged', {
-          detail: {
-            type: 'fileUploaded',
-            files: updatedFiles,
-            year: year
-          }
-        }));
+          window.dispatchEvent(new CustomEvent('uploadedFilesChanged', {
+            detail: {
+              type: 'fileUploaded',
+              files: updatedFiles,
+              year: year
+            }
+          }));
+
+          // Add documentsUpdated event for dashboard updates
+          window.dispatchEvent(new CustomEvent('documentsUpdated', {
+            detail: {
+              type: 'documentsUpdated',
+              year: year,
+              checklistId: checklistId,
+              timestamp: new Date().toISOString()
+            }
+          }));
+        }, 100);
       } else {
         throw new Error(result.error || 'Upload failed');
       }
@@ -204,8 +246,10 @@ export const FileUploadProvider: React.FC<{ children: ReactNode }> = ({ children
 
   const refreshFiles = async () => {
     try {
+      console.log('FileUploadContext: Refreshing files from backend...');
       const files = await fetchFiles();
       setUploadedFiles(files);
+      console.log('FileUploadContext: Files refreshed successfully, count:', files.length);
     } catch (error) {
       console.error('Error refreshing files:', error);
     }

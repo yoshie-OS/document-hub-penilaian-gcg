@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Sidebar from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
@@ -9,12 +9,25 @@ import SpiderChart from '@/components/dashboard/SpiderChart';
 import MonthlyTrends from '@/components/dashboard/MonthlyTrends';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { useYear } from '@/contexts/YearContext';
+import { useFileUpload } from '@/contexts/FileUploadContext';
 import { PageHeaderPanel } from '@/components/panels';
 
 const DashboardMain = () => {
   const { isSidebarOpen } = useSidebar();
   const { selectedYear } = useYear();
+  const { refreshFiles } = useFileUpload();
   const [searchParams] = useSearchParams();
+  
+  // Manual refresh handler for debugging
+  const handleManualRefresh = useCallback(async () => {
+    console.log('DashboardMain: Manual refresh triggered');
+    try {
+      await refreshFiles();
+      console.log('DashboardMain: Manual refresh completed');
+    } catch (error) {
+      console.error('DashboardMain: Manual refresh failed:', error);
+    }
+  }, [refreshFiles]);
   
   // Get URL parameters
   const filterYear = searchParams.get('year');
@@ -35,6 +48,16 @@ const DashboardMain = () => {
             title="Dashboard"
             subtitle={selectedYear ? `Statistik Good Corporate Governance Documents Management System - Tahun ${selectedYear}` : "Selamat datang di Good Corporate Governance Documents Management System"}
           />
+
+          {/* Manual Refresh Button for Debugging */}
+          <div className="mb-4">
+            <button
+              onClick={handleManualRefresh}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm"
+            >
+              🔄 Manual Refresh Data
+            </button>
+          </div>
 
           {/* Year Selector */}
           <div id="year-selector">

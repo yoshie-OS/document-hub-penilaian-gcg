@@ -243,7 +243,11 @@ const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
        
        // Trigger refresh callback
        if (onUploadSuccess) {
-         onUploadSuccess();
+         // Add small delay to ensure backend has processed the upload
+         setTimeout(() => {
+           console.log('AdminUploadDialog: Calling onUploadSuccess callback');
+           onUploadSuccess();
+         }, 200);
        }
 
     } catch (error) {

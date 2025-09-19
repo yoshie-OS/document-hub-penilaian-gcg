@@ -56,30 +56,52 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
   useEffect(() => {
     const handleAssignmentsUpdate = () => {
       console.log('MonthlyTrends: Assignments updated, refreshing data...');
-      setAssignmentsUpdateTrigger(prev => prev + 1);
+      // Add small delay to ensure data is refreshed
+      setTimeout(() => {
+        console.log('MonthlyTrends: Force updating after assignments update');
+        setAssignmentsUpdateTrigger(prev => prev + 1);
+      }, 100);
     };
 
     const handleFileUploadUpdate = () => {
       console.log('MonthlyTrends: Files updated, refreshing data...');
-      setAssignmentsUpdateTrigger(prev => prev + 1);
+      // Add small delay to ensure data is refreshed
+      setTimeout(() => {
+        console.log('MonthlyTrends: Force updating after file upload');
+        setAssignmentsUpdateTrigger(prev => prev + 1);
+      }, 100);
     };
 
     const handleChecklistUpdate = () => {
       console.log('MonthlyTrends: Checklist updated, refreshing data...');
-      setAssignmentsUpdateTrigger(prev => prev + 1);
+      // Add small delay to ensure data is refreshed
+      setTimeout(() => {
+        console.log('MonthlyTrends: Force updating after checklist update');
+        setAssignmentsUpdateTrigger(prev => prev + 1);
+      }, 100);
     };
 
     // Listen for various update events
     window.addEventListener('assignmentsUpdated', handleAssignmentsUpdate);
     window.addEventListener('checklistAssignmentsChanged', handleAssignmentsUpdate);
-    window.addEventListener('fileUploadComplete', handleFileUploadUpdate);
+    window.addEventListener('fileUploaded', handleFileUploadUpdate);
+    window.addEventListener('uploadedFilesChanged', handleFileUploadUpdate);
+    window.addEventListener('documentsUpdated', handleFileUploadUpdate);
     window.addEventListener('checklistUpdated', handleChecklistUpdate);
+    
+    // Add additional event listeners for better coverage
+    window.addEventListener('fileUploaded', handleAssignmentsUpdate);
+    window.addEventListener('uploadedFilesChanged', handleAssignmentsUpdate);
 
     return () => {
       window.removeEventListener('assignmentsUpdated', handleAssignmentsUpdate);
       window.removeEventListener('checklistAssignmentsChanged', handleAssignmentsUpdate);
-      window.removeEventListener('fileUploadComplete', handleFileUploadUpdate);
+      window.removeEventListener('fileUploaded', handleFileUploadUpdate);
+      window.removeEventListener('uploadedFilesChanged', handleFileUploadUpdate);
+      window.removeEventListener('documentsUpdated', handleFileUploadUpdate);
       window.removeEventListener('checklistUpdated', handleChecklistUpdate);
+      window.removeEventListener('fileUploaded', handleAssignmentsUpdate);
+      window.removeEventListener('uploadedFilesChanged', handleAssignmentsUpdate);
     };
   }, []);
   

@@ -176,6 +176,7 @@ const DashboardStats = () => {
     const handleDataUpdate = async () => {
       console.log('🔔 DashboardStats: Data update event received, refreshing data');
       try {
+        console.log('🔔 DashboardStats: Force refreshing data after update event');
         await Promise.all([refreshFiles(), refreshDocuments()]);
         setForceUpdate(prev => prev + 1);
       } catch (error) {
@@ -186,8 +187,12 @@ const DashboardStats = () => {
     const handleFileUpload = async () => {
       console.log('🔔 DashboardStats: File upload event received, refreshing data');
       try {
-        await Promise.all([refreshFiles(), refreshDocuments()]);
-        setForceUpdate(prev => prev + 1);
+        // Add small delay to ensure backend has processed the upload
+        setTimeout(async () => {
+          console.log('🔔 DashboardStats: Force refreshing data after file upload');
+          await Promise.all([refreshFiles(), refreshDocuments()]);
+          setForceUpdate(prev => prev + 1);
+        }, 200);
       } catch (error) {
         console.error('❌ DashboardStats: Error refreshing data:', error);
       }
@@ -200,6 +205,10 @@ const DashboardStats = () => {
     window.addEventListener('uploadedFilesChanged', handleDataUpdate);
     window.addEventListener('checklistAssignmentsChanged', handleDataUpdate);
     window.addEventListener('checklistUpdated', handleDataUpdate);
+    
+    // Add additional event listeners for better coverage
+    window.addEventListener('fileUploaded', handleDataUpdate);
+    window.addEventListener('uploadedFilesChanged', handleFileUpload);
 
     // Also listen to storage changes for real-time updates
     const handleStorageChange = (e: StorageEvent) => {
@@ -218,6 +227,8 @@ const DashboardStats = () => {
       window.removeEventListener('uploadedFilesChanged', handleDataUpdate);
       window.removeEventListener('checklistAssignmentsChanged', handleDataUpdate);
       window.removeEventListener('checklistUpdated', handleDataUpdate);
+      window.removeEventListener('fileUploaded', handleDataUpdate);
+      window.removeEventListener('uploadedFilesChanged', handleFileUpload);
       window.removeEventListener('storage', handleStorageChange);
     };
   }, [refreshFiles]);

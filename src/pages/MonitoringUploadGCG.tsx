@@ -469,7 +469,7 @@ const MonitoringUploadGCG = () => {
                     year: selectedYear,
                     checklistId: item.id,
                     status: 'uploaded',
-                    catatan: fileStatus.notes || '' // Notes might come from Supabase metadata
+                    catatan: fileStatus.catatan || '' // Catatan from uploaded-files.xlsx
                   };
                   batchFileInfo[item.id.toString()] = fileInfoObj;
                   newFileInfo[item.id.toString()] = fileInfoObj; // Keep for final state
@@ -763,7 +763,7 @@ const MonitoringUploadGCG = () => {
             year: selectedYear,
             checklistId: checklistId,
             status: 'uploaded',
-            catatan: fileStatus.notes || ''
+            catatan: fileStatus.catatan || ''
           };
           setSupabaseFileInfo(prev => ({...prev, [checklistId.toString()]: fileInfoObj}));
         }
@@ -1447,24 +1447,41 @@ const MonitoringUploadGCG = () => {
           
           // Dispatch custom event for real-time updates without page restart
           console.log('MonitoringUploadGCG: Upload success, rescanning single row:', selectedChecklistItem?.id);
-          window.dispatchEvent(new CustomEvent('fileUploaded', {
-            detail: { 
-              type: 'fileUploaded', 
-              year: selectedYear,
-              checklistId: selectedChecklistItem?.id,
-              rowNumber: selectedChecklistItem?.rowNumber,
-              timestamp: new Date().toISOString()
-            }
-          }));
           
-          window.dispatchEvent(new CustomEvent('uploadedFilesChanged', {
-            detail: { 
-              type: 'uploadedFilesChanged', 
-              year: selectedYear,
-              checklistId: selectedChecklistItem?.id,
-              timestamp: new Date().toISOString()
-            }
-          }));
+          // Force refresh of all contexts with delay
+          setTimeout(() => {
+            console.log('MonitoringUploadGCG: Dispatching events after upload success');
+            
+            // Force refresh files from context
+            refreshFiles();
+            
+            window.dispatchEvent(new CustomEvent('fileUploaded', {
+              detail: { 
+                type: 'fileUploaded', 
+                year: selectedYear,
+                checklistId: selectedChecklistItem?.id,
+                rowNumber: selectedChecklistItem?.rowNumber,
+                timestamp: new Date().toISOString()
+              }
+            }));
+            
+            window.dispatchEvent(new CustomEvent('uploadedFilesChanged', {
+              detail: { 
+                type: 'uploadedFilesChanged', 
+                year: selectedYear,
+                checklistId: selectedChecklistItem?.id,
+                timestamp: new Date().toISOString()
+              }
+            }));
+            
+            window.dispatchEvent(new CustomEvent('documentsUpdated', {
+              detail: { 
+                type: 'documentsUpdated', 
+                year: selectedYear,
+                timestamp: new Date().toISOString()
+              }
+            }));
+          }, 300);
         }}
       />
     </div>

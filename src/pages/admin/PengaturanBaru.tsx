@@ -1506,7 +1506,7 @@ const PengaturanBaru = () => {
           divisi: 'Direksi'
         });
       }
-      // REMOVED localStorage.setItem - users should be stored in Supabase
+      localStorage.setItem('users', JSON.stringify(users));
 
       console.log(`Manajemen akun berhasil di-copy dari tahun ${fromYear} ke ${toYear}`);
     } catch (error) {
@@ -1837,6 +1837,10 @@ const PengaturanBaru = () => {
         // Update local state
         setUsers(prev => prev.map(u => u.id === editingUser.id ? updatedUser : u));
         
+        // Update localStorage for consistency
+        const updatedUsers = users.map(u => u.id === editingUser.id ? updatedUser : u);
+        localStorage.setItem('users', JSON.stringify(updatedUsers));
+        
         toast({
           title: "Berhasil!",
           description: "User berhasil diupdate dan disync ke Supabase",
@@ -1864,7 +1868,7 @@ const PengaturanBaru = () => {
         
         // Update localStorage for consistency
         const updatedUsers = [...users, newUser];
-        // REMOVED localStorage.setItem - users should be stored in Supabase
+        localStorage.setItem('users', JSON.stringify(updatedUsers));
 
         toast({
           title: "Berhasil!",
@@ -1937,7 +1941,7 @@ const PengaturanBaru = () => {
       
       // Update localStorage for consistency
       const updatedUsers = users.filter(u => u.id !== userId);
-      // REMOVED localStorage.setItem - users should be stored in Supabase
+      localStorage.setItem('users', JSON.stringify(updatedUsers));
       
       toast({
         title: "Berhasil!",
@@ -1974,7 +1978,7 @@ const PengaturanBaru = () => {
       const defaultUsers: User[] = [];
 
       setUsers(prev => [...prev, ...defaultUsers]);
-      // REMOVED localStorage.setItem - users should be stored in Supabase
+      localStorage.setItem('users', JSON.stringify([...users, ...defaultUsers]));
       
       setSetupProgress(prev => ({ ...prev, manajemenAkun: true }));
       

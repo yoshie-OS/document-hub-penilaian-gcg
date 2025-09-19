@@ -45,9 +45,20 @@ const DashboardAdmin: React.FC = () => {
   const { selectedYear, setSelectedYear, availableYears } = useYear();
   const { documents } = useDocumentMetadata();
   const { checklist, getChecklistByYear } = useChecklist();
-  const { getFilesByYear } = useFileUpload();
+  const { getFilesByYear, refreshFiles } = useFileUpload();
   const { isSidebarOpen } = useSidebar();
   const { divisi, subdirektorat } = useStrukturPerusahaan();
+  
+  // Manual refresh handler for debugging
+  const handleManualRefresh = useCallback(async () => {
+    console.log('DashboardAdmin: Manual refresh triggered');
+    try {
+      await refreshFiles();
+      console.log('DashboardAdmin: Manual refresh completed');
+    } catch (error) {
+      console.error('DashboardAdmin: Manual refresh failed:', error);
+    }
+  }, [refreshFiles]);
 
   // Get current year for upload restrictions - use the most recent year from available years
   const currentYear = availableYears.length > 0 ? Math.max(...availableYears).toString() : new Date().getFullYear().toString();
@@ -215,31 +226,40 @@ const DashboardAdmin: React.FC = () => {
   const handleUploadSuccess = useCallback(() => {
     // Dispatch custom event for real-time updates without page restart
     console.log('DashboardAdmin: Upload success, dispatching refresh event');
-    window.dispatchEvent(new CustomEvent('fileUploaded', {
-      detail: { 
-        type: 'fileUploaded', 
-        year: selectedYear,
-        timestamp: new Date().toISOString()
-      }
-    }));
     
-    // Also dispatch specific events for different contexts
-    window.dispatchEvent(new CustomEvent('uploadedFilesChanged', {
-      detail: { 
-        type: 'uploadedFilesChanged', 
-        year: selectedYear,
-        timestamp: new Date().toISOString()
-      }
-    }));
-    
-    window.dispatchEvent(new CustomEvent('documentsUpdated', {
-      detail: { 
-        type: 'documentsUpdated', 
-        year: selectedYear,
-        timestamp: new Date().toISOString()
-      }
-    }));
-  }, [selectedYear]);
+    // Force refresh of all contexts
+    setTimeout(() => {
+      console.log('DashboardAdmin: Dispatching events after upload success');
+      
+      // Force refresh files from context
+      refreshFiles();
+      
+      window.dispatchEvent(new CustomEvent('fileUploaded', {
+        detail: { 
+          type: 'fileUploaded', 
+          year: selectedYear,
+          timestamp: new Date().toISOString()
+        }
+      }));
+      
+      // Also dispatch specific events for different contexts
+      window.dispatchEvent(new CustomEvent('uploadedFilesChanged', {
+        detail: { 
+          type: 'uploadedFilesChanged', 
+          year: selectedYear,
+          timestamp: new Date().toISOString()
+        }
+      }));
+      
+      window.dispatchEvent(new CustomEvent('documentsUpdated', {
+        detail: { 
+          type: 'documentsUpdated', 
+          year: selectedYear,
+          timestamp: new Date().toISOString()
+        }
+      }));
+    }, 300); // Reduced delay for faster response
+  }, [selectedYear, refreshFiles]);
 
   const handleViewDocument = async (itemId: number) => {
     const item = checklistItems.find(item => item.id === itemId);
@@ -379,6 +399,16 @@ const DashboardAdmin: React.FC = () => {
             userName={user.name}
             userDivisi={user.divisi}
           />
+
+          {/* Manual Refresh Button for Debugging */}
+          <div className="mb-4">
+            <button
+              onClick={handleManualRefresh}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm"
+            >
+              🔄 Manual Refresh Data
+            </button>
+          </div>
 
           {/* Year Selector Panel - Konsisten dengan menu lain */}
           <YearSelectorPanel
