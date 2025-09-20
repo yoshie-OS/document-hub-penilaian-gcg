@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -9,20 +9,33 @@ import {
   Upload,
   Download,
   FileText,
-  Archive
+  Archive,
+  MessageSquare
 } from 'lucide-react';
 import { useFileUpload } from '@/contexts/FileUploadContext';
 import { useUser } from '@/contexts/UserContext';
 import { useAOIDocument } from '@/contexts/AOIDocumentContext';
+import { useToast } from '@/hooks/use-toast';
 
 interface UserDocument {
-  id: string | number;
-  namaFile: string;
-  aspek: string;
-  subdirektorat: string;
-  uploadDate: string;
-  status: string;
-  tahunBuku: string;
+  id: string;
+  fileName: string;
+  fileSize: number;
+  uploadDate: Date;
+  year: number;
+  checklistId?: number;
+  checklistDescription?: string;
+  aspect?: string;
+  status: 'uploaded' | 'pending';
+  subdirektorat?: string;
+  // User information
+  uploadedBy: string;
+  userRole: 'superadmin' | 'admin';
+  userDirektorat?: string;
+  userSubdirektorat?: string;
+  userDivisi?: string;
+  userWhatsApp?: string;
+  userEmail?: string;
   source?: 'AOI' | 'REGULAR'; // Menandakan apakah dokumen dari AOI atau regular
   aoiRecommendationId?: number; // ID rekomendasi AOI jika dokumen dari AOI
 }
@@ -41,102 +54,163 @@ const AdminArchivePanel: React.FC<AdminArchivePanelProps> = ({
   const { user } = useUser();
   const { getFilesByYear } = useFileUpload();
   const { getDocumentsByYear } = useAOIDocument();
+  const { toast } = useToast();
 
-  // Handle file download
-  const handleDownload = (fileName: string, fileType: string = 'application/octet-stream') => {
-    // Create a mock file content (in real app, this would be the actual file content)
-    const mockContent = `Mock file content for ${fileName}\n\nThis is a placeholder file for demonstration purposes.\nFile: ${fileName}\nType: ${fileType}\nDate: ${new Date().toLocaleDateString('id-ID')}`;
-    
-    // Create blob and download link
-    const blob = new Blob([mockContent], { type: fileType });
+  // State for API data
+  const [isLoadingFiles, setIsLoadingFiles] = useState(false);
+  const [apiFiles, setApiFiles] = useState<any[]>([]);
+
+  // Fetch files from API when year changes
+  useEffect(() => {
+    const fetchFilesFromAPI = async () => {
+      if (!selectedYear) {
+        setApiFiles([]);
+        return;
+      }
+
+      setIsLoadingFiles(true);
+      try {
+        const apiUrl = `http://localhost:5000/api/uploaded-files?year=${selectedYear}`;
+        const response = await fetch(apiUrl);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        setApiFiles(data.files || []);
+      } catch (error) {
+        console.error('Error fetching files:', error);
+        setApiFiles([]);
+      } finally {
+        setIsLoadingFiles(false);
+      }
+    };
+
+    fetchFilesFromAPI();
+  }, [selectedYear]);
+
+  // Handle file download - same as ArsipDokumen
+  const handleDownload = async (doc: UserDocument) => {
+    try {
+      console.log(`🔍 Downloading file: ${doc.fileName} (ID: ${doc.id})`);
+      
+      // Fetch the actual file from API
+      const response = await fetch(`http://localhost:5000/api/download-file/${doc.id}`);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `HTTP ${response.status}: Failed to download file`);
+      }
+      
+      const blob = await response.blob();
+      
+      // Check if blob is valid
+      if (blob.size === 0) {
+        throw new Error('Downloaded file is empty');
+      }
+      
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = fileName;
-    
-    // Trigger download
+      link.download = doc.fileName;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    
-    // Clean up
-    URL.revokeObjectURL(url);
+      URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Download Berhasil",
+        description: `File ${doc.fileName} berhasil didownload`,
+        variant: "default"
+      });
+      
+    } catch (error) {
+      console.error('Download error:', error);
+      toast({
+        title: "Download Gagal",
+        description: `Gagal mendownload file ${doc.fileName}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        variant: "destructive"
+      });
+    }
   };
 
-  // Generate real-time data from FileUploadContext and AOI documents
+  // Handle revision (WhatsApp or Email)
+  const handleRevision = (document: UserDocument) => {
+    if (document.userWhatsApp) {
+      // Open WhatsApp
+      const whatsappUrl = `https://wa.me/${document.userWhatsApp.replace(/[^0-9]/g, '')}`;
+      window.open(whatsappUrl, '_blank');
+    } else if (document.userEmail) {
+      // Open email client
+      const emailUrl = `mailto:${document.userEmail}?subject=Revisi Dokumen: ${document.fileName}&body=Halo, saya ingin merevisi dokumen ${document.fileName} yang telah diupload.`;
+      window.open(emailUrl, '_blank');
+    } else {
+      toast({
+        title: "Kontak Tidak Tersedia",
+        description: "Tidak ada kontak WhatsApp atau email yang tersedia untuk user ini.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Get all documents with user information from API data
+  const allDocuments = useMemo(() => {
+    if (!selectedYear || isLoadingFiles) return [];
+    
+    try {
+      // Get users data from localStorage
+      const usersData = JSON.parse(localStorage.getItem('users') || '[]');
+      
+      // Map API files to documents with user info
+      const documentsWithUsers = apiFiles.map(file => {
+        // Find user by uploadedBy name or email
+        const fileUser = usersData.find((u: any) => 
+          u.name === file.uploadedBy || u.email === file.uploadedBy
+        );
+        
+        return {
+          id: file.id,
+          fileName: file.fileName,
+          fileSize: file.fileSize || 0,
+          uploadDate: new Date(file.uploadDate),
+          year: file.year,
+          checklistId: file.checklistId,
+          checklistDescription: file.checklistDescription,
+          aspect: file.aspect,
+          status: file.status || 'uploaded',
+          subdirektorat: file.subdirektorat,
+          uploadedBy: file.uploadedBy || 'Unknown',
+          userRole: fileUser?.role || 'admin',
+          userDirektorat: fileUser?.direktorat || file.userDirektorat,
+          userSubdirektorat: fileUser?.subdirektorat || file.userSubdirektorat,
+          userDivisi: fileUser?.divisi || file.userDivisi,
+          userWhatsApp: fileUser?.whatsapp,
+          userEmail: fileUser?.email,
+          source: 'REGULAR' as const
+        };
+      });
+      
+      return documentsWithUsers;
+    } catch (error) {
+      console.error('Error processing documents:', error);
+      return [];
+    }
+  }, [selectedYear, apiFiles, isLoadingFiles]);
+
+  // Filter documents for current year (admin's subdirektorat only)
   const currentYearDocuments = useMemo(() => {
-    if (!selectedYear || !user?.subdirektorat) return [];
+    if (!user?.subdirektorat) return [];
     
-    // Get regular documents
-    const yearFiles = getFilesByYear(selectedYear);
-    const regularDocs = yearFiles
-      .filter(file => file.subdirektorat === user.subdirektorat)
-      .map(file => ({
-        id: file.id,
-        namaFile: file.fileName,
-        aspek: file.aspect || 'Unknown Aspect',
-        subdirektorat: file.subdirektorat || user.subdirektorat,
-        uploadDate: file.uploadDate.toISOString(),
-        status: file.status,
-        tahunBuku: file.year.toString(),
-        source: 'REGULAR' as const,
-        aoiRecommendationId: undefined
-      }));
+    return allDocuments.filter(doc => 
+      doc.userSubdirektorat === user.subdirektorat
+    );
+  }, [allDocuments, user?.subdirektorat]);
 
-    // Get AOI documents
-    const aoiDocs = getDocumentsByYear(selectedYear)
-      .filter(doc => doc.userSubdirektorat === user.subdirektorat)
-      .map(doc => ({
-        id: doc.id,
-        namaFile: doc.fileName,
-        aspek: 'AOI Document',
-        subdirektorat: doc.userSubdirektorat,
-        uploadDate: doc.uploadDate.toISOString(),
-        status: 'completed',
-        tahunBuku: doc.tahun.toString(),
-        source: 'AOI' as const,
-        aoiRecommendationId: doc.aoiRecommendationId
-      }));
-
-    // Combine and sort by upload date
-    const allDocs = [...regularDocs, ...aoiDocs];
-    return allDocs.sort((a, b) => new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime());
-  }, [selectedYear, user?.subdirektorat, getFilesByYear, getDocumentsByYear]);
-
+  // Filter documents for previous years (all subdirektorat)
   const previousYearDocuments = useMemo(() => {
-    if (!selectedYear) return [];
-    
-    // Get regular documents
-    const yearFiles = getFilesByYear(selectedYear);
-    const regularDocs = yearFiles.map(file => ({
-      id: file.id,
-      namaFile: file.fileName,
-      aspek: file.aspect || 'Unknown Aspect',
-      subdirektorat: file.subdirektorat || 'Unknown',
-      uploadDate: file.uploadDate.toISOString(),
-      status: file.status,
-      tahunBuku: file.year.toString(),
-      source: 'REGULAR' as const,
-      aoiRecommendationId: undefined
-    }));
-
-    // Get AOI documents
-    const aoiDocs = getDocumentsByYear(selectedYear).map(doc => ({
-      id: doc.id,
-      namaFile: doc.fileName,
-      aspek: 'AOI Document',
-      subdirektorat: doc.userSubdirektorat,
-      uploadDate: doc.uploadDate.toISOString(),
-      status: 'completed',
-      tahunBuku: doc.tahun.toString(),
-      source: 'AOI' as const,
-      aoiRecommendationId: doc.aoiRecommendationId
-    }));
-
-    // Combine and sort by upload date
-    const allDocs = [...regularDocs, ...aoiDocs];
-    return allDocs.sort((a, b) => new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime());
-  }, [selectedYear, getFilesByYear, getDocumentsByYear]);
+    return allDocuments;
+  }, [allDocuments]);
   // Get status badge color
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -178,6 +252,7 @@ const AdminArchivePanel: React.FC<AdminArchivePanelProps> = ({
                   <TableHeader>
                     <TableRow className="bg-blue-50">
                       <TableHead className="text-blue-900 font-semibold">Nama File</TableHead>
+                      <TableHead className="text-blue-900 font-semibold">Deskripsi GCG</TableHead>
                       <TableHead className="text-blue-900 font-semibold">Aspek</TableHead>
                       <TableHead className="text-blue-900 font-semibold">Tanggal Upload</TableHead>
                       <TableHead className="text-blue-900 font-semibold">Status</TableHead>
@@ -185,26 +260,38 @@ const AdminArchivePanel: React.FC<AdminArchivePanelProps> = ({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {currentYearDocuments
-                      .filter(doc => doc.source === 'REGULAR')
-                      .map((doc) => (
-                        <TableRow key={doc.id} className="hover:bg-blue-50/50">
-                          <TableCell className="font-medium">{doc.namaFile}</TableCell>
-                          <TableCell>{doc.aspek}</TableCell>
-                          <TableCell>
-                            {new Date(doc.uploadDate).toLocaleDateString('id-ID')}
-                          </TableCell>
-                          <TableCell>{getStatusBadge(doc.status)}</TableCell>
+                    {currentYearDocuments.map((doc) => (
+                      <TableRow key={doc.id} className="hover:bg-blue-50/50">
+                        <TableCell className="font-medium">{doc.fileName}</TableCell>
+                        <TableCell className="max-w-xs">
+                          <div className="truncate" title={doc.checklistDescription || 'N/A'}>
+                            {doc.checklistDescription || 'N/A'}
+                          </div>
+                        </TableCell>
+                        <TableCell>{doc.aspect || 'N/A'}</TableCell>
+                        <TableCell>
+                          {new Date(doc.uploadDate).toLocaleDateString('id-ID')}
+                        </TableCell>
+                        <TableCell>{getStatusBadge(doc.status)}</TableCell>
                           <TableCell>
                             <div className="flex space-x-2">
                               <Button 
                                 size="sm" 
                                 variant="outline" 
                                 className="border-green-200 text-green-600 hover:bg-green-50"
-                                onClick={() => handleDownload(doc.namaFile)}
+                              onClick={() => handleDownload(doc)}
                               >
                                 <Download className="h-4 w-4 mr-1" />
                                 Download
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                className="border-orange-200 text-orange-600 hover:bg-orange-50"
+                                onClick={() => handleRevision(doc)}
+                              >
+                                <MessageSquare className="h-4 w-4 mr-1" />
+                                Revisi
                               </Button>
                             </div>
                           </TableCell>
@@ -225,32 +312,35 @@ const AdminArchivePanel: React.FC<AdminArchivePanelProps> = ({
               </div>
             )}
 
-            {/* Tabel Dokumen Tambahan dari AOI */}
+            {/* AOI Documents Section */}
             <div className="mt-8">
               <h3 className="text-lg font-medium text-blue-900 mb-4">
-                Dokumen Tambahan dari AOI
+                Dokumen AOI
               </h3>
               
-              {currentYearDocuments.filter(doc => doc.source === 'AOI').length > 0 ? (
+              {/* Get AOI documents for the current year and user's subdirektorat */}
+              {(() => {
+                const aoiDocs = getDocumentsByYear(selectedYear || 0)
+                  .filter(doc => doc.userSubdirektorat === user?.subdirektorat);
+                
+                return aoiDocs.length > 0 ? (
                 <div className="border border-blue-200 rounded-lg overflow-hidden bg-white">
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-blue-50">
                         <TableHead className="text-blue-900 font-semibold">Nama File</TableHead>
-                        <TableHead className="text-blue-900 font-semibold">Jenis & Urutan</TableHead>
+                          <TableHead className="text-blue-900 font-semibold">Jenis</TableHead>
                         <TableHead className="text-blue-900 font-semibold">Tanggal Upload</TableHead>
                         <TableHead className="text-blue-900 font-semibold">Status</TableHead>
                         <TableHead className="text-blue-900 font-semibold">Aksi</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {currentYearDocuments
-                        .filter(doc => doc.source === 'AOI')
-                        .map((doc) => (
+                        {aoiDocs.map((doc) => (
                           <TableRow key={doc.id} className="hover:bg-blue-50/50">
-                            <TableCell className="font-medium">{doc.namaFile}</TableCell>
+                            <TableCell className="font-medium">{doc.fileName}</TableCell>
                             <TableCell className="text-sm text-blue-700">
-                              {doc.aoiJenis === 'REKOMENDASI' ? 'Rekomendasi' : 'Saran'} #{doc.aoiUrutan}
+                              AOI Document
                             </TableCell>
                             <TableCell>
                               {new Date(doc.uploadDate).toLocaleDateString('id-ID')}
@@ -260,7 +350,22 @@ const AdminArchivePanel: React.FC<AdminArchivePanelProps> = ({
                             </TableCell>
                             <TableCell>
                               <div className="flex space-x-2">
-                                <Button size="sm" variant="outline" className="border-green-200 text-green-600 hover:bg-green-50">
+                                <Button 
+                                  size="sm" 
+                                  variant="outline" 
+                                  className="border-green-200 text-green-600 hover:bg-green-50"
+                                  onClick={() => handleDownload({
+                                    id: doc.id,
+                                    fileName: doc.fileName,
+                                    fileSize: 0,
+                                    uploadDate: doc.uploadDate,
+                                    year: doc.tahun,
+                                    status: 'uploaded',
+                                    uploadedBy: 'AOI User',
+                                    userRole: 'admin',
+                                    source: 'AOI'
+                                  } as UserDocument)}
+                                >
                                   <Download className="h-4 w-4 mr-1" />
                                   Download
                                 </Button>
@@ -274,12 +379,13 @@ const AdminArchivePanel: React.FC<AdminArchivePanelProps> = ({
               ) : (
                 <div className="text-center py-6 border border-blue-200 rounded-lg bg-blue-50">
                   <FileText className="h-10 w-10 text-blue-400 mx-auto mb-3" />
-                  <p className="text-blue-700 text-sm">Belum ada dokumen tambahan dari AOI</p>
+                    <p className="text-blue-700 text-sm">Belum ada dokumen AOI</p>
                   <p className="text-blue-600 text-xs mt-1">
                     Dokumen yang diupload dari panel AOI akan muncul di sini
                   </p>
                 </div>
-              )}
+                );
+              })()}
             </div>
           </div>
         </CardContent>
@@ -300,12 +406,13 @@ const AdminArchivePanel: React.FC<AdminArchivePanelProps> = ({
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {previousYearDocuments.filter(doc => doc.source === 'REGULAR').length > 0 ? (
+            {previousYearDocuments.length > 0 ? (
               <div className="border border-blue-200 rounded-lg overflow-hidden bg-white">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-blue-50">
                       <TableHead className="text-blue-900 font-semibold">Nama File</TableHead>
+                      <TableHead className="text-blue-900 font-semibold">Deskripsi GCG</TableHead>
                       <TableHead className="text-blue-900 font-semibold">Aspek</TableHead>
                       <TableHead className="text-blue-900 font-semibold">Subdirektorat</TableHead>
                       <TableHead className="text-blue-900 font-semibold">Tanggal Upload</TableHead>
@@ -313,26 +420,38 @@ const AdminArchivePanel: React.FC<AdminArchivePanelProps> = ({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {previousYearDocuments
-                      .filter(doc => doc.source === 'REGULAR')
-                      .map((doc) => (
-                        <TableRow key={doc.id} className="hover:bg-blue-50/50">
-                          <TableCell className="font-medium">{doc.namaFile}</TableCell>
-                          <TableCell>{doc.aspek}</TableCell>
-                          <TableCell>{doc.subdirektorat || 'N/A'}</TableCell>
-                          <TableCell>
-                            {new Date(doc.uploadDate).toLocaleDateString('id-ID')}
-                          </TableCell>
+                    {previousYearDocuments.map((doc) => (
+                      <TableRow key={doc.id} className="hover:bg-blue-50/50">
+                        <TableCell className="font-medium">{doc.fileName}</TableCell>
+                        <TableCell className="max-w-xs">
+                          <div className="truncate" title={doc.checklistDescription || 'N/A'}>
+                            {doc.checklistDescription || 'N/A'}
+                          </div>
+                        </TableCell>
+                        <TableCell>{doc.aspect || 'N/A'}</TableCell>
+                        <TableCell>{doc.userSubdirektorat || 'N/A'}</TableCell>
+                        <TableCell>
+                          {new Date(doc.uploadDate).toLocaleDateString('id-ID')}
+                        </TableCell>
                           <TableCell>
                             <div className="flex space-x-2">
                               <Button 
                                 size="sm" 
                                 variant="outline" 
                                 className="border-green-200 text-green-600 hover:bg-green-50"
-                                onClick={() => handleDownload(doc.namaFile)}
+                              onClick={() => handleDownload(doc)}
                               >
                                 <Download className="h-4 w-4 mr-1" />
                                 Download
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                className="border-orange-200 text-orange-600 hover:bg-orange-50"
+                                onClick={() => handleRevision(doc)}
+                              >
+                                <MessageSquare className="h-4 w-4 mr-1" />
+                                Revisi
                               </Button>
                             </div>
                           </TableCell>
@@ -351,19 +470,23 @@ const AdminArchivePanel: React.FC<AdminArchivePanelProps> = ({
               </div>
             )}
 
-            {/* Tabel Dokumen Tambahan dari AOI untuk Tahun Lama */}
+            {/* AOI Documents Section for Previous Years */}
             <div className="mt-8">
               <h3 className="text-lg font-medium text-blue-900 mb-4">
-                Dokumen Tambahan dari AOI
+                Dokumen AOI
               </h3>
               
-              {previousYearDocuments.filter(doc => doc.source === 'AOI').length > 0 ? (
+              {/* Get AOI documents for the selected year */}
+              {(() => {
+                const aoiDocs = getDocumentsByYear(selectedYear || 0);
+                
+                return aoiDocs.length > 0 ? (
                 <div className="border border-blue-200 rounded-lg overflow-hidden bg-white">
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-blue-50">
                         <TableHead className="text-blue-900 font-semibold">Nama File</TableHead>
-                        <TableHead className="text-blue-900 font-semibold">Jenis & Urutan</TableHead>
+                          <TableHead className="text-blue-900 font-semibold">Jenis</TableHead>
                         <TableHead className="text-blue-900 font-semibold">Subdirektorat</TableHead>
                         <TableHead className="text-blue-900 font-semibold">Tanggal Upload</TableHead>
                         <TableHead className="text-blue-900 font-semibold">Status</TableHead>
@@ -371,15 +494,13 @@ const AdminArchivePanel: React.FC<AdminArchivePanelProps> = ({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {previousYearDocuments
-                        .filter(doc => doc.source === 'AOI')
-                        .map((doc) => (
+                        {aoiDocs.map((doc) => (
                           <TableRow key={doc.id} className="hover:bg-blue-50/50">
-                            <TableCell className="font-medium">{doc.namaFile}</TableCell>
+                            <TableCell className="font-medium">{doc.fileName}</TableCell>
                             <TableCell className="text-sm text-blue-700">
-                              {doc.aoiJenis === 'REKOMENDASI' ? 'Rekomendasi' : 'Saran'} #{doc.aoiUrutan}
+                              AOI Document
                             </TableCell>
-                            <TableCell>{doc.subdirektorat || 'N/A'}</TableCell>
+                            <TableCell>{doc.userSubdirektorat || 'N/A'}</TableCell>
                             <TableCell>
                               {new Date(doc.uploadDate).toLocaleDateString('id-ID')}
                             </TableCell>
@@ -392,7 +513,17 @@ const AdminArchivePanel: React.FC<AdminArchivePanelProps> = ({
                                   size="sm" 
                                   variant="outline" 
                                   className="border-green-200 text-green-600 hover:bg-green-50"
-                                  onClick={() => handleDownload(doc.namaFile)}
+                                  onClick={() => handleDownload({
+                                    id: doc.id,
+                                    fileName: doc.fileName,
+                                    fileSize: 0,
+                                    uploadDate: doc.uploadDate,
+                                    year: doc.tahun,
+                                    status: 'uploaded',
+                                    uploadedBy: 'AOI User',
+                                    userRole: 'admin',
+                                    source: 'AOI'
+                                  } as UserDocument)}
                                 >
                                   <Download className="h-4 w-4 mr-1" />
                                   Download
@@ -407,12 +538,13 @@ const AdminArchivePanel: React.FC<AdminArchivePanelProps> = ({
               ) : (
                 <div className="text-center py-6 border border-blue-200 rounded-lg bg-blue-50">
                   <FileText className="h-10 w-10 text-blue-400 mx-auto mb-3" />
-                  <p className="text-blue-700 text-sm">Belum ada dokumen tambahan dari AOI</p>
+                    <p className="text-blue-700 text-sm">Belum ada dokumen AOI</p>
                   <p className="text-blue-600 text-xs mt-1">
                     Dokumen yang diupload dari panel AOI akan muncul di sini
                   </p>
                 </div>
-              )}
+                );
+              })()}
             </div>
           </div>
         </CardContent>

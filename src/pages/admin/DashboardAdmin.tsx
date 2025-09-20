@@ -437,7 +437,6 @@ const DashboardAdmin: React.FC = () => {
                 onUpload={handleUpload}
                 onReUpload={handleReUpload}
                 onViewDocument={handleViewDocument}
-                onDownloadDocument={handleDownloadDocument}
                 selectedYear={selectedYear}
               />
 

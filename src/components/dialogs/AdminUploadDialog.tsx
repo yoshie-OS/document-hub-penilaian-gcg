@@ -38,7 +38,6 @@ interface AdminUploadDialogProps {
 interface UploadFormData {
   fileName: string;
   description: string;
-  notes: string;
 }
 
 const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
@@ -57,8 +56,7 @@ const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
   // Form state
   const [formData, setFormData] = useState<UploadFormData>({
     fileName: '',
-    description: '',
-    notes: ''
+    description: ''
   });
   
   // File state
@@ -74,8 +72,7 @@ const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
     if (checklistItem) {
       setFormData({
         fileName: existingFileName || '',
-        description: checklistItem.deskripsi,
-        notes: ''
+        description: checklistItem.deskripsi
       });
     }
   }, [checklistItem, existingFileName]);
@@ -90,7 +87,8 @@ const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
       'application/vnd.ms-excel',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'image/jpeg',
-      'image/png'
+      'image/png',
+      'text/plain'
     ];
 
     if (file.size > maxSize) {
@@ -105,7 +103,7 @@ const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
     if (!allowedTypes.includes(file.type)) {
       toast({
         title: "Tipe file tidak didukung",
-        description: "Hanya file PDF, Word, Excel, dan gambar yang diperbolehkan",
+        description: "Hanya file PDF, Word, Excel, TXT, dan gambar yang diperbolehkan",
         variant: "destructive"
       });
       return false;
@@ -205,7 +203,7 @@ const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
               checklistItem.deskripsi,
               checklistItem.aspek || 'Tidak Diberikan Aspek',
               checklistItem.pic || user?.subdirektorat || '',
-              formData.notes, // Catatan dari form
+              '', // Catatan dihapus
               rowNumber // Add row number for organized file structure
             );
           } else {
@@ -217,7 +215,7 @@ const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
               checklistItem.deskripsi,
               checklistItem.aspek || 'Tidak Diberikan Aspek',
               checklistItem.pic || user?.subdirektorat || '',
-              formData.notes, // Catatan dari form
+              '', // Catatan dihapus
               rowNumber // Add row number for organized file structure
             );
           }
@@ -429,19 +427,6 @@ const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
             </p>
           </div>
 
-          {/* Notes Input */}
-          <div className="space-y-2">
-            <Label htmlFor="notes" className="text-sm font-medium text-gray-700">
-              Catatan (Opsional)
-            </Label>
-            <Textarea
-              id="notes"
-              value={formData.notes}
-              onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-              placeholder="Tambahkan catatan atau keterangan tambahan..."
-              rows={3}
-            />
-          </div>
 
           {/* Upload Progress */}
           {isUploading && (

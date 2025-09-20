@@ -1020,12 +1020,12 @@ const FileUploadDialog: React.FC<FileUploadDialogProps> = ({
     }
 
     // Validate file type
-    const allowedTypes = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx'];
+    const allowedTypes = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt'];
     const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
     if (!allowedTypes.includes(fileExtension)) {
       toast({
         title: "Format file tidak didukung",
-        description: "Format yang didukung: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX",
+        description: "Format yang didukung: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, TXT",
         variant: "destructive"
       });
       return false;

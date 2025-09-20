@@ -15,7 +15,6 @@ import { useYear } from '@/contexts/YearContext';
 import { useStrukturPerusahaan } from '@/contexts/StrukturPerusahaanContext';
 import { useAOIDocument } from '@/contexts/AOIDocumentContext';
 import { useToast } from '@/hooks/use-toast';
-import CatatanDialog from '@/components/dialogs/CatatanDialog';
 import JSZip from 'jszip';
 import { 
   FileText, 
@@ -75,13 +74,6 @@ const ArsipDokumen = () => {
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
   
-  // State for catatan dialog
-  const [isCatatanDialogOpen, setIsCatatanDialogOpen] = useState(false);
-  const [selectedDocumentForCatatan, setSelectedDocumentForCatatan] = useState<{
-    catatan?: string;
-    title?: string;
-    fileName?: string;
-  } | null>(null);
   
 
   // Get AOI documents for selected year
@@ -143,7 +135,11 @@ const ArsipDokumen = () => {
       const enrichedDocuments: DocumentWithUser[] = apiFiles.map(file => {
         // Get user details from users for contact info
         const users = JSON.parse(localStorage.getItem('users') || '[]');
-        const userData = users.find((u: any) => u.name === file.uploadedBy || u.email === file.uploadedBy);
+        const userData = users.find((u: any) => {
+          const nameMatch = u.name === file.uploadedBy;
+          const emailMatch = u.email === file.uploadedBy;
+          return nameMatch || emailMatch;
+        });
         
         return {
           id: file.id,
@@ -158,12 +154,12 @@ const ArsipDokumen = () => {
           subdirektorat: file.subdirektorat,
           catatan: file.catatan,
           uploadedBy: file.uploadedBy || 'Unknown User',
-          userRole: userData?.role || 'admin',
-          userDirektorat: userData?.direktorat || file.userDirektorat || 'Unknown',
-          userSubdirektorat: userData?.subdirektorat || file.userSubdirektorat || 'Unknown', 
-          userDivisi: userData?.divisi || file.userDivisi || 'Unknown',
-          userWhatsApp: userData?.whatsapp || '',
-          userEmail: userData?.email || ''
+          userRole: file.userRole || userData?.role || 'admin',
+          userDirektorat: file.userDirektorat || userData?.direktorat || 'Unknown',
+          userSubdirektorat: file.userSubdirektorat || userData?.subdirektorat || 'Unknown', 
+          userDivisi: file.userDivisi || userData?.divisi || 'Unknown',
+          userWhatsApp: file.userWhatsApp || userData?.whatsapp || '',
+          userEmail: file.userEmail || userData?.email || ''
         };
       });
       
@@ -242,14 +238,23 @@ const ArsipDokumen = () => {
   // Handle download single document
   const handleDownload = async (doc: DocumentWithUser) => {
     try {
-      // Fetch the actual file from Supabase API
+      console.log(`🔍 Downloading file: ${doc.fileName} (ID: ${doc.id})`);
+      
+      // Fetch the actual file from API
       const response = await fetch(`http://localhost:5000/api/download-file/${doc.id}`);
       
       if (!response.ok) {
-        throw new Error('Failed to download file');
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `HTTP ${response.status}: Failed to download file`);
       }
       
       const blob = await response.blob();
+      
+      // Check if blob is valid
+      if (blob.size === 0) {
+        throw new Error('Downloaded file is empty');
+      }
+      
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -258,9 +263,20 @@ const ArsipDokumen = () => {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Download Berhasil",
+        description: `File ${doc.fileName} berhasil didownload`,
+        variant: "default"
+      });
+      
     } catch (error) {
       console.error('Download error:', error);
-      alert('Gagal mendownload file. Silakan coba lagi.');
+      toast({
+        title: "Download Gagal",
+        description: `Gagal mendownload file ${doc.fileName}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        variant: "destructive"
+      });
     }
   };
 
@@ -293,24 +309,68 @@ const ArsipDokumen = () => {
   };
 
   // Handle download AOI document
-  const handleDownloadAOI = (fileName: string) => {
-    // Create a mock file content for AOI documents
-    const mockContent = `Mock AOI file content for ${fileName}\n\nThis is a placeholder file for AOI documents.\nFile: ${fileName}\nType: AOI Document\nDate: ${new Date().toLocaleDateString('id-ID')}`;
-    
-    // Create blob and download
-    const blob = new Blob([mockContent], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName;
-    
-    // Trigger download
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    // Clean up
-    URL.revokeObjectURL(url);
+  const handleDownloadAOI = async (doc: any) => {
+    try {
+      console.log(`🔍 Downloading AOI file: ${doc.fileName} (ID: ${doc.id})`);
+      
+      // For AOI documents, try to fetch from the same endpoint
+      const response = await fetch(`http://localhost:5000/api/download-file/${doc.id}`);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `HTTP ${response.status}: Failed to download AOI file`);
+      }
+      
+      const blob = await response.blob();
+      
+      // Check if blob is valid
+      if (blob.size === 0) {
+        throw new Error('Downloaded AOI file is empty');
+      }
+      
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = doc.fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Download Berhasil",
+        description: `File AOI ${doc.fileName} berhasil didownload`,
+        variant: "default"
+      });
+      
+    } catch (error) {
+      console.error('AOI Download error:', error);
+      
+      // Fallback to mock content if real file not found
+      const mockContent = `AOI Document: ${doc.fileName}\n\n` +
+        `File: ${doc.fileName}\n` +
+        `Type: AOI Document\n` +
+        `Upload Date: ${new Date().toLocaleDateString('id-ID')}\n` +
+        `Status: ${doc.status || 'N/A'}\n\n` +
+        `Note: Original file could not be retrieved.\n` +
+        `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      
+      const blob = new Blob([mockContent], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${doc.fileName}_info.txt`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Download dengan Info",
+        description: `File AOI ${doc.fileName} tidak ditemukan, file info berhasil didownload`,
+        variant: "destructive"
+      });
+    }
   };
 
   // Handle revision for AOI document
@@ -385,15 +445,6 @@ const ArsipDokumen = () => {
     }
   };
 
-  // Handle show catatan
-  const handleShowCatatan = (document: any) => {
-    setSelectedDocumentForCatatan({
-      catatan: document.catatan || '',
-      title: document.checklistDescription || document.fileName,
-      fileName: document.fileName
-    });
-    setIsCatatanDialogOpen(true);
-  };
 
   // Handle bulk download
   const handleBulkDownload = async (type: 'all' | 'direktorat' | 'aspect') => {
@@ -444,39 +495,52 @@ const ArsipDokumen = () => {
       const zip = new JSZip();
       
       // Add documents to ZIP - fetch real files from API
+      let successCount = 0;
+      let errorCount = 0;
+      
       for (let index = 0; index < documentsToDownload.length; index++) {
         const doc = documentsToDownload[index];
         try {
-          // Fetch the actual file content from Supabase API
+          console.log(`🔍 Fetching file ${index + 1}/${documentsToDownload.length}: ${doc.fileName}`);
+          
+          // Fetch the actual file content from API
           const response = await fetch(`http://localhost:5000/api/download-file/${doc.id}`);
           
           if (response.ok) {
             const fileBlob = await response.blob();
-            const folderPath = `${doc.userDirektorat || 'Unknown'}/${doc.userSubdirektorat || 'Unknown'}`;
-            zip.file(`${folderPath}/${doc.fileName}`, fileBlob);
+            
+            // Check if blob is valid
+            if (fileBlob.size > 0) {
+              const folderPath = `${doc.userDirektorat || 'Unknown'}/${doc.userSubdirektorat || 'Unknown'}`;
+              zip.file(`${folderPath}/${doc.fileName}`, fileBlob);
+              successCount++;
+              console.log(`✅ Successfully added: ${doc.fileName}`);
+            } else {
+              throw new Error('Downloaded file is empty');
+            }
           } else {
-            // If file fetch fails, add a placeholder with metadata
-            const fileContent = `File could not be downloaded: ${doc.fileName}\n\n` +
-              `File: ${doc.fileName}\n` +
-              `Uploaded by: ${doc.uploadedBy}\n` +
-              `Direktorat: ${doc.userDirektorat || 'N/A'}\n` +
-              `Subdirektorat: ${doc.userSubdirektorat || 'N/A'}\n` +
-              `Divisi: ${doc.userDivisi || 'N/A'}\n` +
-              `Aspect: ${doc.aspect || 'N/A'}\n` +
-              `Checklist Description: ${doc.checklistDescription || 'N/A'}\n` +
-              `Upload Date: ${new Date(doc.uploadDate).toLocaleDateString('id-ID')}\n` +
-              `Status: ${doc.status}\n\n` +
-              `Error: File could not be retrieved from storage.`;
-
-            const folderPath = `${doc.userDirektorat || 'Unknown'}/${doc.userSubdirektorat || 'Unknown'}`;
-            zip.file(`${folderPath}/${doc.fileName}.txt`, fileContent);
+            const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+            throw new Error(errorData.error || `HTTP ${response.status}`);
           }
         } catch (error) {
-          console.error(`Error fetching file ${doc.fileName}:`, error);
-          // Add error placeholder
-          const errorContent = `Error downloading: ${doc.fileName}\n\nError: ${error}`;
+          console.error(`❌ Error fetching file ${doc.fileName}:`, error);
+          errorCount++;
+          
+          // Add error placeholder with metadata
+          const fileContent = `File could not be downloaded: ${doc.fileName}\n\n` +
+            `File: ${doc.fileName}\n` +
+            `Uploaded by: ${doc.uploadedBy}\n` +
+            `Direktorat: ${doc.userDirektorat || 'N/A'}\n` +
+            `Subdirektorat: ${doc.userSubdirektorat || 'N/A'}\n` +
+            `Divisi: ${doc.userDivisi || 'N/A'}\n` +
+            `Aspect: ${doc.aspect || 'N/A'}\n` +
+            `Checklist Description: ${doc.checklistDescription || 'N/A'}\n` +
+            `Upload Date: ${new Date(doc.uploadDate).toLocaleDateString('id-ID')}\n` +
+            `Status: ${doc.status}\n\n` +
+            `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
+
           const folderPath = `${doc.userDirektorat || 'Unknown'}/${doc.userSubdirektorat || 'Unknown'}`;
-          zip.file(`${folderPath}/${doc.fileName}_ERROR.txt`, errorContent);
+          zip.file(`${folderPath}/${doc.fileName}_ERROR.txt`, fileContent);
         }
         
         // Update progress
@@ -499,7 +563,18 @@ const ArsipDokumen = () => {
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
 
-      alert(`Download berhasil! File ${fileName}.zip berhasil diunduh dengan ${documentsToDownload.length} dokumen.`);
+      // Show detailed result
+      const message = `Download berhasil!\n\n` +
+        `File: ${fileName}.zip\n` +
+        `Total dokumen: ${documentsToDownload.length}\n` +
+        `Berhasil didownload: ${successCount}\n` +
+        `Gagal didownload: ${errorCount}`;
+      
+      if (errorCount > 0) {
+        alert(message + `\n\nBeberapa file gagal didownload. File error akan disertakan dalam ZIP.`);
+      } else {
+        alert(message);
+      }
     } catch (error) {
       console.error('Download error:', error);
       alert('Terjadi kesalahan saat download file ZIP.');
@@ -757,17 +832,6 @@ const ArsipDokumen = () => {
                                 Revisi
                               </Button>
                               
-                              {/* Tombol Catatan */}
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleShowCatatan(doc)}
-                                className="border-purple-200 text-purple-600 hover:bg-purple-50 hover:border-purple-300 transition-colors"
-                                title="Lihat catatan dokumen"
-                              >
-                                <FileText className="h-4 w-4 mr-2" />
-                                Catatan
-                              </Button>
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -854,7 +918,7 @@ const ArsipDokumen = () => {
                                 <span className="text-sm font-medium text-gray-700">Kontak</span>
                               </div>
                               <div className="pl-6 space-y-1">
-                                {doc.userRole === 'admin' && (doc.userWhatsApp || doc.userEmail) ? (
+                                {(doc.userWhatsApp || doc.userEmail) ? (
                                   <div className="space-y-1">
                                   {doc.userWhatsApp && (
                                       <div className="flex items-center space-x-1 text-xs text-gray-600">
@@ -954,7 +1018,7 @@ const ArsipDokumen = () => {
                                   size="sm"
                               variant="outline" 
                               className="border-green-200 text-green-600 hover:bg-green-50 hover:border-green-300 transition-colors"
-                              onClick={() => handleDownloadAOI(doc.fileName)}
+                              onClick={() => handleDownloadAOI(doc)}
                                 >
                               <Download className="h-4 w-4 mr-2" />
                                   Download
@@ -970,16 +1034,6 @@ const ArsipDokumen = () => {
                                 </Button>
                                 
                                 {/* Tombol Catatan untuk AOI */}
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleShowCatatan(doc)}
-                                  className="border-purple-200 text-purple-600 hover:bg-purple-50 hover:border-purple-300 transition-colors"
-                                  title="Lihat catatan dokumen"
-                                >
-                                  <FileText className="h-4 w-4 mr-2" />
-                                  Catatan
-                                </Button>
                             <Button 
                               size="sm" 
                               variant="outline" 
@@ -1077,14 +1131,6 @@ const ArsipDokumen = () => {
         </div>
       </div>
 
-      {/* Catatan Dialog */}
-      <CatatanDialog
-        isOpen={isCatatanDialogOpen}
-        onClose={() => setIsCatatanDialogOpen(false)}
-        catatan={selectedDocumentForCatatan?.catatan}
-        documentTitle={selectedDocumentForCatatan?.title}
-        fileName={selectedDocumentForCatatan?.fileName}
-      />
     </>
   );
 };

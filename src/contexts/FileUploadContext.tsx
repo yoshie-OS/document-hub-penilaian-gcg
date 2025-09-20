@@ -124,6 +124,8 @@ export const FileUploadProvider: React.FC<{ children: ReactNode }> = ({ children
       formData.append('userDirektorat', currentUser.direktorat || 'Unknown');
       formData.append('userSubdirektorat', currentUser.subdirektorat || 'Unknown');
       formData.append('userDivisi', currentUser.divisi || 'Unknown');
+      formData.append('userWhatsApp', currentUser.whatsapp || '');
+      formData.append('userEmail', currentUser.email || '');
 
       const response = await fetch('http://localhost:5000/api/upload-gcg-file', {
         method: 'POST',

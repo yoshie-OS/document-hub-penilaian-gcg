@@ -17,7 +17,6 @@ import { useUser } from '@/contexts/UserContext';
 
 import { useToast } from '@/hooks/use-toast';
 import { AdminUploadDialog } from '@/components/dialogs';
-import CatatanDialog from '@/components/dialogs/CatatanDialog';
 import { YearSelectorPanel, PageHeaderPanel } from '@/components/panels';
 import YearStatisticsPanel from '@/components/dashboard/YearStatisticsPanel';
 
@@ -82,16 +81,6 @@ const MonitoringUploadGCG = () => {
   // State to track refresh/rescan progress
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   
-  // State for CatatanDialog
-  const [isCatatanDialogOpen, setIsCatatanDialogOpen] = useState(false);
-  const [selectedDocumentForCatatan, setSelectedDocumentForCatatan] = useState<{
-    catatan?: string;
-    title?: string;
-    fileName?: string;
-    uploadedBy?: string;
-    uploadDate?: Date;
-    subdirektorat?: string;
-  } | null>(null);
   
 
   // Ensure all years have dokumen GCG data when component mounts
@@ -730,7 +719,6 @@ const MonitoringUploadGCG = () => {
     // Get PIC from checklist item, fallback to current user's subdirektorat
     const picName = item.pic || user?.subdirektorat || 'UNKNOWN_PIC';
     
-    console.log('MonitoringUploadGCG: Rescanning single row - ID:', checklistId, 'Row:', rowNumber, 'PIC:', picName);
     
     // Add this item to being checked
     setItemsBeingChecked(prev => new Set(prev.add(checklistId)));
@@ -788,29 +776,6 @@ const MonitoringUploadGCG = () => {
     }
   }, [selectedYear, checklist, getAssignmentData, user]);
 
-  // Handle show catatan
-  const handleShowCatatan = useCallback((checklistId: number) => {
-    const uploadedDocument = getUploadedDocument(checklistId);
-    const checklistItem = checklist.find(item => item.id === checklistId);
-    
-    if (uploadedDocument) {
-      setSelectedDocumentForCatatan({
-        catatan: uploadedDocument.catatan || '',
-        title: checklistItem?.deskripsi || 'Dokumen GCG',
-        fileName: uploadedDocument.fileName || 'Unknown File',
-        uploadedBy: uploadedDocument.uploadedBy || 'Unknown',
-        uploadDate: uploadedDocument.uploadDate,
-        subdirektorat: uploadedDocument.subdirektorat || 'Unknown'
-      });
-      setIsCatatanDialogOpen(true);
-    } else {
-      toast({
-        title: "Dokumen tidak ditemukan",
-        description: "Dokumen belum diupload atau tidak tersedia",
-        variant: "destructive"
-      });
-    }
-  }, [getUploadedDocument, checklist, toast]);
 
   // Get aspect icon - konsisten dengan dashboard
   const getAspectIcon = useCallback((aspekName: string) => {
@@ -1326,18 +1291,6 @@ const MonitoringUploadGCG = () => {
                                 <Download className="w-4 h-4" />
                               </Button>
                               
-                              {/* Tombol Catatan - hanya muncul jika dokumen sudah diupload */}
-                              {isChecklistUploaded(item.id) && (
-                                <Button 
-                                  variant="outline" 
-                                  size="sm"
-                                  onClick={() => handleShowCatatan(item.id)}
-                                  className="border-purple-200 text-purple-600 hover:bg-purple-50"
-                                  title="Lihat catatan dokumen"
-                                >
-                                  <FileText className="w-4 h-4" />
-                                </Button>
-                              )}
                               
                               <Button 
                                 variant="outline" 
@@ -1449,24 +1402,24 @@ const MonitoringUploadGCG = () => {
             // Force refresh files from context
             refreshFiles();
             
-            window.dispatchEvent(new CustomEvent('fileUploaded', {
-              detail: { 
-                type: 'fileUploaded', 
-                year: selectedYear,
-                checklistId: selectedChecklistItem?.id,
-                rowNumber: selectedChecklistItem?.rowNumber,
-                timestamp: new Date().toISOString()
-              }
-            }));
-            
-            window.dispatchEvent(new CustomEvent('uploadedFilesChanged', {
-              detail: { 
-                type: 'uploadedFilesChanged', 
-                year: selectedYear,
-                checklistId: selectedChecklistItem?.id,
-                timestamp: new Date().toISOString()
-              }
-            }));
+          window.dispatchEvent(new CustomEvent('fileUploaded', {
+            detail: { 
+              type: 'fileUploaded', 
+              year: selectedYear,
+              checklistId: selectedChecklistItem?.id,
+              rowNumber: selectedChecklistItem?.rowNumber,
+              timestamp: new Date().toISOString()
+            }
+          }));
+          
+          window.dispatchEvent(new CustomEvent('uploadedFilesChanged', {
+            detail: { 
+              type: 'uploadedFilesChanged', 
+              year: selectedYear,
+              checklistId: selectedChecklistItem?.id,
+              timestamp: new Date().toISOString()
+            }
+          }));
             
             window.dispatchEvent(new CustomEvent('documentsUpdated', {
               detail: { 
@@ -1479,14 +1432,6 @@ const MonitoringUploadGCG = () => {
         }}
       />
 
-      {/* Catatan Dialog */}
-      <CatatanDialog
-        isOpen={isCatatanDialogOpen}
-        onClose={() => setIsCatatanDialogOpen(false)}
-        catatan={selectedDocumentForCatatan?.catatan}
-        documentTitle={selectedDocumentForCatatan?.title}
-        fileName={selectedDocumentForCatatan?.fileName}
-      />
     </div>
   );
 };

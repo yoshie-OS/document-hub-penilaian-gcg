@@ -13,8 +13,7 @@ import {
   Filter,
   Clock,
   CheckCircle,
-  Eye,
-  Download
+  Eye
 } from 'lucide-react';
 interface ChecklistItem {
   id: number;
@@ -39,7 +38,6 @@ interface AdminDocumentListPanelProps {
   onUpload: (itemId: number) => void;
   onReUpload: (itemId: number) => void;
   onViewDocument: (itemId: number) => void;
-  onDownloadDocument: (itemId: number) => void;
   selectedYear: number | null;
   className?: string;
 }
@@ -49,7 +47,6 @@ const AdminDocumentListPanel: React.FC<AdminDocumentListPanelProps> = ({
   onUpload,
   onReUpload,
   onViewDocument,
-  onDownloadDocument,
   selectedYear,
   className = ""
 }) => {
@@ -382,17 +379,6 @@ const AdminDocumentListPanel: React.FC<AdminDocumentListPanelProps> = ({
                             >
                               <RotateCcw className="w-4 w-4 mr-2" />
                               Re-upload
-                            </Button>
-                          )}
-                          {item.status === 'completed' && item.uploadedFile && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => onDownloadDocument(item.id)}
-                              className="border-green-200 text-green-600 hover:bg-green-50"
-                            >
-                              <Download className="w-4 w-4 mr-2" />
-                              Download
                             </Button>
                           )}
                         </div>

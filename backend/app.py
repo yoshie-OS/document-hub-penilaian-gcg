@@ -1492,13 +1492,15 @@ def create_uploaded_file():
             'checklistDescription': data.get('checklistDescription'),
             'aspect': data.get('aspect', 'Tidak Diberikan Aspek'),
             'subdirektorat': data.get('subdirektorat'),
-            'catatan': catatan,
+            'catatan': '', # Catatan dihapus
             'status': 'uploaded',
             'supabaseFilePath': data.get('supabaseFilePath'),
             'uploadedBy': data.get('uploadedBy', 'Unknown User'),
             'userDirektorat': data.get('userDirektorat', 'Unknown'),
             'userSubdirektorat': data.get('userSubdirektorat', 'Unknown'),
-            'userDivisi': data.get('userDivisi', 'Unknown')
+            'userDivisi': data.get('userDivisi', 'Unknown'),
+            'userWhatsApp': data.get('userWhatsApp', ''),
+            'userEmail': data.get('userEmail', '')
         }
         
         # Add to DataFrame
@@ -1529,7 +1531,7 @@ def fix_uploaded_files_schema():
         
         # Check if user columns already exist
         missing_columns = []
-        required_user_columns = ['uploadedBy', 'userRole', 'userDirektorat', 'userSubdirektorat', 'userDivisi']
+        required_user_columns = ['uploadedBy', 'userRole', 'userDirektorat', 'userSubdirektorat', 'userDivisi', 'userWhatsApp', 'userEmail']
         
         for col in required_user_columns:
             if col not in files_data.columns:
@@ -1548,6 +1550,8 @@ def fix_uploaded_files_schema():
                 files_data[col] = 'Unknown User'
             elif col == 'userRole':
                 files_data[col] = 'user'  # Default role
+            elif col in ['userWhatsApp', 'userEmail']:
+                files_data[col] = ''  # Empty string for contact fields
             else:
                 files_data[col] = 'Unknown'
         
@@ -1640,32 +1644,53 @@ def download_uploaded_file(file_id):
         supabase_file_path = file_info.get('supabaseFilePath')
         filename = file_info.get('fileName', 'download')
         
-        if not supabase_file_path:
+        # Try multiple path options
+        file_paths_to_try = []
+        
+        # Option 1: localFilePath (preferred)
+        if file_info.get('localFilePath'):
+            file_paths_to_try.append(file_info.get('localFilePath'))
+        
+        # Option 2: supabaseFilePath
+        if file_info.get('supabaseFilePath'):
+            file_paths_to_try.append(file_info.get('supabaseFilePath'))
+        
+        # Option 3: Construct path from file info (with secure_filename)
+        if file_info.get('year') and file_info.get('subdirektorat') and file_info.get('checklistId'):
+            constructed_path = f"gcg-documents/{file_info['year']}/{secure_filename(file_info['subdirektorat'])}/{file_info['checklistId']}/{secure_filename(filename)}"
+            file_paths_to_try.append(constructed_path)
+        
+        # Option 4: Construct path from file info (without secure_filename)
+        if file_info.get('year') and file_info.get('subdirektorat') and file_info.get('checklistId'):
+            constructed_path_original = f"gcg-documents/{file_info['year']}/{file_info['subdirektorat']}/{file_info['checklistId']}/{filename}"
+            file_paths_to_try.append(constructed_path_original)
+        
+        
+        if not file_paths_to_try:
             return jsonify({'error': 'File path not found in database'}), 404
         
-        # Download file from Supabase storage
-        if storage_service.storage_mode == 'supabase':
-            try:
-                # Download from Supabase
-                response = storage_service.supabase.storage.from_(storage_service.bucket_name).download(supabase_file_path)
-                
-                # Create a response with the file data
-                response_obj = make_response(response)
-                response_obj.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
-                response_obj.headers['Content-Type'] = 'application/octet-stream'
-                
-                return response_obj
-                
-            except Exception as download_error:
-                safe_print(f"Error downloading from Supabase: {download_error}")
-                return jsonify({'error': f'Failed to download file from storage: {str(download_error)}'}), 500
-        else:
+        # Try to find the file using multiple paths
+        file_found = False
+        actual_file_path = None
+        
+        for file_path in file_paths_to_try:
             # For local storage, construct the full path
-            local_file_path = Path(__file__).parent.parent / supabase_file_path
+            local_file_path = Path(__file__).parent.parent / 'data' / file_path
             if local_file_path.exists():
-                return send_file(str(local_file_path), as_attachment=True, download_name=filename)
-            else:
-                return jsonify({'error': 'File not found in local storage'}), 404
+                actual_file_path = local_file_path
+                file_found = True
+                break
+        
+        if not file_found:
+            return jsonify({'error': 'File not found in storage'}), 404
+        
+        # Send the file for download
+        return send_file(
+            str(actual_file_path), 
+            as_attachment=True, 
+            download_name=filename,
+            mimetype='application/octet-stream'
+        )
         
     except Exception as e:
         safe_print(f"Error downloading file: {e}")
@@ -2620,7 +2645,6 @@ def upload_gcg_file():
         checklist_description = request.form.get('checklistDescription', '')
         aspect = request.form.get('aspect', '')
         subdirektorat = request.form.get('subdirektorat', '')
-        catatan = request.form.get('catatan', '')
         row_number = request.form.get('rowNumber')  # New: row number for document organization
         
         # Validate required fields
@@ -2705,6 +2729,8 @@ def upload_gcg_file():
         user_direktorat = request.form.get('userDirektorat', 'Unknown')
         user_subdirektorat = request.form.get('userSubdirektorat', 'Unknown')
         user_divisi = request.form.get('userDivisi', 'Unknown')
+        user_whatsapp = request.form.get('userWhatsApp', '')
+        user_email = request.form.get('userEmail', '')
         
         # Create file record
         file_record = {
@@ -2717,14 +2743,16 @@ def upload_gcg_file():
             'checklistDescription': checklist_description,
             'aspect': aspect,
             'subdirektorat': subdirektorat,
-            'catatan': catatan,
+            'catatan': '', # Catatan dihapus
             'status': 'uploaded',
             'localFilePath': supabase_file_path,  # Keep same path structure for compatibility
             'uploadedBy': uploaded_by,
             'userRole': user_role,
             'userDirektorat': user_direktorat,
             'userSubdirektorat': user_subdirektorat,
-            'userDivisi': user_divisi
+            'userDivisi': user_divisi,
+            'userWhatsApp': user_whatsapp,
+            'userEmail': user_email
         }
         
         # Add to uploaded files database
