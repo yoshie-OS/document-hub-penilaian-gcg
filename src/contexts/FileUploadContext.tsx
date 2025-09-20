@@ -12,7 +12,7 @@ export interface UploadedFile {
   aspect?: string;
   status: 'uploaded' | 'pending';
   subdirektorat?: string;
-  catatan?: string; // Catatan optional dari user saat upload
+  catatan?: string;
 }
 
 interface FileUploadContextType {

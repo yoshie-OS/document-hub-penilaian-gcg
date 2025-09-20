@@ -14,8 +14,8 @@ import { useSidebar } from '@/contexts/SidebarContext';
 import { useYear } from '@/contexts/YearContext';
 import { useStrukturPerusahaan } from '@/contexts/StrukturPerusahaanContext';
 import { useAOIDocument } from '@/contexts/AOIDocumentContext';
-import { CatatanDialog } from '@/components/dialogs/CatatanDialog';
 import { useToast } from '@/hooks/use-toast';
+import CatatanDialog from '@/components/dialogs/CatatanDialog';
 import JSZip from 'jszip';
 import { 
   FileText, 
@@ -75,13 +75,14 @@ const ArsipDokumen = () => {
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
   
-  // State untuk CatatanDialog
+  // State for catatan dialog
   const [isCatatanDialogOpen, setIsCatatanDialogOpen] = useState(false);
   const [selectedDocumentForCatatan, setSelectedDocumentForCatatan] = useState<{
     catatan?: string;
     title?: string;
     fileName?: string;
   } | null>(null);
+  
 
   // Get AOI documents for selected year
   const aoiDocuments = useMemo(() => {
@@ -386,19 +387,8 @@ const ArsipDokumen = () => {
 
   // Handle show catatan
   const handleShowCatatan = (document: any) => {
-    console.log('ArsipDokumen: handleShowCatatan called for document:', document);
-    console.log('ArsipDokumen: catatan value:', document.catatan);
-    console.log('ArsipDokumen: catatan type:', typeof document.catatan);
-    console.log('ArsipDokumen: catatan length:', document.catatan?.length);
-    
-    // Debug: Check localStorage directly
-    const localStorageFiles = JSON.parse(localStorage.getItem('uploadedFiles') || '[]');
-    const localStorageMetadata = JSON.parse(localStorage.getItem('documentMetadata') || '[]');
-    console.log('ArsipDokumen: localStorage files:', localStorageFiles);
-    console.log('ArsipDokumen: localStorage metadata:', localStorageMetadata);
-    
     setSelectedDocumentForCatatan({
-      catatan: document.catatan,
+      catatan: document.catatan || '',
       title: document.checklistDescription || document.fileName,
       fileName: document.fileName
     });
@@ -756,17 +746,6 @@ const ArsipDokumen = () => {
                                 Download
                               </Button>
                               
-                              {/* Tombol Catatan */}
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleShowCatatan(doc)}
-                                className="border-green-200 text-green-600 hover:bg-green-50 hover:border-green-300 transition-colors"
-                                title="Lihat catatan dokumen"
-                              >
-                                <FileText className="h-4 w-4 mr-2" />
-                                Catatan
-                              </Button>
                               
                               <Button
                                 variant="outline"
@@ -776,6 +755,18 @@ const ArsipDokumen = () => {
                               >
                                 <MessageSquare className="h-4 w-4 mr-2" />
                                 Revisi
+                              </Button>
+                              
+                              {/* Tombol Catatan */}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleShowCatatan(doc)}
+                                className="border-purple-200 text-purple-600 hover:bg-purple-50 hover:border-purple-300 transition-colors"
+                                title="Lihat catatan dokumen"
+                              >
+                                <FileText className="h-4 w-4 mr-2" />
+                                Catatan
                               </Button>
                               <Button
                                 variant="outline"
@@ -806,6 +797,9 @@ const ArsipDokumen = () => {
                                     </Badge>
                                     <Badge variant="outline" className="bg-purple-50 border-purple-200 text-purple-700 text-xs px-2 py-1">
                                       {doc.userSubdirektorat}
+                                    </Badge>
+                                    <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs px-2 py-1">
+                                      {doc.userDivisi}
                                     </Badge>
                           </div>
                             )}
@@ -973,6 +967,18 @@ const ArsipDokumen = () => {
                                 >
                               <MessageSquare className="h-4 w-4 mr-2" />
                                   Revisi
+                                </Button>
+                                
+                                {/* Tombol Catatan untuk AOI */}
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleShowCatatan(doc)}
+                                  className="border-purple-200 text-purple-600 hover:bg-purple-50 hover:border-purple-300 transition-colors"
+                                  title="Lihat catatan dokumen"
+                                >
+                                  <FileText className="h-4 w-4 mr-2" />
+                                  Catatan
                                 </Button>
                             <Button 
                               size="sm" 

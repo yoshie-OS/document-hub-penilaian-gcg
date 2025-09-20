@@ -12,7 +12,8 @@ import {
   Menu,
   X,
   ChevronRight,
-  Home
+  Home,
+  BookOpen
 } from 'lucide-react';
 
 const Topbar = () => {
@@ -28,6 +29,16 @@ const Topbar = () => {
     setTimeout(() => {
       window.location.reload();
     }, 300);
+  };
+
+  // Function to open manual book based on user role
+  const handleOpenManualBook = () => {
+    const manualBookPath = user?.role === 'superadmin' 
+      ? '/manualbook/manual_superadmin.pdf'
+      : '/manualbook/manual_admin.pdf';
+    
+    // Open PDF in new tab
+    window.open(manualBookPath, '_blank');
   };
 
   // Get current page title and breadcrumb
@@ -125,6 +136,18 @@ const Topbar = () => {
 
       {/* Right side */}
       <div className="flex items-center space-x-4 ml-auto">
+        {/* Manual Book Button */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleOpenManualBook}
+          className="flex items-center space-x-2 text-gray-600 hover:text-blue-600 hover:border-blue-300"
+          title={`Buka Manual Book ${user?.role === 'superadmin' ? 'Super Admin' : 'Admin'}`}
+        >
+          <BookOpen className="w-4 h-4" />
+          <span className="hidden sm:inline">Manual Book</span>
+        </Button>
+
         {/* User Avatar - Hidden for Admin */}
         {user?.role !== 'admin' && (
           <div className="flex items-center space-x-3">

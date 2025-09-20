@@ -17,7 +17,7 @@ import { useUser } from '@/contexts/UserContext';
 
 import { useToast } from '@/hooks/use-toast';
 import { AdminUploadDialog } from '@/components/dialogs';
-import { CatatanDialog } from '@/components/dialogs/CatatanDialog';
+import CatatanDialog from '@/components/dialogs/CatatanDialog';
 import { YearSelectorPanel, PageHeaderPanel } from '@/components/panels';
 import YearStatisticsPanel from '@/components/dashboard/YearStatisticsPanel';
 
@@ -68,8 +68,6 @@ const MonitoringUploadGCG = () => {
   // Force re-render state untuk memastikan data terupdate
   const [forceUpdate, setForceUpdate] = useState(0);
   
-  // State untuk CatatanDialog
-  const [isCatatanDialogOpen, setIsCatatanDialogOpen] = useState(false);
   
   // State to track actual file existence from Supabase
   const [supabaseFileStatus, setSupabaseFileStatus] = useState<{[key: string]: boolean}>({});
@@ -83,10 +81,16 @@ const MonitoringUploadGCG = () => {
   const [batchProgress, setBatchProgress] = useState<{current: number, total: number} | null>(null);
   // State to track refresh/rescan progress
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  
+  // State for CatatanDialog
+  const [isCatatanDialogOpen, setIsCatatanDialogOpen] = useState(false);
   const [selectedDocumentForCatatan, setSelectedDocumentForCatatan] = useState<{
     catatan?: string;
     title?: string;
     fileName?: string;
+    uploadedBy?: string;
+    uploadDate?: Date;
+    subdirektorat?: string;
   } | null>(null);
   
 
@@ -469,7 +473,7 @@ const MonitoringUploadGCG = () => {
                     year: selectedYear,
                     checklistId: item.id,
                     status: 'uploaded',
-                    catatan: fileStatus.catatan || '' // Catatan from uploaded-files.xlsx
+                    catatan: fileStatus.catatan || ''
                   };
                   batchFileInfo[item.id.toString()] = fileInfoObj;
                   newFileInfo[item.id.toString()] = fileInfoObj; // Keep for final state
@@ -789,27 +793,24 @@ const MonitoringUploadGCG = () => {
     const uploadedDocument = getUploadedDocument(checklistId);
     const checklistItem = checklist.find(item => item.id === checklistId);
     
-    console.log('MonitoringUploadGCG: handleShowCatatan called for checklistId:', checklistId);
-    console.log('MonitoringUploadGCG: uploadedDocument:', uploadedDocument);
-    console.log('MonitoringUploadGCG: catatan value:', uploadedDocument?.catatan);
-    console.log('MonitoringUploadGCG: catatan type:', typeof uploadedDocument?.catatan);
-    console.log('MonitoringUploadGCG: catatan length:', uploadedDocument?.catatan?.length);
-    
-    // Debug: Check localStorage directly
-    const localStorageFiles = JSON.parse(localStorage.getItem('uploadedFiles') || '[]');
-    const localFile = localStorageFiles.find((f: any) => f.checklistId === checklistId);
-    console.log('MonitoringUploadGCG: localStorage file:', localFile);
-    console.log('MonitoringUploadGCG: localStorage catatan:', localFile?.catatan);
-    
     if (uploadedDocument) {
       setSelectedDocumentForCatatan({
-        catatan: uploadedDocument.catatan,
-        title: checklistItem?.deskripsi,
-        fileName: uploadedDocument.fileName
+        catatan: uploadedDocument.catatan || '',
+        title: checklistItem?.deskripsi || 'Dokumen GCG',
+        fileName: uploadedDocument.fileName || 'Unknown File',
+        uploadedBy: uploadedDocument.uploadedBy || 'Unknown',
+        uploadDate: uploadedDocument.uploadDate,
+        subdirektorat: uploadedDocument.subdirektorat || 'Unknown'
       });
       setIsCatatanDialogOpen(true);
+    } else {
+      toast({
+        title: "Dokumen tidak ditemukan",
+        description: "Dokumen belum diupload atau tidak tersedia",
+        variant: "destructive"
+      });
     }
-  }, [getUploadedDocument, checklist]);
+  }, [getUploadedDocument, checklist, toast]);
 
   // Get aspect icon - konsisten dengan dashboard
   const getAspectIcon = useCallback((aspekName: string) => {
@@ -1331,12 +1332,13 @@ const MonitoringUploadGCG = () => {
                                   variant="outline" 
                                   size="sm"
                                   onClick={() => handleShowCatatan(item.id)}
-                                  className="border-blue-200 text-blue-600 hover:bg-blue-50"
+                                  className="border-purple-200 text-purple-600 hover:bg-purple-50"
                                   title="Lihat catatan dokumen"
                                 >
                                   <FileText className="w-4 h-4" />
                                 </Button>
                               )}
+                              
                               <Button 
                                 variant="outline" 
                                 size="sm"
@@ -1421,14 +1423,6 @@ const MonitoringUploadGCG = () => {
         </div>
       </div>
 
-      {/* Catatan Dialog */}
-      <CatatanDialog
-        isOpen={isCatatanDialogOpen}
-        onClose={() => setIsCatatanDialogOpen(false)}
-        catatan={selectedDocumentForCatatan?.catatan}
-        documentTitle={selectedDocumentForCatatan?.title}
-        fileName={selectedDocumentForCatatan?.fileName}
-      />
 
       {/* File Upload Dialog */}
       <AdminUploadDialog
@@ -1483,6 +1477,15 @@ const MonitoringUploadGCG = () => {
             }));
           }, 300);
         }}
+      />
+
+      {/* Catatan Dialog */}
+      <CatatanDialog
+        isOpen={isCatatanDialogOpen}
+        onClose={() => setIsCatatanDialogOpen(false)}
+        catatan={selectedDocumentForCatatan?.catatan}
+        documentTitle={selectedDocumentForCatatan?.title}
+        fileName={selectedDocumentForCatatan?.fileName}
       />
     </div>
   );

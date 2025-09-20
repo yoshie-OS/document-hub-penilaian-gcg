@@ -282,7 +282,6 @@ export interface DocumentAssignment {
   assignedAt: Date;
   dueDate?: Date;
   status: 'assigned' | 'in_progress' | 'completed' | 'overdue';
-  notes?: string;
   completedAt?: Date;
 }
 
@@ -290,13 +289,11 @@ export interface CreateAssignmentRequest {
   documentId: string;
   assignedTo: string;
   dueDate?: Date;
-  notes?: string;
 }
 
 export interface UpdateAssignmentRequest {
   status?: 'assigned' | 'in_progress' | 'completed' | 'overdue';
   dueDate?: Date;
-  notes?: string;
   completedAt?: Date;
 }
 

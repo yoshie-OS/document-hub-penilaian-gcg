@@ -1492,7 +1492,7 @@ def create_uploaded_file():
             'checklistDescription': data.get('checklistDescription'),
             'aspect': data.get('aspect', 'Tidak Diberikan Aspek'),
             'subdirektorat': data.get('subdirektorat'),
-            'catatan': data.get('catatan'),
+            'catatan': catatan,
             'status': 'uploaded',
             'supabaseFilePath': data.get('supabaseFilePath'),
             'uploadedBy': data.get('uploadedBy', 'Unknown User'),
@@ -2812,7 +2812,7 @@ def check_gcg_files():
         from supabase import create_client
         supabase = create_client(supabase_url, supabase_key)
         
-        # Load uploaded files metadata to get catatan information
+        # Load uploaded files metadata
         try:
             files_data = storage_service.read_excel('uploaded-files.xlsx')
             if files_data is None:

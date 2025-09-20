@@ -13,7 +13,7 @@ import { useDocumentMetadata } from '@/contexts/DocumentMetadataContext';
 import { useFileUpload } from '@/contexts/FileUploadContext';
 import { useChecklist } from '@/contexts/ChecklistContext';
 import { useToast } from '@/hooks/use-toast';
-import { CatatanDialog } from '@/components/dialogs';
+import CatatanDialog from '@/components/dialogs/CatatanDialog';
 import {
   Archive,
   Search,
@@ -33,11 +33,6 @@ import {
   RefreshCw
 } from 'lucide-react';
 
-interface CatatanDocumentState {
-  catatan?: string;
-  title?: string;
-  fileName?: string;
-}
 
 const ArsipDokumen = () => {
   const { isSidebarOpen } = useSidebar();
@@ -60,7 +55,14 @@ const ArsipDokumen = () => {
 
   // State for catatan dialog
   const [isCatatanDialogOpen, setIsCatatanDialogOpen] = useState(false);
-  const [selectedDocumentForCatatan, setSelectedDocumentForCatatan] = useState<CatatanDocumentState | null>(null);
+  const [selectedDocumentForCatatan, setSelectedDocumentForCatatan] = useState<{
+    catatan?: string;
+    title?: string;
+    fileName?: string;
+    uploadedBy?: string;
+    uploadDate?: Date;
+    subdirektorat?: string;
+  } | null>(null);
 
   // State to track actual file existence from Supabase
   const [supabaseFileStatus, setSupabaseFileStatus] = useState<{[key: string]: boolean}>({});
@@ -363,13 +365,22 @@ const ArsipDokumen = () => {
     
     if (uploadedDocument) {
       setSelectedDocumentForCatatan({
-        catatan: uploadedDocument.catatan,
-        title: checklistItem?.deskripsi,
-        fileName: uploadedDocument.fileName
+        catatan: uploadedDocument.catatan || '',
+        title: checklistItem?.deskripsi || 'Dokumen GCG',
+        fileName: uploadedDocument.fileName || 'Unknown File',
+        uploadedBy: uploadedDocument.uploadedBy || 'Unknown',
+        uploadDate: uploadedDocument.uploadDate,
+        subdirektorat: uploadedDocument.subdirektorat || 'Unknown'
       });
       setIsCatatanDialogOpen(true);
+    } else {
+      toast({
+        title: "Dokumen tidak ditemukan",
+        description: "Dokumen belum diupload atau tidak tersedia",
+        variant: "destructive"
+      });
     }
-  }, [getUploadedDocument, checklist]);
+  }, [getUploadedDocument, checklist, toast]);
 
   // Handle bulk download of all documents
   const handleBulkDownload = async () => {

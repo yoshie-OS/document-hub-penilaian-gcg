@@ -205,7 +205,7 @@ const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
               checklistItem.deskripsi,
               checklistItem.aspek || 'Tidak Diberikan Aspek',
               checklistItem.pic || user?.subdirektorat || '',
-              formData.notes, // Tambahkan catatan
+              formData.notes, // Catatan dari form
               rowNumber // Add row number for organized file structure
             );
           } else {
@@ -217,7 +217,7 @@ const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
               checklistItem.deskripsi,
               checklistItem.aspek || 'Tidak Diberikan Aspek',
               checklistItem.pic || user?.subdirektorat || '',
-              formData.notes, // Tambahkan catatan
+              formData.notes, // Catatan dari form
               rowNumber // Add row number for organized file structure
             );
           }
