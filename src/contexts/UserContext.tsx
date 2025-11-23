@@ -68,7 +68,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     try {
       setIsLoading(true);
       setError(null);
-      
+
       // Try API login first
       try {
         const userData = await userAPI.login(email, password);
@@ -76,8 +76,8 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
         return true;
       } catch (apiError) {
         console.warn('API login failed, falling back to local data:', apiError);
-        
-        // Check local users first (from PengaturanBaru)
+
+        // Check local users first (from PengaturanBaru or EditSuperAdmin)
         const localUsers = localStorage.getItem('users');
         if (localUsers) {
           try {
@@ -101,38 +101,15 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
             console.warn('Failed to parse local users:', parseError);
           }
         }
-        
-        // Fallback to hardcoded superadmin only
-        const mockUsers = [
-          {
-            id: '1',
-            name: 'Super Admin',
-            email: 'arsippostgcg@gmail.com',
-            password: 'postarsipGCG.',
-            role: 'superadmin' as const,
-            direktorat: 'DIREKTORAT UTAMA',
-            subdirektorat: 'SUB DIREKTORAT UTAMA',
-            divisi: 'DIVISI UTAMA',
-            createdAt: '2024-01-01T00:00:00.000Z',
-            status: 'active' as const
-          }
-        ];
 
-        const mockUser = mockUsers.find(u => u.email === email && u.password === password);
-        if (mockUser) {
-          const { password: _, ...userWithoutPassword } = mockUser;
-          setUser(userWithoutPassword);
-          localStorage.setItem('user', JSON.stringify(userWithoutPassword));
-          localStorage.setItem('authToken', `mock-${userWithoutPassword.id}`);
-      return true;
-    }
-    
+        // No hardcoded fallback - credentials must be valid in API or localStorage
+        // This ensures that changed passwords are always respected
         throw new Error('Invalid credentials');
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Login failed';
       setError(errorMessage);
-    return false;
+      return false;
     } finally {
       setIsLoading(false);
     }

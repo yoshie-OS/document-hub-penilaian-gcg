@@ -24,6 +24,7 @@ import ArsipDokumen from './pages/admin/ArsipDokumen';
 import DashboardAdmin from './pages/admin/DashboardAdmin';
 import PengaturanBaru from './pages/admin/PengaturanBaru';
 import AOIManagement from './pages/admin/AOIManagement';
+import EditSuperAdmin from './pages/admin/EditSuperAdmin';
 import NotFound from './pages/NotFound';
 import { useUser } from './contexts/UserContext';
 
@@ -145,13 +146,21 @@ const AppRoutes = () => {
           </SuperAdminRoute>
         } 
       />
-      <Route 
-        path="/admin/aoi-management" 
+      <Route
+        path="/admin/aoi-management"
         element={
           <SuperAdminRoute>
             <AOIManagement />
           </SuperAdminRoute>
-        } 
+        }
+      />
+      <Route
+        path="/admin/edit-superadmin"
+        element={
+          <SuperAdminRoute>
+            <EditSuperAdmin />
+          </SuperAdminRoute>
+        }
       />
       <Route path="/login" element={<Navigate to="/dashboard" replace />} />
       <Route path="/register" element={<Navigate to="/dashboard" replace />} />

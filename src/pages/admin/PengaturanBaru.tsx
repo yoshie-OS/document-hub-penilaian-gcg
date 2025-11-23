@@ -79,7 +79,8 @@ const AssignmentDropdown = ({
   currentAssignmentLabel,
   assignmentType,
   assignments,
-  selectedYear
+  selectedYear,
+  onAssignmentTypeChange
 }: { 
   item: { id: number; aspek: string; deskripsi: string }; 
   onAssign: (checklistId: number, targetName: string, aspek: string, deskripsi: string) => void;
@@ -88,6 +89,7 @@ const AssignmentDropdown = ({
   assignmentType: 'divisi' | 'subdirektorat';
   assignments: ChecklistAssignment[];
   selectedYear: number | null;
+  onAssignmentTypeChange: (type: 'divisi' | 'subdirektorat') => void;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -235,12 +237,12 @@ const AssignmentDropdown = ({
         size="sm"
           onClick={handleToggleDropdown}
           disabled={isLoading || isLocked}
-          className={`w-64 justify-between disabled:opacity-50 ${
+          className={`w-full h-8 text-sm justify-between disabled:opacity-50 ${
             isLocked 
               ? 'border-red-300 bg-red-50 text-red-700 cursor-not-allowed' 
               : currentAssignmentLabel 
                 ? 'border-blue-300 bg-blue-50 text-blue-700' 
-                : ''
+                : 'border-gray-300 hover:border-blue-400'
           }`}
         >
         <span className="text-left flex-1 mr-2 min-w-0">
@@ -271,7 +273,36 @@ const AssignmentDropdown = ({
       </Button>
       
       {isOpen && (
-        <div className="absolute z-50 mt-1 w-64 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
+        <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-80 overflow-y-auto">
+          {/* Assignment Type Switch */}
+          <div className="sticky top-0 bg-gray-50 border-b border-gray-200 p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-gray-700">Tipe Penugasan:</span>
+              <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                <button
+                  onClick={() => onAssignmentTypeChange('divisi')}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200 ${
+                    assignmentType === 'divisi'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-gray-600 hover:text-gray-800 hover:bg-gray-200'
+                  }`}
+                >
+                  Divisi
+                </button>
+                <button
+                  onClick={() => onAssignmentTypeChange('subdirektorat')}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200 ${
+                    assignmentType === 'subdirektorat'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-gray-600 hover:text-gray-800 hover:bg-gray-200'
+                  }`}
+                >
+                  Subdirektorat
+                </button>
+              </div>
+            </div>
+          </div>
+          
           {/* Search Input */}
           <div className="sticky top-0 bg-white border-b border-gray-200 p-2">
             <div className="relative">
@@ -760,11 +791,31 @@ const PengaturanBaru = () => {
   // Ref untuk item baru yang ditambahkan
   const newItemRef = useRef<HTMLTableRowElement>(null);
   
+  // Pagination state untuk performa optimal
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(50);
+  
+  // Computed values untuk pagination
+  const totalPages = Math.ceil(checklistItems.length / itemsPerPage);
+  const paginatedItems = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return checklistItems.slice(startIndex, endIndex);
+  }, [checklistItems, currentPage, itemsPerPage]);
+  
+  // Reset ke halaman pertama saat itemsPerPage berubah
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [itemsPerPage]);
+  
   // Floating actions visibility
   const [showBackToTop, setShowBackToTop] = useState(false);
   
   // State untuk tracking tab yang aktif
   const [activeTab, setActiveTab] = useState('tahun-buku');
+  
+  // State untuk minimize assignment distribution panel
+  const [isAssignmentPanelMinimized, setIsAssignmentPanelMinimized] = useState(false);
   
   // State untuk copy options dialogs
   const [showCopyOptionsDialog, setShowCopyOptionsDialog] = useState(false);
@@ -844,6 +895,9 @@ const PengaturanBaru = () => {
           const apiUsers = await response.json();
           setUsers(apiUsers);
           console.log('PengaturanBaru: Loaded users from API', apiUsers.length);
+          
+          // Cek dan buat akun superadmin kedua jika diperlukan
+          await ensureSecondSuperAdmin(apiUsers);
         } else {
           console.error('PengaturanBaru: Failed to load users from API');
           // Fallback to localStorage if API fails
@@ -876,6 +930,51 @@ const PengaturanBaru = () => {
 
     loadUsersFromAPI();
   }, []);
+
+  // Fungsi untuk memastikan ada 2 superadmin
+  const ensureSecondSuperAdmin = async (currentUsers: User[]) => {
+    const superAdminCount = currentUsers.filter(user => user.role === 'superadmin').length;
+    
+    if (superAdminCount < 2) {
+      try {
+        // Buat akun superadmin kedua
+        const secondSuperAdmin = {
+          name: 'Super Admin 2',
+          email: 'superadmin2@gcg.com',
+          password: 'superadmin123',
+          role: 'superadmin' as const,
+          direktorat: '',
+          subdirektorat: '',
+          divisi: '',
+          whatsapp: '',
+          tahun: null
+        };
+
+        const response = await fetch('http://localhost:5000/api/users', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(secondSuperAdmin),
+        });
+
+        if (response.ok) {
+          const newUser = await response.json();
+          setUsers(prev => [...prev, newUser]);
+          console.log('PengaturanBaru: Created second superadmin account', newUser);
+          
+          toast({
+            title: "Akun Superadmin Kedua Dibuat",
+            description: "Akun superadmin kedua telah dibuat secara otomatis (superadmin2@gcg.com)",
+          });
+        } else {
+          console.error('Failed to create second superadmin account');
+        }
+      } catch (error) {
+        console.error('Error creating second superadmin account:', error);
+      }
+    }
+  };
 
   // Effect untuk mengupdate progress manajemen akun
   useEffect(() => {
@@ -989,9 +1088,12 @@ const PengaturanBaru = () => {
           const assignment = assignments.find((a: any) =>
             a.checklistId === item.id && a.year === item.tahun
           );
+          
+          // If there's an assignment in database, use it
+          // If no assignment, keep the current pic value (could be empty string for reset)
           return {
             ...item,
-            pic: assignment ? assignment.assignedTo : item.pic || ''
+            pic: assignment ? assignment.assignedTo : (item.pic !== undefined ? item.pic : '')
           };
         });
 
@@ -1045,7 +1147,7 @@ const PengaturanBaru = () => {
           id: item.id,
           aspek: item.aspek || '',
           deskripsi: item.deskripsi || '',
-          pic: item.pic || '', // ✅ Include PIC field from context
+          pic: item.pic !== undefined ? item.pic : '', // ✅ Include PIC field from context (preserve empty string for reset)
           status: 'pending' as const,
           catatan: '',
           tahun: item.tahun || selectedYear,
@@ -1203,12 +1305,7 @@ const PengaturanBaru = () => {
   const [showUserDialog, setShowUserDialog] = useState(false);
       const [editingUser, setEditingUser] = useState<User | null>(null);
     const [showPassword, setShowPassword] = useState(false);
-  const [showSuperAdminDialog, setShowSuperAdminDialog] = useState(false);
-  const [superAdminForm, setSuperAdminForm] = useState({
-    email: 'arsippostgcg@gmail.com',
-    password: 'postarsipGCG.'
-  });
-    
+
     // State untuk editing struktur organisasi
     const [editingDirektorat, setEditingDirektorat] = useState<{ id: number; nama: string; deskripsi: string } | null>(null);
     const [editingSubdirektorat, setEditingSubdirektorat] = useState<{ id: number; nama: string; deskripsi: string; direktoratId: number } | null>(null);
@@ -1805,6 +1902,22 @@ const PengaturanBaru = () => {
       return;
     }
 
+    // Validasi pembatasan maksimum 2 superadmin
+    if (userForm.role === 'superadmin') {
+      const currentSuperAdminCount = users.filter(user => user.role === 'superadmin').length;
+      const isEditingSuperAdmin = editingUser && editingUser.role === 'superadmin';
+      
+      // Jika sedang edit superadmin yang sudah ada, tidak perlu cek limit
+      if (!isEditingSuperAdmin && currentSuperAdminCount >= 2) {
+        toast({
+          title: "Error",
+          description: "Maksimum hanya 2 akun superadmin yang diperbolehkan!",
+          variant: "destructive"
+        });
+        return;
+      }
+    }
+
     try {
       const userData = {
         name: userForm.name,
@@ -1990,64 +2103,6 @@ const PengaturanBaru = () => {
       toast({
         title: "Error",
         description: "Gagal menginisialisasi user data",
-        variant: "destructive"
-      });
-    }
-  };
-
-  // Handler untuk update super admin credentials
-  const handleSuperAdminSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    try {
-      // Find super admin user
-      const superAdminUser = users?.find(user => user.role === 'superadmin');
-      if (!superAdminUser) {
-        throw new Error('Super admin user not found');
-      }
-
-      // Update via database API instead of localStorage
-      const response = await fetch(`http://localhost:5000/api/users/${superAdminUser.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: superAdminForm.email,
-          password: superAdminForm.password
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const updatedUser = await response.json();
-
-      // Update local state
-      const updatedUsers = users?.map(user => 
-        user.id === superAdminUser.id ? { 
-          ...user, 
-          email: superAdminForm.email, 
-          password: superAdminForm.password 
-        } : user
-      ) || [];
-      
-      setUsers(updatedUsers);
-      
-      setShowSuperAdminDialog(false);
-      
-      toast({
-        title: "Berhasil!",
-        description: "Kredensial Super Admin berhasil diperbarui ke database",
-      });
-
-      console.log('Super admin updated via API:', updatedUser);
-    } catch (error) {
-      console.error('Error updating super admin:', error);
-      toast({
-        title: "Error",
-        description: "Gagal memperbarui kredensial Super Admin ke database",
         variant: "destructive"
       });
     }
@@ -2250,12 +2305,20 @@ const PengaturanBaru = () => {
       item.id === checklistId ? { ...item, pic: targetName } : item
     ));
 
+    // If resetting (empty string), also remove from assignments state to prevent reload from database
+    if (targetName === '') {
+      setAssignments(prev => prev.filter(assignment => 
+        !(assignment.checklistId === checklistId && assignment.year === selectedYear)
+      ));
+    }
+
     // Track the change for blue checkmark visibility
     trackItemChange(checklistId);
 
+    const assignmentText = targetName === '' ? 'Tidak ada PIC (Reset)' : targetName;
     toast({
       title: "PIC Assignment Changed",
-      description: `Assignment changed to ${targetName}. Click blue checkmark to save permanently.`,
+      description: `Assignment changed to ${assignmentText}. Click blue checkmark to save permanently.`,
     });
   };
 
@@ -3545,14 +3608,28 @@ const PengaturanBaru = () => {
                  </CardHeader>
                  <CardContent className="space-y-6">
                    {/* Quick Actions */}
-                   <div className="flex flex-wrap gap-3">
+                   <div className="flex flex-wrap gap-3 items-center">
                      <Button 
                        onClick={() => setShowUserDialog(true)}
                        className="bg-blue-600 hover:bg-blue-700"
+                       disabled={users.filter(u => u.role === 'superadmin').length >= 2 && userForm.role === 'superadmin'}
                      >
                        <Plus className="w-4 h-4 mr-2" />
                        Tambah PIC Baru
                      </Button>
+                     
+                     {/* Superadmin Count Indicator */}
+                     <div className="flex items-center space-x-2 px-3 py-2 bg-orange-50 border border-orange-200 rounded-lg">
+                       <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                       <span className="text-sm text-orange-700">
+                         Superadmin: {users.filter(u => u.role === 'superadmin').length}/2
+                       </span>
+                       {users.filter(u => u.role === 'superadmin').length >= 2 && (
+                         <span className="text-xs text-orange-600 font-medium">
+                           (Maksimum tercapai)
+                         </span>
+                       )}
+                     </div>
                      <Button 
                        onClick={handleUseDefaultUsers}
                        variant="outline"
@@ -3561,15 +3638,7 @@ const PengaturanBaru = () => {
                        <Copy className="w-4 h-4 mr-2" />
                        Gunakan Data Default
                      </Button>
-                     <Button 
-                       onClick={() => setShowSuperAdminDialog(true)}
-                       variant="outline"
-                       className="border-orange-600 text-orange-600 hover:bg-orange-50"
-                     >
-                       <Settings className="w-4 h-4 mr-2" />
-                       Edit Super Admin
-                     </Button>
-                   </div>
+                    </div>
 
                    {/* Data Overview */}
                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -3671,17 +3740,18 @@ const PengaturanBaru = () => {
 
                          {/* Kelola Dokumen Tab */}
              <TabsContent value="kelola-dokumen">
-               <Card className="border-0 shadow-xl bg-white/95 backdrop-blur-sm">
-                 <CardHeader className="pb-4">
-                   <div className="flex items-center space-x-3 mb-4">
-                     <div className="p-3 bg-gradient-to-r from-blue-100 to-indigo-100 rounded-xl shadow-sm">
-                       <FileText className="w-7 h-7 text-blue-600" />
+               <div className="space-y-6">
+                 {/* Header */}
+                 <div className="mb-6 p-6 bg-gradient-to-r from-blue-50 via-blue-25 to-indigo-50 border border-blue-200 rounded-xl shadow-sm">
+                   <div className="flex items-center space-x-3 mb-3">
+                     <div className="p-2 bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg shadow-sm">
+                       <FileText className="w-6 h-6 text-white" />
                      </div>
                      <div>
-                       <CardTitle className="text-2xl font-bold text-blue-900">Setup Kelola Dokumen GCG</CardTitle>
-                       <CardDescription className="text-base text-blue-700">
+                       <h2 className="text-xl font-bold text-blue-900">Setup Kelola Dokumen GCG</h2>
+                       <p className="text-blue-700 text-sm">
                          Setup dokumen GCG dan aspek untuk tahun buku baru dengan tabel inline editing
-                       </CardDescription>
+                       </p>
                      </div>
                    </div>
                    
@@ -3717,7 +3787,10 @@ const PengaturanBaru = () => {
                        </span>
                      </div>
                    )}
-                 </CardHeader>
+                 </div>
+
+                 {/* Main Content Card */}
+                 <Card className="border-0 shadow-xl bg-white/95 backdrop-blur-sm">
                  <CardContent className="space-y-6">
                                                            {/* Quick Actions */}
                      <div className="flex flex-wrap gap-3 items-center justify-between">
@@ -3778,6 +3851,7 @@ const PengaturanBaru = () => {
                          <Plus className="w-4 h-4 mr-2" />
                          Tambah Item Baru
                        </Button>
+                         
                                                <Button 
                           onClick={() => setShowAspekManagementPanel(true)}
                           className="bg-blue-600 hover:bg-blue-700"
@@ -3785,6 +3859,7 @@ const PengaturanBaru = () => {
                           <Settings className="w-4 h-4 mr-2" />
                           Kelola Aspek
                         </Button>
+                         
                        {!showDefaultDataButton ? (
                          <Button 
                            onClick={() => setShowDefaultDataButton(true)}
@@ -3795,7 +3870,6 @@ const PengaturanBaru = () => {
                            Tampilkan Data Default
                          </Button>
                        ) : (
-                         <div className="flex gap-2">
                          <Button 
                            onClick={handleUseDefaultChecklist}
                            variant="outline"
@@ -3804,168 +3878,201 @@ const PengaturanBaru = () => {
                            <Copy className="w-4 h-4 mr-2" />
                              Gunakan Data Default (285 Items)
                          </Button>
-                         </div>
                        )}
-
-
                        </div>
                      </div>
 
-                   {/* Data Overview */}
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                     <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                   {/* Assignment Distribution Panel - Collapsible */}
+                   <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg mb-4">
+                     <div 
+                       className="flex items-center justify-between p-4 cursor-pointer hover:bg-blue-100 transition-colors"
+                       onClick={() => setIsAssignmentPanelMinimized(!isAssignmentPanelMinimized)}
+                     >
+                       <div className="flex items-center space-x-8">
+                         <div className="text-center">
                        <div className="text-2xl font-bold text-blue-600">{checklistItems && checklistItems.length || 0}</div>
                        <div className="text-sm text-blue-600">Total Item</div>
                      </div>
-                     
-                     {/* Assignment Overview */}
-                     <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                       <div className="text-2xl font-bold text-blue-600">
+                         <div className="text-center">
+                           <div className="text-2xl font-bold text-orange-600">
                          {(() => {
                            const yearAssignments = assignments?.filter(a => a.tahun === selectedYear) || [];
-                           // Filter assignments berdasarkan assignment type
                            const validAssignments = yearAssignments.filter(a => {
                              if (assignmentType === 'divisi') {
-                               return a.divisi && 
-                                      a.divisi.trim() !== '' && 
-                                      a.divisi !== 'undefined' && 
-                                      a.divisi !== 'null';
+                                   return a.divisi && a.divisi.trim() !== '' && a.divisi !== 'undefined' && a.divisi !== 'null';
                              } else {
-                               return a.subdirektorat && 
-                                      a.subdirektorat.trim() !== '' && 
-                                      a.subdirektorat !== 'undefined' && 
-                                      a.subdirektorat !== 'null';
+                                   return a.subdirektorat && a.subdirektorat.trim() !== '' && a.subdirektorat !== 'undefined' && a.subdirektorat !== 'null';
                              }
                            });
-                           
                            const uniqueTargets = [...new Set(validAssignments.map(a => {
                              return assignmentType === 'divisi' ? a.divisi.trim() : a.subdirektorat.trim();
                            }))];
                            return uniqueTargets.length;
                          })()}
                        </div>
-                       <div className="text-sm text-blue-600">
-                         {assignmentType === 'divisi' ? 'Divisi Aktif' : 'Subdirektorat Aktif'}
+                           <div className="text-sm text-orange-600">{assignmentType === 'divisi' ? 'Divisi Aktif' : 'Subdirektorat Aktif'}</div>
                        </div>
+                       </div>
+                       <div className="flex items-center space-x-2">
+                         <span className="text-sm font-medium text-blue-700">Distribusi Penugasan</span>
+                         <svg 
+                           className={`w-5 h-5 transition-transform ${isAssignmentPanelMinimized ? 'rotate-180' : ''}`} 
+                           fill="none" 
+                           stroke="currentColor" 
+                           viewBox="0 0 24 24"
+                         >
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                         </svg>
                      </div>
                    </div>
 
-                   {/* Assignment Breakdown */}
+                     {/* Expandable Assignment Distribution */}
+                     {!isAssignmentPanelMinimized && (
+                       <div className="border-t border-blue-200 p-4 bg-white">
                    {(() => {
                      const yearAssignments = assignments?.filter(a => a.tahun === selectedYear) || [];
-                     
-                     // Jika tidak ada assignments untuk tahun ini, jangan tampilkan breakdown
-                     if (yearAssignments.length === 0) {
-                       return null;
-                     }
-                     
-                     // Filter hanya assignments dengan target valid berdasarkan assignment type
-                     const validAssignments = yearAssignments.filter(a => {
-                       if (assignmentType === 'divisi') {
-                         return a.divisi && 
-                                a.divisi.trim() !== '' && 
-                                a.divisi !== 'undefined' && 
-                                a.divisi !== 'null';
-                       } else {
-                         return a.subdirektorat && 
-                                a.subdirektorat.trim() !== '' && 
-                                a.subdirektorat !== 'undefined' && 
-                                a.subdirektorat !== 'null';
-                       }
-                     });
-                     
-                     // Jika tidak ada valid assignments, jangan tampilkan breakdown
-                     if (validAssignments.length === 0) {
-                       return null;
-                     }
-                     
-                     const targetCounts = validAssignments.reduce((acc, assignment) => {
+                           const targetCounts = yearAssignments.reduce((acc, assignment) => {
                        const target = assignmentType === 'divisi' 
                          ? assignment.divisi?.trim() 
                          : assignment.subdirektorat?.trim();
-                       if (target) {
+                             if (target && target !== 'undefined' && target !== 'null') {
                          acc[target] = (acc[target] || 0) + 1;
                        }
                        return acc;
                      }, {} as Record<string, number>);
                      
                      const sortedTargets = Object.entries(targetCounts)
-                       .filter(([target]) => target && target.trim() !== '') // Extra safety filter
+                             .filter(([target]) => target && target.trim() !== '')
                        .sort(([,a], [,b]) => b - a);
                      
-                     return sortedTargets.length > 0 ? (
-                       <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                         <h4 className="font-semibold text-blue-800 mb-3">
-                           Breakdown Penugasan {assignmentType === 'divisi' ? 'Divisi' : 'Subdirektorat'}
+                           const unassignedCount = checklistItems.length - yearAssignments.length;
+                           
+                           return (
+                             <div className="space-y-4">
+                               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                 <div className="space-y-2">
+                                   <h4 className="font-semibold text-gray-800 text-sm flex items-center">
+                                     <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
+                                     Total Penugasan
                          </h4>
-                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                                   <div className="text-2xl font-bold text-blue-600">{yearAssignments.length}</div>
+                                   <div className="text-xs text-gray-600">
+                                     {checklistItems.length > 0 ? Math.round((yearAssignments.length / checklistItems.length) * 100) : 0}% dari total item
+                                   </div>
+                                 </div>
+                                 
+                                 <div className="space-y-2">
+                                   <h4 className="font-semibold text-gray-800 text-sm flex items-center">
+                                     <div className="w-2 h-2 bg-red-500 rounded-full mr-2"></div>
+                                     Belum Ditugaskan
+                                   </h4>
+                                   <div className="text-2xl font-bold text-red-600">{unassignedCount}</div>
+                                   <div className="text-xs text-gray-600">
+                                     {checklistItems.length > 0 ? Math.round((unassignedCount / checklistItems.length) * 100) : 0}% dari total item
+                                   </div>
+                                 </div>
+                                 
+                                 <div className="space-y-2">
+                                   <h4 className="font-semibold text-gray-800 text-sm flex items-center">
+                                     <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                                     {assignmentType === 'divisi' ? 'Divisi' : 'Subdirektorat'} Aktif
+                                   </h4>
+                                   <div className="text-2xl font-bold text-green-600">{sortedTargets.length}</div>
+                                   <div className="text-xs text-gray-600">
+                                     {assignmentType === 'divisi' ? 'Divisi' : 'Subdirektorat'} yang memiliki penugasan
+                                   </div>
+                                 </div>
+                               </div>
+                               
+                               {sortedTargets.length > 0 && (
+                                 <div className="space-y-3">
+                                   <h4 className="font-semibold text-gray-800 text-sm">
+                                     Detail Penugasan per {assignmentType === 'divisi' ? 'Divisi' : 'Subdirektorat'}
+                                   </h4>
+                                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 max-h-48 overflow-y-auto">
                            {sortedTargets.map(([target, count]) => (
-                             <div key={target} className="flex items-center justify-between p-2 bg-white rounded border border-blue-200">
-                               <span className="text-sm font-medium text-blue-700 text-left flex-1 mr-2" title={target}>
+                                       <div key={target} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                                         <div className="flex-1 min-w-0">
+                                           <div className="text-sm font-medium text-gray-800 truncate" title={target}>
                                  {target}
-                               </span>
-                               <Badge variant="secondary" className="bg-blue-100 text-blue-700 text-xs flex-shrink-0">
-                                 {count} tugas
-                               </Badge>
+                                           </div>
+                                           <div className="text-xs text-gray-500">
+                                             {count} {count === 1 ? 'tugas' : 'tugas'}
+                                           </div>
+                                         </div>
+                                         <div className="ml-2">
+                                           <div className="w-8 h-8 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-sm font-bold">
+                                             {count}
+                                           </div>
+                                         </div>
                              </div>
                            ))}
                          </div>
                        </div>
-                     ) : null;
+                               )}
+                               
+                               {sortedTargets.length === 0 && (
+                                 <div className="text-center py-8 text-gray-500">
+                                   <div className="text-4xl mb-2">📋</div>
+                                   <div className="text-sm">Belum ada penugasan untuk tahun {selectedYear}</div>
+                                 </div>
+                               )}
+                             </div>
+                           );
                    })()}
+                       </div>
+                     )}
+                   </div>
+
 
 
 
                                                            {/* Checklist Items Table with Enhanced Design */}
                     <div ref={checklistTableRef}>
-                      <div className="flex items-center justify-between mb-4">
+                       <div className="mb-4">
                         <h3 className="text-lg font-semibold text-gray-900">Dokumen GCG Checklist</h3>
-                        <div className="flex items-center space-x-3">
-                          <label className="text-sm font-medium text-gray-700">Tipe Penugasan:</label>
-                          <Select value={assignmentType} onValueChange={setAssignmentType}>
-                            <SelectTrigger className="w-48 border-blue-200 focus:border-blue-500 focus:ring-blue-500">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="divisi">Divisi</SelectItem>
-                              <SelectItem value="subdirektorat">Subdirektorat</SelectItem>
-                            </SelectContent>
-                          </Select>
+                         <p className="text-sm text-gray-600 mt-1">
+                           Pilih tipe penugasan langsung di dropdown "Tugaskan Ke" untuk setiap item
+                         </p>
                         </div>
-                      </div>
-                      <div className="overflow-hidden rounded-lg border border-blue-100 shadow-lg">
+                      <div className="overflow-hidden rounded-lg border border-gray-200 shadow-sm">
+                        <div className="overflow-x-auto">
                         <Table>
                           <TableHeader>
-                            <TableRow className="bg-gray-50">
-                              <TableHead className="text-gray-700 font-medium w-20 text-center">No</TableHead>
-                              <TableHead className="text-gray-700 font-medium w-64 text-center">Aspek (Opsional)</TableHead>
-                              <TableHead className="text-gray-700 font-medium w-80 text-center">Deskripsi</TableHead>
-                              <TableHead className="text-gray-700 font-medium w-64 text-center">Tugaskan Ke</TableHead>
-                              <TableHead className="text-gray-700 font-medium w-40 text-center">Aksi</TableHead>
+                              <TableRow className="bg-gray-50 border-b border-gray-200">
+                                <TableHead className="text-gray-700 font-semibold w-16 text-center px-3 py-3">No</TableHead>
+                                <TableHead className="text-gray-700 font-semibold w-48 text-left px-3 py-3">Aspek</TableHead>
+                                <TableHead className="text-gray-700 font-semibold w-96 text-left px-3 py-3">Deskripsi</TableHead>
+                                <TableHead className="text-gray-700 font-semibold w-72 text-left px-3 py-3">Tugaskan Ke</TableHead>
+                                <TableHead className="text-gray-700 font-semibold w-32 text-center px-3 py-3">Aksi</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {checklistItems && checklistItems.length > 0 ? checklistItems.map((item, index) => (
+                              {paginatedItems && paginatedItems.length > 0 ? paginatedItems.map((item, index) => {
+                                const globalIndex = (currentPage - 1) * itemsPerPage + index;
+                                return (
                               <TableRow 
                                 key={item.id} 
                                 ref={newItems.has(item.id) ? newItemRef : null}
-                                className={`transition-all duration-200 border-b border-gray-100 ${
+                                  className={`border-b border-gray-100 ${
                                   newItems.has(item.id) 
-                                    ? 'bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200 shadow-md' 
-                                    : 'hover:bg-gradient-to-r hover:from-blue-50 hover:to-blue-100'
-                                }`}
-                              >
-                                <TableCell className="font-bold text-gray-700 text-center bg-gray-50">
-                                  <div className="flex items-center justify-center gap-2">
-                                    {item.rowNumber || (index + 1)}
+                                      ? 'bg-blue-50 border-blue-200' 
+                                      : 'hover:bg-gray-50'
+                                  }`}
+                                >
+                                <TableCell className="text-center px-3 py-2">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <span className="text-sm font-medium text-gray-600">
+                                      {item.rowNumber || (globalIndex + 1)}
+                                    </span>
                                     {newItems.has(item.id) && (
-                                      <Badge variant="secondary" className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5">
+                                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
                                         NEW
-                                      </Badge>
+                                      </span>
                                     )}
                                   </div>
                                 </TableCell>
-                                <TableCell>
+                                <TableCell className="px-3 py-2">
                                   <Select
                                     value={item.aspek || 'none'}
                                     onValueChange={(value) => {
@@ -3976,8 +4083,8 @@ const PengaturanBaru = () => {
                                       trackItemChange(item.id);
                                     }}
                                   >
-                                    <SelectTrigger className="w-44 border-2 border-gray-200 hover:border-blue-400 focus:border-blue-500 transition-colors">
-                                      <SelectValue placeholder="Pilih Aspek (Opsional)" />
+                                    <SelectTrigger className="w-full h-8 text-sm border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                                      <SelectValue placeholder="Pilih Aspek" />
                                     </SelectTrigger>
                                     <SelectContent>
                                       <SelectItem value="none">Tidak Ada Aspek</SelectItem>
@@ -3989,11 +4096,11 @@ const PengaturanBaru = () => {
                                     </SelectContent>
                                   </Select>
                                 </TableCell>
-                                <TableCell>
+                                <TableCell className="px-3 py-2">
                                   <Textarea
                                     value={item.deskripsi || ''}
                                     placeholder="Masukkan deskripsi dokumen GCG..."
-                                    className="min-h-[80px] resize-none border-2 border-gray-200 hover:border-blue-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors rounded-md"
+                                    className="w-full min-h-[60px] text-sm resize-none border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                                     onChange={(e) => {
                                       const newValue = e.target.value;
                                       setChecklistItems(prev => prev.map(i => 
@@ -4009,7 +4116,7 @@ const PengaturanBaru = () => {
                                     }}
                                   />
                                 </TableCell>
-                                <TableCell>
+                                <TableCell className="px-3 py-2">
                                   <AssignmentDropdown 
                                     item={item}
                                     onAssign={handleAssignment}
@@ -4018,50 +4125,46 @@ const PengaturanBaru = () => {
                                     assignments={assignments}
                                     selectedYear={selectedYear}
                                     currentAssignmentLabel={item.pic || null}
+                                    onAssignmentTypeChange={setAssignmentType}
                                   />
                                 </TableCell>
-                                <TableCell>
-                                  <div className="flex gap-2">
+                                <TableCell className="px-3 py-2">
+                                  <div className="flex items-center justify-center gap-1">
                                     {/* Save Button - Only show when item has changes */}
                                     {hasItemChanges(item.id) && (
-                                      <Button
-                                        variant="ghost"
-                                        size="default"
+                                      <button
                                         onClick={() => handleSaveItem(item.id)}
-                                        className="text-blue-600 hover:text-blue-700"
+                                        className="p-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors"
                                         title="Simpan perubahan"
                                       >
-                                        <CheckCircle className="w-6 h-6" />
-                                      </Button>
+                                        <CheckCircle className="w-4 h-4" />
+                                      </button>
                                     )}
                                     
                                     {/* Cancel Button - Only show when item has changes */}
                                     {hasItemChanges(item.id) && (
-                                      <Button
-                                        variant="ghost"
-                                        size="default"
+                                      <button
                                         onClick={() => handleCancelItemChanges(item.id)}
-                                        className="text-orange-600 hover:text-orange-700"
+                                        className="p-1.5 text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded transition-colors"
                                         title="Batal perubahan"
                                       >
-                                        <X className="w-6 h-6" />
-                                      </Button>
+                                        <X className="w-4 h-4" />
+                                      </button>
                                     )}
                                     
                                     {/* Delete Button */}
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
+                                    <button
                                       onClick={() => handleDeleteChecklist(item.id)}
-                                      className="text-red-600 hover:text-red-700"
+                                      className="p-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
                                       title="Hapus item"
                                     >
                                       <Trash2 className="w-4 h-4" />
-                                    </Button>
+                                    </button>
                                   </div>
                                 </TableCell>
                               </TableRow>
-                            )) : (
+                                );
+                              }) : (
                               <TableRow>
                                 <TableCell colSpan={5} className="text-center text-gray-500 py-8">
                                   Belum ada data checklist untuk tahun {selectedYear}
@@ -4070,10 +4173,72 @@ const PengaturanBaru = () => {
                             )}
                           </TableBody>
                         </Table>
+                        </div>
+                        
+                        {/* Pagination Controls - Optimal untuk 200+ items */}
+                        {checklistItems.length > itemsPerPage && (
+                          <div className="bg-gray-50 border-t border-gray-200 px-4 py-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center space-x-4">
+                                <span className="text-sm text-gray-700">
+                                  Menampilkan {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, checklistItems.length)} dari {checklistItems.length} item
+                                </span>
+                                <div className="flex items-center space-x-2">
+                                  <label className="text-sm text-gray-700">Per halaman:</label>
+                                  <Select value={itemsPerPage.toString()} onValueChange={(value) => setItemsPerPage(Number(value))}>
+                                    <SelectTrigger className="w-20 h-8">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="25">25</SelectItem>
+                                      <SelectItem value="50">50</SelectItem>
+                                      <SelectItem value="100">100</SelectItem>
+                                      <SelectItem value="200">200</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                              <div className="flex items-center space-x-1">
+                                <button
+                                  onClick={() => setCurrentPage(1)}
+                                  disabled={currentPage === 1}
+                                  className="px-2 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  First
+                                </button>
+                                <button
+                                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                  disabled={currentPage === 1}
+                                  className="px-2 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  Prev
+                                </button>
+                                <span className="px-3 py-1 text-sm text-gray-700">
+                                  {currentPage} / {totalPages}
+                                </span>
+                                <button
+                                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                  disabled={currentPage === totalPages}
+                                  className="px-2 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  Next
+                                </button>
+                                <button
+                                  onClick={() => setCurrentPage(totalPages)}
+                                  disabled={currentPage === totalPages}
+                                  className="px-2 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  Last
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                  </CardContent>
                </Card>
+             </div>
                            </TabsContent>
             </Tabs>
 
@@ -4738,71 +4903,7 @@ const PengaturanBaru = () => {
               </div>
             )}
 
-            {/* Dialog Super Admin Edit */}
-            {showSuperAdminDialog && (
-              <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-                <div className="bg-white rounded-lg p-6 w-full max-w-md border border-orange-200 shadow-xl">
-                  <h3 className="text-lg font-semibold text-orange-900 mb-4 flex items-center">
-                    <Settings className="w-5 h-5 mr-2" />
-                    Edit Kredensial Super Admin
-                  </h3>
-                  <form onSubmit={handleSuperAdminSubmit} className="space-y-4">
-                    <div>
-                      <Label htmlFor="superadmin-email" className="text-sm font-medium text-orange-700">
-                        Email Super Admin
-                      </Label>
-                      <Input
-                        id="superadmin-email"
-                        type="email"
-                        value={superAdminForm.email}
-                        onChange={(e) => setSuperAdminForm(prev => ({ ...prev, email: e.target.value }))}
-                        className="border-orange-200 focus:border-orange-500"
-                        placeholder="Email super admin"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="superadmin-password" className="text-sm font-medium text-orange-700">
-                        Password Super Admin
-                      </Label>
-                      <Input
-                        id="superadmin-password"
-                        type="password"
-                        value={superAdminForm.password}
-                        onChange={(e) => setSuperAdminForm(prev => ({ ...prev, password: e.target.value }))}
-                        className="border-orange-200 focus:border-orange-500"
-                        placeholder="Password super admin"
-                        required
-                      />
-                    </div>
-                    <div className="flex space-x-3 pt-4">
-                      <Button 
-                        type="submit"
-                        className="flex-1 bg-orange-600 hover:bg-orange-700"
-                      >
-                        Simpan Perubahan
-                      </Button>
-                      <Button 
-                        type="button" 
-                        variant="outline" 
-                        onClick={() => {
-                          setShowSuperAdminDialog(false);
-                          setSuperAdminForm({
-                            email: 'arsippostgcg@gmail.com',
-                            password: 'postarsipGCG.'
-                          });
-                        }}
-                        className="flex-1 border-orange-600 text-orange-600 hover:bg-orange-50"
-                      >
-                        Batal
-                      </Button>
-                    </div>
-                  </form>
-                </div>
-              </div>
-            )}
-
-                           {/* Panel Manajemen Aspek */}
+            {/* Panel Manajemen Aspek */}
               {showAspekManagementPanel && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
                   <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">

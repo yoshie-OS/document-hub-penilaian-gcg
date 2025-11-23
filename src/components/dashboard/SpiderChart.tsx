@@ -114,7 +114,17 @@ const SpiderChart: React.FC<SpiderChartProps> = ({ className }) => {
   const normalizeAspek = (s: string) => s.replace(/\s+/g, ' ').trim();
 
   const chartData = useMemo(() => {
-    if (!selectedYear) return null;
+    console.log('🔍 SpiderChart: Computing chart data...', {
+      selectedYear,
+      checklistLength: checklist.length,
+      currentYearAspectsLength: currentYearAspects.length,
+      documentsLength: documents.length
+    });
+
+    if (!selectedYear) {
+      console.log('❌ SpiderChart: No selected year');
+      return null;
+    }
 
     const yearDocuments = getDocumentsByYear(selectedYear);
     const yearChecklist = checklist.filter(item => item.tahun === selectedYear);
@@ -123,6 +133,24 @@ const SpiderChart: React.FC<SpiderChartProps> = ({ className }) => {
 
     // Use the loaded aspects for the selected year
     const yearAspects = currentYearAspects;
+
+    console.log('🔍 SpiderChart: Data summary', {
+      yearDocumentsLength: yearDocuments.length,
+      yearChecklistLength: yearChecklist.length,
+      assignmentsLength: assignments.length,
+      yearAssignmentsLength: yearAssignments.length,
+      yearAspectsLength: yearAspects.length
+    });
+
+    if (yearAspects.length === 0) {
+      console.log('❌ SpiderChart: No aspects found for year', selectedYear);
+      return null;
+    }
+
+    console.log('🔍 SpiderChart: Processing aspects', {
+      aspectsCount: yearAspects.length,
+      aspects: yearAspects.map(a => a.nama)
+    });
     
     // Map aspects to chart data with icons and colors
     const aspects = yearAspects.map((aspek, index) => {
@@ -148,6 +176,12 @@ const SpiderChart: React.FC<SpiderChartProps> = ({ className }) => {
       const aspectAssignments = yearAssignments.filter(assignment => 
         normalizeAspek(assignment.aspek) === normalizeAspek(aspect.name)
       );
+
+      console.log(`🔍 SpiderChart: Processing aspect "${aspect.name}"`, {
+        checklistItems: aspectChecklistItems.length,
+        assignments: aspectAssignments.length,
+        assignmentTypes: aspectAssignments.map(a => a.assignmentType)
+      });
 
       // Calculate total available checklist items for this aspect (Y - total items sesungguhnya)
       const totalAvailableItems = aspectChecklistItems.length;
@@ -187,10 +221,10 @@ const SpiderChart: React.FC<SpiderChartProps> = ({ className }) => {
         assignmentIds.includes(doc.checklistId)
       );
 
-      // Calculate statistics
-      const totalAssigned = filteredAssignments.length;
-      const completedCount = aspectDocs.length;
-      const progress = totalAssigned > 0 ? (completedCount / totalAssigned) * 100 : 0;
+       // Calculate statistics
+       const totalAssigned = aspectAssignments.length;
+       const completedCount = aspectDocs.length;
+       const progress = totalAssigned > 0 ? (completedCount / totalAssigned) * 100 : 0;
 
       // Get unique sub-direktorats assigned to this aspect
       const assignedSubDirektorats = [...new Set(
@@ -214,7 +248,37 @@ const SpiderChart: React.FC<SpiderChartProps> = ({ className }) => {
     return data;
   }, [selectedYear, documents, checklist, getDocumentsByYear, selectedSubDirektorat, currentYearAspects, subdirektorat]);
 
-  if (!chartData) return null;
+  if (!chartData) {
+    console.log('❌ SpiderChart: No chart data available');
+    return (
+      <Card className={className}>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <PieChart className="w-6 h-6 text-blue-600" />
+            <span>Performance Radar - Distribusi Penugasan</span>
+          </CardTitle>
+          <CardDescription>
+            Visualisasi distribusi penugasan per aspek berdasarkan total item (Y) dan persentase penyebaran ke sub-direktorat
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center h-64 bg-gray-50 rounded-lg">
+            <div className="text-center">
+              <PieChart className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-500 text-sm">
+                {!selectedYear 
+                  ? "Pilih tahun untuk melihat Performance Radar" 
+                  : currentYearAspects.length === 0 
+                    ? "Belum ada aspek untuk tahun ini" 
+                    : "Tidak ada data penugasan untuk ditampilkan"
+                }
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   // Calculate max percentage for scaling the radar chart
   const maxPercentage = Math.max(...chartData.map(d => 
@@ -325,6 +389,13 @@ const SpiderChart: React.FC<SpiderChartProps> = ({ className }) => {
   const assignmentStats = getAssignmentStats();
 
   const subOptions = [...new Set((subdirektorat || []).map(s => s.nama).filter(Boolean))] as string[];
+  
+  console.log('🔍 SpiderChart: Subdirektorat data', {
+    subdirektoratLength: subdirektorat?.length || 0,
+    subOptionsLength: subOptions.length,
+    subOptions: subOptions,
+    selectedSubDirektorat
+  });
 
   return (
     <Card className={`border-0 shadow-xl bg-white/80 backdrop-blur-sm ${className}`}>
@@ -338,14 +409,29 @@ const SpiderChart: React.FC<SpiderChartProps> = ({ className }) => {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {/* Assignment Summary: pindah ke kiri agar konsisten dengan Progres Pengerjaan */}
-        <div className="mb-4 flex items-center justify-start">
-          <div className="px-4 py-2 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 font-semibold text-sm shadow-sm">
-            {selectedSubDirektorat
-              ? selectedSubDirektorat
-              : 'Tidak ada sub-direktorat aktif'}
-          </div>
-        </div>
+         {/* Assignment Summary: pindah ke kiri agar konsisten dengan Progres Pengerjaan */}
+         <div className="mb-4 flex items-center justify-start">
+           <div className="px-4 py-2 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 font-semibold text-sm shadow-sm">
+             {selectedSubDirektorat ? (
+               <>
+                 <Building2 className="w-4 h-4 inline mr-2" />
+                 {selectedSubDirektorat}: {assignmentStats?.completedCount || 0} dari {assignmentStats?.totalAssigned || 0} penugasan selesai
+                 <span className="ml-2 text-xs bg-blue-100 px-2 py-1 rounded-full">
+                   {assignmentStats?.progress?.toFixed(1) || 0}% progress
+                 </span>
+               </>
+             ) : (
+               <>
+                 <Target className="w-4 h-4 inline mr-2" />
+                 Total: {chartData.reduce((sum, d) => sum + d.uploaded, 0)} dari {chartData.reduce((sum, d) => sum + d.checklist, 0)} penugasan selesai
+                 <span className="ml-2 text-xs bg-blue-100 px-2 py-1 rounded-full">
+                   {chartData.reduce((sum, d) => sum + d.checklist, 0) > 0 ? 
+                     ((chartData.reduce((sum, d) => sum + d.uploaded, 0) / chartData.reduce((sum, d) => sum + d.checklist, 0)) * 100).toFixed(1) : 0}% progress
+                 </span>
+               </>
+             )}
+           </div>
+         </div>
 
         {/* Radar Chart */}
         <div className="flex items-center justify-center mb-6">
@@ -529,15 +615,15 @@ const SpiderChart: React.FC<SpiderChartProps> = ({ className }) => {
                   </div>
                 )}
                 
-                {/* Show unassigned items if any */}
-                {aspect.totalAssignments > 0 && (
-                  <div className="mt-2 pt-2 border-t border-gray-200">
-                    <div className="flex items-center justify-between text-xs text-gray-500">
-                      <span>Belum dibagikan:</span>
-                      <span>{aspect.totalAssignments - aspect.subDirektoratDistribution.reduce((sum, sd) => sum + sd.count, 0)} item</span>
-                    </div>
-                  </div>
-                )}
+                 {/* Show unassigned items if any */}
+                 {aspect.checklist > 0 && (
+                   <div className="mt-2 pt-2 border-t border-gray-200">
+                     <div className="flex items-center justify-between text-xs text-gray-500">
+                       <span>Belum dibagikan:</span>
+                       <span>{aspect.checklist - aspect.subDirektoratDistribution.reduce((sum, sd) => sum + sd.count, 0)} item</span>
+                     </div>
+                   </div>
+                 )}
               </div>
             ))}
           </div>

@@ -9,8 +9,7 @@ import {
   Upload,
   Download,
   FileText,
-  Archive,
-  MessageSquare
+  Archive
 } from 'lucide-react';
 import { useFileUpload } from '@/contexts/FileUploadContext';
 import { useUser } from '@/contexts/UserContext';
@@ -135,24 +134,6 @@ const AdminArchivePanel: React.FC<AdminArchivePanelProps> = ({
     }
   };
 
-  // Handle revision (WhatsApp or Email)
-  const handleRevision = (document: UserDocument) => {
-    if (document.userWhatsApp) {
-      // Open WhatsApp
-      const whatsappUrl = `https://wa.me/${document.userWhatsApp.replace(/[^0-9]/g, '')}`;
-      window.open(whatsappUrl, '_blank');
-    } else if (document.userEmail) {
-      // Open email client
-      const emailUrl = `mailto:${document.userEmail}?subject=Revisi Dokumen: ${document.fileName}&body=Halo, saya ingin merevisi dokumen ${document.fileName} yang telah diupload.`;
-      window.open(emailUrl, '_blank');
-    } else {
-      toast({
-        title: "Kontak Tidak Tersedia",
-        description: "Tidak ada kontak WhatsApp atau email yang tersedia untuk user ini.",
-        variant: "destructive"
-      });
-    }
-  };
 
   // Get all documents with user information from API data
   const allDocuments = useMemo(() => {
@@ -261,7 +242,7 @@ const AdminArchivePanel: React.FC<AdminArchivePanelProps> = ({
                   </TableHeader>
                   <TableBody>
                     {currentYearDocuments.map((doc) => (
-                      <TableRow key={doc.id} className="hover:bg-blue-50/50">
+                        <TableRow key={doc.id} className="hover:bg-blue-50/50">
                         <TableCell className="font-medium">{doc.fileName}</TableCell>
                         <TableCell className="max-w-xs">
                           <div className="truncate" title={doc.checklistDescription || 'N/A'}>
@@ -269,10 +250,10 @@ const AdminArchivePanel: React.FC<AdminArchivePanelProps> = ({
                           </div>
                         </TableCell>
                         <TableCell>{doc.aspect || 'N/A'}</TableCell>
-                        <TableCell>
-                          {new Date(doc.uploadDate).toLocaleDateString('id-ID')}
-                        </TableCell>
-                        <TableCell>{getStatusBadge(doc.status)}</TableCell>
+                          <TableCell>
+                            {new Date(doc.uploadDate).toLocaleDateString('id-ID')}
+                          </TableCell>
+                          <TableCell>{getStatusBadge(doc.status)}</TableCell>
                           <TableCell>
                             <div className="flex space-x-2">
                               <Button 
@@ -283,15 +264,6 @@ const AdminArchivePanel: React.FC<AdminArchivePanelProps> = ({
                               >
                                 <Download className="h-4 w-4 mr-1" />
                                 Download
-                              </Button>
-                              <Button 
-                                size="sm" 
-                                variant="outline" 
-                                className="border-orange-200 text-orange-600 hover:bg-orange-50"
-                                onClick={() => handleRevision(doc)}
-                              >
-                                <MessageSquare className="h-4 w-4 mr-1" />
-                                Revisi
                               </Button>
                             </div>
                           </TableCell>
@@ -421,7 +393,7 @@ const AdminArchivePanel: React.FC<AdminArchivePanelProps> = ({
                   </TableHeader>
                   <TableBody>
                     {previousYearDocuments.map((doc) => (
-                      <TableRow key={doc.id} className="hover:bg-blue-50/50">
+                        <TableRow key={doc.id} className="hover:bg-blue-50/50">
                         <TableCell className="font-medium">{doc.fileName}</TableCell>
                         <TableCell className="max-w-xs">
                           <div className="truncate" title={doc.checklistDescription || 'N/A'}>
@@ -430,9 +402,9 @@ const AdminArchivePanel: React.FC<AdminArchivePanelProps> = ({
                         </TableCell>
                         <TableCell>{doc.aspect || 'N/A'}</TableCell>
                         <TableCell>{doc.userSubdirektorat || 'N/A'}</TableCell>
-                        <TableCell>
-                          {new Date(doc.uploadDate).toLocaleDateString('id-ID')}
-                        </TableCell>
+                          <TableCell>
+                            {new Date(doc.uploadDate).toLocaleDateString('id-ID')}
+                          </TableCell>
                           <TableCell>
                             <div className="flex space-x-2">
                               <Button 
@@ -443,15 +415,6 @@ const AdminArchivePanel: React.FC<AdminArchivePanelProps> = ({
                               >
                                 <Download className="h-4 w-4 mr-1" />
                                 Download
-                              </Button>
-                              <Button 
-                                size="sm" 
-                                variant="outline" 
-                                className="border-orange-200 text-orange-600 hover:bg-orange-50"
-                                onClick={() => handleRevision(doc)}
-                              >
-                                <MessageSquare className="h-4 w-4 mr-1" />
-                                Revisi
                               </Button>
                             </div>
                           </TableCell>

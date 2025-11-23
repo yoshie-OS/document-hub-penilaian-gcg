@@ -129,16 +129,16 @@ const AdminDocumentListPanel: React.FC<AdminDocumentListPanelProps> = ({
         .filter(item => item && item.aspek && typeof item.aspek === 'string' && item.aspek.trim() !== '')
         .map(item => item.aspek);
       
-      // Add "Tidak Diberikan Aspek" option if there are items without aspek
+      // Add "Dokumen Tanpa Aspek" option if there are items without aspek
       const hasItemsWithoutAspect = checklistItems.some(item => !item.aspek || item.aspek === '' || item.aspek.trim() === '');
       
       const uniqueAspects = [...new Set(allAspects)];
       if (hasItemsWithoutAspect) {
-        uniqueAspects.push('Tidak Diberikan Aspek');
+        uniqueAspects.push('Dokumen Tanpa Aspek');
       }
       
       const sortedAspects = uniqueAspects.sort();
-      console.log('All aspects including "Tidak Diberikan Aspek":', sortedAspects);
+      console.log('All aspects including "Dokumen Tanpa Aspek":', sortedAspects);
       return sortedAspects;
     } catch (error) {
       console.error('Error processing aspects:', error);
@@ -166,7 +166,7 @@ const AdminDocumentListPanel: React.FC<AdminDocumentListPanelProps> = ({
         let matchesAspect = true;
         if (selectedAspect === 'all') {
           matchesAspect = true;
-        } else if (selectedAspect === 'Tidak Diberikan Aspek') {
+        } else if (selectedAspect === 'Dokumen Tanpa Aspek') {
           matchesAspect = !hasValidAspek;
         } else {
           matchesAspect = hasValidAspek && itemAspek === selectedAspect;
@@ -323,7 +323,7 @@ const AdminDocumentListPanel: React.FC<AdminDocumentListPanelProps> = ({
                   <Badge variant="outline">{item.aspek}</Badge>
                 ) : (
                   <Badge variant="outline" className="bg-gray-100 text-gray-600">
-                    Tidak Diberikan Aspek
+                    Dokumen Tanpa Aspek
                   </Badge>
                 )}
                         </TableCell>

@@ -358,7 +358,7 @@ const BasicInfoSection = memo(({
     </div>
 
     <div className="space-y-2">
-      <Label htmlFor="description">Deskripsi/Catatan</Label>
+      <Label htmlFor="description">Deskripsi</Label>
       <OptimizedTextarea
         id="description"
         value={formData.description}
@@ -367,6 +367,7 @@ const BasicInfoSection = memo(({
         rows={3}
       />
     </div>
+
   </div>
 ));
 
@@ -692,6 +693,7 @@ const FileUploadDialog: React.FC<FileUploadDialogProps> = ({
     documentNumber: '',
     documentDate: '',
     description: '',
+,
     gcgPrinciple: '',
     documentType: '',
     documentCategory: '',
@@ -1132,7 +1134,7 @@ const FileUploadDialog: React.FC<FileUploadDialogProps> = ({
           formData.description || selectedChecklist?.deskripsi || '',
           formData.documentCategory || selectedChecklist?.aspek || '',
           picForUpload,
-          formData.description // Use description as catatan for superadmin
+          formData.notes // Use notes field for superadmin
         );
       }
       
@@ -1155,7 +1157,6 @@ const FileUploadDialog: React.FC<FileUploadDialogProps> = ({
           checklistId: formData.selectedChecklistId,
           checklistDescription: formData.description,
           aspect: selectedChecklist?.aspek || 'GCG',
-          catatan: formData.description // Add catatan field for superadmin
         };
         
         console.log('🔵 FileUploadDialog: Calling addDocument with:', documentData);

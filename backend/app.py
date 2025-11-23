@@ -1492,7 +1492,6 @@ def create_uploaded_file():
             'checklistDescription': data.get('checklistDescription'),
             'aspect': data.get('aspect', 'Tidak Diberikan Aspek'),
             'subdirektorat': data.get('subdirektorat'),
-            'catatan': '', # Catatan dihapus
             'status': 'uploaded',
             'supabaseFilePath': data.get('supabaseFilePath'),
             'uploadedBy': data.get('uploadedBy', 'Unknown User'),
@@ -1575,6 +1574,7 @@ def fix_uploaded_files_schema():
         return jsonify({'error': f'Failed to fix schema: {str(e)}'}), 500
 
 @app.route('/api/uploaded-files/<file_id>', methods=['DELETE'])
+@app.route('/api/delete-file/<file_id>', methods=['DELETE'])
 def delete_uploaded_file(file_id):
     """Delete an uploaded file record and actual file from Supabase storage."""
     try:
@@ -2743,7 +2743,6 @@ def upload_gcg_file():
             'checklistDescription': checklist_description,
             'aspect': aspect,
             'subdirektorat': subdirektorat,
-            'catatan': '', # Catatan dihapus
             'status': 'uploaded',
             'localFilePath': supabase_file_path,  # Keep same path structure for compatibility
             'uploadedBy': uploaded_by,
@@ -2911,7 +2910,6 @@ def check_gcg_files():
                                 return default if pd.isna(value) else str(value)
 
                             file_found.update({
-                                'catatan': safe_get(file_record, 'catatan', ''),
                                 'uploadedBy': safe_get(file_record, 'uploadedBy', 'Unknown'),
                                 'subdirektorat': safe_get(file_record, 'subdirektorat', ''),
                                 'aspect': safe_get(file_record, 'aspect', ''),

@@ -39,7 +39,7 @@ const AdminStatisticsPanel: React.FC<AdminStatisticsPanelProps> = ({
 
     // Group checklist items by aspect
     const aspectGroups = checklistItems.reduce((groups, item) => {
-      const aspek = item.aspek && item.aspek.trim() !== '' ? item.aspek : 'Tidak Diberikan Aspek';
+      const aspek = item.aspek && item.aspek.trim() !== '' ? item.aspek : 'Dokumen Tanpa Aspek';
       if (!groups[aspek]) {
         groups[aspek] = [];
       }
@@ -81,7 +81,7 @@ const AdminStatisticsPanel: React.FC<AdminStatisticsPanelProps> = ({
   // Get aspect icon - konsisten dengan superadmin dashboard
   const getAspectIcon = React.useCallback((aspekName: string) => {
     if (aspekName === 'KESELURUHAN') return TrendingUp;
-    if (aspekName === 'Tidak Diberikan Aspek') return Plus; // Konsisten dengan superadmin
+    if (aspekName === 'Dokumen Tanpa Aspek') return Plus; // Konsisten dengan superadmin
     if (aspekName.includes('ASPEK I')) return FileText;
     if (aspekName.includes('ASPEK II')) return CheckCircle;
     if (aspekName.includes('ASPEK III')) return TrendingUp;
@@ -94,7 +94,7 @@ const AdminStatisticsPanel: React.FC<AdminStatisticsPanelProps> = ({
   // Get aspect color
   const getAspectColor = React.useCallback((aspekName: string, progress: number) => {
     if (aspekName === 'KESELURUHAN') return '#7c3aed'; // ungu gelap
-    if (aspekName === 'Tidak Diberikan Aspek') return '#6b7280'; // abu-abu
+    if (aspekName === 'Dokumen Tanpa Aspek') return '#6b7280'; // abu-abu
     if (aspekName.includes('ASPEK I')) return '#2563eb'; // biru
     if (aspekName.includes('ASPEK II')) return '#059669'; // hijau
     if (aspekName.includes('ASPEK III')) return '#f59e42'; // oranye

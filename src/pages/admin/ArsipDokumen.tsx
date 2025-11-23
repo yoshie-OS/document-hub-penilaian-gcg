@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import Sidebar from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
 import { PageHeaderPanel, YearSelectorPanel } from '@/components/panels';
@@ -29,7 +29,16 @@ import {
   FolderOpen,
   Filter,
   CheckCircle,
-  Trash2
+  Trash2,
+  RefreshCw,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  SortAsc,
+  SortDesc,
+  Grid3X3,
+  List,
+  Search
 } from 'lucide-react';
 
 interface DocumentWithUser {
@@ -43,10 +52,9 @@ interface DocumentWithUser {
   aspect?: string;
   status: 'uploaded' | 'pending';
   subdirektorat?: string;
-  catatan?: string; // Tambahkan field catatan
-  // User information
+  localFilePath?: string;
   uploadedBy: string;
-  userRole: 'superadmin' | 'admin';
+  userRole?: string;
   userDirektorat?: string;
   userSubdirektorat?: string;
   userDivisi?: string;
@@ -54,11 +62,11 @@ interface DocumentWithUser {
   userEmail?: string;
 }
 
-const ArsipDokumen = () => {
+const ArsipDokumen: React.FC = () => {
+  console.log('🔍 ArsipDokumen component rendering...');
+  
   const { isSidebarOpen } = useSidebar();
   const { selectedYear, setSelectedYear, availableYears } = useYear();
-  const { getFilesByYear } = useFileUpload();
-  const { documents } = useDocumentMetadata();
   const { user } = useUser();
   const { direktorat: direktoratData, subdirektorat: subDirektoratData, divisi: divisiData } = useStrukturPerusahaan();
   const { getDocumentsByYear, deleteDocument: deleteAOIDocument } = useAOIDocument();
@@ -69,100 +77,162 @@ const ArsipDokumen = () => {
   const [selectedAspect, setSelectedAspect] = useState<string | null>(null);
   const [selectedSubdirektorat, setSelectedSubdirektorat] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Sorting and view states
+  const [sortBy, setSortBy] = useState<'fileName' | 'aspect' | 'subdirektorat' | 'uploadDate' | 'uploadedBy' | 'direktorat'>('uploadDate');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
 
   // Download states
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
-  
-  
-
-  // Get AOI documents for selected year
-  const aoiDocuments = useMemo(() => {
-    if (!selectedYear) return [];
-    return getDocumentsByYear(selectedYear);
-  }, [selectedYear, getDocumentsByYear]);
+  const [isDownloadingAll, setIsDownloadingAll] = useState(false);
 
   // State for loading and API data
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
   const [apiFiles, setApiFiles] = useState<any[]>([]);
 
-  // Fetch files from Supabase API when year changes
-  useEffect(() => {
-    const fetchFilesFromAPI = async () => {
+  // State for highlight functionality
+  const [highlightCriteria, setHighlightCriteria] = useState<any>(null);
+
+  // Fetch files function
+  const fetchFilesFromAPI = useCallback(async () => {
       console.log('🔍 ArsipDokumen fetchFilesFromAPI triggered, selectedYear:', selectedYear);
       
       if (!selectedYear) {
-        console.log('🔍 ArsipDokumen: No selectedYear, clearing files');
-        setApiFiles([]);
+      console.log('❌ No selected year, skipping API fetch');
         return;
       }
 
-      console.log('🔍 ArsipDokumen: Starting API fetch for year', selectedYear);
       setIsLoadingFiles(true);
       try {
-        const apiUrl = `http://localhost:5000/api/uploaded-files?year=${selectedYear}`;
-        console.log('🔍 ArsipDokumen: Calling API:', apiUrl);
-        
-        const response = await fetch(apiUrl);
-        console.log('🔍 ArsipDokumen: API response status:', response.status);
-        
-        if (!response.ok) {
-          throw new Error(`API call failed: ${response.status}`);
-        }
-
+      const response = await fetch(`http://localhost:5000/api/uploaded-files?year=${selectedYear}`);
+      
+      if (response.ok) {
         const data = await response.json();
-        console.log('🔍 ArsipDokumen: API response data:', data);
-        console.log('🔍 ArsipDokumen: Files count:', data.files?.length || 0);
+        console.log('✅ API response received:', data);
         setApiFiles(data.files || []);
+      } else {
+        console.error('❌ API response error:', response.status, response.statusText);
+        setApiFiles([]);
+      }
       } catch (error) {
-        console.error('❌ Error fetching files from API:', error);
+      console.error('❌ API fetch error:', error);
         setApiFiles([]);
       } finally {
         setIsLoadingFiles(false);
-        console.log('🔍 ArsipDokumen: Finished API fetch');
+    }
+  }, [selectedYear]);
+
+  // Check for highlight criteria from localStorage on component mount
+  useEffect(() => {
+    const storedHighlight = localStorage.getItem('archiveHighlight');
+    if (storedHighlight) {
+      try {
+        const criteria = JSON.parse(storedHighlight);
+        console.log('🎯 Highlight criteria loaded from localStorage:', criteria);
+        
+        // Apply the highlight criteria to filters first
+        if (criteria.aspect) {
+          setSelectedAspect(criteria.aspect);
+        }
+        if (criteria.description) {
+          setSearchTerm(criteria.description);
+        }
+        
+        // Set highlight criteria after a short delay to ensure filters are applied
+        setTimeout(() => {
+          setHighlightCriteria(criteria);
+          console.log('🎯 Highlight criteria set after delay:', criteria);
+          
+          toast({
+            title: "Highlight Aktif",
+            description: `Mencari dokumen berdasarkan kriteria dari Monitoring GCG`,
+          });
+        }, 100);
+        
+        // Clear the stored criteria after reading
+        localStorage.removeItem('archiveHighlight');
+        
+      } catch (error) {
+        console.error('Error parsing highlight criteria:', error);
+      }
+    }
+  }, []);
+
+  // Fetch files from Supabase API when year changes
+  useEffect(() => {
+    fetchFilesFromAPI();
+  }, [fetchFilesFromAPI]);
+
+  // Event listeners for synchronization
+  useEffect(() => {
+    const handleUploadedFilesChanged = async (event: CustomEvent) => {
+      console.log('📢 ArsipDokumen: Received uploadedFilesChanged event', event.detail);
+      // Refresh files when other components make changes
+      try {
+        await fetchFilesFromAPI();
+        console.log('✅ ArsipDokumen: Data refreshed after uploadedFilesChanged');
+      } catch (error) {
+        console.error('❌ ArsipDokumen: Error refreshing after uploadedFilesChanged:', error);
       }
     };
 
-    fetchFilesFromAPI();
-  }, [selectedYear]);
+    const handleDocumentsUpdated = async (event: CustomEvent) => {
+      console.log('📢 ArsipDokumen: Received documentsUpdated event', event.detail);
+      // Refresh files when other components make changes
+      try {
+        await fetchFilesFromAPI();
+        console.log('✅ ArsipDokumen: Data refreshed after documentsUpdated');
+      } catch (error) {
+        console.error('❌ ArsipDokumen: Error refreshing after documentsUpdated:', error);
+      }
+    };
 
-  // Get all documents with user information from API data
+    window.addEventListener('uploadedFilesChanged', handleUploadedFilesChanged as EventListener);
+    window.addEventListener('documentsUpdated', handleDocumentsUpdated as EventListener);
+
+    return () => {
+      window.removeEventListener('uploadedFilesChanged', handleUploadedFilesChanged as EventListener);
+      window.removeEventListener('documentsUpdated', handleDocumentsUpdated as EventListener);
+    };
+  }, [fetchFilesFromAPI]);
+
+  // Process API files into DocumentWithUser format
   const allDocuments = useMemo(() => {
-    if (!selectedYear || isLoadingFiles) return [];
+    console.log('🔄 Processing API files into DocumentWithUser format...');
+    console.log('📊 API files count:', apiFiles.length);
     
     try {
-      // Convert API files to DocumentWithUser format
-      const enrichedDocuments: DocumentWithUser[] = apiFiles.map(file => {
-        // Get user details from users for contact info
-        const users = JSON.parse(localStorage.getItem('users') || '[]');
-        const userData = users.find((u: any) => {
-          const nameMatch = u.name === file.uploadedBy;
-          const emailMatch = u.email === file.uploadedBy;
-          return nameMatch || emailMatch;
-        });
+      const enrichedDocuments = apiFiles.map((file, index) => {
+        console.log(`Processing file ${index + 1}:`, file.fileName);
+        
+        // Get user data from localStorage for contact info
+        const userData = JSON.parse(localStorage.getItem('user') || '{}');
         
         return {
-          id: file.id,
-          fileName: file.fileName,
+          id: file.id || `file-${index}`,
+          fileName: file.fileName || 'Unknown File',
           fileSize: file.fileSize || 0,
-          uploadDate: new Date(file.uploadDate),
-          year: file.year,
+          uploadDate: new Date(file.uploadDate || new Date()),
+          year: file.year || selectedYear || 2024,
           checklistId: file.checklistId,
           checklistDescription: file.checklistDescription,
-          aspect: file.aspect,
-          status: file.status || 'uploaded',
+          aspect: file.aspect || 'Dokumen Tanpa Aspek',
+          status: 'uploaded' as const,
           subdirektorat: file.subdirektorat,
-          catatan: file.catatan,
+          localFilePath: file.localFilePath,
           uploadedBy: file.uploadedBy || 'Unknown User',
-          userRole: file.userRole || userData?.role || 'admin',
+          userRole: file.userRole || 'admin',
           userDirektorat: file.userDirektorat || userData?.direktorat || 'Unknown',
-          userSubdirektorat: file.userSubdirektorat || userData?.subdirektorat || 'Unknown', 
+          userSubdirektorat: file.userSubdirektorat || userData?.subdirektorat || 'Unknown',
           userDivisi: file.userDivisi || userData?.divisi || 'Unknown',
           userWhatsApp: file.userWhatsApp || userData?.whatsapp || '',
           userEmail: file.userEmail || userData?.email || ''
         };
       });
       
+      console.log(`✅ Successfully processed ${enrichedDocuments.length} documents`);
       return enrichedDocuments.sort((a, b) => 
         new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime()
       );
@@ -172,8 +242,8 @@ const ArsipDokumen = () => {
     }
   }, [selectedYear, apiFiles, isLoadingFiles]);
 
-  // Filter documents based on selected criteria
-  const filteredDocuments = useMemo(() => {
+  // Filter and sort documents based on selected criteria
+  const filteredAndSortedDocuments = useMemo(() => {
     let filtered = allDocuments;
 
     // Filter by direktorat
@@ -201,8 +271,46 @@ const ArsipDokumen = () => {
       );
     }
 
+    // Apply sorting
+    filtered.sort((a, b) => {
+      let aValue: any, bValue: any;
+      
+      switch (sortBy) {
+        case 'fileName':
+          aValue = a.fileName.toLowerCase();
+          bValue = b.fileName.toLowerCase();
+          break;
+        case 'aspect':
+          aValue = (a.aspect || 'Dokumen Tanpa Aspek').toLowerCase();
+          bValue = (b.aspect || 'Dokumen Tanpa Aspek').toLowerCase();
+          break;
+        case 'subdirektorat':
+          aValue = (a.userSubdirektorat || 'Unknown').toLowerCase();
+          bValue = (b.userSubdirektorat || 'Unknown').toLowerCase();
+          break;
+        case 'direktorat':
+          aValue = (a.userDirektorat || 'Unknown').toLowerCase();
+          bValue = (b.userDirektorat || 'Unknown').toLowerCase();
+          break;
+        case 'uploadDate':
+          aValue = new Date(a.uploadDate).getTime();
+          bValue = new Date(b.uploadDate).getTime();
+          break;
+        case 'uploadedBy':
+          aValue = a.uploadedBy.toLowerCase();
+          bValue = b.uploadedBy.toLowerCase();
+          break;
+        default:
+          return 0;
+      }
+
+      if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+
     return filtered;
-  }, [allDocuments, selectedDirektorat, selectedAspect, selectedSubdirektorat, searchTerm]);
+  }, [allDocuments, selectedDirektorat, selectedAspect, selectedSubdirektorat, searchTerm, sortBy, sortOrder]);
 
   // Get unique values for filters
   const uniqueDirektorats = useMemo(() => {
@@ -220,18 +328,305 @@ const ArsipDokumen = () => {
     return subdirektorats.filter(Boolean).sort();
   }, [allDocuments]);
 
-  // Handle revision (WhatsApp or Email)
-  const handleRevision = (document: DocumentWithUser) => {
-    if (document.userWhatsApp) {
-      // Open WhatsApp
-      const whatsappUrl = `https://wa.me/${document.userWhatsApp.replace(/[^0-9]/g, '')}`;
-      window.open(whatsappUrl, '_blank');
-    } else if (document.userEmail) {
-      // Open email client
-      const emailUrl = `mailto:${document.userEmail}?subject=Revisi Dokumen: ${document.fileName}&body=Halo, saya ingin merevisi dokumen ${document.fileName} yang telah diupload.`;
-      window.open(emailUrl, '_blank');
+  // Handle sorting
+  const handleSort = (field: 'fileName' | 'aspect' | 'subdirektorat' | 'uploadDate' | 'uploadedBy' | 'direktorat') => {
+    if (sortBy === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
     } else {
-      alert('Tidak ada kontak WhatsApp atau email yang tersedia untuk user ini.');
+      setSortBy(field);
+      setSortOrder('asc');
+    }
+  };
+
+  // Get sort icon
+  const getSortIcon = (field: string) => {
+    if (sortBy !== field) return <ArrowUpDown className="h-4 w-4" />;
+    return sortOrder === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />;
+  };
+
+  // Check if document should be highlighted
+  const shouldHighlightDocument = (doc: DocumentWithUser) => {
+    if (!highlightCriteria) return false;
+    
+    console.log('🔍 Checking highlight for document:', {
+      docId: doc.id,
+      fileName: doc.fileName,
+      checklistId: doc.checklistId,
+      aspect: doc.aspect,
+      highlightCriteria
+    });
+    
+    // Primary match by checklistId if available (most reliable)
+    if (highlightCriteria.checklistId && doc.checklistId) {
+      const checklistMatch = doc.checklistId === highlightCriteria.checklistId;
+      console.log('🎯 Checklist ID match:', checklistMatch);
+      return checklistMatch;
+    }
+    
+    // Fallback to aspect and description matching
+    const matchesAspect = !highlightCriteria.aspect || 
+      (doc.aspect && doc.aspect === highlightCriteria.aspect) ||
+      (!doc.aspect && highlightCriteria.aspect === 'Dokumen Tanpa Aspek');
+    
+    // More flexible description matching
+    const matchesDescription = !highlightCriteria.description || 
+      (doc.checklistDescription && doc.checklistDescription.toLowerCase().includes(highlightCriteria.description.toLowerCase())) ||
+      (doc.fileName && doc.fileName.toLowerCase().includes(highlightCriteria.description.toLowerCase()));
+    
+    const shouldHighlight = matchesAspect && matchesDescription;
+    
+    console.log('🎯 Highlight check result:', {
+      matchesAspect,
+      matchesDescription,
+      shouldHighlight
+    });
+    
+    return shouldHighlight;
+  };
+
+  // Auto-scroll to highlighted document after data loads
+  useEffect(() => {
+    if (highlightCriteria && filteredAndSortedDocuments.length > 0) {
+      // Find the highlighted document
+      const highlightedDoc = filteredAndSortedDocuments.find(doc => shouldHighlightDocument(doc));
+      
+      if (highlightedDoc) {
+        console.log('🎯 Found highlighted document, scrolling to it:', {
+          fileName: highlightedDoc.fileName,
+          id: highlightedDoc.id,
+          checklistId: highlightedDoc.checklistId
+        });
+        
+        // Scroll to the document after a delay to ensure DOM is rendered
+        const scrollToDocument = () => {
+          const docElement = document.querySelector(`[data-doc-id="${highlightedDoc.id}"]`);
+          if (docElement) {
+            docElement.scrollIntoView({ 
+              behavior: 'smooth', 
+              block: 'center' 
+            });
+            console.log('✅ Scrolled to highlighted document');
+            
+            // Add a temporary highlight animation
+            docElement.classList.add('animate-pulse');
+            setTimeout(() => {
+              docElement.classList.remove('animate-pulse');
+            }, 2000);
+          } else {
+            console.warn('⚠️ Could not find document element for scrolling, retrying...');
+            // Retry after a longer delay
+            setTimeout(scrollToDocument, 1000);
+          }
+        };
+        
+        setTimeout(scrollToDocument, 800);
+      } else {
+        console.log('⚠️ No highlighted document found in filtered results');
+        console.log('Available documents:', filteredAndSortedDocuments.map(d => ({
+          id: d.id,
+          fileName: d.fileName,
+          checklistId: d.checklistId,
+          aspect: d.aspect
+        })));
+      }
+    }
+  }, [highlightCriteria, filteredAndSortedDocuments]);
+
+  // Handle delete document
+  const handleDeleteDocument = useCallback(async (doc: DocumentWithUser) => {
+    console.log('🗑️ ArsipDokumen: Starting delete process', { 
+      id: doc.id, 
+      fileName: doc.fileName, 
+      checklistId: doc.checklistId 
+    });
+    
+    try {
+      console.log(`🌐 ArsipDokumen: Sending DELETE request to /api/delete-file/${doc.id}`);
+      const response = await fetch(`http://localhost:5000/api/delete-file/${doc.id}`, {
+        method: 'DELETE',
+      });
+
+      console.log(`📡 ArsipDokumen: Delete response status: ${response.status}`);
+
+      if (response.ok) {
+        const responseData = await response.json();
+        console.log('✅ ArsipDokumen: Delete successful', responseData);
+        
+      toast({
+          title: "Berhasil",
+          description: "Dokumen berhasil dihapus",
+        });
+        
+        // Dispatch events to notify other components
+        console.log('📢 ArsipDokumen: Dispatching events for sync');
+        window.dispatchEvent(new CustomEvent('uploadedFilesChanged', {
+          detail: { 
+            type: 'fileDeleted', 
+            fileId: doc.id,
+            checklistId: doc.checklistId,
+            timestamp: new Date().toISOString()
+          }
+        }));
+        
+        window.dispatchEvent(new CustomEvent('documentsUpdated', {
+          detail: { 
+            type: 'documentsUpdated', 
+            year: selectedYear,
+            timestamp: new Date().toISOString()
+          }
+        }));
+        
+        // Refresh the files to update the UI
+        console.log('🔄 ArsipDokumen: Refreshing data after delete');
+        setIsLoadingFiles(true);
+        await fetchFilesFromAPI();
+        
+        console.log('✅ ArsipDokumen: Delete process completed successfully');
+      } else {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('❌ ArsipDokumen: Delete failed', { status: response.status, error: errorData });
+        throw new Error(errorData.error || 'Failed to delete document');
+      }
+    } catch (error) {
+      console.error('❌ ArsipDokumen: Delete error:', error);
+      toast({
+        title: "Error",
+        description: `Gagal menghapus dokumen: ${error}`,
+        variant: "destructive",
+      });
+    }
+  }, [toast, selectedYear, fetchFilesFromAPI]);
+
+  // Handle download all documents with folder structure
+  const handleDownloadAll = async () => {
+    if (!selectedYear) {
+        toast({
+        title: "Peringatan",
+        description: "Pilih tahun terlebih dahulu",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (filteredAndSortedDocuments.length === 0) {
+        toast({
+        title: "Peringatan",
+        description: "Tidak ada dokumen untuk didownload",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsDownloadingAll(true);
+    setDownloadProgress(0);
+
+    try {
+      console.log('🗂️ Starting download all documents with folder structure...');
+      
+      const zip = new JSZip();
+      const totalDocs = filteredAndSortedDocuments.length;
+      let processedDocs = 0;
+
+      // Group documents by aspect and subdirektorat
+      const groupedDocs: { [key: string]: { [key: string]: DocumentWithUser[] } } = {};
+      
+      filteredAndSortedDocuments.forEach(doc => {
+        const aspect = doc.aspect || 'Dokumen Tanpa Aspek';
+        const subdirektorat = doc.subdirektorat || 'Tanpa Subdirektorat';
+        
+        if (!groupedDocs[aspect]) {
+          groupedDocs[aspect] = {};
+        }
+        if (!groupedDocs[aspect][subdirektorat]) {
+          groupedDocs[aspect][subdirektorat] = [];
+        }
+        groupedDocs[aspect][subdirektorat].push(doc);
+      });
+
+      console.log('📁 Document grouping:', groupedDocs);
+
+      // Download each document and add to ZIP with folder structure
+      for (const [aspect, subdirektorats] of Object.entries(groupedDocs)) {
+        console.log(`📂 Processing aspect: ${aspect}`);
+        
+        for (const [subdirektorat, docs] of Object.entries(subdirektorats)) {
+          console.log(`📁 Processing subdirektorat: ${subdirektorat} (${docs.length} docs)`);
+          
+          for (const doc of docs) {
+            try {
+              console.log(`⬇️ Downloading: ${doc.fileName}`);
+              
+              const response = await fetch(`http://localhost:5000/api/download-file/${doc.id}`);
+              
+              if (!response.ok) {
+                console.warn(`⚠️ Failed to download ${doc.fileName}: ${response.status}`);
+                continue;
+              }
+
+              const blob = await response.blob();
+              
+              if (blob.size === 0) {
+                console.warn(`⚠️ Empty file: ${doc.fileName}`);
+                continue;
+              }
+
+              // Create folder structure: Aspect/Subdirektorat/Filename
+              const folderPath = `${aspect}/${subdirektorat}`;
+              const filePath = `${folderPath}/${doc.fileName}`;
+              
+              zip.file(filePath, blob);
+              
+              processedDocs++;
+              setDownloadProgress((processedDocs / totalDocs) * 100);
+              
+              console.log(`✅ Added to ZIP: ${filePath}`);
+              
+            } catch (error) {
+              console.error(`❌ Error downloading ${doc.fileName}:`, error);
+              continue;
+            }
+          }
+        }
+      }
+
+      console.log(`📦 Generating ZIP with ${processedDocs} documents...`);
+      
+      // Generate ZIP file
+      const zipBlob = await zip.generateAsync({ 
+        type: 'blob',
+        compression: 'DEFLATE',
+        compressionOptions: {
+          level: 6
+        }
+      });
+
+      // Download ZIP file
+      const url = window.URL.createObjectURL(zipBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Arsip_Dokumen_${selectedYear}_${new Date().toISOString().split('T')[0]}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Download Berhasil",
+        description: `Semua dokumen berhasil didownload dalam ZIP dengan struktur folder (${processedDocs} dokumen)`,
+      });
+
+      console.log('✅ Download all completed successfully');
+
+        } catch (error) {
+      console.error('❌ Error in download all:', error);
+      toast({
+        title: "Download Gagal",
+        description: `Gagal mendownload semua dokumen: ${error}`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsDownloadingAll(false);
+      setDownloadProgress(0);
     }
   };
 
@@ -240,347 +635,81 @@ const ArsipDokumen = () => {
     try {
       console.log(`🔍 Downloading file: ${doc.fileName} (ID: ${doc.id})`);
       
-      // Fetch the actual file from API
       const response = await fetch(`http://localhost:5000/api/download-file/${doc.id}`);
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
         throw new Error(errorData.error || `HTTP ${response.status}: Failed to download file`);
       }
-      
+
       const blob = await response.blob();
       
-      // Check if blob is valid
       if (blob.size === 0) {
         throw new Error('Downloaded file is empty');
       }
-      
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
+
+      const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
       link.download = doc.fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
       toast({
         title: "Download Berhasil",
         description: `File ${doc.fileName} berhasil didownload`,
-        variant: "default"
       });
-      
     } catch (error) {
       console.error('Download error:', error);
       toast({
         title: "Download Gagal",
-        description: `Gagal mendownload file ${doc.fileName}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        variant: "destructive"
+        description: `Gagal mendownload file: ${error}`,
+        variant: "destructive",
       });
     }
   };
 
-  // Handle delete document
-  const handleDelete = async (doc: DocumentWithUser) => {
-    if (confirm(`Apakah Anda yakin ingin menghapus dokumen "${doc.fileName}"?\n\nDokumen ini akan dihapus secara permanen dari sistem.`)) {
-      try {
-        // Delete from Supabase API
-        const response = await fetch(`http://localhost:5000/api/uploaded-files/${doc.id}`, {
-          method: 'DELETE'
-        });
-        
-        if (!response.ok) {
-          throw new Error('Failed to delete document');
-        }
-        
-        // Refresh the API data
-        const refreshResponse = await fetch(`http://localhost:5000/api/uploaded-files?year=${selectedYear}`);
-        if (refreshResponse.ok) {
-          const refreshData = await refreshResponse.json();
-          setApiFiles(refreshData.files || []);
-        }
-        
-        alert('Dokumen berhasil dihapus!');
-      } catch (error) {
-        console.error('Error deleting document:', error);
-        alert('Gagal menghapus dokumen. Silakan coba lagi.');
-      }
+  // Handle revision (WhatsApp or Email)
+  const handleRevision = (document: DocumentWithUser) => {
+    if (document.userWhatsApp) {
+      // Open WhatsApp
+      const whatsappUrl = `https://wa.me/${document.userWhatsApp.replace(/[^0-9]/g, '')}`;
+      window.open(whatsappUrl, '_blank');
+    } else if (document.userEmail) {
+      // Open email client
+      const emailUrl = `mailto:${document.userEmail}`;
+      window.open(emailUrl, '_blank');
+    } else {
+      alert('Tidak ada kontak WhatsApp atau email yang tersedia untuk user ini.');
     }
   };
 
-  // Handle download AOI document
-  const handleDownloadAOI = async (doc: any) => {
-    try {
-      console.log(`🔍 Downloading AOI file: ${doc.fileName} (ID: ${doc.id})`);
-      
-      // For AOI documents, try to fetch from the same endpoint
-      const response = await fetch(`http://localhost:5000/api/download-file/${doc.id}`);
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(errorData.error || `HTTP ${response.status}: Failed to download AOI file`);
-      }
-      
-      const blob = await response.blob();
-      
-      // Check if blob is valid
-      if (blob.size === 0) {
-        throw new Error('Downloaded AOI file is empty');
-      }
-      
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = doc.fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      
-      toast({
-        title: "Download Berhasil",
-        description: `File AOI ${doc.fileName} berhasil didownload`,
-        variant: "default"
-      });
-      
-    } catch (error) {
-      console.error('AOI Download error:', error);
-      
-      // Fallback to mock content if real file not found
-      const mockContent = `AOI Document: ${doc.fileName}\n\n` +
-        `File: ${doc.fileName}\n` +
-        `Type: AOI Document\n` +
-        `Upload Date: ${new Date().toLocaleDateString('id-ID')}\n` +
-        `Status: ${doc.status || 'N/A'}\n\n` +
-        `Note: Original file could not be retrieved.\n` +
-        `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
-      
-      const blob = new Blob([mockContent], { type: 'text/plain' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${doc.fileName}_info.txt`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      
-      toast({
-        title: "Download dengan Info",
-        description: `File AOI ${doc.fileName} tidak ditemukan, file info berhasil didownload`,
-        variant: "destructive"
-      });
-    }
-  };
-
-  // Handle revision for AOI document
-  const handleRevisionAOI = async (doc: any) => {
-    const revisionReason = prompt('Masukkan alasan revisi:');
-    if (!revisionReason) return;
-
-    try {
-      // Update document status to require revision
-      const response = await fetch(`http://localhost:5000/api/aoiDocuments/${doc.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          status: 'revision_required',
-          revision_reason: revisionReason,
-          revised_at: new Date().toISOString(),
-          revised_by: 'admin' // Should be current user
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to mark document for revision');
-      }
-
-      // Show success notification
-      toast({
-        title: "Dokumen Diminta Revisi",
-        description: `Dokumen "${doc.fileName}" telah diminta untuk direvisi`,
-      });
-
-      // Refresh documents to show updated status
-      // This would trigger a re-fetch in the AOI context
-      window.location.reload(); // Simple approach - could be improved with context refresh
-
-    } catch (error) {
-      console.error('Error requesting revision:', error);
-      toast({
-        title: "Error",
-        description: "Gagal meminta revisi dokumen",
-        variant: "destructive"
-      });
-    }
-  };
-
-  // Handle delete AOI document
-  const handleDeleteAOI = (doc: any) => {
-    if (confirm(`Apakah Anda yakin ingin menghapus dokumen AOI "${doc.fileName}"?\n\nDokumen ini akan dihapus secara permanen dari sistem.`)) {
-      try {
-        // Use the AOI context method to delete the document
-        // The deleteDocument method expects aoiRecommendationId
-        deleteAOIDocument(doc.aoiRecommendationId);
-        
-        // Show success toast notification
-        toast({
-          title: "Dokumen berhasil dihapus",
-          description: `Dokumen AOI "${doc.fileName}" telah dihapus dari sistem.`,
-        });
-        
-        console.log(`Successfully deleted AOI document: ${doc.fileName}`);
-      } catch (error) {
-        console.error('Error deleting AOI document:', error);
-        
-        // Show error toast notification
-        toast({
-          title: "Gagal menghapus dokumen",
-          description: "Terjadi kesalahan saat menghapus dokumen AOI. Silakan coba lagi.",
-          variant: "destructive"
-        });
-      }
-    }
-  };
-
-
-  // Handle bulk download
-  const handleBulkDownload = async (type: 'all' | 'direktorat' | 'aspect') => {
-    setIsDownloading(true);
-    setDownloadProgress(0);
+  // Manual refresh function
+  const handleManualRefresh = async () => {
+    if (!selectedYear) return;
     
+    setIsLoadingFiles(true);
     try {
-      // Simulate download progress
-      const progressInterval = setInterval(() => {
-        setDownloadProgress(prev => {
-          if (prev >= 90) {
-            clearInterval(progressInterval);
-            return 90;
-          }
-          return prev + 10;
-        });
-      }, 100);
-
-      // Get documents to download based on type
-      let documentsToDownload = [];
-      let fileName = '';
-
-      switch (type) {
-        case 'all':
-          documentsToDownload = filteredDocuments;
-          fileName = `arsip_dokumen_${selectedYear}_semua`;
-          break;
-        case 'direktorat':
-          if (selectedDirektorat) {
-            documentsToDownload = filteredDocuments.filter(doc => doc.userDirektorat === selectedDirektorat);
-            fileName = `arsip_dokumen_${selectedYear}_${selectedDirektorat}`;
-          }
-          break;
-        case 'aspect':
-          if (selectedAspect) {
-            documentsToDownload = filteredDocuments.filter(doc => doc.aspect === selectedAspect);
-            fileName = `arsip_dokumen_${selectedYear}_${selectedAspect}`;
-          }
-          break;
-      }
-
-      if (documentsToDownload.length === 0) {
-        alert('Tidak ada dokumen yang dapat didownload.');
-        return;
-      }
-
-      // Create ZIP file
-      const zip = new JSZip();
-      
-      // Add documents to ZIP - fetch real files from API
-      let successCount = 0;
-      let errorCount = 0;
-      
-      for (let index = 0; index < documentsToDownload.length; index++) {
-        const doc = documentsToDownload[index];
-        try {
-          console.log(`🔍 Fetching file ${index + 1}/${documentsToDownload.length}: ${doc.fileName}`);
-          
-          // Fetch the actual file content from API
-          const response = await fetch(`http://localhost:5000/api/download-file/${doc.id}`);
-          
+      const response = await fetch(`http://localhost:5000/api/uploaded-files?year=${selectedYear}`);
           if (response.ok) {
-            const fileBlob = await response.blob();
-            
-            // Check if blob is valid
-            if (fileBlob.size > 0) {
-              const folderPath = `${doc.userDirektorat || 'Unknown'}/${doc.userSubdirektorat || 'Unknown'}`;
-              zip.file(`${folderPath}/${doc.fileName}`, fileBlob);
-              successCount++;
-              console.log(`✅ Successfully added: ${doc.fileName}`);
-            } else {
-              throw new Error('Downloaded file is empty');
-            }
-          } else {
-            const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-            throw new Error(errorData.error || `HTTP ${response.status}`);
+        const data = await response.json();
+        setApiFiles(data.files || []);
+        toast({
+          title: "Refresh Berhasil",
+          description: "Data dokumen berhasil diperbarui",
+        });
           }
         } catch (error) {
-          console.error(`❌ Error fetching file ${doc.fileName}:`, error);
-          errorCount++;
-          
-          // Add error placeholder with metadata
-          const fileContent = `File could not be downloaded: ${doc.fileName}\n\n` +
-            `File: ${doc.fileName}\n` +
-            `Uploaded by: ${doc.uploadedBy}\n` +
-            `Direktorat: ${doc.userDirektorat || 'N/A'}\n` +
-            `Subdirektorat: ${doc.userSubdirektorat || 'N/A'}\n` +
-            `Divisi: ${doc.userDivisi || 'N/A'}\n` +
-            `Aspect: ${doc.aspect || 'N/A'}\n` +
-            `Checklist Description: ${doc.checklistDescription || 'N/A'}\n` +
-            `Upload Date: ${new Date(doc.uploadDate).toLocaleDateString('id-ID')}\n` +
-            `Status: ${doc.status}\n\n` +
-            `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
-
-          const folderPath = `${doc.userDirektorat || 'Unknown'}/${doc.userSubdirektorat || 'Unknown'}`;
-          zip.file(`${folderPath}/${doc.fileName}_ERROR.txt`, fileContent);
-        }
-        
-        // Update progress
-        setDownloadProgress(Math.round(((index + 1) / documentsToDownload.length) * 90));
-      }
-
-      // Generate ZIP file
-      const zipBlob = await zip.generateAsync({ type: 'blob' });
-      
-      clearInterval(progressInterval);
-      setDownloadProgress(100);
-
-      // Download ZIP file
-      const url = window.URL.createObjectURL(zipBlob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${fileName}.zip`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-
-      // Show detailed result
-      const message = `Download berhasil!\n\n` +
-        `File: ${fileName}.zip\n` +
-        `Total dokumen: ${documentsToDownload.length}\n` +
-        `Berhasil didownload: ${successCount}\n` +
-        `Gagal didownload: ${errorCount}`;
-      
-      if (errorCount > 0) {
-        alert(message + `\n\nBeberapa file gagal didownload. File error akan disertakan dalam ZIP.`);
-      } else {
-        alert(message);
-      }
-    } catch (error) {
-      console.error('Download error:', error);
-      alert('Terjadi kesalahan saat download file ZIP.');
+      console.error('Refresh error:', error);
+      toast({
+        title: "Refresh Gagal",
+        description: "Gagal memperbarui data dokumen",
+        variant: "destructive",
+      });
     } finally {
-      setIsDownloading(false);
-      setDownloadProgress(0);
+      setIsLoadingFiles(false);
     }
   };
 
@@ -593,6 +722,14 @@ const ArsipDokumen = () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
+  console.log('🔍 ArsipDokumen render state:', {
+    selectedYear,
+    allDocumentsCount: allDocuments.length,
+    filteredCount: filteredAndSortedDocuments.length,
+    isLoadingFiles,
+    apiFilesCount: apiFiles.length
+  });
+
   return (
     <>
       <Sidebar />
@@ -604,36 +741,106 @@ const ArsipDokumen = () => {
         ${isSidebarOpen ? 'lg:ml-64' : 'ml-0'}
       `}>
         <div className="p-6">
-          {/* Header */}
                       <PageHeaderPanel
               title="Arsip Dokumen"
-            subtitle="Kelola dan unduh dokumen yang telah diupload"
             />
 
-          {/* Year Selector */}
             <YearSelectorPanel
               selectedYear={selectedYear}
               onYearChange={setSelectedYear}
               availableYears={availableYears}
-              title="Tahun Buku"
-            description="Pilih tahun buku untuk melihat arsip dokumen yang tersedia"
           />
 
           {selectedYear ? (
             <div className="space-y-6">
-              {/* Filters and Bulk Download */}
+              {/* Enhanced Filter, Sort & Download Controls */}
               <Card>
                 <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
                   <CardTitle className="flex items-center space-x-2">
                     <Filter className="h-5 w-5" />
-                    <span>Filter dan Download</span>
+                        <span>Filter, Sort & Download</span>
                   </CardTitle>
                   <CardDescription>
-                    Filter dokumen dan download sesuai kriteria yang diinginkan
+                        Filter, urutkan, dan download dokumen sesuai kriteria yang diinginkan
                   </CardDescription>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        onClick={handleDownloadAll}
+                        disabled={isDownloadingAll || filteredAndSortedDocuments.length === 0}
+                        variant="default"
+                        size="sm"
+                        className="bg-green-600 hover:bg-green-700 text-white border-0 flex items-center space-x-2"
+                      >
+                        {isDownloadingAll ? (
+                          <>
+                            <RefreshCw className="h-4 w-4 animate-spin" />
+                            <span>Downloading... {downloadProgress.toFixed(0)}%</span>
+                          </>
+                        ) : (
+                          <>
+                            <Download className="h-4 w-4" />
+                            <span>Download All ({filteredAndSortedDocuments.length})</span>
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        onClick={handleManualRefresh}
+                        disabled={isLoadingFiles}
+                        variant="outline"
+                        size="sm"
+                        className="flex items-center space-x-2"
+                      >
+                        <RefreshCw className={`h-4 w-4 ${isLoadingFiles ? 'animate-spin' : ''}`} />
+                        <span>Refresh</span>
+                      </Button>
+                      <div className="flex items-center space-x-1 border rounded-lg p-1">
+                        <Button
+                          variant={viewMode === 'table' ? 'default' : 'ghost'}
+                          size="sm"
+                          onClick={() => setViewMode('table')}
+                          className="h-8 w-8 p-0"
+                        >
+                          <List className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant={viewMode === 'grid' ? 'default' : 'ghost'}
+                          size="sm"
+                          onClick={() => setViewMode('grid')}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Grid3X3 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
               </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                  {/* Download Progress Bar */}
+                  {isDownloadingAll && (
+                    <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-blue-700">
+                          Downloading semua dokumen...
+                        </span>
+                        <span className="text-sm text-blue-600">
+                          {downloadProgress.toFixed(0)}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-blue-200 rounded-full h-2">
+                        <div 
+                          className="bg-blue-600 h-2 rounded-full transition-all duration-300 ease-out"
+                          style={{ width: `${downloadProgress}%` }}
+                        ></div>
+                      </div>
+                      <div className="text-xs text-blue-600 mt-1">
+                        Membuat struktur folder dan mengemas dalam ZIP...
+                      </div>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-6">
                     {/* Direktorat Filter */}
                     <div className="space-y-3">
                       <label className="text-sm font-semibold text-gray-700 flex items-center">
@@ -691,10 +898,41 @@ const ArsipDokumen = () => {
                         </Select>
                     </div>
 
+                    {/* Sort Controls */}
+                    <div className="space-y-3">
+                      <label className="text-sm font-semibold text-gray-700 flex items-center">
+                        <ArrowUpDown className="h-4 w-4 mr-2 text-orange-600" />
+                        Urutkan Berdasarkan
+                      </label>
+                      <div className="flex space-x-2">
+                        <Select value={sortBy} onValueChange={(value: any) => setSortBy(value)}>
+                          <SelectTrigger className="bg-white border-2 border-gray-200 hover:border-orange-300 focus:border-orange-500 transition-colors">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="uploadDate">Tanggal Upload</SelectItem>
+                            <SelectItem value="fileName">Nama File</SelectItem>
+                            <SelectItem value="aspect">Aspek</SelectItem>
+                            <SelectItem value="subdirektorat">Subdirektorat</SelectItem>
+                            <SelectItem value="direktorat">Direktorat</SelectItem>
+                            <SelectItem value="uploadedBy">Pengunggah</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                          className="px-3"
+                        >
+                          {sortOrder === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    </div>
+
                     {/* Search */}
                     <div className="space-y-3">
                       <label className="text-sm font-semibold text-gray-700 flex items-center">
-                        <Filter className="h-4 w-4 mr-2 text-orange-600" />
+                        <Search className="h-4 w-4 mr-2 text-orange-600" />
                         Cari
                       </label>
                       <input
@@ -707,83 +945,220 @@ const ArsipDokumen = () => {
                     </div>
                   </div>
 
-                  {/* Bulk Download Buttons */}
-                  <div className="flex flex-wrap gap-4">
-                    <Button 
-                      onClick={() => handleBulkDownload('all')}
-                      disabled={isDownloading || filteredDocuments.length === 0}
-                      className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-6 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 disabled:transform-none disabled:opacity-50"
-                    >
-                      <Download className="h-5 w-5 mr-2" />
-                      Download Semua ({filteredDocuments.length})
-                    </Button>
-                    
-                    {selectedDirektorat && (
+                  {/* Results Summary */}
+                  <div className="flex items-center justify-between py-4 border-t border-gray-200">
+                    <div className="flex items-center space-x-4">
+                      <span className="text-sm text-gray-600">
+                        Menampilkan <span className="font-semibold text-blue-600">{filteredAndSortedDocuments.length}</span> dari <span className="font-semibold">{allDocuments.length}</span> dokumen
+                      </span>
+                      {highlightCriteria && (
+                        <span className="text-sm text-yellow-600 bg-yellow-100 px-3 py-1 rounded-full">
+                          🎯 Highlight aktif dari Monitoring GCG
+                        </span>
+                      )}
+                      {(searchTerm || selectedAspect || selectedSubdirektorat || selectedDirektorat) && (
                       <Button 
-                        onClick={() => handleBulkDownload('direktorat')}
-                        disabled={isDownloading}
-                        variant="outline"
-                        className="border-2 border-green-500 text-green-600 hover:bg-green-50 hover:border-green-600 px-6 py-3 rounded-lg transition-all duration-300 transform hover:scale-105"
-                      >
-                        <Download className="h-5 w-5 mr-2" />
-                        Download {selectedDirektorat}
-                      </Button>
-                    )}
-                    
-                    {selectedAspect && (
-                      <Button 
-                        onClick={() => handleBulkDownload('aspect')}
-                        disabled={isDownloading}
-                        variant="outline"
-                        className="border-2 border-purple-500 text-purple-600 hover:bg-purple-50 hover:border-purple-600 px-6 py-3 rounded-lg transition-all duration-300 transform hover:scale-105"
-                      >
-                        <Download className="h-5 w-5 mr-2" />
-                        Download {selectedAspect}
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setSearchTerm('');
+                            setSelectedAspect(null);
+                            setSelectedSubdirektorat(null);
+                            setSelectedDirektorat(null);
+                            setHighlightCriteria(null);
+                          }}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          Reset Filter
                       </Button>
                     )}
                   </div>
-
-                  {/* Download Progress */}
-                  {isDownloading && (
-                    <div className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
-                      <div className="flex items-center justify-between text-sm font-medium text-blue-800 mb-3">
-                        <span className="flex items-center">
-                          <Download className="h-4 w-4 mr-2 animate-pulse" />
-                          Download Progress
-                            </span>
-                        <span className="bg-blue-100 px-3 py-1 rounded-full">{downloadProgress}%</span>
                       </div>
-                      <div className="w-full bg-blue-100 rounded-full h-3 overflow-hidden">
-                        <div 
-                          className="bg-gradient-to-r from-blue-500 to-indigo-500 h-3 rounded-full transition-all duration-500 ease-out shadow-lg"
-                          style={{ width: `${downloadProgress}%` }}
-                        />
-                          </div>
-                        </div>
-                      )}
                 </CardContent>
               </Card>
 
-              {/* Documents List - Modern Card Grid Layout */}
-              <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-blue-50/30">
-                <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-t-lg">
-                  <CardTitle className="flex items-center space-x-3 text-white">
-                    <div className="p-2 bg-white/20 rounded-lg">
-                      <Archive className="h-6 w-6 text-white" />
+              {/* Documents List */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-3">
+                    <div className="p-2 bg-gradient-to-br from-blue-100 to-blue-200 rounded-lg">
+                      <Archive className="h-6 w-6 text-blue-600" />
                     </div>
                     <div>
                       <span className="text-xl font-bold">Daftar Dokumen Tahun {selectedYear}</span>
                       <div className="text-blue-100 text-sm font-normal mt-1">
-                    Total {filteredDocuments.length} dokumen ditemukan
+                        Total {filteredAndSortedDocuments.length} dokumen ditemukan
                       </div>
                     </div>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-6">
-                  {filteredDocuments.length > 0 ? (
+                  {filteredAndSortedDocuments.length > 0 ? (
+                    viewMode === 'table' ? (
+                      // Table View
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-gray-50">
+                              <TableHead 
+                                className="cursor-pointer hover:bg-gray-100 select-none"
+                                onClick={() => handleSort('fileName')}
+                              >
+                                <div className="flex items-center space-x-2">
+                                  <span>Nama File</span>
+                                  {getSortIcon('fileName')}
+                                </div>
+                              </TableHead>
+                              <TableHead 
+                                className="cursor-pointer hover:bg-gray-100 select-none"
+                                onClick={() => handleSort('aspect')}
+                              >
+                                <div className="flex items-center space-x-2">
+                                  <span>Aspek</span>
+                                  {getSortIcon('aspect')}
+                                </div>
+                              </TableHead>
+                              <TableHead 
+                                className="cursor-pointer hover:bg-gray-100 select-none"
+                                onClick={() => handleSort('subdirektorat')}
+                              >
+                                <div className="flex items-center space-x-2">
+                                  <span>Subdirektorat</span>
+                                  {getSortIcon('subdirektorat')}
+                                </div>
+                              </TableHead>
+                              <TableHead 
+                                className="cursor-pointer hover:bg-gray-100 select-none"
+                                onClick={() => handleSort('direktorat')}
+                              >
+                                <div className="flex items-center space-x-2">
+                                  <span>Direktorat</span>
+                                  {getSortIcon('direktorat')}
+                                </div>
+                              </TableHead>
+                              <TableHead 
+                                className="cursor-pointer hover:bg-gray-100 select-none"
+                                onClick={() => handleSort('uploadedBy')}
+                              >
+                                <div className="flex items-center space-x-2">
+                                  <span>Pengunggah</span>
+                                  {getSortIcon('uploadedBy')}
+                                </div>
+                              </TableHead>
+                              <TableHead 
+                                className="cursor-pointer hover:bg-gray-100 select-none"
+                                onClick={() => handleSort('uploadDate')}
+                              >
+                                <div className="flex items-center space-x-2">
+                                  <span>Tanggal Upload</span>
+                                  {getSortIcon('uploadDate')}
+                                </div>
+                              </TableHead>
+                              <TableHead className="text-center">Aksi</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {filteredAndSortedDocuments.map((doc) => {
+                              const isHighlighted = shouldHighlightDocument(doc);
+                              return (
+                              <TableRow 
+                                key={doc.id}
+                                data-doc-id={doc.id}
+                                className={`hover:bg-gray-50 ${isHighlighted ? 'bg-yellow-50 border-yellow-200 border-2' : ''}`}
+                              >
+                                <TableCell className="font-medium">
+                                  <div className="flex items-center space-x-2">
+                                    <FileText className="h-4 w-4 text-blue-600" />
+                                    <span className="truncate max-w-xs" title={doc.fileName}>
+                                      {doc.fileName}
+                                    </span>
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                                    {doc.aspect || 'Dokumen Tanpa Aspek'}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <span className="text-sm text-gray-600">
+                                    {doc.userSubdirektorat || 'Unknown'}
+                                  </span>
+                                </TableCell>
+                                <TableCell>
+                                  <span className="text-sm text-gray-600">
+                                    {doc.userDirektorat || 'Unknown'}
+                                  </span>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex items-center space-x-2">
+                                    <User className="h-4 w-4 text-gray-400" />
+                                    <span className="text-sm">{doc.uploadedBy}</span>
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex items-center space-x-2">
+                                    <Calendar className="h-4 w-4 text-gray-400" />
+                                    <span className="text-sm">
+                                      {new Date(doc.uploadDate).toLocaleDateString('id-ID')}
+                                    </span>
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex items-center space-x-2">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleDownload(doc)}
+                                      className="border-green-200 text-green-600 hover:bg-green-50"
+                                    >
+                                      <Download className="h-4 w-4 mr-1" />
+                                      Download
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleRevision(doc)}
+                                      className="border-blue-200 text-blue-600 hover:bg-blue-50"
+                                    >
+                                      <MessageSquare className="h-4 w-4 mr-1" />
+                                      Revisi
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => {
+                                        if (confirm(`Apakah Anda yakin ingin menghapus dokumen "${doc.fileName}"?`)) {
+                                          handleDeleteDocument(doc);
+                                        }
+                                      }}
+                                      className="border-red-200 text-red-600 hover:bg-red-50"
+                                    >
+                                      <Trash2 className="h-4 w-4 mr-1" />
+                                      Hapus
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    ) : (
+                      // Grid View
                     <div className="grid gap-4">
-                      {filteredDocuments.map((doc) => (
-                        <div key={doc.id} className="group bg-white border border-gray-200 rounded-xl p-6 hover:shadow-xl hover:border-blue-400 hover:scale-[1.02] transition-all duration-300 transform">
+                        {filteredAndSortedDocuments.map((doc) => {
+                          const isHighlighted = shouldHighlightDocument(doc);
+                          return (
+                          <div 
+                            key={doc.id}
+                            data-doc-id={doc.id}
+                            className={`group bg-white border rounded-xl p-6 hover:shadow-xl hover:scale-[1.02] transition-all duration-300 transform ${
+                              isHighlighted 
+                                ? 'border-yellow-400 border-2 bg-yellow-50 hover:border-yellow-500' 
+                                : 'border-gray-200 hover:border-blue-400'
+                            }`}
+                          >
                           {/* Header Row */}
                           <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center space-x-3">
@@ -795,48 +1170,43 @@ const ArsipDokumen = () => {
                                     {doc.fileName}
                                   </h3>
                                   <div className="flex items-center space-x-2 mt-1">
-                                  <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs px-3 py-1">
+                                    <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs px-2 py-1">
                                       {formatFileSize(doc.fileSize)}
                                     </Badge>
-                                  <Badge className={`text-xs px-3 py-1 ${
-                                    doc.status === 'uploaded' 
-                                      ? 'bg-green-100 text-green-800 border-green-200' 
-                                      : 'bg-yellow-100 text-yellow-800 border-yellow-200'
-                                  }`}>
-                                    {doc.status === 'uploaded' ? 'Selesai' : 'Pending'}
+                                    <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs px-2 py-1">
+                                      {doc.status}
                                     </Badge>
                                   </div>
                                 </div>
                         </div>
-
-                            {/* Action Buttons */}
-                            <div className="flex items-center space-x-3">
+                              <div className="flex items-center space-x-2">
                               <Button
-                                variant="outline"
                                 size="sm"
+                                  variant="outline"
                                 onClick={() => handleDownload(doc)}
-                                className="border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300 transition-colors"
+                                  className="border-green-200 text-green-600 hover:bg-green-50"
                               >
                                 <Download className="h-4 w-4 mr-2" />
                                 Download
                               </Button>
-                              
-                              
                               <Button
-                                variant="outline"
                                 size="sm"
+                                variant="outline"
                                 onClick={() => handleRevision(doc)}
-                                className="border-orange-200 text-orange-600 hover:bg-orange-50 hover:border-orange-300 transition-colors"
+                                  className="border-blue-200 text-blue-600 hover:bg-blue-50"
                               >
                                 <MessageSquare className="h-4 w-4 mr-2" />
                                 Revisi
                               </Button>
-                              
                               <Button
-                                variant="outline"
                                 size="sm"
-                                onClick={() => handleDelete(doc)}
-                                className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 transition-colors"
+                                  variant="outline"
+                                  onClick={() => {
+                                    if (confirm(`Apakah Anda yakin ingin menghapus dokumen "${doc.fileName}"?`)) {
+                                      handleDeleteDocument(doc);
+                                    }
+                                  }}
+                                  className="border-red-200 text-red-600 hover:bg-red-50"
                               >
                                 <Trash2 className="h-4 w-4 mr-2" />
                                 Hapus
@@ -844,7 +1214,7 @@ const ArsipDokumen = () => {
                             </div>
                           </div>
 
-                          {/* Content Grid - All sections aligned in one row */}
+                            {/* Content Grid */}
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                             {/* User Information */}
                             <div className="space-y-3">
@@ -854,7 +1224,6 @@ const ArsipDokumen = () => {
                                 </div>
                               <div className="pl-6 space-y-1">
                                 <div className="text-sm font-semibold text-gray-900">{doc.uploadedBy}</div>
-                                {doc.userRole === 'admin' && (
                                   <div className="space-y-1">
                                     <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs px-2 py-1">
                                       {doc.userDirektorat}
@@ -866,7 +1235,6 @@ const ArsipDokumen = () => {
                                       {doc.userDivisi}
                                     </Badge>
                           </div>
-                            )}
                               </div>
                           </div>
 
@@ -878,7 +1246,7 @@ const ArsipDokumen = () => {
                               </div>
                               <div className="pl-6 space-y-1">
                                 <Badge variant="outline" className="bg-orange-50 border-orange-200 text-orange-700 text-xs px-2 py-1 max-w-full">
-                                  {doc.aspect || 'Tidak Diberikan Aspek'}
+                                    {doc.aspect || 'Dokumen Tanpa Aspek'}
                                 </Badge>
                                 <div className="flex items-center space-x-1 text-xs text-gray-500">
                                   <Calendar className="h-3 w-3" />
@@ -887,69 +1255,53 @@ const ArsipDokumen = () => {
                       </div>
                     </div>
 
-                            {/* Dokumen GCG (sebelumnya Checklist GCG) */}
+                              {/* Contact Information */}
                             <div className="space-y-3">
                       <div className="flex items-center space-x-2">
-                                <CheckCircle className="h-4 w-4 text-gray-500" />
-                                <span className="text-sm font-medium text-gray-700">Dokumen GCG</span>
+                                  <Phone className="h-4 w-4 text-gray-500" />
+                                  <span className="text-sm font-medium text-gray-700">Kontak</span>
                               </div>
                               <div className="pl-6 space-y-1">
-                                {doc.checklistDescription ? (
-                                  <div className="text-sm text-gray-900">
-                                    <div className="font-medium text-indigo-600 mb-1">
-                                      Deskripsi:
+                                  {doc.userWhatsApp ? (
+                                    <div className="flex items-center space-x-1 text-xs text-green-600">
+                                      <Phone className="h-3 w-3" />
+                                      <span>{doc.userWhatsApp}</span>
                                     </div>
-                                    <div className="text-xs text-gray-700 bg-indigo-50 p-2 rounded border border-indigo-100 max-w-full">
-                                      {doc.checklistDescription}
+                                  ) : null}
+                                  {doc.userEmail ? (
+                                    <div className="flex items-center space-x-1 text-xs text-blue-600">
+                                      <Mail className="h-3 w-3" />
+                                      <span className="truncate">{doc.userEmail}</span>
                                     </div>
-                                  </div>
-                                ) : (
+                                  ) : null}
+                                  {!doc.userWhatsApp && !doc.userEmail ? (
                                   <div className="text-sm text-gray-500 italic">
-                                    Deskripsi tidak tersedia
+                                      Kontak tidak tersedia
                                   </div>
-                                )}
+                                  ) : null}
                               </div>
                             </div>
 
-                            {/* Contact Information - Separate section */}
+                              {/* Additional Info */}
                             <div className="space-y-3">
                       <div className="flex items-center space-x-2">
-                                <Phone className="h-4 w-4 text-gray-500" />
-                                <span className="text-sm font-medium text-gray-700">Kontak</span>
+                                  <FolderOpen className="h-4 w-4 text-gray-500" />
+                                  <span className="text-sm font-medium text-gray-700">Info Tambahan</span>
                               </div>
                               <div className="pl-6 space-y-1">
-                                {(doc.userWhatsApp || doc.userEmail) ? (
-                                  <div className="space-y-1">
-                                  {doc.userWhatsApp && (
-                                      <div className="flex items-center space-x-1 text-xs text-gray-600">
-                                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                                        <span className="truncate max-w-24" title={doc.userWhatsApp}>
-                                        {doc.userWhatsApp}
-                                      </span>
+                                  {doc.checklistDescription && (
+                                    <div className="text-xs text-gray-600">
+                                      <span className="font-medium">Deskripsi:</span> {doc.checklistDescription}
                                     </div>
                                   )}
-                                  {doc.userEmail && (
-                                      <div className="flex items-center space-x-1 text-xs text-gray-600">
-                                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                                        <span className="truncate max-w-32" title={doc.userEmail}>
-                                        {doc.userEmail}
-                        </span>
               </div>
-                                  )}
             </div>
-                                ) : (
-                                  <div className="text-sm text-gray-500 italic">
-                                    Kontak tidak tersedia
             </div>
-                  )}
                               </div>
+                          );
+                        })}
                             </div>
-
-
-          </div>
-                        </div>
-                      ))}
-                    </div>
+                    )
                   ) : (
                     <div className="text-center py-16">
                       <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-blue-200 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -966,171 +1318,22 @@ const ArsipDokumen = () => {
                   )}
                 </CardContent>
               </Card>
-
-            {/* Dokumen Tambahan dari AOI - Modern Card Layout */}
-            <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-purple-50/30">
-              <CardHeader className="bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-t-lg">
-                <CardTitle className="flex items-center space-x-3 text-white">
-                  <div className="p-2 bg-white/20 rounded-lg">
-                    <FileText className="h-6 w-6 text-white" />
-                  </div>
-                  <div>
-                    <span className="text-xl font-bold">Dokumen Tambahan dari AOI</span>
-                    <div className="text-purple-100 text-sm font-normal mt-1">
-                      Total {aoiDocuments.length} dokumen AOI ditemukan
-                    </div>
-                  </div>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-6">
-                {aoiDocuments.length > 0 ? (
-                  <div className="grid gap-4">
-                    {aoiDocuments.map((doc) => (
-                      <div key={doc.id} className="group bg-white border border-gray-200 rounded-xl p-6 hover:shadow-xl hover:border-purple-400 hover:scale-[1.02] transition-all duration-300 transform">
-                        {/* Header Row */}
-                        <div className="flex items-center justify-between mb-4">
-                          <div className="flex items-center space-x-3">
-                            <div className="p-3 bg-gradient-to-br from-purple-100 to-purple-200 rounded-xl">
-                              <FileText className="h-6 w-6 text-purple-600" />
-                            </div>
-                            <div>
-                              <h3 className="text-lg font-bold text-gray-900 truncate max-w-[300px]" title={doc.fileName}>
-                                {doc.fileName}
-                              </h3>
-                              <div className="flex items-center space-x-2 mt-1">
-                                <Badge className={`text-xs px-3 py-1 ${
-                                  doc.aoiJenis === 'REKOMENDASI' 
-                                    ? 'bg-blue-100 text-blue-800 border-blue-200' 
-                                    : 'bg-green-100 text-green-800 border-green-200'
-                                }`}>
-                                  {doc.aoiJenis === 'REKOMENDASI' ? 'Rekomendasi' : 'Saran'} #{doc.aoiUrutan}
-                                </Badge>
-                                <Badge className="bg-purple-100 text-purple-800 border-purple-200 text-xs px-3 py-1">
-                                  AOI Document
-                                </Badge>
-                              </div>
-                            </div>
-                          </div>
-
-                              {/* Action Buttons */}
-                          <div className="flex items-center space-x-3">
-                                <Button
-                                  size="sm"
-                              variant="outline" 
-                              className="border-green-200 text-green-600 hover:bg-green-50 hover:border-green-300 transition-colors"
-                              onClick={() => handleDownloadAOI(doc)}
-                                >
-                              <Download className="h-4 w-4 mr-2" />
-                                  Download
-                                </Button>
-                                <Button
-                                  size="sm"
-                              variant="outline" 
-                              className="border-orange-200 text-orange-600 hover:bg-orange-50 hover:border-orange-300 transition-colors"
-                              onClick={() => handleRevisionAOI(doc)}
-                                >
-                              <MessageSquare className="h-4 w-4 mr-2" />
-                                  Revisi
-                                </Button>
-                                
-                                {/* Tombol Catatan untuk AOI */}
-                            <Button 
-                              size="sm" 
-                              variant="outline" 
-                              className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 transition-colors"
-                              onClick={() => handleDeleteAOI(doc)}
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Hapus
-                                </Button>
-                              </div>
-                            </div>
-
-                        {/* Content Grid */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {/* Pengirim Information */}
-                          <div className="space-y-3">
-                            <div className="flex items-center space-x-2">
-                              <User className="h-4 w-4 text-gray-500" />
-                              <span className="text-sm font-medium text-gray-700">Pengirim</span>
-                            </div>
-                            <div className="pl-6 space-y-1">
-                              <div className="space-y-1">
-                                <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs px-2 py-1">
-                                  {doc.userDirektorat}
-                                </Badge>
-                                <Badge variant="outline" className="bg-purple-50 border-purple-200 text-purple-700 text-xs px-2 py-1">
-                                  {doc.userSubdirektorat}
-                                </Badge>
-                                {doc.userDivisi && (
-                                  <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs px-2 py-1">
-                                    {doc.userDivisi}
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Document Details */}
-                          <div className="space-y-3">
-                            <div className="flex items-center space-x-2">
-                              <Calendar className="h-4 w-4 text-gray-500" />
-                              <span className="text-sm font-medium text-gray-700">Detail Dokumen</span>
-                            </div>
-                            <div className="pl-6 space-y-1">
-                              <div className="text-sm text-gray-600">
-                                <span className="font-medium">Tanggal Upload:</span>
-                                <div className="mt-1 text-xs text-gray-500">
-                                  {new Date(doc.uploadDate).toLocaleDateString('id-ID')}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
-                          
-          </div>
-                        </div>
-                      ))}
                     </div>
                   ) : (
                   <div className="text-center py-16">
-                    <div className="w-20 h-20 bg-gradient-to-br from-purple-100 to-purple-200 rounded-full flex items-center justify-center mx-auto mb-6">
-                      <FileText className="h-10 w-10 text-purple-600" />
+              <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Calendar className="h-10 w-10 text-gray-600" />
                     </div>
                     <h3 className="text-xl font-bold text-gray-900 mb-3">
-                      Belum Ada Dokumen AOI
+                Pilih Tahun Terlebih Dahulu
                       </h3>
                     <p className="text-gray-600 max-w-md mx-auto">
-                      Belum ada dokumen tambahan dari AOI. 
-                      Dokumen yang diupload dari panel AOI akan muncul di sini.
+                Silakan pilih tahun buku untuk melihat arsip dokumen yang tersedia.
                       </p>
                     </div>
                   )}
-              </CardContent>
-            </Card>
           </div>
-          ) : (
-            /* Empty State when no year selected */
-            <div className="text-center py-20 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20">
-              <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-purple-400 rounded-full blur-3xl opacity-20 animate-pulse"></div>
-                <div className="relative z-10">
-                  <div className="w-20 h-20 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <Archive className="w-10 h-10 text-white" />
                   </div>
-                  <h3 className="text-2xl font-bold text-gray-900 mb-4 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                    Pilih Tahun Buku
-              </h3>
-                  <p className="text-gray-600 text-lg max-w-md mx-auto">
-                    Silakan pilih tahun buku di atas untuk melihat arsip dokumen yang tersedia
-                    </p>
-                  </div>
-                  </div>
-          </div>
-          )}
-        </div>
-      </div>
-
     </>
   );
 };

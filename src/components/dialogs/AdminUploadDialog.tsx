@@ -56,7 +56,7 @@ const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
   // Form state
   const [formData, setFormData] = useState<UploadFormData>({
     fileName: '',
-    description: ''
+    description: '',
   });
   
   // File state
@@ -72,7 +72,7 @@ const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
     if (checklistItem) {
       setFormData({
         fileName: existingFileName || '',
-        description: checklistItem.deskripsi
+        description: checklistItem.deskripsi,
       });
     }
   }, [checklistItem, existingFileName]);
@@ -201,9 +201,8 @@ const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
               checklistItem.tahun || new Date().getFullYear(),
               checklistItem.id,
               checklistItem.deskripsi,
-              checklistItem.aspek || 'Tidak Diberikan Aspek',
+              checklistItem.aspek || 'Dokumen Tanpa Aspek',
               checklistItem.pic || user?.subdirektorat || '',
-              '', // Catatan dihapus
               rowNumber // Add row number for organized file structure
             );
           } else {
@@ -213,9 +212,8 @@ const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
               checklistItem.tahun || new Date().getFullYear(),
               checklistItem.id,
               checklistItem.deskripsi,
-              checklistItem.aspek || 'Tidak Diberikan Aspek',
+              checklistItem.aspek || 'Dokumen Tanpa Aspek',
               checklistItem.pic || user?.subdirektorat || '',
-              '', // Catatan dihapus
               rowNumber // Add row number for organized file structure
             );
           }
@@ -232,7 +230,6 @@ const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
        setFormData({
          fileName: '',
          description: '',
-         notes: ''
        });
        setSelectedFile(null);
        setUploadProgress(0);
@@ -266,7 +263,6 @@ const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
       setFormData({
         fileName: '',
         description: '',
-        notes: ''
       });
       setSelectedFile(null);
       setErrors({});
@@ -426,6 +422,7 @@ const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
               Jika dikosongkan, akan menggunakan nama file asli
             </p>
           </div>
+
 
 
           {/* Upload Progress */}

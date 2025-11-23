@@ -35,9 +35,13 @@ import {
   User,
   Loader2,
   RefreshCw,
+  Trash2,
+  Archive,
 } from 'lucide-react';
 
 const MonitoringUploadGCG = () => {
+  console.log('🔍 MonitoringUploadGCG component rendering...');
+  
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { 
@@ -50,6 +54,13 @@ const MonitoringUploadGCG = () => {
   const { selectedYear, setSelectedYear } = useYear();
   const { user } = useUser();
   const { toast } = useToast();
+
+  console.log('🔍 Context data loaded:', {
+    checklistLength: checklist?.length || 0,
+    documentsLength: documents?.length || 0,
+    selectedYear,
+    user: user?.name || 'Unknown'
+  });
 
   const [selectedAspek, setSelectedAspek] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
@@ -139,23 +150,27 @@ const MonitoringUploadGCG = () => {
       }
     };
 
-    const handleDocumentsUpdated = () => {
-      console.log('MonitoringUploadGCG: Received documentsUpdated event from FileUploadDialog');
-      // Force re-render using setSelectedYear like admin dashboard
-      if (selectedYear) {
-        setTimeout(() => {
-          setSelectedYear(selectedYear);
-        }, 100);
+    const handleDocumentsUpdated = async () => {
+      console.log('MonitoringUploadGCG: Received documentsUpdated event');
+      // Refresh files and checklist status
+      try {
+        await refreshFiles();
+        await checkSupabaseFileStatus();
+        console.log('✅ MonitoringUploadGCG: Data refreshed after documentsUpdated');
+      } catch (error) {
+        console.error('❌ MonitoringUploadGCG: Error refreshing after documentsUpdated:', error);
       }
     };
 
-    const handleUploadedFilesChanged = () => {
-      console.log('MonitoringUploadGCG: Received uploadedFilesChanged event from FileUploadDialog');
-      // Force re-render using setSelectedYear like admin dashboard
-      if (selectedYear) {
-        setTimeout(() => {
-          setSelectedYear(selectedYear);
-        }, 100);
+    const handleUploadedFilesChanged = async () => {
+      console.log('MonitoringUploadGCG: Received uploadedFilesChanged event');
+      // Refresh files and checklist status
+      try {
+        await refreshFiles();
+        await checkSupabaseFileStatus();
+        console.log('✅ MonitoringUploadGCG: Data refreshed after uploadedFilesChanged');
+      } catch (error) {
+        console.error('❌ MonitoringUploadGCG: Error refreshing after uploadedFilesChanged:', error);
       }
     };
 
@@ -279,7 +294,8 @@ const MonitoringUploadGCG = () => {
   const aspects = useMemo(() => {
     if (!selectedYear) return [];
     const yearChecklist = checklist.filter(item => item.tahun === selectedYear);
-    return [...new Set(yearChecklist.map(item => item.aspek))];
+    const uniqueAspects = [...new Set(yearChecklist.map(item => item.aspek || 'Dokumen Tanpa Aspek'))];
+    return uniqueAspects;
   }, [checklist, selectedYear]);
 
   // Get unique PIC values for filter
@@ -545,7 +561,7 @@ const MonitoringUploadGCG = () => {
     }));
 
     if (selectedAspek !== 'all') {
-      filtered = filtered.filter(item => item.aspek === selectedAspek);
+      filtered = filtered.filter(item => (item.aspek || 'Dokumen Tanpa Aspek') === selectedAspek);
     }
 
     if (selectedStatus !== 'all') {
@@ -780,6 +796,7 @@ const MonitoringUploadGCG = () => {
   // Get aspect icon - konsisten dengan dashboard
   const getAspectIcon = useCallback((aspekName: string) => {
     if (aspekName === 'KESELURUHAN') return TrendingUp;
+    if (aspekName === 'Dokumen Tanpa Aspek') return Plus;
     if (aspekName.includes('ASPEK I')) return FileText;
     if (aspekName.includes('ASPEK II')) return CheckCircle;
     if (aspekName.includes('ASPEK III')) return TrendingUp;
@@ -792,6 +809,7 @@ const MonitoringUploadGCG = () => {
   // Mapping warna unik untuk tiap aspek - sama dengan dashboard
   const ASPECT_COLORS: Record<string, string> = {
     'KESELURUHAN': '#7c3aed', // ungu gelap untuk keseluruhan
+    'Dokumen Tanpa Aspek': '#6b7280', // abu-abu
     'ASPEK I. Komitmen': '#2563eb', // biru
     'ASPEK II. RUPS': '#059669',    // hijau
     'ASPEK III. Dewan Komisaris': '#f59e42', // oranye
@@ -834,10 +852,10 @@ const MonitoringUploadGCG = () => {
     const yearDocuments = getDocumentsByYear(selectedYear);
 
     // Get unique aspects
-    const uniqueAspects = Array.from(new Set(yearChecklist.map(item => item.aspek)));
+    const uniqueAspects = Array.from(new Set(yearChecklist.map(item => item.aspek || 'Dokumen Tanpa Aspek')));
 
     return uniqueAspects.map(aspek => {
-      const aspectItems = yearChecklist.filter(item => item.aspek === aspek);
+      const aspectItems = yearChecklist.filter(item => (item.aspek || 'Dokumen Tanpa Aspek') === aspek);
       const totalItems = aspectItems.length;
       const uploadedCount = aspectItems.filter(item => isChecklistUploaded(item.id)).length;
       const progress = totalItems > 0 ? Math.round((uploadedCount / totalItems) * 100) : 0;
@@ -857,10 +875,109 @@ const MonitoringUploadGCG = () => {
     setIsUploadDialogOpen(true);
   }, []);
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50">
-      <Sidebar />
-      <Topbar />
+  // Handle delete document
+  const handleDeleteDocument = useCallback(async (checklistId: number, documentId: string) => {
+    console.log('🗑️ MonitoringUploadGCG: Starting delete process', { checklistId, documentId });
+    
+    try {
+      console.log(`🌐 MonitoringUploadGCG: Sending DELETE request to /api/delete-file/${documentId}`);
+      const response = await fetch(`http://localhost:5000/api/delete-file/${documentId}`, {
+        method: 'DELETE',
+      });
+
+      console.log(`📡 MonitoringUploadGCG: Delete response status: ${response.status}`);
+
+      if (response.ok) {
+        const responseData = await response.json();
+        console.log('✅ MonitoringUploadGCG: Delete successful', responseData);
+        
+        toast({
+          title: "Berhasil",
+          description: "Dokumen berhasil dihapus",
+        });
+        
+        // Dispatch events to notify other components
+        console.log('📢 MonitoringUploadGCG: Dispatching events for sync');
+        window.dispatchEvent(new CustomEvent('uploadedFilesChanged', {
+          detail: { 
+            type: 'fileDeleted', 
+            fileId: documentId,
+            checklistId: checklistId,
+            timestamp: new Date().toISOString()
+          }
+        }));
+        
+        window.dispatchEvent(new CustomEvent('documentsUpdated', {
+          detail: { 
+            type: 'documentsUpdated', 
+            year: selectedYear,
+            timestamp: new Date().toISOString()
+          }
+        }));
+        
+        // Refresh the files to update the UI
+        console.log('🔄 MonitoringUploadGCG: Refreshing data after delete');
+        await refreshFiles();
+        await checkSupabaseFileStatus();
+        
+        console.log('✅ MonitoringUploadGCG: Delete process completed successfully');
+      } else {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('❌ MonitoringUploadGCG: Delete failed', { status: response.status, error: errorData });
+        throw new Error(errorData.error || 'Failed to delete document');
+      }
+    } catch (error) {
+      console.error('❌ MonitoringUploadGCG: Delete error:', error);
+      toast({
+        title: "Error",
+        description: `Gagal menghapus dokumen: ${error}`,
+        variant: "destructive",
+      });
+    }
+  }, [toast, refreshFiles, checkSupabaseFileStatus, selectedYear]);
+
+  // Handle navigate to archive with highlight
+  const handleViewInArchive = useCallback((item: { id: number; aspek: string; deskripsi: string; pic?: string }) => {
+    console.log('🎯 MonitoringUploadGCG: Preparing to navigate to archive', {
+      itemId: item.id,
+      aspek: item.aspek,
+      deskripsi: item.deskripsi,
+      pic: item.pic
+    });
+    
+    // Store the search criteria for highlighting
+    const searchCriteria = {
+      checklistId: item.id,
+      aspect: item.aspek || 'Dokumen Tanpa Aspek',
+      description: item.deskripsi,
+      pic: item.pic || '',
+      timestamp: new Date().toISOString() // Add timestamp for uniqueness
+    };
+    
+    console.log('📝 Storing highlight criteria:', searchCriteria);
+    
+    // Store in localStorage for the archive page to use
+    localStorage.setItem('archiveHighlight', JSON.stringify(searchCriteria));
+    
+    // Verify storage
+    const stored = localStorage.getItem('archiveHighlight');
+    console.log('✅ Verified storage:', stored);
+    
+    // Navigate to archive page
+    navigate('/admin/arsip-dokumen');
+    
+    toast({
+      title: "Navigasi ke Arsip",
+      description: `Membuka arsip dokumen dengan highlight untuk: ${item.deskripsi}`,
+    });
+  }, [navigate, toast]);
+
+  // Error boundary for rendering
+  try {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50">
+        <Sidebar />
+        <Topbar />
       
       <div className={`
         transition-all duration-300 ease-in-out pt-16
@@ -1194,7 +1311,7 @@ const MonitoringUploadGCG = () => {
                                 <IconComponent className="w-3 h-3 text-gray-600" />
                               </div>
                               <span className="text-xs text-gray-600 truncate">
-                                {item.aspek}
+                                {item.aspek || 'Dokumen Tanpa Aspek'}
                               </span>
                             </div>
                           </TableCell>
@@ -1310,6 +1427,34 @@ const MonitoringUploadGCG = () => {
                               >
                             <Upload className="w-4 h-4" />
                           </Button>
+
+                          {/* Archive Button */}
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleViewInArchive(item)}
+                            className="border-blue-200 text-blue-600 hover:bg-blue-50"
+                            title="Lihat di arsip dokumen"
+                          >
+                            <Archive className="w-4 h-4" />
+                          </Button>
+
+                          {/* Delete Button */}
+                          {uploadedDocument && (
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => {
+                                if (confirm(`Apakah Anda yakin ingin menghapus dokumen "${uploadedDocument.fileName}"?`)) {
+                                  handleDeleteDocument(item.id, uploadedDocument.id);
+                                }
+                              }}
+                              className="border-red-200 text-red-600 hover:bg-red-50"
+                              title="Hapus dokumen"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -1433,7 +1578,27 @@ const MonitoringUploadGCG = () => {
       />
 
     </div>
-  );
+    );
+  } catch (error) {
+    console.error('❌ Error rendering MonitoringUploadGCG:', error);
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-red-600 mb-4">Error Rendering Page</h1>
+          <p className="text-gray-600 mb-4">Terjadi kesalahan saat merender halaman Monitoring & Upload GCG.</p>
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4 text-left">
+            <p className="text-sm text-red-700 font-mono">{error?.toString()}</p>
+          </div>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Refresh Halaman
+          </button>
+        </div>
+      </div>
+    );
+  }
 };
 
 export default MonitoringUploadGCG; 
