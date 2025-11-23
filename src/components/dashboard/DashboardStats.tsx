@@ -104,7 +104,7 @@ const DashboardStats = () => {
       
       return uniqueAspects.map(aspek => {
         // Handle aspek yang kosong/undefined
-        const aspekName = aspek || 'Tidak Diberikan Aspek';
+        const aspekName = aspek || 'Dokumen Tanpa Aspek';
         const aspectItems = yearChecklist.filter(item => item.aspek === aspek);
         
         // Hitung uploaded files berdasarkan checklist items yang sudah diupload
@@ -249,6 +249,7 @@ const DashboardStats = () => {
   const getAspectIcon = (aspekName: string) => {
     // Use predefined icons for known aspects, fallback to Plus for new ones
     const iconMap: Record<string, any> = {
+      'Dokumen Tanpa Aspek': Plus,
       'ASPEK I. Komitmen': BarChart3,
       'ASPEK II. RUPS': CheckCircle,
       'ASPEK III. Dewan Komisaris': TrendingUp,
@@ -263,11 +264,12 @@ const DashboardStats = () => {
   const getAspectColor = (aspekName: string, progress: number) => {
     // Predefined colors for known aspects
     const predefinedColors: Record<string, string> = {
-    'ASPEK I. Komitmen': '#2563eb', // biru
-    'ASPEK II. RUPS': '#059669',    // hijau
-    'ASPEK III. Dewan Komisaris': '#f59e42', // oranye
-    'ASPEK IV. Direksi': '#eab308', // kuning
-    'ASPEK V. Pengungkapan': '#d946ef', // ungu
+      'Dokumen Tanpa Aspek': '#6b7280', // abu-abu
+      'ASPEK I. Komitmen': '#2563eb', // biru
+      'ASPEK II. RUPS': '#059669',    // hijau
+      'ASPEK III. Dewan Komisaris': '#f59e42', // oranye
+      'ASPEK IV. Direksi': '#eab308', // kuning
+      'ASPEK V. Pengungkapan': '#d946ef', // ungu
   };
 
     if (predefinedColors[aspekName]) return predefinedColors[aspekName];
