@@ -51,7 +51,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
       try {
         console.log('ChecklistContext: loadDataFromSupabase function called');
         // Load aspects from Supabase
-        const aspectsResponse = await fetch('http://localhost:5000/api/config/aspects');
+        const aspectsResponse = await fetch('http://localhost:5001/api/config/aspects');
         if (aspectsResponse.ok) {
           const aspectsData = await aspectsResponse.json();
           if (aspectsData.aspects && Array.isArray(aspectsData.aspects)) {
@@ -72,7 +72,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
 
         // Load checklist from Supabase API
         console.log('ChecklistContext: Fetching checklist from API...');
-        const checklistResponse = await fetch('http://localhost:5000/api/config/checklist', {
+        const checklistResponse = await fetch('http://localhost:5001/api/config/checklist', {
           method: 'GET',
           headers: {
             'Accept': 'application/json',
@@ -394,7 +394,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
     
     try {
       // Fetch aspects from Supabase API
-      const response = await fetch(`http://localhost:5000/api/config/aspects?year=${year}`);
+      const response = await fetch(`http://localhost:5001/api/config/aspects?year=${year}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -438,7 +438,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
   const addChecklist = async (aspek: string, deskripsi: string, pic: string, year: number) => {
     try {
       // Save to Supabase API
-      const response = await fetch('http://localhost:5000/api/config/checklist', {
+      const response = await fetch('http://localhost:5001/api/config/checklist', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -486,7 +486,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
   const editChecklist = async (id: number, aspek: string, deskripsi: string, pic: string, year: number) => {
     try {
       // Update in Supabase API
-      const response = await fetch(`http://localhost:5000/api/config/checklist/${id}`, {
+      const response = await fetch(`http://localhost:5001/api/config/checklist/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -558,7 +558,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
   const deleteChecklist = async (id: number, year: number) => {
     try {
       // Delete from Supabase API
-      const response = await fetch(`http://localhost:5000/api/config/checklist/${id}`, {
+      const response = await fetch(`http://localhost:5001/api/config/checklist/${id}`, {
         method: 'DELETE',
       });
       
@@ -589,7 +589,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
     
     try {
       // Add aspect via API
-      const response = await fetch('http://localhost:5000/api/config/aspects', {
+      const response = await fetch('http://localhost:5001/api/config/aspects', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -690,7 +690,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
 
     try {
       // Delete from Supabase API - try this regardless of local cache state
-      const response = await fetch(`http://localhost:5000/api/config/aspects/${id}`, {
+      const response = await fetch(`http://localhost:5001/api/config/aspects/${id}`, {
         method: 'DELETE',
       });
 
@@ -1108,7 +1108,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
       setChecklist(updatedChecklist);
 
       // Save to backend via batch API
-      const response = await fetch('http://localhost:5000/api/config/checklist/batch', {
+      const response = await fetch('http://localhost:5001/api/config/checklist/batch', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1132,7 +1132,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
       // Reload the data from Supabase to refresh the context
       setTimeout(async () => {
         try {
-          const checklistResponse = await fetch('http://localhost:5000/api/config/checklist');
+          const checklistResponse = await fetch('http://localhost:5001/api/config/checklist');
           if (checklistResponse.ok) {
             const checklistData = await checklistResponse.json();
             if (checklistData.checklist && Array.isArray(checklistData.checklist)) {

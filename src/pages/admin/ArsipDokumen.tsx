@@ -106,7 +106,7 @@ const ArsipDokumen: React.FC = () => {
 
       setIsLoadingFiles(true);
       try {
-      const response = await fetch(`http://localhost:5000/api/uploaded-files?year=${selectedYear}`);
+      const response = await fetch(`http://localhost:5001/api/uploaded-files?year=${selectedYear}`);
       
       if (response.ok) {
         const data = await response.json();
@@ -442,7 +442,7 @@ const ArsipDokumen: React.FC = () => {
     
     try {
       console.log(`🌐 ArsipDokumen: Sending DELETE request to /api/delete-file/${doc.id}`);
-      const response = await fetch(`http://localhost:5000/api/delete-file/${doc.id}`, {
+      const response = await fetch(`http://localhost:5001/api/delete-file/${doc.id}`, {
         method: 'DELETE',
       });
 
@@ -556,7 +556,7 @@ const ArsipDokumen: React.FC = () => {
             try {
               console.log(`⬇️ Downloading: ${doc.fileName}`);
               
-              const response = await fetch(`http://localhost:5000/api/download-file/${doc.id}`);
+              const response = await fetch(`http://localhost:5001/api/download-file/${doc.id}`);
               
               if (!response.ok) {
                 console.warn(`⚠️ Failed to download ${doc.fileName}: ${response.status}`);
@@ -635,7 +635,7 @@ const ArsipDokumen: React.FC = () => {
     try {
       console.log(`🔍 Downloading file: ${doc.fileName} (ID: ${doc.id})`);
       
-      const response = await fetch(`http://localhost:5000/api/download-file/${doc.id}`);
+      const response = await fetch(`http://localhost:5001/api/download-file/${doc.id}`);
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
@@ -692,7 +692,7 @@ const ArsipDokumen: React.FC = () => {
     
     setIsLoadingFiles(true);
     try {
-      const response = await fetch(`http://localhost:5000/api/uploaded-files?year=${selectedYear}`);
+      const response = await fetch(`http://localhost:5001/api/uploaded-files?year=${selectedYear}`);
           if (response.ok) {
         const data = await response.json();
         setApiFiles(data.files || []);

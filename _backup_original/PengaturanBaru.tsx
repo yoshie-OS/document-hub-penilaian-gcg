@@ -102,7 +102,7 @@ const AssignmentDropdown = ({
   // Check if files exist for a checklist item
   const checkIfFilesExist = async (checklistId: number): Promise<boolean> => {
     try {
-      const response = await fetch(`http://localhost:5001/api/check-files-exist/${checklistId}?year=${selectedYear}`);
+      const response = await fetch(`http://localhost:5000/api/check-files-exist/${checklistId}?year=${selectedYear}`);
       const data = await response.json();
       return data.hasFiles || false;
     } catch (error) {
@@ -890,7 +890,7 @@ const PengaturanBaru = () => {
   useEffect(() => {
     const loadUsersFromAPI = async () => {
       try {
-        const response = await fetch('http://localhost:5001/api/users');
+        const response = await fetch('http://localhost:5000/api/users');
         if (response.ok) {
           const apiUsers = await response.json();
           setUsers(apiUsers);
@@ -950,7 +950,7 @@ const PengaturanBaru = () => {
           tahun: null
         };
 
-        const response = await fetch('http://localhost:5001/api/users', {
+        const response = await fetch('http://localhost:5000/api/users', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -1034,7 +1034,7 @@ const PengaturanBaru = () => {
   useEffect(() => {
     const fetchAssignmentsFromDatabase = async () => {
       try {
-        const response = await fetch('http://localhost:5001/api/config/assignments');
+        const response = await fetch('http://localhost:5000/api/config/assignments');
         if (response.ok) {
           const data = await response.json();
           const allAssignments = data.assignments || [];
@@ -1078,7 +1078,7 @@ const PengaturanBaru = () => {
   // Function to load assignments and merge with checklist data
   const loadAssignmentsAndMergeData = async (checklistData: any[]) => {
     try {
-      const assignmentsResponse = await fetch('http://localhost:5001/api/config/assignments');
+      const assignmentsResponse = await fetch('http://localhost:5000/api/config/assignments');
       if (assignmentsResponse.ok) {
         const assignmentsData = await assignmentsResponse.json();
         const assignments = assignmentsData.assignments || [];
@@ -1933,7 +1933,7 @@ const PengaturanBaru = () => {
 
       if (editingUser) {
         // Update existing user via API
-        const response = await fetch(`http://localhost:5001/api/users/${editingUser.id}`, {
+        const response = await fetch(`http://localhost:5000/api/users/${editingUser.id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -1962,7 +1962,7 @@ const PengaturanBaru = () => {
         console.log('PengaturanBaru: Successfully updated user via API', updatedUser);
       } else {
         // Create new user via API
-        const response = await fetch('http://localhost:5001/api/users', {
+        const response = await fetch('http://localhost:5000/api/users', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -2041,7 +2041,7 @@ const PengaturanBaru = () => {
       setDeletingUsers(prev => new Set(prev).add(userId));
 
       // Delete from Supabase via API
-      const response = await fetch(`http://localhost:5001/api/users/${userId}`, {
+      const response = await fetch(`http://localhost:5000/api/users/${userId}`, {
         method: 'DELETE',
       });
 
@@ -2210,7 +2210,7 @@ const PengaturanBaru = () => {
       const picName = 'UNKNOWN_PIC'; // We'd need to determine this properly
       const year = selectedYear || new Date().getFullYear();
 
-      const response = await fetch(`http://localhost:5001/api/check-row-files/${year}/${picName}/${rowNumber}`);
+      const response = await fetch(`http://localhost:5000/api/check-row-files/${year}/${picName}/${rowNumber}`);
       const result = await response.json();
 
       if (result.success && result.hasFiles) {
@@ -2227,7 +2227,7 @@ const PengaturanBaru = () => {
         }
 
         // Delete files from storage
-        const deleteResponse = await fetch(`http://localhost:5001/api/delete-row-files/${year}/${picName}/${rowNumber}`, {
+        const deleteResponse = await fetch(`http://localhost:5000/api/delete-row-files/${year}/${picName}/${rowNumber}`, {
           method: 'DELETE'
         });
         const deleteResult = await deleteResponse.json();
@@ -2528,7 +2528,7 @@ const PengaturanBaru = () => {
               year
             };
 
-            const assignmentResponse = await fetch('http://localhost:5001/api/config/assignments', {
+            const assignmentResponse = await fetch('http://localhost:5000/api/config/assignments', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(assignmentPayload)
@@ -2627,7 +2627,7 @@ const PengaturanBaru = () => {
     setIsBulkDeleting(true);
     
     try {
-      const response = await fetch(`http://localhost:5001/api/bulk-delete/${selectedYear}`, {
+      const response = await fetch(`http://localhost:5000/api/bulk-delete/${selectedYear}`, {
         method: 'DELETE',
       });
 
@@ -2686,7 +2686,7 @@ const PengaturanBaru = () => {
           year
         };
 
-        const assignmentResponse = await fetch('http://localhost:5001/api/config/assignments', {
+        const assignmentResponse = await fetch('http://localhost:5000/api/config/assignments', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

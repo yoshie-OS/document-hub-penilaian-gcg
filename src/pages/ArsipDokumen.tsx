@@ -157,7 +157,7 @@ const ArsipDokumen = () => {
 
         for (const [subdirektorat, checklistIds] of Object.entries(subdirektoratGroups)) {
           try {
-            const response = await fetch('http://localhost:5000/api/check-gcg-files', {
+            const response = await fetch('http://localhost:5001/api/check-gcg-files', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -291,7 +291,7 @@ const ArsipDokumen = () => {
     if (uploadedFile) {
       try {
         // Get file URL from backend API
-        const response = await fetch(`http://localhost:5000/api/files/${uploadedFile.id}/view`, {
+        const response = await fetch(`http://localhost:5001/api/files/${uploadedFile.id}/view`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('authToken') || 'demo-token'}`,
@@ -324,7 +324,7 @@ const ArsipDokumen = () => {
     if (uploadedFile) {
       try {
         // Download file through backend API
-        const response = await fetch(`http://localhost:5000/api/files/${uploadedFile.id}/download`, {
+        const response = await fetch(`http://localhost:5001/api/files/${uploadedFile.id}/download`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('authToken') || 'demo-token'}`,
@@ -397,7 +397,7 @@ const ArsipDokumen = () => {
     setDownloadProgress(0);
 
     try {
-      const response = await fetch('http://localhost:5000/api/bulk-download-all-documents', {
+      const response = await fetch('http://localhost:5001/api/bulk-download-all-documents', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -468,7 +468,7 @@ const ArsipDokumen = () => {
 
     setIsRefreshing(true);
     try {
-      const response = await fetch('http://localhost:5000/api/refresh-tracking-tables', {
+      const response = await fetch('http://localhost:5001/api/refresh-tracking-tables', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

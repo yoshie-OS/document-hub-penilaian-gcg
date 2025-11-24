@@ -69,7 +69,7 @@ const AdminArchivePanel: React.FC<AdminArchivePanelProps> = ({
 
       setIsLoadingFiles(true);
       try {
-        const apiUrl = `http://localhost:5000/api/uploaded-files?year=${selectedYear}`;
+        const apiUrl = `http://localhost:5001/api/uploaded-files?year=${selectedYear}`;
         const response = await fetch(apiUrl);
         
         if (!response.ok) {
@@ -95,7 +95,7 @@ const AdminArchivePanel: React.FC<AdminArchivePanelProps> = ({
       console.log(`🔍 Downloading file: ${doc.fileName} (ID: ${doc.id})`);
       
       // Fetch the actual file from API
-      const response = await fetch(`http://localhost:5000/api/download-file/${doc.id}`);
+      const response = await fetch(`http://localhost:5001/api/download-file/${doc.id}`);
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));

@@ -25,13 +25,6 @@ import DashboardAdmin from './pages/admin/DashboardAdmin';
 import PengaturanBaru from './pages/admin/PengaturanBaru';
 import AOIManagement from './pages/admin/AOIManagement';
 import EditSuperAdmin from './pages/admin/EditSuperAdmin';
-import {
-  PengaturanHub,
-  TahunBukuPage,
-  StrukturOrganisasiPage,
-  ManajemenAkunPage,
-  KelolaDokumenPage
-} from './pages/admin/pengaturan';
 import NotFound from './pages/NotFound';
 import { useUser } from './contexts/UserContext';
 
@@ -145,55 +138,13 @@ const AppRoutes = () => {
           </SuperAdminRoute>
         } 
       />
-      <Route
-        path="/admin/pengaturan-baru"
+      <Route 
+        path="/admin/pengaturan-baru" 
         element={
           <SuperAdminRoute>
             <PengaturanBaru />
           </SuperAdminRoute>
-        }
-      />
-
-      {/* New Pengaturan Routes */}
-      <Route
-        path="/admin/pengaturan"
-        element={
-          <SuperAdminRoute>
-            <PengaturanHub />
-          </SuperAdminRoute>
-        }
-      />
-      <Route
-        path="/admin/pengaturan/tahun-buku"
-        element={
-          <SuperAdminRoute>
-            <TahunBukuPage />
-          </SuperAdminRoute>
-        }
-      />
-      <Route
-        path="/admin/pengaturan/struktur-organisasi"
-        element={
-          <SuperAdminRoute>
-            <StrukturOrganisasiPage />
-          </SuperAdminRoute>
-        }
-      />
-      <Route
-        path="/admin/pengaturan/manajemen-akun"
-        element={
-          <SuperAdminRoute>
-            <ManajemenAkunPage />
-          </SuperAdminRoute>
-        }
-      />
-      <Route
-        path="/admin/pengaturan/kelola-dokumen"
-        element={
-          <SuperAdminRoute>
-            <KelolaDokumenPage />
-          </SuperAdminRoute>
-        }
+        } 
       />
       <Route
         path="/admin/aoi-management"

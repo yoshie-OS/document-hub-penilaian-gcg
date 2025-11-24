@@ -1,4 +1,7 @@
-const API_BASE_URL = 'http://localhost:5000/api';
+// API Configuration - Change port here if needed
+export const API_PORT = 5001;
+export const API_HOST = `http://localhost:${API_PORT}`;
+const API_BASE_URL = `${API_HOST}/api`;
 
 // Generic API helper
 const apiCall = async (endpoint: string, options: RequestInit = {}) => {
@@ -275,7 +278,7 @@ export const strukturAPI = {
 };
 
 // Health check
-export const healthCheck = () => fetch('http://localhost:5000/health').then(res => res.json());
+export const healthCheck = () => fetch(`${API_HOST}/health`).then(res => res.json());
 
 export default {
   userAPI,

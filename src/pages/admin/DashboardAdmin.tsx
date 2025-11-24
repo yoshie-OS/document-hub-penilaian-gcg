@@ -269,7 +269,7 @@ const DashboardAdmin: React.FC = () => {
       if (uploadedFile) {
         try {
           // Get file URL from backend API
-          const response = await fetch(`http://localhost:5000/api/files/${uploadedFile.id}/view`, {
+          const response = await fetch(`http://localhost:5001/api/files/${uploadedFile.id}/view`, {
             method: 'GET',
             headers: {
               'Authorization': `Bearer ${localStorage.getItem('authToken') || 'demo-token'}`,
@@ -305,7 +305,7 @@ const DashboardAdmin: React.FC = () => {
       if (uploadedFile) {
         try {
           // Download file through backend API
-          const response = await fetch(`http://localhost:5000/api/files/${uploadedFile.id}/download`, {
+          const response = await fetch(`http://localhost:5001/api/files/${uploadedFile.id}/download`, {
             method: 'GET',
             headers: {
               'Authorization': `Bearer ${localStorage.getItem('authToken') || 'demo-token'}`,

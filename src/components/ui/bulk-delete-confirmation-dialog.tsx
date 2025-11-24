@@ -53,7 +53,7 @@ export const BulkDeleteConfirmationDialog: React.FC<BulkDeleteConfirmationDialog
   const fetchPreviewData = async () => {
     setLoadingPreview(true);
     try {
-      const response = await fetch(`http://localhost:5000/api/bulk-delete/${selectedYear}/preview`);
+      const response = await fetch(`http://localhost:5001/api/bulk-delete/${selectedYear}/preview`);
       if (response.ok) {
         const data = await response.json();
         setPreviewData(data);

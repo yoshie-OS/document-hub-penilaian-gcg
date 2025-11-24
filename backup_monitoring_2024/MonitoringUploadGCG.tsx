@@ -14,20 +14,21 @@ import { useDocumentMetadata } from '@/contexts/DocumentMetadataContext';
 import { useFileUpload } from '@/contexts/FileUploadContext';
 import { useYear } from '@/contexts/YearContext';
 import { useUser } from '@/contexts/UserContext';
-import { useStrukturPerusahaan } from '@/contexts/StrukturPerusahaanContext';
 
 import { useToast } from '@/hooks/use-toast';
 import { AdminUploadDialog } from '@/components/dialogs';
-import { PageHeaderPanel } from '@/components/panels';
+import { YearSelectorPanel, PageHeaderPanel } from '@/components/panels';
+import YearStatisticsPanel from '@/components/dashboard/YearStatisticsPanel';
 
-import {
-  FileText,
-  CheckCircle,
-  Clock,
-  Upload,
+import { 
+  FileText, 
+  CheckCircle, 
+  Clock, 
+  Upload, 
   Filter,
   Eye,
   TrendingUp,
+  RotateCcw,
   Search,
   Download,
   Plus,
@@ -35,12 +36,7 @@ import {
   Loader2,
   RefreshCw,
   Trash2,
-  BarChart3,
-  AlertCircle,
-  Calendar,
-  Replace,
-  X,
-  ChevronDown,
+  Archive,
 } from 'lucide-react';
 
 const MonitoringUploadGCG = () => {
@@ -58,7 +54,6 @@ const MonitoringUploadGCG = () => {
   const { selectedYear, setSelectedYear } = useYear();
   const { user } = useUser();
   const { toast } = useToast();
-  const { subdirektorat: strukturSubdirektorat, divisi: strukturDivisi } = useStrukturPerusahaan();
 
   console.log('🔍 Context data loaded:', {
     checklistLength: checklist?.length || 0,
@@ -73,11 +68,6 @@ const MonitoringUploadGCG = () => {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>('');
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
-
-  // State untuk PIC filter dropdown
-  const [isPICDropdownOpen, setIsPICDropdownOpen] = useState(false);
-  const [picFilterType, setPicFilterType] = useState<'divisi' | 'subdirektorat'>('divisi');
-  const [picSearchTerm, setPicSearchTerm] = useState<string>('');
   const [selectedChecklistItem, setSelectedChecklistItem] = useState<{
     id: number;
     aspek: string;
@@ -108,19 +98,6 @@ const MonitoringUploadGCG = () => {
   useEffect(() => {
     ensureAllYearsHaveData();
   }, [ensureAllYearsHaveData]);
-
-  // Close PIC dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      if (isPICDropdownOpen && !target.closest('[data-pic-dropdown]')) {
-        setIsPICDropdownOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isPICDropdownOpen]);
 
   // Listen for real-time updates from PengaturanBaru and FileUploadDialog
   useEffect(() => {
@@ -321,37 +298,20 @@ const MonitoringUploadGCG = () => {
     return uniqueAspects;
   }, [checklist, selectedYear]);
 
-  // Get unique PIC values for filter (legacy - masih digunakan untuk filter logic)
+  // Get unique PIC values for filter
   const picValues = useMemo(() => {
     if (!selectedYear) return [];
-
+    
     const yearChecklist = checklist.filter(item => item.tahun === selectedYear);
     const allPICs = yearChecklist
       .map(item => item.pic)
       .filter(Boolean)
       .filter(pic => pic.trim() !== '');
-
+      
     const uniquePICs = Array.from(new Set(allPICs)).sort();
-
+    
     return uniquePICs;
   }, [selectedYear, checklist]);
-
-  // Get PIC options based on filter type (divisi/subdirektorat)
-  const picFilterOptions = useMemo(() => {
-    if (picFilterType === 'divisi') {
-      return strukturDivisi?.map(d => d.nama).filter(Boolean).sort() || [];
-    } else {
-      return strukturSubdirektorat?.map(s => s.nama).filter(Boolean).sort() || [];
-    }
-  }, [picFilterType, strukturDivisi, strukturSubdirektorat]);
-
-  // Filtered PIC options based on search
-  const filteredPicOptions = useMemo(() => {
-    if (!picSearchTerm.trim()) return picFilterOptions;
-    return picFilterOptions.filter(name =>
-      name.toLowerCase().includes(picSearchTerm.toLowerCase())
-    );
-  }, [picFilterOptions, picSearchTerm]);
 
   // Check if dokumen GCG item is uploaded - now uses Supabase file status
   const isChecklistUploaded = useCallback((checklistId: number) => {
@@ -880,24 +840,16 @@ const MonitoringUploadGCG = () => {
       aspek: 'KESELURUHAN',
       totalItems,
       uploadedCount,
-      pendingCount: totalItems - uploadedCount,
       progress
     };
   }, [selectedYear, checklist, isChecklistUploaded, supabaseFileStatus]);
-
-  // Get color based on progress - sama dengan Dashboard
-  const getProgressColor = useCallback((progress: number) => {
-    if (progress >= 80) return { bg: 'bg-green-500', text: 'text-green-600', light: 'bg-green-100' };
-    if (progress >= 50) return { bg: 'bg-yellow-500', text: 'text-yellow-600', light: 'bg-yellow-100' };
-    if (progress >= 25) return { bg: 'bg-orange-500', text: 'text-orange-600', light: 'bg-orange-100' };
-    return { bg: 'bg-red-500', text: 'text-red-600', light: 'bg-red-100' };
-  }, []);
 
   // Get aspect statistics for year book
   const getAspectStats = useMemo(() => {
     if (!selectedYear) return [];
 
     const yearChecklist = checklist.filter(item => item.tahun === selectedYear);
+    const yearDocuments = getDocumentsByYear(selectedYear);
 
     // Get unique aspects
     const uniqueAspects = Array.from(new Set(yearChecklist.map(item => item.aspek || 'Dokumen Tanpa Aspek')));
@@ -912,11 +864,10 @@ const MonitoringUploadGCG = () => {
         aspek,
         totalItems,
         uploadedCount,
-        pendingCount: totalItems - uploadedCount,
         progress
       };
     }).sort((a, b) => b.progress - a.progress); // Sort by progress descending
-  }, [selectedYear, checklist, isChecklistUploaded, supabaseFileStatus]);
+  }, [selectedYear, checklist, getDocumentsByYear, isChecklistUploaded, supabaseFileStatus]);
 
   // Handle upload button click
   const handleUploadClick = useCallback((item: { id: number; aspek: string; deskripsi: string; rowNumber?: number; pic?: string }, rowNumber: number) => {
@@ -1035,85 +986,29 @@ const MonitoringUploadGCG = () => {
         <div className="p-6">
           {/* Enhanced Header */}
           <PageHeaderPanel
-            title="Monitoring & Upload Dokumen"
-            subtitle="Monitoring dan pengelolaan dokumen GCG berdasarkan tahun buku"
+            title="Monitoring & Upload GCG"
+                          subtitle="Monitoring dan pengelolaan dokumen GCG berdasarkan tahun buku"
             badge={{ 
               text: selectedYear ? selectedYear.toString() : 'Belum dipilih', 
               variant: selectedYear ? "default" : "secondary" 
             }}
+            actions={[
+              {
+                label: "Upload Dokumen",
+                onClick: () => setIsUploadDialogOpen(true),
+                icon: <Upload className="w-4 h-4" />
+              }
+            ]}
           />
 
-          {/* Year Selection - Single Line with Upload/View indication */}
-          <div className="mb-6 bg-white rounded-lg p-3 shadow-sm border border-gray-100">
-            {/* Main Row */}
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className="flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-blue-600" />
-                <span className="text-sm font-medium text-gray-700">Tahun Buku:</span>
-              </div>
-
-              {/* Year Buttons */}
-              <div className="flex items-center gap-2 flex-wrap">
-                {years.sort((a, b) => b - a).map((year, index) => {
-                  const isLatestYear = index === 0;
-                  const isSelected = selectedYear === year;
-
-                  return (
-                    <Button
-                      key={year}
-                      variant={isSelected ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setSelectedYear(year)}
-                      title={isLatestYear ? `${year} - Tahun Aktif (Upload, View, Download)` : `${year} - Arsip (View & Download saja)`}
-                      className={`h-8 px-3 transition-all ${
-                        isSelected
-                          ? 'bg-blue-600 text-white hover:bg-blue-700'
-                          : isLatestYear
-                            ? 'border-green-300 text-green-700 hover:bg-green-50 hover:border-green-400'
-                            : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                      }`}
-                    >
-                      <span className="mr-1.5">{year}</span>
-                      {isLatestYear ? (
-                        <Upload className="w-3.5 h-3.5" />
-                      ) : (
-                        <Eye className="w-3.5 h-3.5" />
-                      )}
-                    </Button>
-                  );
-                })}
-              </div>
-
-              {/* Status Indicator */}
-              {selectedYear && (
-                <div className="flex items-center gap-2 ml-auto">
-                  {selectedYear === years.sort((a, b) => b - a)[0] ? (
-                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-700">
-                      <Upload className="w-3 h-3 mr-1" />
-                      Tahun Aktif - Upload
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-600">
-                      <Eye className="w-3 h-3 mr-1" />
-                      Arsip - View/Download
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Legend Row - Below buttons */}
-            <div className="flex items-center gap-4 mt-2 pt-2 border-t border-gray-100 text-xs text-gray-500">
-              <span className="inline-flex items-center gap-1">
-                <Upload className="w-3 h-3 text-green-600" />
-                <span>= Tahun Aktif (Upload, View, Download)</span>
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <Eye className="w-3 h-3 text-gray-500" />
-                <span>= Arsip (View & Download)</span>
-              </span>
-            </div>
-          </div>
+          {/* Enhanced Year Selection */}
+          <YearSelectorPanel
+            selectedYear={selectedYear}
+            onYearChange={setSelectedYear}
+            availableYears={years}
+            title="Tahun Buku"
+                            description="Pilih tahun buku untuk melihat dokumen GCG"
+          />
 
           {/* Warning jika belum ada tahun yang dipilih */}
           {!selectedYear && (
@@ -1138,391 +1033,255 @@ const MonitoringUploadGCG = () => {
           )}
 
           {/* Konten Rekap */}
-          {selectedYear && getOverallProgress ? (
+          {selectedYear ? (
             <>
-              {/* Progress Keseluruhan - Sama seperti Dashboard */}
-              <Card className="mb-6 border-0 shadow-lg bg-gradient-to-br from-purple-600 to-indigo-700 text-white">
-                <CardContent className="p-4">
-                  <div className="flex flex-col md:flex-row items-center gap-4">
-                    {/* Circular Progress */}
-                    <div className="relative w-28 h-28 flex-shrink-0">
-                      <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                        <circle
-                          cx="50"
-                          cy="50"
-                          r="42"
-                          fill="none"
-                          stroke="rgba(255,255,255,0.2)"
-                          strokeWidth="10"
-                        />
-                        <circle
-                          cx="50"
-                          cy="50"
-                          r="42"
-                          fill="none"
-                          stroke="white"
-                          strokeWidth="10"
-                          strokeLinecap="round"
-                          strokeDasharray={`${getOverallProgress.progress * 2.64} 264`}
-                          className="transition-all duration-1000 ease-out"
-                        />
-                      </svg>
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="text-center">
-                          <span className="text-2xl font-bold">{getOverallProgress.progress}%</span>
-                          <p className="text-[10px] text-purple-200">Selesai</p>
-                        </div>
-                      </div>
-                    </div>
+                              {/* Statistik Tahun Buku */}
+                  <YearStatisticsPanel 
+                    selectedYear={selectedYear}
+                    aspectStats={getAspectStats}
+                    overallProgress={getOverallProgress}
+                    getAspectIcon={getAspectIcon}
+                    getAspectColor={getAspectColor}
+                    onAspectClick={(aspectName) => setSelectedAspek(aspectName)}
+                    isSidebarOpen={isSidebarOpen}
+                    title="Statistik Tahun Buku"
+                    description={`Overview dokumen dan assessment dokumen GCG tahun ${selectedYear}`}
+                    showOverallProgress={true}
+                  />
 
-                    {/* Stats Info */}
-                    <div className="flex-1 text-center md:text-left">
-                      <h2 className="text-lg font-bold mb-1">Progress Keseluruhan</h2>
-                      <p className="text-purple-200 text-xs mb-3">Tahun Buku {selectedYear}</p>
-
-                      <div className="grid grid-cols-3 gap-3">
-                        <div className="bg-white/10 rounded-lg p-2 text-center">
-                          <FileText className="w-4 h-4 mx-auto mb-0.5" />
-                          <p className="text-lg font-bold">{getOverallProgress.totalItems}</p>
-                          <p className="text-[10px] text-purple-200">Total Dokumen</p>
-                        </div>
-                        <div className="bg-white/10 rounded-lg p-2 text-center">
-                          <CheckCircle className="w-4 h-4 mx-auto mb-0.5" />
-                          <p className="text-lg font-bold">{getOverallProgress.uploadedCount}</p>
-                          <p className="text-[10px] text-purple-200">Selesai</p>
-                        </div>
-                        <div className="bg-white/10 rounded-lg p-2 text-center">
-                          <Clock className="w-4 h-4 mx-auto mb-0.5" />
-                          <p className="text-lg font-bold">{getOverallProgress.pendingCount}</p>
-                          <p className="text-[10px] text-purple-200">Belum Upload</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Progress Per Aspek - Sama seperti Dashboard */}
-              <Card className="mb-6 border-0 shadow-xl bg-white/80 backdrop-blur-sm">
+              {/* Breakdown Penugasan Subdirektorat */}
+              <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm mb-6">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <BarChart3 className="w-6 h-6 text-blue-600" />
-                    Progress Per Aspek
-                  </CardTitle>
+                  <CardTitle className="text-indigo-900">Breakdown Penugasan Subdirektorat</CardTitle>
                   <CardDescription>
-                    Klik pada aspek untuk memfilter tabel dokumen di bawah
+                    Ringkasan jumlah dokumen GCG yang ditugaskan dan selesai per subdirektorat pada tahun {selectedYear}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {getAspectStats.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                      {getAspectStats.map((aspect, index) => {
-                        const colors = getProgressColor(aspect.progress);
-                        return (
-                          <div
-                            key={index}
-                            onClick={() => setSelectedAspek(aspect.aspek)}
-                            className={`p-4 bg-white border rounded-xl shadow-sm hover:shadow-lg transition-all cursor-pointer group ${
-                              selectedAspek === aspect.aspek ? 'border-blue-500 ring-2 ring-blue-200' : 'border-gray-200 hover:border-blue-300'
-                            }`}
-                          >
-                            <div className="flex items-center gap-4">
-                              {/* Mini Circular Progress */}
-                              <div className="relative w-16 h-16 flex-shrink-0">
-                                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                                  <circle
-                                    cx="50"
-                                    cy="50"
-                                    r="42"
-                                    fill="none"
-                                    stroke="#e5e7eb"
-                                    strokeWidth="10"
-                                  />
-                                  <circle
-                                    cx="50"
-                                    cy="50"
-                                    r="42"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="10"
-                                    strokeLinecap="round"
-                                    strokeDasharray={`${aspect.progress * 2.64} 264`}
-                                    style={{ stroke: colors.bg.includes('green') ? '#22c55e' : colors.bg.includes('yellow') ? '#eab308' : colors.bg.includes('orange') ? '#f97316' : '#ef4444' }}
-                                  />
-                                </svg>
-                                <div className="absolute inset-0 flex items-center justify-center">
-                                  <span className={`text-sm font-bold ${colors.text}`}>{aspect.progress}%</span>
-                                </div>
-                              </div>
-
-                              {/* Aspect Info */}
-                              <div className="flex-1 min-w-0">
-                                <h4 className="font-semibold text-gray-900 text-sm truncate group-hover:text-blue-600 transition-colors" title={aspect.aspek}>
-                                  {aspect.aspek}
-                                </h4>
-                                <p className="text-xs text-gray-500 mt-1">
-                                  {aspect.uploadedCount} / {aspect.totalItems} dokumen
-                                </p>
-                                <div className="flex items-center gap-2 mt-1">
-                                  {aspect.pendingCount > 0 ? (
-                                    <span className="inline-flex items-center text-xs text-orange-600">
-                                      <AlertCircle className="w-3 h-3 mr-1" />
-                                      {aspect.pendingCount} belum
-                                    </span>
-                                  ) : (
-                                    <span className="inline-flex items-center text-xs text-green-600">
-                                      <CheckCircle className="w-3 h-3 mr-1" />
-                                      Lengkap
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
+                  <div className="text-sm text-gray-500 text-center py-8">
+                    Fitur penugasan dokumen GCG telah dipindahkan ke menu "Pengaturan Baru" → "Kelola Dokumen"
                           </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 text-gray-500">
-                      <FileText className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                      <p>Tidak ada data aspek untuk tahun ini</p>
-                    </div>
-                  )}
                 </CardContent>
               </Card>
 
               {/* Daftar Dokumen GCG */}
-              <Card className="border-0 shadow-lg bg-white/90 backdrop-blur-sm" id="dokumen-gcg-table">
-                <CardHeader className="pb-4">
-                  {/* Header Row */}
+              <Card className="border-0 shadow-lg bg-gradient-to-r from-white to-indigo-50">
+                <CardHeader>
                   <div className="flex items-center justify-between mb-4">
                     <div>
-                      <CardTitle className="flex items-center gap-2 text-gray-900">
-                        <FileText className="w-5 h-5 text-blue-600" />
-                        Daftar Dokumen GCG
+                      <CardTitle className="flex items-center space-x-2 text-indigo-900">
+                        <FileText className="w-5 h-5 text-indigo-600" />
+                        <span>Daftar Dokumen GCG - Tahun {selectedYear}</span>
                       </CardTitle>
-                      <CardDescription className="mt-1">
-                        <span className="font-semibold text-blue-600">{filteredChecklist.length}</span> dokumen
-                        {searchTerm && <span> untuk "{searchTerm}"</span>}
+                      <CardDescription className="text-indigo-700 mt-2">
+                        {searchTerm ? (
+                          <span>
+                            <span className="font-semibold text-indigo-600">{filteredChecklist.length}</span> item ditemukan untuk pencarian "{searchTerm}"
+                          </span>
+                        ) : (
+                          <span>
+                            <span className="font-semibold text-indigo-600">{filteredChecklist.length}</span> item ditemukan
+                          </span>
+                        )}
                       </CardDescription>
                     </div>
-                    <div className="flex items-center gap-2">
+                  </div>
+
+              {/* All Filters Integrated */}
+              <div className="space-y-4">
+                {/* Search Bar */}
+                <div>
+                  <label className="text-sm font-semibold text-gray-700 mb-2 block flex items-center">
+                    <Search className="w-4 h-4 mr-2 text-blue-600" />
+                    Pencarian Dokumen
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Search className="h-4 w-4 text-gray-400" />
+                    </div>
+                    <Input
+                      type="text"
+                      placeholder="Cari berdasarkan deskripsi dokumen GCG..."
+                      className="pl-10 pr-10"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                    {searchTerm && (
                       <Button
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
-                        onClick={handleRefreshRescan}
-                        disabled={isRefreshing || fileStatusLoading}
-                        className="text-xs"
+                        onClick={() => setSearchTerm('')}
+                        className="absolute inset-y-0 right-0 px-3 text-gray-400 hover:text-gray-600"
                       >
-                        {isRefreshing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                        <RotateCcw className="w-4 h-4" />
                       </Button>
-                    </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Filter Row */}
+                <div className="flex flex-wrap items-center gap-4">
+                  {/* Aspek Filter */}
+                  <div className="flex-1 min-w-0">
+                    <label className="text-sm font-semibold text-gray-700 mb-2 block flex items-center">
+                      <Filter className="w-4 h-4 mr-2 text-orange-600" />
+                      Filter Aspek
+                    </label>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant={selectedAspek === 'all' ? "default" : "outline"}
+                      onClick={() => setSelectedAspek('all')}
+                      size="sm"
+                        className={selectedAspek === 'all' 
+                          ? 'bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700' 
+                          : 'border-orange-200 text-orange-600 hover:bg-orange-50'
+                        }
+                    >
+                      Semua Aspek
+                    </Button>
+                      {aspects.map(aspek => {
+                        const IconComponent = getAspectIcon(aspek);
+                        return (
+                      <Button
+                        key={aspek}
+                        variant={selectedAspek === aspek ? "default" : "outline"}
+                        onClick={() => setSelectedAspek(aspek)}
+                        size="sm"
+                            className={`text-xs flex items-center space-x-2 ${
+                              selectedAspek === aspek 
+                                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700' 
+                                : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                            }`}
+                          >
+                            <IconComponent className={`w-3 h-3 ${selectedAspek === aspek ? 'text-white' : 'text-gray-600'}`} />
+                            <span>{aspek.replace('ASPEK ', '').replace('. ', ' - ')}</span>
+                      </Button>
+                        );
+                      })}
+                  </div>
+                </div>
+
+                  {/* Status Filter */}
+                  <div className="flex-1 min-w-0">
+                    <label className="text-sm font-semibold text-gray-700 mb-2 block flex items-center">
+                      <TrendingUp className="w-4 h-4 mr-2 text-orange-600" />
+                      Filter Status
+                    </label>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant={selectedStatus === 'all' ? "default" : "outline"}
+                      onClick={() => setSelectedStatus('all')}
+                      size="sm"
+                        className={selectedStatus === 'all' 
+                          ? 'bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700' 
+                          : 'border-orange-200 text-orange-600 hover:bg-orange-50'
+                        }
+                    >
+                      Semua Status
+                    </Button>
+                    <Button
+                      variant={selectedStatus === 'uploaded' ? "default" : "outline"}
+                      onClick={() => setSelectedStatus('uploaded')}
+                      size="sm"
+                        className={selectedStatus === 'uploaded' 
+                          ? 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700' 
+                          : 'border-green-200 text-green-600 hover:bg-green-50'
+                        }
+                    >
+                        <CheckCircle className="w-3 h-3 mr-1" />
+                      Sudah Upload
+                    </Button>
+                    <Button
+                      variant={selectedStatus === 'not_uploaded' ? "default" : "outline"}
+                      onClick={() => setSelectedStatus('not_uploaded')}
+                      size="sm"
+                        className={selectedStatus === 'not_uploaded' 
+                              ? 'bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700' 
+                              : 'border-red-200 text-red-600 hover:bg-red-50'
+                        }
+                    >
+                        <Clock className="w-3 h-3 mr-1" />
+                      Belum Upload
+                    </Button>
+                  </div>
+                </div>
+
+                  {/* PIC Filter */}
+                  <div className="flex-1 min-w-0">
+                    <label className="text-sm font-semibold text-gray-700 mb-2 block flex items-center">
+                      <User className="w-4 h-4 mr-2 text-green-600" />
+                      Filter PIC
+                    </label>
+                    <Select value={selectedPIC} onValueChange={setSelectedPIC}>
+                      <SelectTrigger className="w-full border-green-200 focus:border-green-500 focus:ring-green-500">
+                        <SelectValue placeholder="Pilih PIC" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Semua PIC</SelectItem>
+                        {picValues.map((pic: string) => (
+                          <SelectItem key={pic} value={pic}>
+                            {pic}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
-                  {/* Compact Filters */}
-                  <div className="space-y-3">
-                    {/* Search */}
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <Input
-                        type="text"
-                        placeholder="Cari dokumen..."
-                        className="pl-9 h-9 text-sm"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                      />
-                    </div>
-
-                    {/* Filter Row */}
-                    <div className="flex flex-wrap items-center gap-2">
-                      {/* Aspek Dropdown */}
-                      <Select value={selectedAspek} onValueChange={setSelectedAspek}>
-                        <SelectTrigger className="w-[180px] h-8 text-xs">
-                          <Filter className="w-3 h-3 mr-1 text-gray-400" />
-                          <SelectValue placeholder="Filter Aspek" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Semua Aspek</SelectItem>
-                          {aspects.map(aspek => (
-                            <SelectItem key={aspek} value={aspek}>
-                              {aspek.replace('ASPEK ', '').substring(0, 30)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-
-                      {/* Status Buttons */}
-                      <div className="flex items-center gap-1 p-1 bg-gray-100 rounded-lg">
-                        <Button
-                          variant={selectedStatus === 'all' ? 'default' : 'ghost'}
+                      {/* Reset Filter */}
+                      <div className="flex-shrink-0">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setSelectedAspek('all');
+                      setSelectedStatus('all');
+                      setSelectedPIC('all');
+                      setSearchTerm('');
+                    }}
                           size="sm"
-                          onClick={() => setSelectedStatus('all')}
-                          className="h-6 px-2 text-xs"
-                        >
-                          Semua
-                        </Button>
-                        <Button
-                          variant={selectedStatus === 'uploaded' ? 'default' : 'ghost'}
+                          className="border-gray-300 text-gray-600 hover:bg-gray-50"
+                  >
+                          <RotateCcw className="w-4 h-4 mr-1" />
+                    Reset Filter
+                  </Button>
+                </div>
+
+                      {/* Refresh/Rescan Button */}
+                      <div className="flex-shrink-0">
+                  <Button 
+                    variant="outline" 
+                    onClick={handleRefreshRescan}
+                    disabled={isRefreshing || fileStatusLoading}
                           size="sm"
-                          onClick={() => setSelectedStatus('uploaded')}
-                          className={`h-6 px-2 text-xs ${selectedStatus === 'uploaded' ? 'bg-green-600' : ''}`}
-                        >
-                          <CheckCircle className="w-3 h-3 mr-1" />
-                          Upload
-                        </Button>
-                        <Button
-                          variant={selectedStatus === 'not_uploaded' ? 'default' : 'ghost'}
-                          size="sm"
-                          onClick={() => setSelectedStatus('not_uploaded')}
-                          className={`h-6 px-2 text-xs ${selectedStatus === 'not_uploaded' ? 'bg-orange-600' : ''}`}
-                        >
-                          <Clock className="w-3 h-3 mr-1" />
-                          Belum
-                        </Button>
-                      </div>
-
-                      {/* PIC Dropdown dengan Switch dan Search */}
-                      <div className="relative" data-pic-dropdown>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setIsPICDropdownOpen(!isPICDropdownOpen);
-                            setPicSearchTerm('');
-                          }}
-                          className="w-[180px] h-8 text-xs justify-between"
-                        >
-                          <div className="flex items-center">
-                            <User className="w-3 h-3 mr-1 text-gray-400" />
-                            <span className="truncate">
-                              {selectedPIC === 'all' ? 'Semua PIC' : selectedPIC.substring(0, 18) + (selectedPIC.length > 18 ? '...' : '')}
-                            </span>
-                          </div>
-                          <ChevronDown className="w-3 h-3 ml-1" />
-                        </Button>
-
-                        {isPICDropdownOpen && (
-                          <div className="absolute z-50 mt-1 w-[280px] bg-white border border-gray-200 rounded-md shadow-lg max-h-80 overflow-hidden">
-                            {/* Type Switch */}
-                            <div className="sticky top-0 bg-gray-50 border-b border-gray-200 p-2">
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs font-medium text-gray-700">Tipe:</span>
-                                <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
-                                  <button
-                                    onClick={() => {
-                                      setPicFilterType('divisi');
-                                      setSelectedPIC('all');
-                                    }}
-                                    className={`px-2 py-1 text-xs font-medium rounded-md transition-all ${
-                                      picFilterType === 'divisi'
-                                        ? 'bg-blue-600 text-white shadow-sm'
-                                        : 'text-gray-600 hover:text-gray-800 hover:bg-gray-200'
-                                    }`}
-                                  >
-                                    Divisi
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      setPicFilterType('subdirektorat');
-                                      setSelectedPIC('all');
-                                    }}
-                                    className={`px-2 py-1 text-xs font-medium rounded-md transition-all ${
-                                      picFilterType === 'subdirektorat'
-                                        ? 'bg-blue-600 text-white shadow-sm'
-                                        : 'text-gray-600 hover:text-gray-800 hover:bg-gray-200'
-                                    }`}
-                                  >
-                                    Subdirektorat
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Search Input */}
-                            <div className="sticky top-[44px] bg-white border-b border-gray-200 p-2">
-                              <div className="relative">
-                                <Input
-                                  type="text"
-                                  placeholder={`Cari ${picFilterType === 'divisi' ? 'divisi' : 'subdirektorat'}...`}
-                                  value={picSearchTerm}
-                                  onChange={(e) => setPicSearchTerm(e.target.value)}
-                                  className="h-7 text-xs pr-7"
-                                  autoFocus
-                                />
-                                {picSearchTerm && (
-                                  <button
-                                    onClick={() => setPicSearchTerm('')}
-                                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                                  >
-                                    <X className="w-3 h-3" />
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Options List */}
-                            <div className="max-h-[180px] overflow-y-auto py-1">
-                              {/* Semua PIC option */}
-                              <button
-                                onClick={() => {
-                                  setSelectedPIC('all');
-                                  setIsPICDropdownOpen(false);
-                                }}
-                                className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 ${
-                                  selectedPIC === 'all' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'
-                                }`}
-                              >
-                                Semua PIC
-                              </button>
-
-                              {filteredPicOptions.length === 0 ? (
-                                <div className="px-3 py-2 text-xs text-gray-500">
-                                  {picSearchTerm.trim()
-                                    ? `Tidak ada ${picFilterType === 'divisi' ? 'divisi' : 'subdirektorat'} yang cocok`
-                                    : `Belum ada ${picFilterType === 'divisi' ? 'divisi' : 'subdirektorat'}`}
-                                </div>
-                              ) : (
-                                filteredPicOptions.map((name) => (
-                                  <button
-                                    key={name}
-                                    onClick={() => {
-                                      setSelectedPIC(name);
-                                      setIsPICDropdownOpen(false);
-                                    }}
-                                    className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 ${
-                                      selectedPIC === name ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'
-                                    }`}
-                                  >
-                                    {name}
-                                  </button>
-                                ))
-                              )}
-                            </div>
-
-                            {/* Footer */}
-                            <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-3 py-1.5 text-xs text-gray-500">
-                              {picSearchTerm.trim()
-                                ? `${filteredPicOptions.length} dari ${picFilterOptions.length}`
-                                : `${picFilterOptions.length} ${picFilterType === 'divisi' ? 'divisi' : 'subdirektorat'}`}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </CardHeader>
-            <CardContent className="px-0 pb-0">
-              <div id="checklist-table" className="overflow-x-auto">
+                          className={`${
+                            isRefreshing || fileStatusLoading
+                              ? 'border-gray-200 text-gray-400 cursor-not-allowed'
+                              : 'border-blue-300 text-blue-600 hover:bg-blue-50'
+                          }`}
+                          title="Muat ulang daftar dokumen dan pindai ulang storage"
+                  >
+                          {isRefreshing ? (
+                            <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                          ) : (
+                            <RefreshCw className="w-4 h-4 mr-1" />
+                          )}
+                    {isRefreshing ? 'Memuat...' : 'Rescan'}
+                  </Button>
+                </div>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div id="checklist-table" className="overflow-hidden rounded-lg border border-indigo-100">
               <Table>
                 <TableHeader>
-                    <TableRow className="bg-gray-50 border-b border-gray-200">
-                      <TableHead className="text-gray-700 font-medium text-xs w-12">No</TableHead>
-                      <TableHead className="text-gray-700 font-medium text-xs w-32">Aspek</TableHead>
-                      <TableHead className="text-gray-700 font-medium text-xs">Deskripsi</TableHead>
-                      <TableHead className="text-gray-700 font-medium text-xs w-36">PIC</TableHead>
-                      <TableHead className="text-gray-700 font-medium text-xs w-28">Status</TableHead>
-                      <TableHead className="text-gray-700 font-medium text-xs w-44">File</TableHead>
-                      <TableHead className="text-gray-700 font-medium text-xs w-32 text-center">Aksi</TableHead>
+                    <TableRow className="bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-100">
+                      <TableHead className="text-indigo-900 font-semibold">No</TableHead>
+                      <TableHead className="text-indigo-900 font-semibold">Aspek</TableHead>
+                      <TableHead className="text-indigo-900 font-semibold">Deskripsi Dokumen GCG</TableHead>
+                      <TableHead className="text-indigo-900 font-semibold">PIC</TableHead>
+                      <TableHead className="text-indigo-900 font-semibold">Status</TableHead>
+                      <TableHead className="text-indigo-900 font-semibold">File</TableHead>
+                      <TableHead className="text-indigo-900 font-semibold">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1542,112 +1301,158 @@ const MonitoringUploadGCG = () => {
                       }
                       
                       return (
-                        <TableRow key={item.id} className="hover:bg-blue-50/50 transition-colors border-b border-gray-100">
-                          <TableCell className="text-xs text-gray-600 py-2">
+                        <TableRow key={item.id} className="hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 transition-colors duration-200">
+                          <TableCell className="font-medium text-gray-700">
                             {index + 1}
                           </TableCell>
-                          <TableCell className="py-2">
-                            <span className="text-xs text-gray-600 line-clamp-2" title={item.aspek || 'Dokumen Tanpa Aspek'}>
-                              {(item.aspek || 'Tanpa Aspek').replace('ASPEK ', '').substring(0, 20)}
-                            </span>
+                          <TableCell className="max-w-xs">
+                            <div className="flex items-center space-x-2">
+                              <div className="p-1.5 rounded-md bg-gray-100">
+                                <IconComponent className="w-3 h-3 text-gray-600" />
+                              </div>
+                              <span className="text-xs text-gray-600 truncate">
+                                {item.aspek || 'Dokumen Tanpa Aspek'}
+                              </span>
+                            </div>
                           </TableCell>
-                      <TableCell className="py-2">
-                            <div className="text-xs text-gray-900 line-clamp-2" title={item.deskripsi}>
+                      <TableCell className="max-w-md">
+                            <div className="text-sm font-semibold text-gray-900 leading-relaxed" title={item.deskripsi}>
                           {item.deskripsi}
                         </div>
                       </TableCell>
-                      <TableCell className="py-2">
+                      <TableCell className="max-w-xs">
                         {assignmentData ? (
-                          <span className="text-xs text-purple-600 font-medium line-clamp-1" title={assignmentData.divisi || assignmentData.subdirektorat}>
-                            {(assignmentData.divisi || assignmentData.subdirektorat).substring(0, 20)}{(assignmentData.divisi || assignmentData.subdirektorat).length > 20 ? '...' : ''}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-gray-400 italic">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="py-2">
-                            {itemsBeingChecked.has(item.id) ? (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700">
-                                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                                Checking
+                          <div className="space-y-1">
+                            <div className="flex items-center space-x-2">
+                              <div className="p-1.5 rounded-md bg-green-100">
+                                <User className="w-3 h-3 text-green-600" />
+                              </div>
+                              <span className="text-xs font-medium text-green-700">
+                                {assignmentData.divisi || assignmentData.subdirektorat}
                               </span>
-                            ) : item.status === 'uploaded' ? (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">
-                                <CheckCircle className="w-3 h-3 mr-1" />
-                                Upload
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">
-                                <Clock className="w-3 h-3 mr-1" />
-                                Belum
-                              </span>
-                            )}
-                      </TableCell>
-                      <TableCell className="py-2">
-                        {uploadedDocument ? (
-                          <div>
-                            <span className="text-xs text-blue-600 font-medium truncate block max-w-[150px]" title={uploadedDocument.fileName}>
-                              {uploadedDocument.fileName}
-                            </span>
-                            <span className="text-[10px] text-gray-400">
-                              {new Date(uploadedDocument.uploadDate).toLocaleDateString('id-ID')}
-                            </span>
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              Assigned: {new Date(assignmentData.assignedAt).toLocaleDateString('id-ID')}
+                            </div>
                           </div>
                         ) : (
-                          <span className="text-xs text-gray-400 italic">-</span>
+                          <div className="flex items-center space-x-2">
+                            <div className="p-1.5 rounded-md bg-gray-100">
+                              <User className="w-3 h-3 text-gray-400" />
+                            </div>
+                            <span className="text-xs text-gray-500 italic">
+                              Belum di-assign
+                            </span>
+                          </div>
                         )}
                       </TableCell>
-                      <TableCell className="py-2">
-                        <div className="flex items-center justify-center gap-1">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7"
+                      <TableCell>
+                            {itemsBeingChecked.has(item.id) ? (
+                              <span className="flex items-center text-blue-500 text-sm font-medium">
+                                <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                                {batchProgress ? `Checking... (${batchProgress.current}/${batchProgress.total})` : 'Checking...'}
+                              </span>
+                            ) : item.status === 'uploaded' ? (
+                              <span className="flex items-center text-green-600 text-sm font-medium">
+                                <CheckCircle className="w-4 h-4 mr-1" />
+                                Sudah Upload
+                              </span>
+                            ) : (
+                              <span className="flex items-center text-gray-400 text-sm">
+                                <Clock className="w-4 h-4 mr-1" />
+                                Belum Upload
+                              </span>
+                            )}
+                      </TableCell>
+                      <TableCell className="max-w-xs">
+                        {uploadedDocument ? (
+                          <div className="space-y-1">
+                            <div className="flex items-center space-x-2">
+                              <FileText className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                              <span 
+                                className="text-sm font-medium text-gray-900 truncate block max-w-[200px]" 
+                                title={uploadedDocument.fileName}
+                              >
+                                {uploadedDocument.fileName}
+                              </span>
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {new Date(uploadedDocument.uploadDate).toLocaleDateString('id-ID')}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-sm text-gray-400 italic">
+                            Belum ada file
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex space-x-2">
+
+                              <Button 
+                                variant="outline" 
+                                size="sm"
                                 onClick={() => handleDownloadDocument(item.id, item.id)}
                                 disabled={!isChecklistUploaded(item.id)}
-                                title={isChecklistUploaded(item.id) ? 'Download' : 'Belum ada file'}
+                                className={`${
+                                  isChecklistUploaded(item.id)
+                                    ? 'border-green-200 text-green-600 hover:bg-green-50'
+                                    : 'border-gray-200 text-gray-400 cursor-not-allowed'
+                                }`}
+                                title={
+                                  isChecklistUploaded(item.id)
+                                    ? 'Download dokumen'
+                                    : 'Dokumen belum diupload'
+                                }
                               >
-                                <Download className={`w-3.5 h-3.5 ${isChecklistUploaded(item.id) ? 'text-green-600' : 'text-gray-300'}`} />
+                                <Download className="w-4 h-4" />
                               </Button>
-
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7"
+                              
+                              
+                              <Button 
+                                variant="outline" 
+                                size="sm"
                                 onClick={() => handleUploadClick(item, item.rowNumber || (index + 1))}
                                 disabled={itemsBeingChecked.has(item.id)}
-                                title={uploadedDocument ? 'Reupload / Ganti File' : 'Upload'}
+                                className={`${
+                                  itemsBeingChecked.has(item.id) 
+                                    ? 'border-gray-200 text-gray-400 cursor-not-allowed' 
+                                    : 'border-orange-200 text-orange-600 hover:bg-orange-50'
+                                }`}
+                                title={
+                                  itemsBeingChecked.has(item.id) 
+                                    ? "Menunggu pemeriksaan file selesai..." 
+                                    : "Upload dokumen baru"
+                                }
                               >
-                            {uploadedDocument ? (
-                              <Replace className={`w-3.5 h-3.5 ${itemsBeingChecked.has(item.id) ? 'text-gray-300' : 'text-blue-600'}`} />
-                            ) : (
-                              <Upload className={`w-3.5 h-3.5 ${itemsBeingChecked.has(item.id) ? 'text-gray-300' : 'text-orange-600'}`} />
-                            )}
+                            <Upload className="w-4 h-4" />
                           </Button>
 
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
+                          {/* Archive Button */}
+                          <Button 
+                            variant="outline" 
+                            size="sm"
                             onClick={() => handleViewInArchive(item)}
-                            title="Lihat di Arsip"
+                            className="border-blue-200 text-blue-600 hover:bg-blue-50"
+                            title="Lihat di arsip dokumen"
                           >
-                            <Eye className="w-3.5 h-3.5 text-blue-600" />
+                            <Archive className="w-4 h-4" />
                           </Button>
 
+                          {/* Delete Button */}
                           {uploadedDocument && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
+                            <Button 
+                              variant="outline" 
+                              size="sm"
                               onClick={() => {
-                                if (confirm(`Hapus "${uploadedDocument.fileName}"?`)) {
+                                if (confirm(`Apakah Anda yakin ingin menghapus dokumen "${uploadedDocument.fileName}"?`)) {
                                   handleDeleteDocument(item.id, uploadedDocument.id);
                                 }
                               }}
-                              title="Hapus"
+                              className="border-red-200 text-red-600 hover:bg-red-50"
+                              title="Hapus dokumen"
                             >
-                              <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                              <Trash2 className="w-4 h-4" />
                             </Button>
                           )}
                         </div>
@@ -1659,10 +1464,16 @@ const MonitoringUploadGCG = () => {
               </Table>
               
               {filteredChecklist.length === 0 && (
-                  <div className="text-center py-8 border-t border-gray-100">
-                    <FileText className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-                    <p className="text-sm text-gray-500">Tidak ada dokumen ditemukan</p>
-                    <p className="text-xs text-gray-400">Ubah filter atau pilih tahun lain</p>
+                  <div className="text-center py-12 bg-gradient-to-br from-gray-50 to-blue-50">
+                    <div className="p-4 bg-white rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center shadow-lg">
+                      <FileText className="w-8 h-8 text-gray-400" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-700 mb-2">
+                      Tidak ada item yang ditemukan
+                    </h3>
+                    <p className="text-gray-500">
+                      Coba ubah filter atau pilih tahun yang berbeda
+                    </p>
                 </div>
               )}
                 </div>
@@ -1774,7 +1585,7 @@ const MonitoringUploadGCG = () => {
       <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50 flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-red-600 mb-4">Error Rendering Page</h1>
-          <p className="text-gray-600 mb-4">Terjadi kesalahan saat merender halaman Monitoring & Upload Dokumen.</p>
+          <p className="text-gray-600 mb-4">Terjadi kesalahan saat merender halaman Monitoring & Upload GCG.</p>
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4 text-left">
             <p className="text-sm text-red-700 font-mono">{error?.toString()}</p>
           </div>

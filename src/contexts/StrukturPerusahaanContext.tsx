@@ -46,22 +46,27 @@ interface StrukturPerusahaanContextType {
   subdirektorat: Subdirektorat[];
   anakPerusahaan: AnakPerusahaan[];
   divisi: Divisi[];
-  
+
   // CRUD functions
   addDirektorat: (data: Omit<Direktorat, 'id' | 'createdAt' | 'isActive'>) => Promise<void>;
   addSubdirektorat: (data: Omit<Subdirektorat, 'id' | 'createdAt' | 'isActive'>) => Promise<void>;
   addAnakPerusahaan: (data: Omit<AnakPerusahaan, 'id' | 'createdAt' | 'isActive'>) => Promise<void>;
   addDivisi: (data: Omit<Divisi, 'id' | 'createdAt' | 'isActive'>) => Promise<void>;
-  
+
+  updateDirektorat: (id: number, data: Partial<Direktorat>) => Promise<void>;
+  updateSubdirektorat: (id: number, data: Partial<Subdirektorat>) => Promise<void>;
+  updateAnakPerusahaan: (id: number, data: Partial<AnakPerusahaan>) => Promise<void>;
+  updateDivisi: (id: number, data: Partial<Divisi>) => Promise<void>;
+
   deleteDirektorat: (id: number) => Promise<void>;
   deleteSubdirektorat: (id: number) => Promise<void>;
   deleteAnakPerusahaan: (id: number) => Promise<void>;
   deleteDivisi: (id: number) => Promise<void>;
-  
+
   // Utility functions
   useDefaultData: (year: number) => Promise<void>;
   refreshData: () => void;
-  
+
   // Loading state
   isLoading: boolean;
 }
@@ -88,7 +93,7 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
     const loadDataFromSupabase = async () => {
       try {
         setIsLoading(true);
-        const response = await fetch('http://localhost:5000/api/config/struktur-organisasi');
+        const response = await fetch('http://localhost:5001/api/config/struktur-organisasi');
         if (response.ok) {
           const data = await response.json();
           
@@ -176,7 +181,7 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
   const addDirektorat = async (data: Omit<Direktorat, 'id' | 'createdAt' | 'isActive'>) => {
     try {
       // Save to Supabase API
-      const response = await fetch('http://localhost:5000/api/config/struktur-organisasi', {
+      const response = await fetch('http://localhost:5001/api/config/struktur-organisasi', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -214,7 +219,7 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
   const addSubdirektorat = async (data: Omit<Subdirektorat, 'id' | 'createdAt' | 'isActive'>) => {
     try {
       // Save to Supabase API
-      const response = await fetch('http://localhost:5000/api/config/struktur-organisasi', {
+      const response = await fetch('http://localhost:5001/api/config/struktur-organisasi', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -252,7 +257,7 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
   const addAnakPerusahaan = async (data: Omit<AnakPerusahaan, 'id' | 'createdAt' | 'isActive'>) => {
     try {
       // Save to Supabase API
-      const response = await fetch('http://localhost:5000/api/config/struktur-organisasi', {
+      const response = await fetch('http://localhost:5001/api/config/struktur-organisasi', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -290,7 +295,7 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
   const addDivisi = async (data: Omit<Divisi, 'id' | 'createdAt' | 'isActive'>) => {
     try {
       // Save to Supabase API
-      const response = await fetch('http://localhost:5000/api/config/struktur-organisasi', {
+      const response = await fetch('http://localhost:5001/api/config/struktur-organisasi', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -328,7 +333,7 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
   const deleteDirektorat = async (id: number) => {
     try {
       // Delete from Supabase API
-      const response = await fetch(`http://localhost:5000/api/config/struktur-organisasi/${id}`, {
+      const response = await fetch(`http://localhost:5001/api/config/struktur-organisasi/${id}`, {
         method: 'DELETE',
       });
       
@@ -350,7 +355,7 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
   const deleteSubdirektorat = async (id: number) => {
     try {
       // Delete from Supabase API
-      const response = await fetch(`http://localhost:5000/api/config/struktur-organisasi/${id}`, {
+      const response = await fetch(`http://localhost:5001/api/config/struktur-organisasi/${id}`, {
         method: 'DELETE',
       });
       
@@ -372,7 +377,7 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
   const deleteAnakPerusahaan = async (id: number) => {
     try {
       // Delete from Supabase API
-      const response = await fetch(`http://localhost:5000/api/config/struktur-organisasi/${id}`, {
+      const response = await fetch(`http://localhost:5001/api/config/struktur-organisasi/${id}`, {
         method: 'DELETE',
       });
       
@@ -394,20 +399,127 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
   const deleteDivisi = async (id: number) => {
     try {
       // Delete from Supabase API
-      const response = await fetch(`http://localhost:5000/api/config/struktur-organisasi/${id}`, {
+      const response = await fetch(`http://localhost:5001/api/config/struktur-organisasi/${id}`, {
         method: 'DELETE',
       });
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       console.log('StrukturPerusahaanContext: Successfully deleted divisi from Supabase');
     } catch (error) {
       console.error('StrukturPerusahaanContext: Failed to delete divisi from Supabase:', error);
     }
 
     const updatedDivisi = divisi.filter(d => d.id !== id);
+    setDivisi(updatedDivisi);
+    localStorage.setItem('divisi', JSON.stringify(updatedDivisi));
+    triggerUpdate();
+  };
+
+  // Update functions
+  const updateDirektorat = async (id: number, data: Partial<Direktorat>) => {
+    try {
+      const response = await fetch(`http://localhost:5001/api/config/struktur-organisasi/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'direktorat',
+          nama: data.nama,
+          deskripsi: data.deskripsi || '',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      console.log('StrukturPerusahaanContext: Successfully updated direktorat');
+    } catch (error) {
+      console.error('StrukturPerusahaanContext: Failed to update direktorat:', error);
+    }
+
+    const updatedDirektorat = direktorat.map(d => d.id === id ? { ...d, ...data } : d);
+    setDirektorat(updatedDirektorat);
+    localStorage.setItem('direktorat', JSON.stringify(updatedDirektorat));
+    triggerUpdate();
+  };
+
+  const updateSubdirektorat = async (id: number, data: Partial<Subdirektorat>) => {
+    try {
+      const response = await fetch(`http://localhost:5001/api/config/struktur-organisasi/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'subdirektorat',
+          nama: data.nama,
+          deskripsi: data.deskripsi || '',
+          parent_id: data.direktoratId,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      console.log('StrukturPerusahaanContext: Successfully updated subdirektorat');
+    } catch (error) {
+      console.error('StrukturPerusahaanContext: Failed to update subdirektorat:', error);
+    }
+
+    const updatedSubdirektorat = subdirektorat.map(s => s.id === id ? { ...s, ...data } : s);
+    setSubdirektorat(updatedSubdirektorat);
+    localStorage.setItem('subdirektorat', JSON.stringify(updatedSubdirektorat));
+    triggerUpdate();
+  };
+
+  const updateAnakPerusahaan = async (id: number, data: Partial<AnakPerusahaan>) => {
+    try {
+      const response = await fetch(`http://localhost:5001/api/config/struktur-organisasi/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'anak_perusahaan',
+          nama: data.nama,
+          deskripsi: data.deskripsi || '',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      console.log('StrukturPerusahaanContext: Successfully updated anak perusahaan');
+    } catch (error) {
+      console.error('StrukturPerusahaanContext: Failed to update anak perusahaan:', error);
+    }
+
+    const updatedAnakPerusahaan = anakPerusahaan.map(a => a.id === id ? { ...a, ...data } : a);
+    setAnakPerusahaan(updatedAnakPerusahaan);
+    localStorage.setItem('anakPerusahaan', JSON.stringify(updatedAnakPerusahaan));
+    triggerUpdate();
+  };
+
+  const updateDivisi = async (id: number, data: Partial<Divisi>) => {
+    try {
+      const response = await fetch(`http://localhost:5001/api/config/struktur-organisasi/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'divisi',
+          nama: data.nama,
+          deskripsi: data.deskripsi || '',
+          parent_id: data.subdirektoratId,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      console.log('StrukturPerusahaanContext: Successfully updated divisi');
+    } catch (error) {
+      console.error('StrukturPerusahaanContext: Failed to update divisi:', error);
+    }
+
+    const updatedDivisi = divisi.map(d => d.id === id ? { ...d, ...data } : d);
     setDivisi(updatedDivisi);
     localStorage.setItem('divisi', JSON.stringify(updatedDivisi));
     triggerUpdate();
@@ -472,7 +584,7 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
       console.log(`StrukturPerusahaanContext: Sending ${batchItems.length} items in batch API call`);
       
       // Single batch API call to avoid race conditions
-      const response = await fetch('http://localhost:5000/api/config/struktur-organisasi/batch', {
+      const response = await fetch('http://localhost:5001/api/config/struktur-organisasi/batch', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -614,6 +726,10 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
     addSubdirektorat,
     addAnakPerusahaan,
     addDivisi,
+    updateDirektorat,
+    updateSubdirektorat,
+    updateAnakPerusahaan,
+    updateDivisi,
     deleteDirektorat,
     deleteSubdirektorat,
     deleteAnakPerusahaan,

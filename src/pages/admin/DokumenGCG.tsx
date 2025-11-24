@@ -83,7 +83,7 @@ const DokumenGCG = () => {
   useEffect(() => {
     const loadAssignments = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/config/assignments');
+        const response = await fetch('http://localhost:5001/api/config/assignments');
         if (response.ok) {
           const data = await response.json();
           // Filter assignments for selected year
@@ -797,7 +797,7 @@ const DokumenGCG = () => {
           };
 
           try {
-            const response = await fetch('http://localhost:5000/api/config/assignments', {
+            const response = await fetch('http://localhost:5001/api/config/assignments', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -807,7 +807,7 @@ const DokumenGCG = () => {
 
             if (response.ok) {
               // Reload assignments from backend
-              const assignmentsResponse = await fetch('http://localhost:5000/api/config/assignments');
+              const assignmentsResponse = await fetch('http://localhost:5001/api/config/assignments');
               if (assignmentsResponse.ok) {
                 const data = await assignmentsResponse.json();
                 const yearAssignments = data.assignments.filter((assignment: any) => 

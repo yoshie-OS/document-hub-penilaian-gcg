@@ -58,7 +58,7 @@ const EditSuperAdmin = () => {
   const fetchSuperAdmins = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/users');
+      const response = await fetch('http://localhost:5001/api/users');
       if (!response.ok) {
         throw new Error('Gagal mengambil data users');
       }
@@ -193,7 +193,7 @@ const EditSuperAdmin = () => {
 
     try {
       // Try update via database API
-      const response = await fetch(`http://localhost:5000/api/users/${selectedSuperAdmin.id}`, {
+      const response = await fetch(`http://localhost:5001/api/users/${selectedSuperAdmin.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

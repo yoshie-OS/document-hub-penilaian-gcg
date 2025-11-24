@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useUser } from '@/contexts/UserContext';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { Badge } from '@/components/ui/badge';
-import {
-  LayoutDashboard,
+import { 
+  LayoutDashboard, 
   Shield,
   LogOut,
   BarChart3,
@@ -14,11 +14,7 @@ import {
   User,
   Building2,
   Layers,
-  Briefcase,
-  ChevronDown,
-  ChevronRight,
-  Calendar,
-  Users
+  Briefcase
 } from 'lucide-react';
 
 interface MenuItem {
@@ -27,21 +23,18 @@ interface MenuItem {
   path: string;
   badge?: string | null;
   badgeIcon?: any;
-  subItems?: SubMenuItem[];
 }
 
-interface SubMenuItem {
-  name: string;
-  icon: any;
-  path: string;
-}
+// No longer need SubMenuItem interface since there are no submenus
 
 const Sidebar = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useUser();
   const { isSidebarOpen, closeSidebar } = useSidebar();
-  const [expandedMenus, setExpandedMenus] = useState<Set<string>>(new Set(['Pengaturan']));
+  // No longer need expandedMenus state since there are no submenus
+
+  // No longer need auto-expand logic since there are no submenus
 
   const menuItems: MenuItem[] = [];
 
@@ -49,23 +42,17 @@ const Sidebar = () => {
   if (user?.role === 'superadmin') {
     menuItems.push(
       {
-        name: 'Pengaturan',
+        name: 'Pengaturan Baru',
         icon: Settings,
-        path: '/admin/pengaturan',
-        subItems: [
-          { name: 'Tahun Buku', icon: Calendar, path: '/admin/pengaturan/tahun-buku' },
-          { name: 'Struktur Organisasi', icon: Building2, path: '/admin/pengaturan/struktur-organisasi' },
-          { name: 'Manajemen Akun', icon: Users, path: '/admin/pengaturan/manajemen-akun' },
-          { name: 'Kelola Dokumen', icon: FileText, path: '/admin/pengaturan/kelola-dokumen' }
-        ]
+        path: '/admin/pengaturan-baru'
       },
-      {
-        name: 'Dashboard',
-        icon: LayoutDashboard,
+      { 
+        name: 'Dashboard', 
+        icon: LayoutDashboard, 
         path: '/dashboard'
       },
       {
-        name: 'Monitoring & Upload Dokumen',
+        name: 'Monitoring & Upload GCG',
         icon: PanelLeft,
         path: '/list-gcg'
       },
@@ -74,9 +61,9 @@ const Sidebar = () => {
         icon: FileText,
         path: '/admin/arsip-dokumen'
       },
-      {
-        name: 'Performa GCG',
-        icon: BarChart3,
+      { 
+        name: 'Performa GCG', 
+        icon: BarChart3, 
         path: '/performa-gcg'
       },
       {
@@ -114,39 +101,18 @@ const Sidebar = () => {
   };
 
   const handleMainMenuClick = (item: MenuItem) => {
-    if (item.subItems && item.subItems.length > 0) {
-      // Toggle submenu
-      setExpandedMenus(prev => {
-        const newSet = new Set(prev);
-        if (newSet.has(item.name)) {
-          newSet.delete(item.name);
-        } else {
-          newSet.add(item.name);
-        }
-        return newSet;
-      });
-
-      // Also navigate to the main page (e.g., Pengaturan hub page)
-      navigate(item.path);
-    } else {
-      // Navigate directly to the page
-      navigate(item.path);
-
-      // Close sidebar on mobile
-      if (window.innerWidth < 1024) {
-        closeSidebar();
-      }
-    }
-  };
-
-  const handleSubItemClick = (path: string) => {
-    navigate(path);
+    // Navigate directly to the page
+    navigate(item.path);
+    
+    // Close sidebar on mobile
     if (window.innerWidth < 1024) {
       closeSidebar();
     }
   };
 
-  const isMenuExpanded = (name: string) => expandedMenus.has(name);
+  // No longer need handleSubItemClick since there are no submenus
+
+  // No longer need isMenuExpanded since there are no submenus
 
   return (
     <>
@@ -267,23 +233,20 @@ const Sidebar = () => {
                 }
                 return true;
               })
-              .map((item) => {
+              .map((item, index) => {
               const Icon = item.icon;
               const active = isActive(item.path);
-              const hasSubItems = item.subItems && item.subItems.length > 0;
-              const expanded = isMenuExpanded(item.name);
-
+              
               return (
                 <div key={item.name}>
                   {/* Main Menu Item */}
                   <div className="relative">
-                    <button
+                    <Link
+                      to={item.path}
                       onClick={() => handleMainMenuClick(item)}
-                      className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-all duration-200 group ${
-                        active && !hasSubItems
-                          ? 'bg-blue-600 text-white'
-                          : hasSubItems && expanded
-                          ? 'bg-gray-800 text-white'
+                      className={`flex items-center justify-between px-4 py-3 rounded-lg transition-all duration-200 group ${
+                        active 
+                          ? 'bg-blue-600 text-white' 
                           : 'text-gray-300 hover:bg-gray-800 hover:text-white'
                       }`}
                     >
@@ -300,41 +263,12 @@ const Sidebar = () => {
                             {item.badge}
                           </span>
                         )}
-                        {hasSubItems && (
-                          expanded
-                            ? <ChevronDown className="w-4 h-4" />
-                            : <ChevronRight className="w-4 h-4" />
-                        )}
                       </div>
-                    </button>
+                    </Link>
                   </div>
-
-                  {/* Sub Menu Items */}
-                  {hasSubItems && expanded && (
-                    <div className="mt-1 ml-4 space-y-1">
-                      {item.subItems!.map((subItem) => {
-                        const SubIcon = subItem.icon;
-                        const subActive = isActive(subItem.path);
-                        return (
-                          <button
-                            key={subItem.name}
-                            onClick={() => handleSubItemClick(subItem.path)}
-                            className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-all duration-200 ${
-                              subActive
-                                ? 'bg-blue-600 text-white'
-                                : 'text-gray-400 hover:bg-gray-800 hover:text-white'
-                            }`}
-                          >
-                            <SubIcon className="w-4 h-4" />
-                            <span className="text-sm">{subItem.name}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {/* Add separator after Pengaturan */}
-                  {item.name === 'Pengaturan' && (
+                  
+                  {/* Add separator after Pengaturan Baru */}
+                  {item.name === 'Pengaturan Baru' && (
                     <div className="my-3 px-4">
                       <div className="h-px bg-gray-700"></div>
                     </div>

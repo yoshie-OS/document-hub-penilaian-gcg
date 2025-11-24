@@ -32,7 +32,7 @@ export const YearProvider: React.FC<YearProviderProps> = ({ children }) => {
   useEffect(() => {
     const loadYearsFromSupabase = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/config/tahun-buku');
+        const response = await fetch('http://localhost:5001/api/config/tahun-buku');
         if (response.ok) {
           const data = await response.json();
           if (data.tahun_buku && Array.isArray(data.tahun_buku)) {
@@ -102,7 +102,7 @@ export const YearProvider: React.FC<YearProviderProps> = ({ children }) => {
       
       // Call backend API to save to Supabase
       try {
-        const response = await fetch('http://localhost:5000/api/config/tahun-buku', {
+        const response = await fetch('http://localhost:5001/api/config/tahun-buku', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -133,7 +133,7 @@ export const YearProvider: React.FC<YearProviderProps> = ({ children }) => {
   const removeYear = async (year: number) => {
     try {
       // Find the year ID from availableYears state - we need to get this from backend
-      const response = await fetch('http://localhost:5000/api/config/tahun-buku');
+      const response = await fetch('http://localhost:5001/api/config/tahun-buku');
       if (!response.ok) {
         throw new Error('Failed to fetch tahun buku data');
       }
@@ -147,7 +147,7 @@ export const YearProvider: React.FC<YearProviderProps> = ({ children }) => {
       }
       
       // Call backend DELETE API
-      const deleteResponse = await fetch(`http://localhost:5000/api/config/tahun-buku/${yearToDelete.id}`, {
+      const deleteResponse = await fetch(`http://localhost:5001/api/config/tahun-buku/${yearToDelete.id}`, {
         method: 'DELETE',
       });
       
