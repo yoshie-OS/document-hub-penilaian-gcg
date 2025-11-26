@@ -335,26 +335,27 @@ const KelolaDokumenPage = () => {
     if (!selectedYear) return;
 
     try {
-      const response = await fetch('http://localhost:5001/api/config/assignments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          checklistId,
-          assignedTo: targetName,
-          assignmentType,
-          year: selectedYear
-        })
-      });
+      // Find the current item to get its current data
+      const currentItem = checklistItems.find(item => item.id === checklistId);
+      if (!currentItem) return;
 
-      if (response.ok) {
-        // Update local checklist items
-        setChecklistItems(prev => prev.map(item =>
-          item.id === checklistId ? { ...item, pic: targetName } : item
-        ));
-        toast({ title: "Berhasil!", description: "Assignment berhasil disimpan" });
-      }
+      // Update local state first for immediate UI feedback
+      setChecklistItems(prev => prev.map(item =>
+        item.id === checklistId ? { ...item, pic: targetName } : item
+      ));
+
+      // Update via editChecklist function to persist PIC to backend
+      await editChecklist(checklistId, currentItem.aspek, currentItem.deskripsi, targetName, selectedYear);
+
+      toast({ title: "Berhasil!", description: "PIC berhasil disimpan" });
+
+      // Reload data from backend to ensure consistency
+      setTimeout(() => reloadChecklistData(), 500);
     } catch (error) {
-      toast({ title: "Error", description: "Gagal menyimpan assignment", variant: "destructive" });
+      console.error('Error updating PIC:', error);
+      toast({ title: "Error", description: "Gagal menyimpan PIC", variant: "destructive" });
+      // Revert local state on error
+      reloadChecklistData();
     }
   };
 

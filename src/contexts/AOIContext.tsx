@@ -92,17 +92,34 @@ export const AOIProvider: React.FC<AOIProviderProps> = ({ children }) => {
     try {
       setIsLoading(true);
       setError(null);
-      
-      // Load data from Supabase API
+
+      // Get user info for filtering
+      let userParams = {};
+      try {
+        const userStr = localStorage.getItem('user');
+        if (userStr) {
+          const user = JSON.parse(userStr);
+          userParams = {
+            userRole: user.role || '',
+            userSubdirektorat: user.subdirektorat || '',
+            userDivisi: user.divisi || ''
+          };
+          console.log('AOIContext: Fetching with user params:', userParams);
+        }
+      } catch (error) {
+        console.error('AOIContext: Error parsing user:', error);
+      }
+
+      // Load data from API with user filtering
       const [tables, recommendations] = await Promise.all([
-        aoiAPI.getTables(),
-        aoiAPI.getTables().then(tables => 
-          Promise.all(tables.map(table => 
+        aoiAPI.getTables(userParams),
+        aoiAPI.getTables(userParams).then(tables =>
+          Promise.all(tables.map(table =>
             aoiAPI.getRecommendationsByTable(table.id)
           ))
         ).then(allRecommendations => allRecommendations.flat())
       ]);
-      
+
       setAoiTables(tables);
       setAoiRecommendations(recommendations);
       console.log(`✅ AOI data loaded successfully: ${tables.length} tables, ${recommendations.length} recommendations`);
@@ -110,7 +127,7 @@ export const AOIProvider: React.FC<AOIProviderProps> = ({ children }) => {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load AOI data';
       console.error('❌ AOI API Error:', err);
       setError(errorMessage);
-      
+
       // Set empty state instead of mock data to ensure cross-browser consistency
       setAoiTables([]);
       setAoiRecommendations([]);

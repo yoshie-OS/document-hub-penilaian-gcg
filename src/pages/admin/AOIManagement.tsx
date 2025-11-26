@@ -173,11 +173,11 @@ const OrganPerusahaanMultiSelect = ({ value, onChange }: { value: string; onChan
 const AOIManagement = () => {
   const { isSidebarOpen } = useSidebar();
   const { selectedYear, setSelectedYear, availableYears } = useYear();
-  const { 
-    aoiTables, 
-    aoiRecommendations, 
-    createAOITable, 
-    updateAOITable, 
+  const {
+    aoiTables,
+    aoiRecommendations,
+    createAOITable,
+    updateAOITable,
     deleteAOITable,
     addRecommendation,
     updateRecommendation,
@@ -185,6 +185,22 @@ const AOIManagement = () => {
   } = useAOI();
   const { direktorat, subdirektorat, divisi } = useStrukturPerusahaan();
   const { toast } = useToast();
+
+  // Get current user info
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  useEffect(() => {
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        setCurrentUser(user);
+        console.log('AOIManagement: Current user:', user);
+      } catch (error) {
+        console.error('AOIManagement: Error parsing user from localStorage:', error);
+      }
+    }
+  }, []);
 
 
   // State untuk dialog
@@ -220,8 +236,46 @@ const AOIManagement = () => {
     status: 'active' as 'active' | 'inactive'
   });
 
-  // Filter tables berdasarkan tahun
-  const yearTables = selectedYear ? aoiTables.filter(table => table.tahun === selectedYear) : [];
+  // Filter tables berdasarkan tahun dan struktur organisasi user
+  const yearTables = selectedYear ? aoiTables.filter(table => {
+    if (table.tahun !== selectedYear) return false;
+
+    // Super admin can see all
+    if (currentUser?.role === 'super-admin') return true;
+
+    // Regular user - filter by structure
+    if (!currentUser?.subdirektorat) return false;
+
+    // Check if table belongs to user's structure
+    const userSubdirektorat = currentUser.subdirektorat;
+    const userDivisi = currentUser.divisi || '';
+
+    // Match by divisi (most specific)
+    if (table.targetDivisi && table.targetDivisi !== 'Tidak ada') {
+      return table.targetDivisi === userDivisi;
+    }
+
+    // Match by subdirektorat
+    if (table.targetSubdirektorat && table.targetSubdirektorat !== 'Tidak ada') {
+      return table.targetSubdirektorat === userSubdirektorat;
+    }
+
+    // Match by direktorat - need to check if user's subdirektorat belongs to this direktorat
+    if (table.targetDirektorat && table.targetDirektorat !== 'Tidak ada') {
+      // Find user's subdirektorat in struktur data
+      const userSubdirektoratData = subdirektorat.find(
+        sub => sub.nama === userSubdirektorat && sub.tahun === selectedYear
+      );
+      if (userSubdirektoratData) {
+        const direktoratData = direktorat.find(
+          dir => dir.id === userSubdirektoratData.direktoratId && dir.tahun === selectedYear
+        );
+        return direktoratData?.nama === table.targetDirektorat;
+      }
+    }
+
+    return false;
+  }) : [];
 
   // Filter data struktur perusahaan berdasarkan tahun yang dipilih
   const yearDirektorat = selectedYear ? direktorat.filter(dir => dir.tahun === selectedYear) : [];

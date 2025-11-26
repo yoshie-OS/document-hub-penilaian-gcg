@@ -1576,27 +1576,78 @@ def fix_uploaded_files_schema():
 @app.route('/api/uploaded-files/<file_id>', methods=['DELETE'])
 @app.route('/api/delete-file/<file_id>', methods=['DELETE'])
 def delete_uploaded_file(file_id):
-    """Delete an uploaded file record and actual file from Supabase storage."""
+    """Delete an uploaded file record and actual file from local storage."""
     try:
+        safe_print(f"🗑️ DELETE request received for file_id: {file_id}")
+
         # Read existing files data
         files_data = storage_service.read_excel('uploaded-files.xlsx')
-        
+
         if files_data is None:
+            safe_print(f"❌ No files data found in uploaded-files.xlsx")
             return jsonify({'error': 'No files data found'}), 404
-        
+
+        safe_print(f"📊 Total records in database: {len(files_data)}")
+        safe_print(f"🔍 Searching for file_id: {file_id}")
+        safe_print(f"🔍 Sample IDs in database: {files_data['id'].head(3).tolist()}")
+
         # Find the file record to get the file path
         file_record = files_data[files_data['id'] == file_id]
-        if file_record.empty:
-            return jsonify({'error': 'File not found'}), 404
-        
-        # Get the Supabase file path
-        supabase_file_path = file_record.iloc[0].get('supabaseFilePath')
-        
-        # Delete the actual file from Supabase storage if path exists
-        if supabase_file_path and storage_service.storage_mode == 'supabase':
+
+        # If not found by UUID, check if it's a fallback ID format: supabase_{checklistId}
+        if file_record.empty and file_id.startswith('supabase_'):
             try:
-                response = storage_service.supabase.storage.from_(storage_service.bucket_name).remove([supabase_file_path])
-                safe_print(f"🗑️ Deleted file from Supabase storage: {supabase_file_path}")
+                checklist_id = int(file_id.replace('supabase_', ''))
+                safe_print(f"🔍 Fallback ID detected, searching by checklistId: {checklist_id}")
+
+                # Try to find by checklistId
+                file_record = files_data[files_data['checklistId'] == checklist_id]
+
+                if not file_record.empty:
+                    safe_print(f"✅ Found record by checklistId: {checklist_id}")
+                    # If multiple records (shouldn't happen), take the most recent
+                    if len(file_record) > 1:
+                        safe_print(f"⚠️ Multiple records found for checklistId {checklist_id}, using most recent")
+                        file_record = file_record.sort_values('uploadDate', ascending=False).head(1)
+                else:
+                    safe_print(f"❌ No record found for checklistId: {checklist_id}")
+            except ValueError:
+                safe_print(f"❌ Invalid fallback ID format: {file_id}")
+
+        if file_record.empty:
+            safe_print(f"❌ File not found in database with id: {file_id}")
+            safe_print(f"📋 Sample IDs in database:")
+            for idx, row_id in enumerate(files_data['id'].tolist()[:10]):
+                safe_print(f"  {idx+1}. {row_id}")
+            return jsonify({'error': 'File not found'}), 404
+
+        safe_print(f"✅ File record found: {file_record.iloc[0]['fileName']}")
+        
+        # Get the file path (check both localFilePath and supabaseFilePath for compatibility)
+        file_path = file_record.iloc[0].get('localFilePath') or file_record.iloc[0].get('supabaseFilePath')
+
+        # Delete the actual file from local storage if path exists
+        if file_path:
+            try:
+                # For local storage mode, delete from local filesystem
+                local_file_path = Path(__file__).parent.parent / 'data' / file_path
+                safe_print(f"🔧 DEBUG: Attempting to delete local file: {local_file_path}")
+
+                if local_file_path.exists():
+                    local_file_path.unlink()
+                    safe_print(f"🗑️ Deleted file from local storage: {local_file_path}")
+
+                    # Also try to clean up empty parent directories
+                    try:
+                        parent_dir = local_file_path.parent
+                        if parent_dir.exists() and not any(parent_dir.iterdir()):
+                            parent_dir.rmdir()
+                            safe_print(f"🗑️ Removed empty directory: {parent_dir}")
+                    except Exception as dir_error:
+                        safe_print(f"⚠️ Warning: Could not remove directory: {dir_error}")
+                else:
+                    safe_print(f"⚠️ Warning: File not found in local storage: {local_file_path}")
+
             except Exception as file_delete_error:
                 safe_print(f"⚠️ Warning: Failed to delete file from storage: {file_delete_error}")
                 # Continue with database record deletion even if file deletion fails
@@ -1613,9 +1664,9 @@ def delete_uploaded_file(file_id):
         
         if success:
             return jsonify({
-                'success': True, 
+                'success': True,
                 'message': f'File deleted from both database and storage',
-                'deletedFilePath': supabase_file_path
+                'deletedFilePath': file_path
             }), 200
         else:
             return jsonify({'error': 'Failed to save changes to storage'}), 500
@@ -1728,12 +1779,53 @@ def view_file(file_id):
 
 @app.route('/api/files/<file_id>/download', methods=['GET'])
 def download_file_by_id(file_id):
-    """Download a processed file using its file ID."""
+    """Download a file using its file ID - supports both processed files and uploaded files."""
     try:
-        # Find the processed file in OUTPUT_FOLDER
+        safe_print(f"📥 Download request for file_id: {file_id}")
+
+        # First, try to find in uploaded-files.xlsx
+        try:
+            files_data = storage_service.read_excel('uploaded-files.xlsx')
+            if files_data is not None and not files_data.empty:
+                # Find file by ID
+                file_record = files_data[files_data['id'] == file_id]
+                if not file_record.empty:
+                    file_info = file_record.iloc[0]
+                    local_file_path = file_info.get('localFilePath', '')
+                    file_name = file_info.get('fileName', 'document')
+
+                    safe_print(f"📂 Found in uploaded-files.xlsx: {file_name}")
+                    safe_print(f"📂 Local path: {local_file_path}")
+
+                    # Construct full path
+                    full_path = Path(__file__).parent.parent / 'data' / local_file_path
+
+                    safe_print(f"📂 Full path: {full_path}")
+
+                    if full_path.exists():
+                        safe_print(f"✅ File exists, sending for download")
+
+                        # Detect MIME type
+                        import mimetypes
+                        mime_type, _ = mimetypes.guess_type(file_name)
+                        if not mime_type:
+                            mime_type = 'application/octet-stream'
+
+                        return send_file(
+                            str(full_path),
+                            as_attachment=True,
+                            download_name=file_name,
+                            mimetype=mime_type
+                        )
+                    else:
+                        safe_print(f"❌ File not found at path: {full_path}")
+        except Exception as e:
+            safe_print(f"⚠️ Error checking uploaded-files.xlsx: {e}")
+
+        # Fallback: try to find processed file in OUTPUT_FOLDER
         file_path = None
         filename = None
-        
+
         for output_file in OUTPUT_FOLDER.glob("processed_*.xlsx"):
             # Extract file ID from filename
             filename_parts = output_file.name.split('_', 2)
@@ -1741,31 +1833,71 @@ def download_file_by_id(file_id):
                 file_path = output_file
                 filename = output_file.name
                 break
-        
-        if not file_path or not file_path.exists():
-            return jsonify({'error': 'File not found'}), 404
-        
-        # Send the file for download
-        return send_file(
-            str(file_path),
-            as_attachment=True,
-            download_name=filename,
-            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        )
-        
+
+        if file_path and file_path.exists():
+            safe_print(f"✅ Found processed file: {filename}")
+            # Send the file for download
+            return send_file(
+                str(file_path),
+                as_attachment=True,
+                download_name=filename,
+                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+
+        # File not found in either location
+        safe_print(f"❌ File not found: {file_id}")
+        return jsonify({'error': 'File not found'}), 404
+
     except Exception as e:
-        safe_print(f"Error downloading file: {e}")
+        safe_print(f"❌ Error downloading file: {e}")
+        import traceback
+        safe_print(f"❌ Traceback: {traceback.format_exc()}")
         return jsonify({'error': f'Failed to download file: {str(e)}'}), 500
 
 # AOI TABLES ENDPOINTS
 @app.route('/api/aoiTables', methods=['GET'])
 def get_aoi_tables():
-    """Get all AOI tables"""
+    """Get all AOI tables (filtered by user structure if applicable)"""
     try:
+        # Get filter parameters from query string
+        user_role = request.args.get('userRole', '')
+        user_subdirektorat = request.args.get('userSubdirektorat', '')
+        user_divisi = request.args.get('userDivisi', '')
+        year = request.args.get('year', '')
+
         aoi_data = storage_service.read_csv('config/aoi-tables.csv')
         if aoi_data is not None:
             # Replace NaN values with empty strings before converting to dict
             aoi_data = aoi_data.fillna('')
+
+            # Filter by year if provided
+            if year:
+                aoi_data = aoi_data[aoi_data['tahun'] == int(year)]
+
+            # Filter by user structure (unless super-admin)
+            if user_role != 'super-admin' and user_subdirektorat:
+                # Filter logic: match by divisi (most specific), subdirektorat, or direktorat
+                filtered_tables = []
+                for _, table in aoi_data.iterrows():
+                    # Match by divisi (most specific)
+                    if table.get('targetDivisi') and table['targetDivisi'] != 'Tidak ada':
+                        if table['targetDivisi'] == user_divisi:
+                            filtered_tables.append(table)
+                    # Match by subdirektorat
+                    elif table.get('targetSubdirektorat') and table['targetSubdirektorat'] != 'Tidak ada':
+                        if table['targetSubdirektorat'] == user_subdirektorat:
+                            filtered_tables.append(table)
+                    # Match by direktorat - would need struktur data to check
+                    # For now, we rely on frontend filtering for direktorat level
+                    elif table.get('targetDirektorat') and table['targetDirektorat'] != 'Tidak ada':
+                        # Include direktorat-level tables for now
+                        filtered_tables.append(table)
+
+                if filtered_tables:
+                    aoi_data = pd.DataFrame(filtered_tables)
+                else:
+                    return jsonify([]), 200
+
             aoi_tables = aoi_data.to_dict(orient='records')
             return jsonify(aoi_tables), 200
         return jsonify([]), 200
@@ -2501,6 +2633,7 @@ def create_user():
             'email': data.get('email'),
             'password': data.get('password', ''),
             'role': data.get('role'),
+            'adminLevel': data.get('adminLevel', ''),
             'direktorat': data.get('direktorat', ''),
             'subdirektorat': data.get('subdirektorat', ''),
             'divisi': data.get('divisi', ''),
@@ -2508,7 +2641,10 @@ def create_user():
             'tahun': '',
             'created_at': datetime.now().isoformat(),
             'is_active': True,
-            'whatsapp': str(data.get('whatsapp', '')) if data.get('whatsapp') else ''
+            'whatsapp': str(data.get('whatsapp', '')) if data.get('whatsapp') else '',
+            'phone': str(data.get('phone', '')) if data.get('phone') else '',
+            'adminEmail': str(data.get('adminEmail', '')) if data.get('adminEmail') else '',
+            'adminPhone': str(data.get('adminPhone', '')) if data.get('adminPhone') else ''
         }
         
         # Read existing users
@@ -2593,6 +2729,14 @@ def update_user(user_id):
                     csv_data.at[index, 'divisi'] = data['divisi']
                 if 'whatsapp' in data:
                     csv_data.at[index, 'whatsapp'] = str(data['whatsapp']) if data['whatsapp'] else ''
+                if 'phone' in data:
+                    csv_data.at[index, 'phone'] = str(data['phone']) if data['phone'] else ''
+                if 'adminEmail' in data:
+                    csv_data.at[index, 'adminEmail'] = str(data['adminEmail']) if data['adminEmail'] else ''
+                if 'adminPhone' in data:
+                    csv_data.at[index, 'adminPhone'] = str(data['adminPhone']) if data['adminPhone'] else ''
+                if 'adminLevel' in data:
+                    csv_data.at[index, 'adminLevel'] = data['adminLevel'] if data['adminLevel'] else ''
                 if 'tahun' in data:
                     csv_data.at[index, 'tahun'] = data['tahun'] if data['tahun'] else ''
 
@@ -2645,6 +2789,7 @@ def upload_gcg_file():
         checklist_description = request.form.get('checklistDescription', '')
         aspect = request.form.get('aspect', '')
         subdirektorat = request.form.get('subdirektorat', '')
+        catatan = request.form.get('catatan', '')  # Catatan from user
         row_number = request.form.get('rowNumber')  # New: row number for document organization
         
         # Validate required fields
@@ -2751,7 +2896,8 @@ def upload_gcg_file():
             'userSubdirektorat': user_subdirektorat,
             'userDivisi': user_divisi,
             'userWhatsApp': user_whatsapp,
-            'userEmail': user_email
+            'userEmail': user_email,
+            'catatan': catatan
         }
         
         # Add to uploaded files database
@@ -2762,7 +2908,16 @@ def upload_gcg_file():
         except Exception as db_error:
             safe_print(f"🔧 DEBUG: Error reading uploaded-files.xlsx: {db_error}")
             files_data = pd.DataFrame()
-        
+
+        # Remove existing record for this checklistId and year (for re-upload scenario)
+        if not files_data.empty:
+            safe_print(f"🔧 DEBUG: Checking for existing records with checklistId={checklist_id_int} and year={year_int}")
+            initial_count = len(files_data)
+            files_data = files_data[~((files_data['checklistId'] == checklist_id_int) & (files_data['year'] == year_int))]
+            removed_count = initial_count - len(files_data)
+            if removed_count > 0:
+                safe_print(f"🔧 DEBUG: Removed {removed_count} existing record(s) for re-upload")
+
         new_row = pd.DataFrame([file_record])
         files_data = pd.concat([files_data, new_row], ignore_index=True)
         
@@ -2792,17 +2947,195 @@ def upload_gcg_file():
         safe_print(f"🔧 DEBUG: Full traceback: {traceback.format_exc()}")
         return jsonify({'error': f'Failed to upload GCG file: {str(e)}'}), 500
 
+@app.route('/api/upload-random-document', methods=['POST'])
+def upload_random_document():
+    """
+    Upload random/unstructured document to Dokumen Lainnya folder.
+    These documents don't have checklist assignments or organizational structure.
+    """
+    try:
+        safe_print(f"📤 DEBUG: Random document upload request received")
+
+        # Check if file is present
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
+
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+
+        # Get metadata from form
+        year = request.form.get('year')
+        category = request.form.get('category', 'dokumen_lainnya')
+        uploaded_by = request.form.get('uploadedBy', 'Unknown User')
+        folder_path = request.form.get('folderPath', '')  # Preserve folder structure
+
+        # Validate required fields
+        if not year:
+            return jsonify({'error': 'Year is required'}), 400
+
+        try:
+            year_int = int(year)
+        except ValueError:
+            return jsonify({'error': 'Invalid year format'}), 400
+
+        # Generate file ID for record tracking
+        file_id = str(uuid.uuid4())
+
+        # File structure with folder preservation
+        safe_filename_str = secure_filename(file.filename)
+
+        if folder_path:
+            # Preserve folder structure from upload
+            # Remove first component (folder name itself) and keep subdirectories
+            path_parts = folder_path.split('/')
+            if len(path_parts) > 1:
+                # Keep subdirectory structure
+                folder_structure = '/'.join(path_parts[:-1])  # Remove filename
+                safe_folder = secure_filename(folder_structure.replace('/', '_'))
+                supabase_file_path = f"gcg-documents/{year_int}/Dokumen_Lainnya/{safe_folder}/{safe_filename_str}"
+            else:
+                supabase_file_path = f"gcg-documents/{year_int}/Dokumen_Lainnya/{safe_filename_str}"
+        else:
+            # Single file upload - add timestamp to prevent conflicts
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename_parts = safe_filename_str.rsplit('.', 1)
+            if len(filename_parts) == 2:
+                unique_filename = f"{filename_parts[0]}_{timestamp}.{filename_parts[1]}"
+            else:
+                unique_filename = f"{safe_filename_str}_{timestamp}"
+            supabase_file_path = f"gcg-documents/{year_int}/Dokumen_Lainnya/{unique_filename}"
+
+        # Upload file to local storage
+        file_data = file.read()
+
+        try:
+            local_file_path = Path(__file__).parent.parent / 'data' / supabase_file_path
+            safe_print(f"📤 DEBUG: Saving to: {local_file_path}")
+
+            # Create directory structure
+            local_file_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Save the file
+            with open(local_file_path, 'wb') as f:
+                f.write(file_data)
+
+            safe_print(f"✅ DEBUG: File saved successfully: {local_file_path}")
+
+        except Exception as upload_error:
+            safe_print(f"❌ DEBUG: Upload error: {upload_error}")
+            return jsonify({'error': f'Failed to save file: {str(upload_error)}'}), 500
+
+        # Create file record
+        file_record = {
+            'id': file_id,
+            'fileName': file.filename,
+            'fileSize': len(file_data),
+            'uploadDate': datetime.now().isoformat(),
+            'year': year_int,
+            'checklistId': None,  # No checklist association
+            'checklistDescription': 'Dokumen Lainnya - Arsip',
+            'aspect': 'DOKUMEN_LAINNYA',
+            'subdirektorat': 'Dokumen_Lainnya',
+            'status': 'uploaded',
+            'localFilePath': supabase_file_path,
+            'uploadedBy': uploaded_by,
+            'userRole': 'admin',
+            'catatan': f'Uploaded to Dokumen Lainnya folder on {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
+        }
+
+        # Add to uploaded files database
+        try:
+            files_data = storage_service.read_excel('uploaded-files.xlsx')
+            if files_data is None:
+                files_data = pd.DataFrame()
+        except Exception:
+            files_data = pd.DataFrame()
+
+        new_row = pd.DataFrame([file_record])
+        files_data = pd.concat([files_data, new_row], ignore_index=True)
+
+        # Save to storage
+        try:
+            success = storage_service.write_excel(files_data, 'uploaded-files.xlsx')
+
+            if success:
+                return jsonify({
+                    'success': True,
+                    'file': file_record,
+                    'message': 'Random document uploaded successfully'
+                }), 201
+            else:
+                return jsonify({'error': 'File uploaded but failed to save record'}), 500
+        except Exception as save_error:
+            safe_print(f"❌ DEBUG: Save error: {save_error}")
+            return jsonify({'error': f'Failed to save record: {str(save_error)}'}), 500
+
+    except Exception as e:
+        safe_print(f"❌ DEBUG: Exception in upload_random_document: {e}")
+        import traceback
+        safe_print(f"❌ DEBUG: Traceback: {traceback.format_exc()}")
+        return jsonify({'error': f'Failed to upload random document: {str(e)}'}), 500
+
+@app.route('/api/random-documents/<int:year>', methods=['GET'])
+def get_random_documents(year):
+    """Get all random documents (Dokumen Lainnya) for a specific year"""
+    try:
+        safe_print(f"📂 DEBUG: Loading random documents for year {year}")
+
+        # Load uploaded files data
+        try:
+            files_data = storage_service.read_excel('uploaded-files.xlsx')
+            if files_data is None or files_data.empty:
+                safe_print(f"⚠️ DEBUG: No uploaded files found")
+                return jsonify({'documents': []}), 200
+        except Exception as e:
+            safe_print(f"❌ DEBUG: Error reading uploaded-files.xlsx: {e}")
+            return jsonify({'documents': []}), 200
+
+        # Filter for random documents (checklistId is null/empty AND year matches)
+        random_docs = files_data[
+            (files_data['year'] == year) &
+            (files_data['checklistId'].isna() | (files_data['checklistId'] == ''))
+        ]
+
+        safe_print(f"✅ DEBUG: Found {len(random_docs)} random documents for year {year}")
+
+        # Convert to list of dictionaries
+        documents = []
+        for _, row in random_docs.iterrows():
+            doc = {
+                'id': row.get('id', ''),
+                'fileName': row.get('fileName', ''),
+                'fileSize': int(row.get('fileSize', 0)) if pd.notna(row.get('fileSize')) else 0,
+                'uploadDate': row.get('uploadDate', ''),
+                'uploadedBy': row.get('uploadedBy', 'Unknown'),
+                'subdirektorat': row.get('subdirektorat', 'Dokumen_Lainnya'),
+                'catatan': row.get('catatan', ''),
+                'localFilePath': row.get('localFilePath', ''),
+                'year': int(row.get('year', year))
+            }
+            documents.append(doc)
+
+        return jsonify({'documents': documents}), 200
+
+    except Exception as e:
+        safe_print(f"❌ DEBUG: Exception in get_random_documents: {e}")
+        import traceback
+        safe_print(f"❌ DEBUG: Traceback: {traceback.format_exc()}")
+        return jsonify({'error': f'Failed to load random documents: {str(e)}'}), 500
+
 @app.route('/api/check-gcg-files', methods=['POST'])
 def check_gcg_files():
     """Check if GCG files exist in Supabase for given year, PIC and checklist IDs"""
     try:
         data = request.get_json()
         safe_print(f"🔍 DEBUG: check_gcg_files received data: {data}")
-        
+
         pic_name = data.get('picName')
         checklist_ids = data.get('checklistIds', [])  # List of checklist IDs to check
         year = data.get('year')  # Year is required for new structure
-        
+
         safe_print(f"🔍 DEBUG: pic_name={pic_name}, year={year}, checklist_ids={checklist_ids}")
         
         # Support legacy row_numbers parameter for backward compatibility
@@ -2896,10 +3229,13 @@ def check_gcg_files():
                     try:
                         # Find matching record in uploaded files data
                         matching_file = files_data[
-                            (files_data['checklistId'] == checklist_id) & 
+                            (files_data['checklistId'] == checklist_id) &
                             (files_data['year'] == year)
                         ]
-                        
+
+                        safe_print(f"🔍 Looking for metadata - checklistId: {checklist_id}, year: {year}")
+                        safe_print(f"📊 Matching records found: {len(matching_file)}")
+
                         if not matching_file.empty:
                             # Add metadata from uploaded-files.xlsx
                             file_record = matching_file.iloc[0]
@@ -2909,16 +3245,30 @@ def check_gcg_files():
                                 value = record.get(key, default)
                                 return default if pd.isna(value) else str(value)
 
+                            # Get the ID with special handling
+                            record_id = file_record.get('id')
+                            if pd.isna(record_id) or not record_id:
+                                actual_id = f"supabase_{checklist_id}"
+                                safe_print(f"⚠️ WARNING: No valid ID found for checklistId {checklist_id}, using fallback: {actual_id}")
+                            else:
+                                actual_id = str(record_id)
+                                safe_print(f"✅ Found ID for checklistId {checklist_id}: {actual_id}")
+
                             file_found.update({
                                 'uploadedBy': safe_get(file_record, 'uploadedBy', 'Unknown'),
                                 'subdirektorat': safe_get(file_record, 'subdirektorat', ''),
                                 'aspect': safe_get(file_record, 'aspect', ''),
                                 'checklistDescription': safe_get(file_record, 'checklistDescription', ''),
                                 'checklistId': checklist_id,
-                                'id': f"supabase_{checklist_id}"
+                                'catatan': safe_get(file_record, 'catatan', ''),
+                                'id': actual_id  # Use real UUID or fallback
                             })
+                        else:
+                            # No metadata found - file exists but no database record
+                            safe_print(f"⚠️ WARNING: File exists in storage but no metadata found for checklistId {checklist_id}, year {year}")
+                            safe_print(f"⚠️ File will not have a valid ID for delete operations")
                     except Exception as e:
-                        safe_print(f"Warning: Could not get metadata for checklist_id {checklist_id}: {e}")
+                        safe_print(f"❌ ERROR: Could not get metadata for checklist_id {checklist_id}: {e}")
                 
                 file_statuses[str(checklist_id)] = file_found
                 
@@ -3818,19 +4168,113 @@ def delete_tahun_buku(tahun_id):
         
         if success:
             safe_print(f"✅ Successfully deleted tahun buku {tahun_id} (year {year_to_delete})")
-            
-            # Optional: Clean up related data for this year
-            # This is commented out to avoid accidental data loss
-            # You may want to add a query parameter ?cleanup=true to enable this
-            cleanup = request.args.get('cleanup', 'false').lower() == 'true'
-            if cleanup:
-                safe_print(f"🧹 Cleaning up related data for year {year_to_delete}")
-                # Add cleanup logic here if needed
-            
+
+            # Clean up all related data for this year
+            safe_print(f"🧹 Cleaning up all related data for year {year_to_delete}")
+            cleanup_stats = {}
+
+            try:
+                # 1. Clean up checklist data
+                checklist_data = storage_service.read_csv('config/checklist.csv')
+                if checklist_data is not None and not checklist_data.empty:
+                    original_count = len(checklist_data)
+                    checklist_data = checklist_data[checklist_data['tahun'] != year_to_delete]
+                    storage_service.write_csv(checklist_data, 'config/checklist.csv')
+                    cleanup_stats['checklist'] = original_count - len(checklist_data)
+                    safe_print(f"  ✅ Cleaned {cleanup_stats['checklist']} checklist items")
+
+                # 2. Clean up aspects data
+                aspects_data = storage_service.read_csv('config/aspects.csv')
+                if aspects_data is not None and not aspects_data.empty:
+                    original_count = len(aspects_data)
+                    aspects_data = aspects_data[aspects_data['tahun'] != year_to_delete]
+                    storage_service.write_csv(aspects_data, 'config/aspects.csv')
+                    cleanup_stats['aspects'] = original_count - len(aspects_data)
+                    safe_print(f"  ✅ Cleaned {cleanup_stats['aspects']} aspects")
+
+                # 3. Clean up struktur organisasi data
+                struktur_data = storage_service.read_csv('config/struktur-organisasi.csv')
+                if struktur_data is not None and not struktur_data.empty:
+                    original_count = len(struktur_data)
+                    struktur_data = struktur_data[struktur_data['tahun'] != year_to_delete]
+                    storage_service.write_csv(struktur_data, 'config/struktur-organisasi.csv')
+                    cleanup_stats['struktur'] = original_count - len(struktur_data)
+                    safe_print(f"  ✅ Cleaned {cleanup_stats['struktur']} struktur organisasi items")
+
+                # 4. Clean up AOI tables
+                aoi_tables_data = storage_service.read_csv('config/aoi-tables.csv')
+                if aoi_tables_data is not None and not aoi_tables_data.empty:
+                    original_count = len(aoi_tables_data)
+                    aoi_tables_data = aoi_tables_data[aoi_tables_data['tahun'] != year_to_delete]
+                    storage_service.write_csv(aoi_tables_data, 'config/aoi-tables.csv')
+                    cleanup_stats['aoi_tables'] = original_count - len(aoi_tables_data)
+                    safe_print(f"  ✅ Cleaned {cleanup_stats['aoi_tables']} AOI tables")
+
+                # 5. Clean up AOI recommendations (if they have year field)
+                try:
+                    aoi_recs_data = storage_service.read_csv('config/aoi-recommendations.csv')
+                    if aoi_recs_data is not None and not aoi_recs_data.empty and 'tahun' in aoi_recs_data.columns:
+                        original_count = len(aoi_recs_data)
+                        aoi_recs_data = aoi_recs_data[aoi_recs_data['tahun'] != year_to_delete]
+                        storage_service.write_csv(aoi_recs_data, 'config/aoi-recommendations.csv')
+                        cleanup_stats['aoi_recommendations'] = original_count - len(aoi_recs_data)
+                        safe_print(f"  ✅ Cleaned {cleanup_stats['aoi_recommendations']} AOI recommendations")
+                except Exception as e:
+                    safe_print(f"  ⚠️ AOI recommendations cleanup skipped: {e}")
+
+                # 6. Clean up uploaded files tracking
+                uploaded_files_data = storage_service.read_excel('uploaded-files.xlsx')
+                if uploaded_files_data is not None and not uploaded_files_data.empty:
+                    original_count = len(uploaded_files_data)
+                    uploaded_files_data = uploaded_files_data[uploaded_files_data['year'] != year_to_delete]
+                    storage_service.write_excel(uploaded_files_data, 'uploaded-files.xlsx')
+                    cleanup_stats['uploaded_files'] = original_count - len(uploaded_files_data)
+                    safe_print(f"  ✅ Cleaned {cleanup_stats['uploaded_files']} uploaded file records")
+
+                # 7. Clean up checklist assignments
+                try:
+                    assignments_data = storage_service.read_csv('config/checklist-assignments.csv')
+                    if assignments_data is not None and not assignments_data.empty and 'year' in assignments_data.columns:
+                        original_count = len(assignments_data)
+                        assignments_data = assignments_data[assignments_data['year'] != year_to_delete]
+                        storage_service.write_csv(assignments_data, 'config/checklist-assignments.csv')
+                        cleanup_stats['assignments'] = original_count - len(assignments_data)
+                        safe_print(f"  ✅ Cleaned {cleanup_stats['assignments']} checklist assignments")
+                except Exception as e:
+                    safe_print(f"  ⚠️ Assignments cleanup skipped: {e}")
+
+                # 8. Clean up users with year-specific data
+                users_data = storage_service.read_csv('config/users.csv')
+                if users_data is not None and not users_data.empty and 'tahun' in users_data.columns:
+                    original_count = len(users_data)
+                    users_data = users_data[users_data['tahun'] != year_to_delete]
+                    storage_service.write_csv(users_data, 'config/users.csv')
+                    cleanup_stats['users'] = original_count - len(users_data)
+                    safe_print(f"  ✅ Cleaned {cleanup_stats['users']} year-specific users")
+
+                # 9. Clean up AOI documents tracking
+                try:
+                    aoi_docs_data = storage_service.read_csv('aoi-documents.csv')
+                    if aoi_docs_data is not None and not aoi_docs_data.empty and 'year' in aoi_docs_data.columns:
+                        original_count = len(aoi_docs_data)
+                        aoi_docs_data = aoi_docs_data[aoi_docs_data['year'] != year_to_delete]
+                        storage_service.write_csv(aoi_docs_data, 'aoi-documents.csv')
+                        cleanup_stats['aoi_documents'] = original_count - len(aoi_docs_data)
+                        safe_print(f"  ✅ Cleaned {cleanup_stats['aoi_documents']} AOI document records")
+                except Exception as e:
+                    safe_print(f"  ⚠️ AOI documents cleanup skipped: {e}")
+
+                safe_print(f"✅ All related data cleaned up successfully")
+
+            except Exception as cleanup_error:
+                safe_print(f"⚠️ Error during cleanup: {cleanup_error}")
+                cleanup_stats['error'] = str(cleanup_error)
+
             return jsonify({
-                'success': True, 
-                'message': f'Tahun buku {year_to_delete} deleted successfully',
-                'deleted_year': int(year_to_delete)
+                'success': True,
+                'message': f'Tahun buku {year_to_delete} and all related data deleted successfully',
+                'deleted_year': int(year_to_delete),
+                'cleanup_stats': cleanup_stats
             }), 200
         else:
             return jsonify({'error': 'Failed to delete tahun buku'}), 500
@@ -4031,7 +4475,7 @@ def add_struktur_organisasi_batch():
     except Exception as e:
         safe_print(f"❌ Error adding batch struktur organisasi: {e}")
         import traceback
-        traceback.safe_print_exc()
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/config/struktur-organisasi/<int:struktur_id>', methods=['DELETE'])
@@ -4502,6 +4946,7 @@ def bulk_download_all_documents():
 
         # Create a temporary file for the ZIP
         temp_zip = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
+        temp_zip.close()  # Close the file handle immediately so zipfile can use it
 
         with zipfile.ZipFile(temp_zip.name, 'w', zipfile.ZIP_DEFLATED) as zipf:
             files_added = 0
@@ -4525,115 +4970,121 @@ def bulk_download_all_documents():
                 except Exception as e:
                     safe_print(f"⚠️ Could not add checklist: {e}")
 
-            # Download GCG documents organized by division
+            # Download GCG documents organized by division from local storage
             if include_gcg:
                 try:
                     safe_print(f"📄 Processing GCG documents...")
+                    import glob
 
-                    # List all files in gcg-documents/{year}/
-                    gcg_prefix = f"gcg-documents/{year}"
-                    gcg_files = storage_service.supabase.storage.from_(storage_service.bucket_name).list(gcg_prefix)
+                    # Use local file system path
+                    gcg_base_path = Path(__file__).parent.parent / 'data' / 'gcg-documents' / str(year)
 
-                    if gcg_files:
-                        for division_folder in gcg_files:
-                            if division_folder['name'] == '.emptyFolderPlaceholder':
-                                continue
+                    if gcg_base_path.exists():
+                        # Walk through all subdirectories and files
+                        for file_path in gcg_base_path.rglob('*'):
+                            if file_path.is_file():
+                                try:
+                                    # Get relative path from year folder
+                                    rel_path = file_path.relative_to(gcg_base_path)
 
-                            division_name = division_folder['name']
-                            safe_print(f"📁 Processing division: {division_name}")
+                                    # Read file content
+                                    with open(file_path, 'rb') as f:
+                                        file_content = f.read()
 
-                            # List files in this division
-                            division_path = f"{gcg_prefix}/{division_name}"
-                            checklist_folders = storage_service.supabase.storage.from_(storage_service.bucket_name).list(division_path)
+                                    # Add to ZIP with organized structure
+                                    zip_path = f"GCG_Documents/{rel_path}"
+                                    zipf.writestr(str(zip_path), file_content)
+                                    files_added += 1
+                                    safe_print(f"✅ Added GCG: {zip_path}")
 
-                            if checklist_folders:
-                                for checklist_folder in checklist_folders:
-                                    if checklist_folder['name'] == '.emptyFolderPlaceholder':
-                                        continue
-
-                                    checklist_id = checklist_folder['name']
-                                    checklist_path = f"{division_path}/{checklist_id}"
-
-                                    # List actual files in this checklist folder
-                                    files_in_checklist = storage_service.supabase.storage.from_(storage_service.bucket_name).list(checklist_path)
-
-                                    if files_in_checklist:
-                                        for file_item in files_in_checklist:
-                                            if file_item['name'] == '.emptyFolderPlaceholder':
-                                                continue
-
-                                            file_path = f"{checklist_path}/{file_item['name']}"
-
-                                            try:
-                                                # Download file from Supabase
-                                                file_response = storage_service.supabase.storage.from_(storage_service.bucket_name).download(file_path)
-
-                                                # Add to ZIP with organized structure
-                                                zip_path = f"GCG_Documents/{division_name}/Checklist_{checklist_id}/{file_item['name']}"
-                                                zipf.writestr(zip_path, file_response)
-                                                files_added += 1
-                                                safe_print(f"✅ Added GCG: {zip_path}")
-
-                                            except Exception as e:
-                                                safe_print(f"❌ Failed to download GCG file {file_path}: {e}")
+                                except Exception as e:
+                                    safe_print(f"❌ Failed to add GCG file {file_path}: {e}")
+                    else:
+                        safe_print(f"⚠️ GCG documents folder not found: {gcg_base_path}")
 
                 except Exception as e:
                     safe_print(f"❌ Error processing GCG documents: {e}")
 
-            # Download AOI documents organized by division
+            # Download AOI documents from local storage (if exists)
             if include_aoi:
                 try:
                     safe_print(f"📋 Processing AOI documents...")
 
-                    # List all files in aoi-documents/{year}/
-                    aoi_prefix = f"aoi-documents/{year}"
-                    aoi_files = storage_service.supabase.storage.from_(storage_service.bucket_name).list(aoi_prefix)
+                    # Use local file system path
+                    aoi_base_path = Path(__file__).parent.parent / 'data' / 'aoi-documents' / str(year)
 
-                    if aoi_files:
-                        for division_folder in aoi_files:
-                            if division_folder['name'] == '.emptyFolderPlaceholder':
-                                continue
+                    if aoi_base_path.exists():
+                        # Walk through all subdirectories and files
+                        for file_path in aoi_base_path.rglob('*'):
+                            if file_path.is_file():
+                                try:
+                                    # Get relative path from year folder
+                                    rel_path = file_path.relative_to(aoi_base_path)
 
-                            division_name = division_folder['name']
-                            safe_print(f"📁 Processing AOI division: {division_name}")
+                                    # Read file content
+                                    with open(file_path, 'rb') as f:
+                                        file_content = f.read()
 
-                            # List files in this division
-                            division_path = f"{aoi_prefix}/{division_name}"
-                            recommendation_folders = storage_service.supabase.storage.from_(storage_service.bucket_name).list(division_path)
+                                    # Add to ZIP with organized structure
+                                    zip_path = f"AOI_Documents/{rel_path}"
+                                    zipf.writestr(str(zip_path), file_content)
+                                    files_added += 1
+                                    safe_print(f"✅ Added AOI: {zip_path}")
 
-                            if recommendation_folders:
-                                for rec_folder in recommendation_folders:
-                                    if rec_folder['name'] == '.emptyFolderPlaceholder':
-                                        continue
-
-                                    rec_id = rec_folder['name']
-                                    rec_path = f"{division_path}/{rec_id}"
-
-                                    # List actual files in this recommendation folder
-                                    files_in_rec = storage_service.supabase.storage.from_(storage_service.bucket_name).list(rec_path)
-
-                                    if files_in_rec:
-                                        for file_item in files_in_rec:
-                                            if file_item['name'] == '.emptyFolderPlaceholder':
-                                                continue
-
-                                            file_path = f"{rec_path}/{file_item['name']}"
-
-                                            try:
-                                                # Download file from Supabase
-                                                file_response = storage_service.supabase.storage.from_(storage_service.bucket_name).download(file_path)
-
-                                                # Add to ZIP with organized structure
-                                                zip_path = f"AOI_Documents/{division_name}/Recommendation_{rec_id}/{file_item['name']}"
-                                                zipf.writestr(zip_path, file_response)
-                                                files_added += 1
-                                                safe_print(f"✅ Added AOI: {zip_path}")
-
-                                            except Exception as e:
-                                                safe_print(f"❌ Failed to download AOI file {file_path}: {e}")
+                                except Exception as e:
+                                    safe_print(f"❌ Failed to add AOI file {file_path}: {e}")
+                    else:
+                        safe_print(f"⚠️ AOI documents folder not found: {aoi_base_path}")
 
                 except Exception as e:
                     safe_print(f"❌ Error processing AOI documents: {e}")
+
+            # Download Random documents (DOKUMEN_LAINNYA) from uploaded-files.xlsx
+            try:
+                safe_print(f"📂 Processing Random documents (DOKUMEN_LAINNYA)...")
+
+                # Load uploaded files to find random documents
+                files_data = storage_service.read_excel('uploaded-files.xlsx')
+                if files_data is not None and not files_data.empty:
+                    # Filter for random documents (checklistId is null/empty AND year matches)
+                    random_docs = files_data[
+                        (files_data['year'] == year) &
+                        (files_data['checklistId'].isna() | (files_data['checklistId'] == ''))
+                    ]
+
+                    safe_print(f"📋 Found {len(random_docs)} random documents for year {year}")
+
+                    for _, row in random_docs.iterrows():
+                        try:
+                            local_file_path = row.get('localFilePath', '')
+                            if not local_file_path:
+                                continue
+
+                            # Construct full path
+                            full_path = Path(__file__).parent.parent / 'data' / local_file_path
+
+                            if full_path.exists():
+                                # Read file content
+                                with open(full_path, 'rb') as f:
+                                    file_content = f.read()
+
+                                # Add to ZIP with folder structure preserved
+                                # Extract folder structure from localFilePath
+                                # Format: random-documents/2024/folder_name/file.ext
+                                zip_path = f"Dokumen_Lainnya/{local_file_path.replace('random-documents/' + str(year) + '/', '')}"
+                                zipf.writestr(zip_path, file_content)
+                                files_added += 1
+                                safe_print(f"✅ Added Random: {zip_path}")
+                            else:
+                                safe_print(f"⚠️ Random document file not found: {full_path}")
+
+                        except Exception as e:
+                            safe_print(f"❌ Failed to add random document: {e}")
+                else:
+                    safe_print(f"⚠️ No uploaded-files.xlsx data found")
+
+            except Exception as e:
+                safe_print(f"❌ Error processing random documents: {e}")
 
         safe_print(f"📦 ZIP creation complete. Total files: {files_added}")
 
@@ -4660,7 +5111,7 @@ def bulk_download_all_documents():
     except Exception as e:
         safe_print(f"❌ Bulk download error: {e}")
         import traceback
-        traceback.safe_print_exc()
+        traceback.print_exc()
         return jsonify({'error': f'Failed to create bulk download: {str(e)}'}), 500
 
 @app.route('/api/refresh-tracking-tables', methods=['POST'])
@@ -4856,7 +5307,7 @@ def refresh_tracking_tables():
     except Exception as e:
         safe_print(f"❌ Error during tracking tables refresh: {e}")
         import traceback
-        traceback.safe_print_exc()
+        traceback.print_exc()
         return jsonify({'error': f'Failed to refresh tracking tables: {str(e)}'}), 500
 
 if __name__ == '__main__':

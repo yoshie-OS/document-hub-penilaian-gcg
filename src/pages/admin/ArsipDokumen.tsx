@@ -1,486 +1,817 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Sidebar from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
-import { PageHeaderPanel, YearSelectorPanel } from '@/components/panels';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { PageHeaderPanel } from '@/components/panels';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useFileUpload } from '@/contexts/FileUploadContext';
-import { useDocumentMetadata } from '@/contexts/DocumentMetadataContext';
-import { useUser } from '@/contexts/UserContext';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { useYear } from '@/contexts/YearContext';
-import { useStrukturPerusahaan } from '@/contexts/StrukturPerusahaanContext';
-import { useAOIDocument } from '@/contexts/AOIDocumentContext';
+import { useDocumentMetadata } from '@/contexts/DocumentMetadataContext';
+import { useFileUpload } from '@/contexts/FileUploadContext';
+import { useChecklist } from '@/contexts/ChecklistContext';
 import { useToast } from '@/hooks/use-toast';
-import JSZip from 'jszip';
-import { 
-  FileText, 
-  Download,
-  MessageSquare,
+import { CatatanDialog, DetailDocumentDialog } from '@/components/dialogs';
+import {
   Archive,
-  Building2,
-  User,
+  Search,
+  FileText,
+  Download,
+  Eye,
   Calendar,
-  Mail,
-  Phone,
-  FolderOpen,
+  Users,
   Filter,
   CheckCircle,
-  Trash2,
+  Clock,
+  AlertCircle,
+  TrendingUp,
+  Building,
+  UserCheck,
+  Loader2,
   RefreshCw,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
-  SortAsc,
-  SortDesc,
-  Grid3X3,
-  List,
-  Search
+  Info,
+  Trash2,
+  MessageSquare,
+  Upload,
+  Phone,
+  Mail,
+  StickyNote,
+  FolderUp
 } from 'lucide-react';
 
-interface DocumentWithUser {
-  id: string;
-  fileName: string;
-  fileSize: number;
-  uploadDate: Date;
-  year: number;
-  checklistId?: number;
-  checklistDescription?: string;
-  aspect?: string;
-  status: 'uploaded' | 'pending';
-  subdirektorat?: string;
-  localFilePath?: string;
-  uploadedBy: string;
-  userRole?: string;
-  userDirektorat?: string;
-  userSubdirektorat?: string;
-  userDivisi?: string;
-  userWhatsApp?: string;
-  userEmail?: string;
-}
 
-const ArsipDokumen: React.FC = () => {
-  console.log('🔍 ArsipDokumen component rendering...');
-  
+const ArsipDokumen = () => {
   const { isSidebarOpen } = useSidebar();
   const { selectedYear, setSelectedYear, availableYears } = useYear();
-  const { user } = useUser();
-  const { direktorat: direktoratData, subdirektorat: subDirektoratData, divisi: divisiData } = useStrukturPerusahaan();
-  const { getDocumentsByYear, deleteDocument: deleteAOIDocument } = useAOIDocument();
+  const { documents } = useDocumentMetadata();
+  const { getFilesByYear } = useFileUpload();
+  const { checklist } = useChecklist();
   const { toast } = useToast();
 
-  // Filter states
-  const [selectedDirektorat, setSelectedDirektorat] = useState<string | null>(null);
-  const [selectedAspect, setSelectedAspect] = useState<string | null>(null);
-  const [selectedSubdirektorat, setSelectedSubdirektorat] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  
-  // Sorting and view states
-  const [sortBy, setSortBy] = useState<'fileName' | 'aspect' | 'subdirektorat' | 'uploadDate' | 'uploadedBy' | 'direktorat'>('uploadDate');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
-
-  // Download states
+  // State for bulk download and refresh
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
-  const [isDownloadingAll, setIsDownloadingAll] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // State for loading and API data
-  const [isLoadingFiles, setIsLoadingFiles] = useState(false);
-  const [apiFiles, setApiFiles] = useState<any[]>([]);
+  // State for search and filters (for TABLE only)
+  const [searchTerm, setSearchTerm] = useState('');
+  const [tableSelectedAspek, setTableSelectedAspek] = useState<string>('all');
+  const [tableSelectedSubdirektorat, setTableSelectedSubdirektorat] = useState<string>('all');
+  const [tableSelectedStatus, setTableSelectedStatus] = useState<string>('all');
 
-  // State for highlight functionality
-  const [highlightCriteria, setHighlightCriteria] = useState<any>(null);
+  // State for Download Dokumen section filters (separate from table)
+  const [downloadSelectedAspek, setDownloadSelectedAspek] = useState<string>('all');
+  const [downloadSelectedSubdirektorat, setDownloadSelectedSubdirektorat] = useState<string>('all');
 
-  // Fetch files function
-  const fetchFilesFromAPI = useCallback(async () => {
-      console.log('🔍 ArsipDokumen fetchFilesFromAPI triggered, selectedYear:', selectedYear);
-      
-      if (!selectedYear) {
-      console.log('❌ No selected year, skipping API fetch');
+  // State for catatan dialog
+  const [isCatatanDialogOpen, setIsCatatanDialogOpen] = useState(false);
+  const [selectedDocumentForCatatan, setSelectedDocumentForCatatan] = useState<{
+    catatan?: string;
+    title?: string;
+    fileName?: string;
+    uploadedBy?: string;
+    uploadDate?: Date;
+    subdirektorat?: string;
+  } | null>(null);
+
+  // State for detail dialog
+  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
+  const [selectedDocumentForDetail, setSelectedDocumentForDetail] = useState<{
+    id: number;
+    aspek: string;
+    deskripsi: string;
+    tahun: number;
+    fileName?: string;
+    fileSize?: number;
+    uploadDate?: Date;
+    uploadedBy?: string;
+    subdirektorat?: string;
+    catatan?: string;
+    status?: string;
+  } | null>(null);
+
+  // State for delete operation
+  const [deletingDocuments, setDeletingDocuments] = useState<Set<number>>(new Set());
+
+  // State to track actual file existence from Supabase
+  const [supabaseFileStatus, setSupabaseFileStatus] = useState<{[key: string]: boolean}>({});
+  const [supabaseFileInfo, setSupabaseFileInfo] = useState<{[key: string]: any}>({});
+  const [fileStatusLoading, setFileStatusLoading] = useState<boolean>(false);
+
+  // State for random document upload
+  const [isUploadingRandom, setIsUploadingRandom] = useState(false);
+  const [randomUploadYear, setRandomUploadYear] = useState<number | null>(null);
+
+  // State for random documents (Dokumen Lainnya)
+  const [randomDocuments, setRandomDocuments] = useState<any[]>([]);
+
+  // Check if dokumen GCG item is uploaded - now uses Supabase file status
+  const isChecklistUploaded = useCallback((checklistId: number) => {
+    if (!selectedYear) return false;
+    
+    // Check Supabase file status first (authoritative)
+    const supabaseExists = supabaseFileStatus[checklistId.toString()] || false;
+    
+    if (supabaseExists) {
+      return true;
+    }
+    
+    // Fallback to localStorage for backward compatibility
+    const yearFiles = getFilesByYear(selectedYear);
+    const checklistIdInt = Math.floor(checklistId);
+    const localFileExists = yearFiles.some(file => file.checklistId === checklistIdInt);
+    
+    return localFileExists;
+  }, [supabaseFileStatus, getFilesByYear, selectedYear]);
+
+  // Get uploaded document for dokumen GCG - now uses Supabase file status with localStorage fallback
+  const getUploadedDocument = useCallback((checklistId: number) => {
+    if (!selectedYear) return null;
+    
+    // First check if file exists in Supabase
+    const supabaseExists = supabaseFileStatus[checklistId.toString()];
+    if (supabaseExists && supabaseFileInfo[checklistId.toString()]) {
+      return supabaseFileInfo[checklistId.toString()];
+    }
+    
+    // Fallback to localStorage for backward compatibility
+    const yearFiles = getFilesByYear(selectedYear);
+    const checklistIdInt = Math.floor(checklistId);
+    const foundFile = yearFiles.find(file => file.checklistId === checklistIdInt);
+    
+    return foundFile;
+  }, [supabaseFileStatus, supabaseFileInfo, getFilesByYear, selectedYear]);
+
+  // Load random documents from backend
+  useEffect(() => {
+    if (!selectedYear) return;
+
+    const loadRandomDocuments = async () => {
+      try {
+        console.log(`📂 Loading random documents for year ${selectedYear}...`);
+        const response = await fetch(`http://localhost:5001/api/random-documents/${selectedYear}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('authToken') || 'demo-token'}`,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log(`✅ Loaded ${data.documents?.length || 0} random documents`);
+          setRandomDocuments(data.documents || []);
+        } else {
+          console.warn('⚠️ Failed to load random documents:', response.status);
+          setRandomDocuments([]);
+        }
+      } catch (error) {
+        console.error('❌ Error loading random documents:', error);
+        setRandomDocuments([]);
+      }
+    };
+
+    loadRandomDocuments();
+  }, [selectedYear]);
+
+  // Load file status from backend when year changes
+  useEffect(() => {
+    if (!selectedYear || availableYears.length === 0) return;
+
+    const loadAllFileStatuses = async () => {
+      try {
+        setFileStatusLoading(true);
+        
+        // Get all checklist items for the selected year
+        const yearChecklist = checklist.filter(item => item.tahun === selectedYear);
+        
+        if (yearChecklist.length === 0) {
+          setFileStatusLoading(false);
+          return;
+        }
+
+        // Group by subdirektorat for batch API calls
+        const subdirektoratGroups = yearChecklist.reduce((groups, item) => {
+          // Try to get subdirektorat from assignment data or from PIC
+          let subdirektorat = 'Unknown';
+          
+          // Check if there are assignments for this item
+          const storedAssignments = localStorage.getItem('checklistAssignments');
+          if (storedAssignments) {
+            try {
+              const allAssignments = JSON.parse(storedAssignments);
+              const itemAssignment = allAssignments.find((assignment: any) => 
+                assignment.checklistId === item.id && assignment.tahun === selectedYear
+              );
+              
+              if (itemAssignment) {
+                subdirektorat = itemAssignment.subdirektorat || itemAssignment.divisi || 'Unknown';
+              }
+            } catch (error) {
+              console.error('Error parsing assignments:', error);
+            }
+          }
+          
+          if (!groups[subdirektorat]) {
+            groups[subdirektorat] = [];
+          }
+          groups[subdirektorat].push(item.id);
+          return groups;
+        }, {} as Record<string, number[]>);
+
+        // Process each subdirektorat group
+        const newFileStatus: Record<string, boolean> = {};
+        const newFileInfo: Record<string, any> = {};
+
+        for (const [subdirektorat, checklistIds] of Object.entries(subdirektoratGroups)) {
+          try {
+            const response = await fetch('http://localhost:5001/api/check-gcg-files', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('authToken') || 'demo-token'}`,
+              },
+              body: JSON.stringify({
+                picName: subdirektorat,
+                year: selectedYear,
+                checklistIds: checklistIds
+              })
+            });
+
+            if (response.ok) {
+              const result = await response.json();
+              
+              // Process file statuses for this subdirektorat
+              Object.entries(result.fileStatuses || {}).forEach(([checklistId, fileStatus]: [string, any]) => {
+                const fileExists = fileStatus?.exists || false;
+                newFileStatus[checklistId] = fileExists;
+                
+                if (fileExists && fileStatus) {
+                  newFileInfo[checklistId] = {
+                    id: fileStatus.id || `supabase_${checklistId}`,
+                    fileName: fileStatus.fileName,
+                    fileSize: fileStatus.size,
+                    uploadDate: new Date(fileStatus.lastModified),
+                    checklistId: parseInt(checklistId),
+                    catatan: fileStatus.catatan || '',
+                    uploadedBy: fileStatus.uploadedBy || 'Unknown',
+                    subdirektorat: fileStatus.subdirektorat || subdirektorat,
+                    aspect: fileStatus.aspect || '',
+                    checklistDescription: fileStatus.checklistDescription || ''
+                  };
+                }
+              });
+            }
+          } catch (error) {
+            console.error(`Error checking files for subdirektorat ${subdirektorat}:`, error);
+          }
+        }
+
+        // Update state with all collected data
+        setSupabaseFileStatus(newFileStatus);
+        setSupabaseFileInfo(newFileInfo);
+        
+      } catch (error) {
+        console.error('Error loading file statuses:', error);
+      } finally {
+        setFileStatusLoading(false);
+      }
+    };
+
+    loadAllFileStatuses();
+  }, [selectedYear, checklist, availableYears]);
+
+  // Function to reload file statuses - extracted for reuse
+  const reloadFileStatuses = useCallback(async () => {
+    if (!selectedYear || availableYears.length === 0) return;
+
+    console.log('🔄 ArsipDokumen: Reloading file statuses...');
+
+    try {
+      setFileStatusLoading(true);
+
+      const yearChecklist = checklist.filter(item => item.tahun === selectedYear);
+
+      if (yearChecklist.length === 0) {
+        setFileStatusLoading(false);
         return;
       }
 
-      setIsLoadingFiles(true);
-      try {
-      const response = await fetch(`http://localhost:5001/api/uploaded-files?year=${selectedYear}`);
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('✅ API response received:', data);
-        setApiFiles(data.files || []);
-      } else {
-        console.error('❌ API response error:', response.status, response.statusText);
-        setApiFiles([]);
-      }
-      } catch (error) {
-      console.error('❌ API fetch error:', error);
-        setApiFiles([]);
-      } finally {
-        setIsLoadingFiles(false);
-    }
-  }, [selectedYear]);
+      // Group by subdirektorat for batch API calls
+      const subdirektoratGroups = yearChecklist.reduce((groups, item) => {
+        let subdirektorat = 'Unknown';
 
-  // Check for highlight criteria from localStorage on component mount
-  useEffect(() => {
-    const storedHighlight = localStorage.getItem('archiveHighlight');
-    if (storedHighlight) {
-      try {
-        const criteria = JSON.parse(storedHighlight);
-        console.log('🎯 Highlight criteria loaded from localStorage:', criteria);
-        
-        // Apply the highlight criteria to filters first
-        if (criteria.aspect) {
-          setSelectedAspect(criteria.aspect);
+        const storedAssignments = localStorage.getItem('checklistAssignments');
+        if (storedAssignments) {
+          try {
+            const allAssignments = JSON.parse(storedAssignments);
+            const itemAssignment = allAssignments.find((assignment: any) =>
+              assignment.checklistId === item.id && assignment.tahun === selectedYear
+            );
+
+            if (itemAssignment) {
+              subdirektorat = itemAssignment.subdirektorat || itemAssignment.divisi || 'Unknown';
+            }
+          } catch (error) {
+            console.error('Error parsing assignments:', error);
+          }
         }
-        if (criteria.description) {
-          setSearchTerm(criteria.description);
+
+        if (!groups[subdirektorat]) {
+          groups[subdirektorat] = [];
         }
-        
-        // Set highlight criteria after a short delay to ensure filters are applied
-        setTimeout(() => {
-          setHighlightCriteria(criteria);
-          console.log('🎯 Highlight criteria set after delay:', criteria);
-          
-          toast({
-            title: "Highlight Aktif",
-            description: `Mencari dokumen berdasarkan kriteria dari Monitoring GCG`,
+        groups[subdirektorat].push(item.id);
+        return groups;
+      }, {} as Record<string, number[]>);
+
+      const newFileStatus: Record<string, boolean> = {};
+      const newFileInfo: Record<string, any> = {};
+
+      for (const [subdirektorat, checklistIds] of Object.entries(subdirektoratGroups)) {
+        try {
+          const response = await fetch('http://localhost:5001/api/check-gcg-files', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('authToken') || 'demo-token'}`,
+            },
+            body: JSON.stringify({
+              year: selectedYear,
+              picName: subdirektorat.replace(/ /g, '_'),
+              checklistIds: checklistIds
+            }),
           });
-        }, 100);
-        
-        // Clear the stored criteria after reading
-        localStorage.removeItem('archiveHighlight');
-        
-      } catch (error) {
-        console.error('Error parsing highlight criteria:', error);
+
+          if (response.ok) {
+            const result = await response.json();
+
+            if (result.fileStatuses) {
+              Object.entries(result.fileStatuses).forEach(([checklistId, fileStatus]: [string, any]) => {
+                newFileStatus[checklistId] = fileStatus.exists || false;
+
+                if (fileStatus.exists && fileStatus.fileName) {
+                  newFileInfo[checklistId] = {
+                    id: fileStatus.id || `supabase_${checklistId}`,
+                    fileName: fileStatus.fileName,
+                    fileSize: fileStatus.size,
+                    uploadDate: new Date(fileStatus.lastModified),
+                    checklistId: parseInt(checklistId),
+                    catatan: fileStatus.catatan || '',
+                    uploadedBy: fileStatus.uploadedBy || 'Unknown',
+                    subdirektorat: fileStatus.subdirektorat || subdirektorat,
+                    aspect: fileStatus.aspect || '',
+                    checklistDescription: fileStatus.checklistDescription || ''
+                  };
+                }
+              });
+            }
+          }
+        } catch (error) {
+          console.error(`Error checking files for subdirektorat ${subdirektorat}:`, error);
+        }
       }
+
+      setSupabaseFileStatus(newFileStatus);
+      setSupabaseFileInfo(newFileInfo);
+      console.log('✅ ArsipDokumen: File statuses reloaded successfully');
+
+    } catch (error) {
+      console.error('Error reloading file statuses:', error);
+    } finally {
+      setFileStatusLoading(false);
     }
-  }, []);
+  }, [selectedYear, checklist, availableYears]);
 
-  // Fetch files from Supabase API when year changes
+  // Listen for file changes from other components (Monitoring, FileUploadContext)
   useEffect(() => {
-    fetchFilesFromAPI();
-  }, [fetchFilesFromAPI]);
-
-  // Event listeners for synchronization
-  useEffect(() => {
-    const handleUploadedFilesChanged = async (event: CustomEvent) => {
+    const handleFilesChanged = (event: CustomEvent) => {
       console.log('📢 ArsipDokumen: Received uploadedFilesChanged event', event.detail);
-      // Refresh files when other components make changes
-      try {
-        await fetchFilesFromAPI();
-        console.log('✅ ArsipDokumen: Data refreshed after uploadedFilesChanged');
-      } catch (error) {
-        console.error('❌ ArsipDokumen: Error refreshing after uploadedFilesChanged:', error);
+
+      // If file was deleted, immediately mark as NOT existing
+      // and DO NOT reload from backend to avoid race condition
+      if (event.detail?.type === 'fileDeleted' && event.detail?.checklistId) {
+        const checklistId = event.detail.checklistId;
+        console.log('🧹 ArsipDokumen: Marking deleted checklistId as false:', checklistId);
+        setSupabaseFileStatus(prev => ({
+          ...prev,
+          [checklistId.toString()]: false  // Explicitly mark as not existing
+        }));
+        setSupabaseFileInfo(prev => {
+          const newInfo = { ...prev };
+          delete newInfo[checklistId.toString()];  // Remove file info
+          return newInfo;
+        });
+        console.log('✅ ArsipDokumen: File marked as deleted (no backend refresh)');
+        return; // Don't reload from backend - state is already correct
       }
+
+      // Reload file statuses only for non-delete events (upload, etc)
+      reloadFileStatuses();
     };
 
-    const handleDocumentsUpdated = async (event: CustomEvent) => {
+    const handleDocumentsUpdated = (event: CustomEvent) => {
       console.log('📢 ArsipDokumen: Received documentsUpdated event', event.detail);
-      // Refresh files when other components make changes
-      try {
-        await fetchFilesFromAPI();
-        console.log('✅ ArsipDokumen: Data refreshed after documentsUpdated');
-      } catch (error) {
-        console.error('❌ ArsipDokumen: Error refreshing after documentsUpdated:', error);
+
+      // Skip reload for delete events to avoid race condition
+      if (event.detail?.type === 'documentsUpdated' && event.detail?.skipRefresh) {
+        console.log('ArsipDokumen: Skipping reload (delete operation)');
+        return;
       }
+
+      // Reload file statuses when documents are updated
+      reloadFileStatuses();
     };
 
-    window.addEventListener('uploadedFilesChanged', handleUploadedFilesChanged as EventListener);
+    window.addEventListener('uploadedFilesChanged', handleFilesChanged as EventListener);
     window.addEventListener('documentsUpdated', handleDocumentsUpdated as EventListener);
 
     return () => {
-      window.removeEventListener('uploadedFilesChanged', handleUploadedFilesChanged as EventListener);
+      window.removeEventListener('uploadedFilesChanged', handleFilesChanged as EventListener);
       window.removeEventListener('documentsUpdated', handleDocumentsUpdated as EventListener);
     };
-  }, [fetchFilesFromAPI]);
+  }, [reloadFileStatuses]);
 
-  // Process API files into DocumentWithUser format
-  const allDocuments = useMemo(() => {
-    console.log('🔄 Processing API files into DocumentWithUser format...');
-    console.log('📊 API files count:', apiFiles.length);
-    
-    try {
-      const enrichedDocuments = apiFiles.map((file, index) => {
-        console.log(`Processing file ${index + 1}:`, file.fileName);
-        
-        // Get user data from localStorage for contact info
-        const userData = JSON.parse(localStorage.getItem('user') || '{}');
-        
+  // Get all uploaded documents for the selected year
+  const allUploadedDocuments = useMemo(() => {
+    if (!selectedYear) return [];
+
+    // Get checklist-based documents
+    const yearChecklist = checklist.filter(item => item.tahun === selectedYear);
+    const checklistDocs = yearChecklist
+      .map(item => {
+        const uploadedDocument = getUploadedDocument(item.id);
+        if (!uploadedDocument) return null;
+
         return {
-          id: file.id || `file-${index}`,
-          fileName: file.fileName || 'Unknown File',
-          fileSize: file.fileSize || 0,
-          uploadDate: new Date(file.uploadDate || new Date()),
-          year: file.year || selectedYear || 2024,
-          checklistId: file.checklistId,
-          checklistDescription: file.checklistDescription,
-          aspect: file.aspect || 'Dokumen Tanpa Aspek',
-          status: 'uploaded' as const,
-          subdirektorat: file.subdirektorat,
-          localFilePath: file.localFilePath,
-          uploadedBy: file.uploadedBy || 'Unknown User',
-          userRole: file.userRole || 'admin',
-          userDirektorat: file.userDirektorat || userData?.direktorat || 'Unknown',
-          userSubdirektorat: file.userSubdirektorat || userData?.subdirektorat || 'Unknown',
-          userDivisi: file.userDivisi || userData?.divisi || 'Unknown',
-          userWhatsApp: file.userWhatsApp || userData?.whatsapp || '',
-          userEmail: file.userEmail || userData?.email || ''
+          ...item,
+          uploadedDocument,
+          status: 'uploaded' as const
         };
-      });
-      
-      console.log(`✅ Successfully processed ${enrichedDocuments.length} documents`);
-      return enrichedDocuments.sort((a, b) => 
-        new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime()
-      );
-    } catch (error) {
-      console.error('Error processing API files:', error);
-      return [];
-    }
-  }, [selectedYear, apiFiles, isLoadingFiles]);
+      })
+      .filter(Boolean);
 
-  // Filter and sort documents based on selected criteria
-  const filteredAndSortedDocuments = useMemo(() => {
-    let filtered = allDocuments;
+    // Get random documents (Dokumen Lainnya)
+    const randomDocs = randomDocuments.map(doc => {
+      return {
+        id: doc.id || Math.random(),
+        aspek: 'DOKUMEN_LAINNYA',
+        deskripsi: doc.fileName || 'Dokumen Lainnya',
+        tahun: selectedYear,
+        uploadedDocument: {
+          id: doc.id,
+          fileName: doc.fileName,
+          fileSize: doc.fileSize,
+          uploadDate: doc.uploadDate,
+          uploadedBy: doc.uploadedBy || 'Unknown',
+          subdirektorat: 'Super Admin', // Changed from 'Dokumen_Lainnya' to 'Super Admin'
+          catatan: doc.catatan || '',
+          checklistId: null,
+          localFilePath: doc.localFilePath
+        },
+        status: 'uploaded' as const
+      };
+    });
 
-    // Filter by direktorat
-        if (selectedDirektorat) {
-      filtered = filtered.filter(doc => doc.userDirektorat === selectedDirektorat);
-    }
+    // Combine both arrays
+    return [...checklistDocs, ...randomDocs];
+  }, [selectedYear, checklist, getUploadedDocument, supabaseFileStatus, supabaseFileInfo, randomDocuments]);
 
-    // Filter by aspect
-    if (selectedAspect) {
-      filtered = filtered.filter(doc => doc.aspect === selectedAspect);
-    }
+  // Get unique values for filters
+  const uniqueAspects = useMemo(() => {
+    const aspects = allUploadedDocuments.map(doc => doc?.aspek).filter(Boolean);
+    return ['all', ...Array.from(new Set(aspects))];
+  }, [allUploadedDocuments]);
 
-    // Filter by subdirektorat
-    if (selectedSubdirektorat) {
-      filtered = filtered.filter(doc => doc.userSubdirektorat === selectedSubdirektorat);
-    }
+  const uniqueSubdirektorats = useMemo(() => {
+    const subdirektorats = allUploadedDocuments.map(doc => doc?.uploadedDocument?.subdirektorat).filter(Boolean);
+    return ['all', ...Array.from(new Set(subdirektorats))];
+  }, [allUploadedDocuments]);
 
-    // Filter by search term
-    if (searchTerm) {
-      filtered = filtered.filter(doc => 
-        doc.fileName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        doc.uploadedBy.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        doc.aspect?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        doc.checklistDescription?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
+  // Filter documents for DOWNLOAD section only
+  const downloadFilteredDocuments = useMemo(() => {
+    if (!allUploadedDocuments) return [];
 
-    // Apply sorting
-    filtered.sort((a, b) => {
-      let aValue: any, bValue: any;
-      
-      switch (sortBy) {
-        case 'fileName':
-          aValue = a.fileName.toLowerCase();
-          bValue = b.fileName.toLowerCase();
-          break;
-        case 'aspect':
-          aValue = (a.aspect || 'Dokumen Tanpa Aspek').toLowerCase();
-          bValue = (b.aspect || 'Dokumen Tanpa Aspek').toLowerCase();
-          break;
-        case 'subdirektorat':
-          aValue = (a.userSubdirektorat || 'Unknown').toLowerCase();
-          bValue = (b.userSubdirektorat || 'Unknown').toLowerCase();
-          break;
-        case 'direktorat':
-          aValue = (a.userDirektorat || 'Unknown').toLowerCase();
-          bValue = (b.userDirektorat || 'Unknown').toLowerCase();
-          break;
-        case 'uploadDate':
-          aValue = new Date(a.uploadDate).getTime();
-          bValue = new Date(b.uploadDate).getTime();
-          break;
-        case 'uploadedBy':
-          aValue = a.uploadedBy.toLowerCase();
-          bValue = b.uploadedBy.toLowerCase();
-          break;
-        default:
-          return 0;
+    let filtered = allUploadedDocuments.filter(doc => {
+      if (!doc) return false;
+
+      // Aspek filter for download
+      if (downloadSelectedAspek !== 'all' && doc.aspek !== downloadSelectedAspek) {
+        return false;
       }
 
-      if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1;
-      if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1;
-      return 0;
+      // Subdirektorat filter for download
+      if (downloadSelectedSubdirektorat !== 'all') {
+        if (downloadSelectedSubdirektorat === 'dokumen_lainnya') {
+          if (doc.uploadedDocument?.subdirektorat !== 'Dokumen_Lainnya') {
+            return false;
+          }
+        } else {
+          if (doc.uploadedDocument?.subdirektorat !== downloadSelectedSubdirektorat) {
+            return false;
+          }
+        }
+      }
+
+      return true;
     });
 
     return filtered;
-  }, [allDocuments, selectedDirektorat, selectedAspect, selectedSubdirektorat, searchTerm, sortBy, sortOrder]);
+  }, [allUploadedDocuments, downloadSelectedAspek, downloadSelectedSubdirektorat]);
 
-  // Get unique values for filters
-  const uniqueDirektorats = useMemo(() => {
-    const direktorats = [...new Set(allDocuments.map(doc => doc.userDirektorat))];
-    return direktorats.filter(Boolean).sort();
-  }, [allDocuments]);
+  // Filter documents for TABLE display (separate from download filters)
+  const filteredDocuments = useMemo(() => {
+    if (!allUploadedDocuments) return [];
 
-  const uniqueAspects = useMemo(() => {
-    const aspects = [...new Set(allDocuments.map(doc => doc.aspect))];
-    return aspects.filter(Boolean).sort();
-  }, [allDocuments]);
+    let filtered = allUploadedDocuments.filter(doc => {
+      if (!doc) return false;
 
-  const uniqueSubdirektorats = useMemo(() => {
-    const subdirektorats = [...new Set(allDocuments.map(doc => doc.userSubdirektorat))];
-    return subdirektorats.filter(Boolean).sort();
-  }, [allDocuments]);
+      // Search filter
+      if (searchTerm) {
+        const searchLower = searchTerm.toLowerCase();
+        const matchesSearch =
+          doc.deskripsi?.toLowerCase().includes(searchLower) ||
+          doc.uploadedDocument?.fileName?.toLowerCase().includes(searchLower) ||
+          doc.uploadedDocument?.uploadedBy?.toLowerCase().includes(searchLower);
 
-  // Handle sorting
-  const handleSort = (field: 'fileName' | 'aspect' | 'subdirektorat' | 'uploadDate' | 'uploadedBy' | 'direktorat') => {
-    if (sortBy === field) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortBy(field);
-      setSortOrder('asc');
-    }
-  };
+        if (!matchesSearch) return false;
+      }
 
-  // Get sort icon
-  const getSortIcon = (field: string) => {
-    if (sortBy !== field) return <ArrowUpDown className="h-4 w-4" />;
-    return sortOrder === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />;
-  };
+      // Aspek filter for table
+      if (tableSelectedAspek !== 'all' && doc.aspek !== tableSelectedAspek) {
+        return false;
+      }
 
-  // Check if document should be highlighted
-  const shouldHighlightDocument = (doc: DocumentWithUser) => {
-    if (!highlightCriteria) return false;
-    
-    console.log('🔍 Checking highlight for document:', {
-      docId: doc.id,
-      fileName: doc.fileName,
-      checklistId: doc.checklistId,
-      aspect: doc.aspect,
-      highlightCriteria
+      // Subdirektorat filter for table
+      if (tableSelectedSubdirektorat !== 'all') {
+        if (tableSelectedSubdirektorat === 'dokumen_lainnya') {
+          if (doc.uploadedDocument?.subdirektorat !== 'Dokumen_Lainnya') {
+            return false;
+          }
+        } else {
+          if (doc.uploadedDocument?.subdirektorat !== tableSelectedSubdirektorat) {
+            return false;
+          }
+        }
+      }
+
+      return true;
     });
-    
-    // Primary match by checklistId if available (most reliable)
-    if (highlightCriteria.checklistId && doc.checklistId) {
-      const checklistMatch = doc.checklistId === highlightCriteria.checklistId;
-      console.log('🎯 Checklist ID match:', checklistMatch);
-      return checklistMatch;
-    }
-    
-    // Fallback to aspect and description matching
-    const matchesAspect = !highlightCriteria.aspect || 
-      (doc.aspect && doc.aspect === highlightCriteria.aspect) ||
-      (!doc.aspect && highlightCriteria.aspect === 'Dokumen Tanpa Aspek');
-    
-    // More flexible description matching
-    const matchesDescription = !highlightCriteria.description || 
-      (doc.checklistDescription && doc.checklistDescription.toLowerCase().includes(highlightCriteria.description.toLowerCase())) ||
-      (doc.fileName && doc.fileName.toLowerCase().includes(highlightCriteria.description.toLowerCase()));
-    
-    const shouldHighlight = matchesAspect && matchesDescription;
-    
-    console.log('🎯 Highlight check result:', {
-      matchesAspect,
-      matchesDescription,
-      shouldHighlight
-    });
-    
-    return shouldHighlight;
-  };
 
-  // Auto-scroll to highlighted document after data loads
-  useEffect(() => {
-    if (highlightCriteria && filteredAndSortedDocuments.length > 0) {
-      // Find the highlighted document
-      const highlightedDoc = filteredAndSortedDocuments.find(doc => shouldHighlightDocument(doc));
-      
-      if (highlightedDoc) {
-        console.log('🎯 Found highlighted document, scrolling to it:', {
-          fileName: highlightedDoc.fileName,
-          id: highlightedDoc.id,
-          checklistId: highlightedDoc.checklistId
+    // Sort by upload date (newest first)
+    filtered.sort((a, b) => {
+      const dateA = new Date(a?.uploadedDocument?.uploadDate || 0);
+      const dateB = new Date(b?.uploadedDocument?.uploadDate || 0);
+      return dateB.getTime() - dateA.getTime();
+    });
+
+    return filtered;
+  }, [allUploadedDocuments, searchTerm, tableSelectedAspek, tableSelectedSubdirektorat]);
+
+  // Handle view document
+  const handleViewDocument = useCallback(async (checklistId: number) => {
+    const uploadedFile = getUploadedDocument(checklistId);
+    if (uploadedFile) {
+      try {
+        // Get file URL from backend API
+        const response = await fetch(`http://localhost:5001/api/files/${uploadedFile.id}/view`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('authToken') || 'demo-token'}`,
+          },
         });
         
-        // Scroll to the document after a delay to ensure DOM is rendered
-        const scrollToDocument = () => {
-          const docElement = document.querySelector(`[data-doc-id="${highlightedDoc.id}"]`);
-          if (docElement) {
-            docElement.scrollIntoView({ 
-              behavior: 'smooth', 
-              block: 'center' 
-            });
-            console.log('✅ Scrolled to highlighted document');
-            
-            // Add a temporary highlight animation
-            docElement.classList.add('animate-pulse');
-            setTimeout(() => {
-              docElement.classList.remove('animate-pulse');
-            }, 2000);
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.url) {
+            // Open file in new tab/window
+            window.open(result.url, '_blank');
           } else {
-            console.warn('⚠️ Could not find document element for scrolling, retrying...');
-            // Retry after a longer delay
-            setTimeout(scrollToDocument, 1000);
+            throw new Error(result.error || 'Failed to get file URL');
           }
-        };
-        
-        setTimeout(scrollToDocument, 800);
-      } else {
-        console.log('⚠️ No highlighted document found in filtered results');
-        console.log('Available documents:', filteredAndSortedDocuments.map(d => ({
-          id: d.id,
-          fileName: d.fileName,
-          checklistId: d.checklistId,
-          aspect: d.aspect
-        })));
+        } else {
+          throw new Error(`Failed to view document: ${response.status}`);
+        }
+      } catch (error) {
+        console.error('Error viewing document:', error);
+        alert(`Gagal membuka dokumen: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    } else {
+      alert('Dokumen tidak ditemukan');
+    }
+  }, [getUploadedDocument]);
+
+  // Handle download document
+  const handleDownloadDocument = useCallback(async (documentId: number | string, uploadedDocument?: any) => {
+    console.log(`📥 Download request - documentId: ${documentId}`, uploadedDocument);
+
+    // Try to get document info
+    let fileToDownload = uploadedDocument;
+
+    if (!fileToDownload) {
+      // For checklist documents, try to get from getUploadedDocument
+      if (typeof documentId === 'number') {
+        fileToDownload = getUploadedDocument(documentId);
       }
     }
-  }, [highlightCriteria, filteredAndSortedDocuments]);
 
-  // Handle delete document
-  const handleDeleteDocument = useCallback(async (doc: DocumentWithUser) => {
-    console.log('🗑️ ArsipDokumen: Starting delete process', { 
-      id: doc.id, 
-      fileName: doc.fileName, 
-      checklistId: doc.checklistId 
-    });
-    
+    console.log(`📄 File to download:`, fileToDownload);
+
+    if (!fileToDownload) {
+      console.error('❌ Document not found');
+      toast({
+        title: "Error",
+        description: "Dokumen tidak ditemukan",
+        variant: "destructive"
+      });
+      return;
+    }
+
     try {
-      console.log(`🌐 ArsipDokumen: Sending DELETE request to /api/delete-file/${doc.id}`);
-      const response = await fetch(`http://localhost:5001/api/delete-file/${doc.id}`, {
-        method: 'DELETE',
+      console.log(`🌐 Downloading file: ${fileToDownload.fileName} (ID: ${fileToDownload.id})`);
+
+      // Download file through backend API
+      const response = await fetch(`http://localhost:5001/api/files/${fileToDownload.id}/download`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken') || 'demo-token'}`,
+        },
       });
 
-      console.log(`📡 ArsipDokumen: Delete response status: ${response.status}`);
+      console.log(`📡 Download response status: ${response.status}`);
+
+      if (response.ok) {
+        // Get the file blob
+        const blob = await response.blob();
+        console.log(`📦 Downloaded blob size: ${blob.size} bytes`);
+
+        // Create download link
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileToDownload.fileName;
+        document.body.appendChild(link);
+        link.click();
+
+        // Cleanup
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+
+        console.log(`✅ Download completed: ${fileToDownload.fileName}`);
+
+        toast({
+          title: "✅ Download Berhasil",
+          description: `File ${fileToDownload.fileName} berhasil didownload`,
+          duration: 3000
+        });
+      } else {
+        const errorText = await response.text();
+        console.error(`❌ Download failed: ${response.status} - ${errorText}`);
+        throw new Error(`Failed to download document: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('❌ Error downloading document:', error);
+      toast({
+        title: "Error Download",
+        description: `Gagal mendownload dokumen: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        variant: "destructive"
+      });
+    }
+  }, [getUploadedDocument, toast]);
+
+  // Handle show catatan
+  const handleShowCatatan = useCallback((checklistId: number | string, uploadedDoc?: any, docDescription?: string) => {
+    // Use provided uploadedDoc if available, otherwise try to get from checklist
+    const uploadedDocument = uploadedDoc || (typeof checklistId === 'number' ? getUploadedDocument(checklistId) : null);
+    const checklistItem = typeof checklistId === 'number' ? checklist.find(item => item.id === checklistId) : null;
+
+    if (uploadedDocument) {
+      setSelectedDocumentForCatatan({
+        catatan: uploadedDocument.catatan || '',
+        title: docDescription || checklistItem?.deskripsi || uploadedDocument.fileName || 'Dokumen',
+        fileName: uploadedDocument.fileName || 'Unknown File',
+        uploadedBy: uploadedDocument.uploadedBy || 'Unknown',
+        uploadDate: uploadedDocument.uploadDate,
+        subdirektorat: uploadedDocument.subdirektorat || 'Unknown'
+      });
+      setIsCatatanDialogOpen(true);
+    } else {
+      toast({
+        title: "Dokumen tidak ditemukan",
+        description: "Dokumen belum diupload atau tidak tersedia",
+        variant: "destructive"
+      });
+    }
+  }, [getUploadedDocument, checklist, toast]);
+
+  // Handle show detail
+  const handleShowDetail = useCallback((checklistId: number) => {
+    const uploadedDocument = getUploadedDocument(checklistId);
+    const checklistItem = checklist.find(item => item.id === checklistId);
+
+    if (uploadedDocument && checklistItem) {
+      setSelectedDocumentForDetail({
+        id: checklistId,
+        aspek: checklistItem.aspek || 'Dokumen GCG',
+        deskripsi: checklistItem.deskripsi || '',
+        tahun: selectedYear || new Date().getFullYear(),
+        fileName: uploadedDocument.fileName || 'Unknown File',
+        fileSize: uploadedDocument.fileSize,
+        uploadDate: uploadedDocument.uploadDate,
+        uploadedBy: uploadedDocument.uploadedBy || 'Unknown',
+        subdirektorat: uploadedDocument.subdirektorat || 'Unknown',
+        catatan: uploadedDocument.catatan || '',
+        status: 'uploaded'
+      });
+      setIsDetailDialogOpen(true);
+    } else {
+      toast({
+        title: "Dokumen tidak ditemukan",
+        description: "Dokumen belum diupload atau tidak tersedia",
+        variant: "destructive"
+      });
+    }
+  }, [getUploadedDocument, checklist, selectedYear, toast]);
+
+  // Handle delete document
+  const handleDeleteDocument = useCallback(async (checklistId: number) => {
+    const uploadedDocument = getUploadedDocument(checklistId);
+
+    if (!uploadedDocument) {
+      toast({
+        title: "Error",
+        description: "Dokumen tidak ditemukan",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Prevent double deletion
+    if (deletingDocuments.has(checklistId)) {
+      return;
+    }
+
+    // Confirm deletion
+    if (!window.confirm('Apakah Anda yakin ingin menghapus dokumen ini?')) {
+      return;
+    }
+
+    setDeletingDocuments(prev => new Set(prev).add(checklistId));
+
+    try {
+      console.log('🗑️ ArsipDokumen: Starting delete process', { checklistId, documentId: uploadedDocument.id });
+
+      const response = await fetch(`http://localhost:5001/api/delete-file/${uploadedDocument.id}`, {
+        method: 'DELETE',
+      });
 
       if (response.ok) {
         const responseData = await response.json();
         console.log('✅ ArsipDokumen: Delete successful', responseData);
-        
-      toast({
+
+        toast({
           title: "Berhasil",
           description: "Dokumen berhasil dihapus",
         });
-        
-        // Dispatch events to notify other components
+
+        // IMMEDIATELY mark as NOT existing (false) instead of deleting key
+        // This ensures UI knows file was explicitly deleted
+        console.log('🧹 ArsipDokumen: Marking file as deleted for checklistId:', checklistId);
+        setSupabaseFileStatus(prev => ({
+          ...prev,
+          [checklistId.toString()]: false  // Explicitly mark as not existing
+        }));
+        setSupabaseFileInfo(prev => {
+          const newInfo = { ...prev };
+          delete newInfo[checklistId.toString()];  // Remove file info
+          return newInfo;
+        });
+
+        // Dispatch events to notify other components (Monitoring)
         console.log('📢 ArsipDokumen: Dispatching events for sync');
         window.dispatchEvent(new CustomEvent('uploadedFilesChanged', {
-          detail: { 
-            type: 'fileDeleted', 
-            fileId: doc.id,
-            checklistId: doc.checklistId,
+          detail: {
+            type: 'fileDeleted',
+            fileId: uploadedDocument.id,
+            checklistId: checklistId,
             timestamp: new Date().toISOString()
           }
         }));
-        
+
         window.dispatchEvent(new CustomEvent('documentsUpdated', {
-          detail: { 
-            type: 'documentsUpdated', 
+          detail: {
+            type: 'documentsUpdated',
             year: selectedYear,
+            skipRefresh: true, // Tell event handler to skip refresh for delete
             timestamp: new Date().toISOString()
           }
         }));
-        
-        // Refresh the files to update the UI
-        console.log('🔄 ArsipDokumen: Refreshing data after delete');
-        setIsLoadingFiles(true);
-        await fetchFilesFromAPI();
-        
+
+        // DO NOT call reloadFileStatuses() here - this causes race condition
+        // where backend hasn't fully processed delete but we're already fetching
+        // The local state is already cleared above
+        console.log('🚫 ArsipDokumen: Skipping reloadFileStatuses (race condition prevention)');
+
         console.log('✅ ArsipDokumen: Delete process completed successfully');
       } else {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
@@ -494,241 +825,298 @@ const ArsipDokumen: React.FC = () => {
         description: `Gagal menghapus dokumen: ${error}`,
         variant: "destructive",
       });
+    } finally {
+      setDeletingDocuments(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(checklistId);
+        return newSet;
+      });
     }
-  }, [toast, selectedYear, fetchFilesFromAPI]);
+  }, [getUploadedDocument, deletingDocuments, selectedYear, toast, reloadFileStatuses]);
 
-  // Handle download all documents with folder structure
-  const handleDownloadAll = async () => {
+  // Handle bulk download of all documents
+  const handleBulkDownload = async () => {
     if (!selectedYear) {
-        toast({
-        title: "Peringatan",
+      toast({
+        title: "Error",
         description: "Pilih tahun terlebih dahulu",
-        variant: "destructive",
+        variant: "destructive"
       });
       return;
     }
 
-    if (filteredAndSortedDocuments.length === 0) {
-        toast({
-        title: "Peringatan",
-        description: "Tidak ada dokumen untuk didownload",
-        variant: "destructive",
+    if (downloadFilteredDocuments.length === 0) {
+      toast({
+        title: "Tidak Ada Dokumen",
+        description: "Tidak ada dokumen untuk didownload dengan filter yang dipilih",
+        variant: "destructive"
       });
       return;
     }
 
-    setIsDownloadingAll(true);
-    setDownloadProgress(0);
+    console.log(`📥 Starting bulk download for year ${selectedYear}`);
+    console.log(`📊 Download filters - Aspek: ${downloadSelectedAspek}, Subdir: ${downloadSelectedSubdirektorat}`);
+    console.log(`📋 Documents to download: ${downloadFilteredDocuments.length}`);
+
+    setIsDownloading(true);
+    setDownloadProgress(10);
 
     try {
-      console.log('🗂️ Starting download all documents with folder structure...');
-      
-      const zip = new JSZip();
-      const totalDocs = filteredAndSortedDocuments.length;
-      let processedDocs = 0;
-
-      // Group documents by aspect and subdirektorat
-      const groupedDocs: { [key: string]: { [key: string]: DocumentWithUser[] } } = {};
-      
-      filteredAndSortedDocuments.forEach(doc => {
-        const aspect = doc.aspect || 'Dokumen Tanpa Aspek';
-        const subdirektorat = doc.subdirektorat || 'Tanpa Subdirektorat';
-        
-        if (!groupedDocs[aspect]) {
-          groupedDocs[aspect] = {};
-        }
-        if (!groupedDocs[aspect][subdirektorat]) {
-          groupedDocs[aspect][subdirektorat] = [];
-        }
-        groupedDocs[aspect][subdirektorat].push(doc);
+      console.log('🌐 Sending request to backend...');
+      const response = await fetch('http://localhost:5001/api/bulk-download-all-documents', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          year: selectedYear,
+          includeGCG: true,
+          includeAOI: true,
+          includeChecklist: true
+        })
       });
 
-      console.log('📁 Document grouping:', groupedDocs);
+      console.log(`📡 Response status: ${response.status}`);
 
-      // Download each document and add to ZIP with folder structure
-      for (const [aspect, subdirektorats] of Object.entries(groupedDocs)) {
-        console.log(`📂 Processing aspect: ${aspect}`);
-        
-        for (const [subdirektorat, docs] of Object.entries(subdirektorats)) {
-          console.log(`📁 Processing subdirektorat: ${subdirektorat} (${docs.length} docs)`);
-          
-          for (const doc of docs) {
-            try {
-              console.log(`⬇️ Downloading: ${doc.fileName}`);
-              
-              const response = await fetch(`http://localhost:5001/api/download-file/${doc.id}`);
-              
-              if (!response.ok) {
-                console.warn(`⚠️ Failed to download ${doc.fileName}: ${response.status}`);
-                continue;
-              }
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Backend error:', errorText);
+        throw new Error(`Server error: ${response.status} - ${errorText}`);
+      }
 
-              const blob = await response.blob();
-              
-              if (blob.size === 0) {
-                console.warn(`⚠️ Empty file: ${doc.fileName}`);
-                continue;
-              }
+      setDownloadProgress(50);
 
-              // Create folder structure: Aspect/Subdirektorat/Filename
-              const folderPath = `${aspect}/${subdirektorat}`;
-              const filePath = `${folderPath}/${doc.fileName}`;
-              
-              zip.file(filePath, blob);
-              
-              processedDocs++;
-              setDownloadProgress((processedDocs / totalDocs) * 100);
-              
-              console.log(`✅ Added to ZIP: ${filePath}`);
-              
-            } catch (error) {
-              console.error(`❌ Error downloading ${doc.fileName}:`, error);
-              continue;
-            }
-          }
+      // Get filename from Content-Disposition header
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let filename = `All_Documents_${selectedYear}.zip`;
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="([^"]+)"|filename=([^;\s]+)/);
+        if (filenameMatch) {
+          filename = filenameMatch[1] || filenameMatch[2];
         }
       }
 
-      console.log(`📦 Generating ZIP with ${processedDocs} documents...`);
-      
-      // Generate ZIP file
-      const zipBlob = await zip.generateAsync({ 
-        type: 'blob',
-        compression: 'DEFLATE',
-        compressionOptions: {
-          level: 6
-        }
-      });
+      console.log(`📦 Downloading file: ${filename}`);
+      setDownloadProgress(75);
 
-      // Download ZIP file
-      const url = window.URL.createObjectURL(zipBlob);
+      // Download the ZIP file
+      const blob = await response.blob();
+      console.log(`📦 Blob size: ${blob.size} bytes`);
+
+      if (blob.size === 0) {
+        throw new Error('File kosong - tidak ada dokumen untuk didownload');
+      }
+
+      const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `Arsip_Dokumen_${selectedYear}_${new Date().toISOString().split('T')[0]}.zip`;
+      link.download = filename;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
 
+      setDownloadProgress(100);
+      console.log('✅ Download completed successfully');
+
       toast({
-        title: "Download Berhasil",
-        description: `Semua dokumen berhasil didownload dalam ZIP dengan struktur folder (${processedDocs} dokumen)`,
+        title: "✅ Download Berhasil",
+        description: `File ${filename} berhasil didownload (${(blob.size / 1024 / 1024).toFixed(2)} MB)`,
+        duration: 5000
       });
 
-      console.log('✅ Download all completed successfully');
-
-        } catch (error) {
-      console.error('❌ Error in download all:', error);
+    } catch (error) {
+      console.error('❌ Bulk download error:', error);
       toast({
-        title: "Download Gagal",
-        description: `Gagal mendownload semua dokumen: ${error}`,
+        title: "❌ Download Gagal",
+        description: error instanceof Error ? error.message : "Terjadi kesalahan saat download. Cek console untuk detail.",
         variant: "destructive",
+        duration: 7000
       });
     } finally {
-      setIsDownloadingAll(false);
+      setIsDownloading(false);
       setDownloadProgress(0);
     }
   };
 
-  // Handle download single document
-  const handleDownload = async (doc: DocumentWithUser) => {
+  // Handle refresh tracking tables
+  const handleRefreshTables = async () => {
+    if (!selectedYear) {
+      toast({
+        title: "Error",
+        description: "Pilih tahun terlebih dahulu",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsRefreshing(true);
     try {
-      console.log(`🔍 Downloading file: ${doc.fileName} (ID: ${doc.id})`);
-      
-      const response = await fetch(`http://localhost:5001/api/download-file/${doc.id}`);
-      
+      const response = await fetch('http://localhost:5001/api/refresh-tracking-tables', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          year: selectedYear
+        })
+      });
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(errorData.error || `HTTP ${response.status}: Failed to download file`);
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const blob = await response.blob();
-      
-      if (blob.size === 0) {
-        throw new Error('Downloaded file is empty');
-      }
-
-      const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-      link.download = doc.fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      const result = await response.json();
 
       toast({
-        title: "Download Berhasil",
-        description: `File ${doc.fileName} berhasil didownload`,
+        title: "✅ Refresh Berhasil",
+        description: `Dibersihkan: ${result.gcgCleaned || 0} record GCG, ${result.aoiCleaned || 0} record AOI`,
+        duration: 5000
       });
+
+      // Refresh the file status after cleaning
+      setSupabaseFileStatus({});
+      setSupabaseFileInfo({});
+
     } catch (error) {
-      console.error('Download error:', error);
-      toast({
-        title: "Download Gagal",
-        description: `Gagal mendownload file: ${error}`,
-        variant: "destructive",
-      });
-    }
-  };
-
-  // Handle revision (WhatsApp or Email)
-  const handleRevision = (document: DocumentWithUser) => {
-    if (document.userWhatsApp) {
-      // Open WhatsApp
-      const whatsappUrl = `https://wa.me/${document.userWhatsApp.replace(/[^0-9]/g, '')}`;
-      window.open(whatsappUrl, '_blank');
-    } else if (document.userEmail) {
-      // Open email client
-      const emailUrl = `mailto:${document.userEmail}`;
-      window.open(emailUrl, '_blank');
-    } else {
-      alert('Tidak ada kontak WhatsApp atau email yang tersedia untuk user ini.');
-    }
-  };
-
-  // Manual refresh function
-  const handleManualRefresh = async () => {
-    if (!selectedYear) return;
-    
-    setIsLoadingFiles(true);
-    try {
-      const response = await fetch(`http://localhost:5001/api/uploaded-files?year=${selectedYear}`);
-          if (response.ok) {
-        const data = await response.json();
-        setApiFiles(data.files || []);
-        toast({
-          title: "Refresh Berhasil",
-          description: "Data dokumen berhasil diperbarui",
-        });
-          }
-        } catch (error) {
       console.error('Refresh error:', error);
       toast({
-        title: "Refresh Gagal",
-        description: "Gagal memperbarui data dokumen",
-        variant: "destructive",
+        title: "❌ Refresh Gagal",
+        description: error instanceof Error ? error.message : "Terjadi kesalahan saat refresh",
+        variant: "destructive"
       });
     } finally {
-      setIsLoadingFiles(false);
+      setIsRefreshing(false);
     }
   };
 
-  // Format file size
-  const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  // Handle random document upload (dokumen lainnya)
+  const handleRandomDocumentUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) {
+      console.log('❌ No files selected');
+      return;
+    }
+
+    console.log(`📁 Selected ${files.length} files for upload`);
+
+    const uploadYear = randomUploadYear || selectedYear;
+    if (!uploadYear) {
+      toast({
+        title: "Error",
+        description: "Pilih tahun terlebih dahulu",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsUploadingRandom(true);
+
+    let successCount = 0;
+    let failedCount = 0;
+
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        console.log(`📤 Uploading file ${i + 1}/${files.length}: ${file.name}`);
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('year', uploadYear.toString());
+        formData.append('category', 'dokumen_lainnya');
+        formData.append('uploadedBy', JSON.parse(localStorage.getItem('user') || '{}').name || 'Unknown');
+
+        // Preserve folder structure if file has webkitRelativePath
+        // @ts-ignore - webkitRelativePath is not in standard File type
+        const relativePath = file.webkitRelativePath || '';
+        if (relativePath) {
+          console.log(`📂 Folder path: ${relativePath}`);
+          formData.append('folderPath', relativePath);
+        }
+
+        try {
+          const response = await fetch('http://localhost:5001/api/upload-random-document', {
+            method: 'POST',
+            body: formData,
+          });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`❌ Upload failed for ${file.name}:`, response.status, errorText);
+            failedCount++;
+          } else {
+            console.log(`✅ Successfully uploaded: ${file.name}`);
+            successCount++;
+          }
+        } catch (fileError) {
+          console.error(`❌ Network error uploading ${file.name}:`, fileError);
+          failedCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        toast({
+          title: "✅ Upload Selesai",
+          description: `${successCount} dokumen berhasil diupload${failedCount > 0 ? `, ${failedCount} gagal` : ''}`,
+          duration: 5000
+        });
+
+        console.log('🔄 Reloading documents after upload...');
+
+        // Clear existing data first
+        setSupabaseFileStatus({});
+        setSupabaseFileInfo({});
+
+        // Reload random documents
+        try {
+          const response = await fetch(`http://localhost:5001/api/random-documents/${uploadYear}`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('authToken') || 'demo-token'}`,
+            },
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            console.log(`✅ Reloaded ${data.documents?.length || 0} random documents`);
+            setRandomDocuments(data.documents || []);
+          }
+        } catch (reloadError) {
+          console.error('⚠️ Error reloading random documents:', reloadError);
+        }
+
+        // Also trigger reload of file statuses for checklist documents
+        await reloadFileStatuses();
+
+        console.log('✅ All documents reloaded - should now appear in table');
+      } else {
+        throw new Error('Semua file gagal diupload');
+      }
+
+    } catch (error) {
+      console.error('❌ Random upload error:', error);
+      toast({
+        title: "❌ Upload Gagal",
+        description: error instanceof Error ? error.message : "Terjadi kesalahan saat upload",
+        variant: "destructive"
+      });
+    } finally {
+      setIsUploadingRandom(false);
+      // Reset file input
+      event.target.value = '';
+    }
   };
 
-  console.log('🔍 ArsipDokumen render state:', {
-    selectedYear,
-    allDocumentsCount: allDocuments.length,
-    filteredCount: filteredAndSortedDocuments.length,
-    isLoadingFiles,
-    apiFilesCount: apiFiles.length
-  });
+  // Get aspect icon
+  const getAspectIcon = useCallback((aspekName: string) => {
+    if (aspekName === 'KESELURUHAN') return TrendingUp;
+    if (aspekName.includes('ASPEK I')) return FileText;
+    if (aspekName.includes('ASPEK II')) return Building;
+    if (aspekName.includes('ASPEK III')) return Users;
+    if (aspekName.includes('ASPEK IV')) return UserCheck;
+    if (aspekName.includes('ASPEK V')) return CheckCircle;
+    return FileText;
+  }, []);
 
   return (
     <>
@@ -741,601 +1129,540 @@ const ArsipDokumen: React.FC = () => {
         ${isSidebarOpen ? 'lg:ml-64' : 'ml-0'}
       `}>
         <div className="p-6">
-                      <PageHeaderPanel
-              title="Arsip Dokumen"
-            />
-
-            <YearSelectorPanel
-              selectedYear={selectedYear}
-              onYearChange={setSelectedYear}
-              availableYears={availableYears}
+          {/* Header */}
+          <PageHeaderPanel
+            title="Arsip Dokumen"
+            subtitle="Kelola dan unduh dokumen yang telah diupload"
           />
 
-          {selectedYear ? (
-            <div className="space-y-6">
-              {/* Enhanced Filter, Sort & Download Controls */}
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Filter className="h-5 w-5" />
-                        <span>Filter, Sort & Download</span>
-                  </CardTitle>
-                  <CardDescription>
-                        Filter, urutkan, dan download dokumen sesuai kriteria yang diinginkan
-                  </CardDescription>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Button
-                        onClick={handleDownloadAll}
-                        disabled={isDownloadingAll || filteredAndSortedDocuments.length === 0}
-                        variant="default"
-                        size="sm"
-                        className="bg-green-600 hover:bg-green-700 text-white border-0 flex items-center space-x-2"
-                      >
-                        {isDownloadingAll ? (
-                          <>
-                            <RefreshCw className="h-4 w-4 animate-spin" />
-                            <span>Downloading... {downloadProgress.toFixed(0)}%</span>
-                          </>
-                        ) : (
-                          <>
-                            <Download className="h-4 w-4" />
-                            <span>Download All ({filteredAndSortedDocuments.length})</span>
-                          </>
-                        )}
-                      </Button>
-                      <Button
-                        onClick={handleManualRefresh}
-                        disabled={isLoadingFiles}
-                        variant="outline"
-                        size="sm"
-                        className="flex items-center space-x-2"
-                      >
-                        <RefreshCw className={`h-4 w-4 ${isLoadingFiles ? 'animate-spin' : ''}`} />
-                        <span>Refresh</span>
-                      </Button>
-                      <div className="flex items-center space-x-1 border rounded-lg p-1">
-                        <Button
-                          variant={viewMode === 'table' ? 'default' : 'ghost'}
-                          size="sm"
-                          onClick={() => setViewMode('table')}
-                          className="h-8 w-8 p-0"
-                        >
-                          <List className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant={viewMode === 'grid' ? 'default' : 'ghost'}
-                          size="sm"
-                          onClick={() => setViewMode('grid')}
-                          className="h-8 w-8 p-0"
-                        >
-                          <Grid3X3 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-              </CardHeader>
-                <CardContent>
-                  {/* Download Progress Bar */}
-                  {isDownloadingAll && (
-                    <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-blue-700">
-                          Downloading semua dokumen...
-                        </span>
-                        <span className="text-sm text-blue-600">
-                          {downloadProgress.toFixed(0)}%
-                        </span>
-                      </div>
-                      <div className="w-full bg-blue-200 rounded-full h-2">
-                        <div 
-                          className="bg-blue-600 h-2 rounded-full transition-all duration-300 ease-out"
-                          style={{ width: `${downloadProgress}%` }}
-                        ></div>
-                      </div>
-                      <div className="text-xs text-blue-600 mt-1">
-                        Membuat struktur folder dan mengemas dalam ZIP...
-                      </div>
-                    </div>
-                  )}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-6">
-                    {/* Direktorat Filter */}
-                    <div className="space-y-3">
-                      <label className="text-sm font-semibold text-gray-700 flex items-center">
-                        <Building2 className="h-4 w-4 mr-2 text-blue-600" />
-                        Direktorat
-                      </label>
-                      <Select value={selectedDirektorat || "all"} onValueChange={(value) => setSelectedDirektorat(value === "all" ? null : value)}>
-                        <SelectTrigger className="bg-white border-2 border-gray-200 hover:border-blue-300 focus:border-blue-500 transition-colors">
-                          <SelectValue placeholder="Semua Direktorat" />
-                          </SelectTrigger>
-                          <SelectContent>
-                          <SelectItem value="all">Semua Direktorat</SelectItem>
-                          {uniqueDirektorats.map(direktorat => (
-                            <SelectItem key={direktorat} value={direktorat}>{direktorat}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                    </div>
+          {/* Year Selection - Single Line with Upload/View indication */}
+          <div className="mb-6 bg-white rounded-lg p-3 shadow-sm border border-gray-100">
+            {/* Main Row */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-blue-600" />
+                <span className="text-sm font-medium text-gray-700">Tahun Buku:</span>
+              </div>
 
-                    {/* Aspect Filter */}
-                    <div className="space-y-3">
-                      <label className="text-sm font-semibold text-gray-700 flex items-center">
-                        <FileText className="h-4 w-4 mr-2 text-purple-600" />
-                        Aspek
-                      </label>
-                      <Select value={selectedAspect || "all"} onValueChange={(value) => setSelectedAspect(value === "all" ? null : value)}>
-                        <SelectTrigger className="bg-white border-2 border-gray-200 hover:border-purple-300 focus:border-purple-500 transition-colors">
-                          <SelectValue placeholder="Semua Aspek" />
-                          </SelectTrigger>
-                          <SelectContent>
-                          <SelectItem value="all">Semua Aspek</SelectItem>
-                          {uniqueAspects.map(aspect => (
-                            <SelectItem key={aspect} value={aspect}>{aspect}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                    </div>
+              {/* Year Buttons */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {availableYears.sort((a, b) => b - a).map((year, index) => {
+                  const isLatestYear = index === 0;
+                  const isSelected = selectedYear === year;
 
-                    {/* Subdirektorat Filter */}
-                    <div className="space-y-3">
-                      <label className="text-sm font-semibold text-gray-700 flex items-center">
-                        <Building2 className="h-4 w-4 mr-2 text-green-600" />
-                        Subdirektorat
-                      </label>
-                      <Select value={selectedSubdirektorat || "all"} onValueChange={(value) => setSelectedSubdirektorat(value === "all" ? null : value)}>
-                        <SelectTrigger className="bg-white border-2 border-gray-200 hover:border-green-300 focus:border-green-500 transition-colors">
-                          <SelectValue placeholder="Semua Subdirektorat" />
-                          </SelectTrigger>
-                          <SelectContent>
-                          <SelectItem value="all">Semua Subdirektorat</SelectItem>
-                          {uniqueSubdirektorats.map(subdirektorat => (
-                            <SelectItem key={subdirektorat} value={subdirektorat}>{subdirektorat}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                    </div>
-
-                    {/* Sort Controls */}
-                    <div className="space-y-3">
-                      <label className="text-sm font-semibold text-gray-700 flex items-center">
-                        <ArrowUpDown className="h-4 w-4 mr-2 text-orange-600" />
-                        Urutkan Berdasarkan
-                      </label>
-                      <div className="flex space-x-2">
-                        <Select value={sortBy} onValueChange={(value: any) => setSortBy(value)}>
-                          <SelectTrigger className="bg-white border-2 border-gray-200 hover:border-orange-300 focus:border-orange-500 transition-colors">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="uploadDate">Tanggal Upload</SelectItem>
-                            <SelectItem value="fileName">Nama File</SelectItem>
-                            <SelectItem value="aspect">Aspek</SelectItem>
-                            <SelectItem value="subdirektorat">Subdirektorat</SelectItem>
-                            <SelectItem value="direktorat">Direktorat</SelectItem>
-                            <SelectItem value="uploadedBy">Pengunggah</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                          className="px-3"
-                        >
-                          {sortOrder === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
-                        </Button>
-                      </div>
-                    </div>
-
-                    {/* Search */}
-                    <div className="space-y-3">
-                      <label className="text-sm font-semibold text-gray-700 flex items-center">
-                        <Search className="h-4 w-4 mr-2 text-orange-600" />
-                        Cari
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Cari dokumen..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all duration-300 bg-white hover:border-orange-300"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Results Summary */}
-                  <div className="flex items-center justify-between py-4 border-t border-gray-200">
-                    <div className="flex items-center space-x-4">
-                      <span className="text-sm text-gray-600">
-                        Menampilkan <span className="font-semibold text-blue-600">{filteredAndSortedDocuments.length}</span> dari <span className="font-semibold">{allDocuments.length}</span> dokumen
-                      </span>
-                      {highlightCriteria && (
-                        <span className="text-sm text-yellow-600 bg-yellow-100 px-3 py-1 rounded-full">
-                          🎯 Highlight aktif dari Monitoring GCG
-                        </span>
+                  return (
+                    <Button
+                      key={year}
+                      variant={isSelected ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setSelectedYear(year)}
+                      title={isLatestYear ? `${year} - Tahun Aktif (Upload, View, Download)` : `${year} - Arsip (View & Download saja)`}
+                      className={`h-8 px-3 transition-all ${
+                        isSelected
+                          ? 'bg-blue-600 text-white hover:bg-blue-700'
+                          : isLatestYear
+                            ? 'border-green-300 text-green-700 hover:bg-green-50 hover:border-green-400'
+                            : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      <span className="mr-1.5">{year}</span>
+                      {isLatestYear ? (
+                        <Upload className="w-3.5 h-3.5" />
+                      ) : (
+                        <Eye className="w-3.5 h-3.5" />
                       )}
-                      {(searchTerm || selectedAspect || selectedSubdirektorat || selectedDirektorat) && (
-                      <Button 
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setSearchTerm('');
-                            setSelectedAspect(null);
-                            setSelectedSubdirektorat(null);
-                            setSelectedDirektorat(null);
-                            setHighlightCriteria(null);
-                          }}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          Reset Filter
-                      </Button>
-                    )}
-                  </div>
-                      </div>
-                </CardContent>
-              </Card>
+                    </Button>
+                  );
+                })}
+              </div>
 
-              {/* Documents List */}
+              {/* Status Indicator */}
+              {selectedYear && (
+                <div className="flex items-center gap-2 ml-auto">
+                  {selectedYear === availableYears.sort((a, b) => b - a)[0] ? (
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-700">
+                      <Upload className="w-3 h-3 mr-1" />
+                      Tahun Aktif - Upload
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-600">
+                      <Eye className="w-3 h-3 mr-1" />
+                      Arsip - View/Download
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Legend Row - Below buttons */}
+            <div className="flex items-center gap-4 mt-2 pt-2 border-t border-gray-100 text-xs text-gray-500">
+              <span className="inline-flex items-center gap-1">
+                <Upload className="w-3 h-3 text-green-600" />
+                <span>= Tahun Aktif (Upload, View, Download)</span>
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <Eye className="w-3 h-3 text-gray-500" />
+                <span>= Arsip (View & Download)</span>
+              </span>
+            </div>
+          </div>
+
+          {selectedYear && (
+            <div className="space-y-6">
+              {/* Upload & Download Sections */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Section 1: Upload Dokumen */}
+                <Card className="border-2 border-green-200 bg-green-50/30">
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <Upload className="w-5 h-5 text-green-600" />
+                      <span className="text-green-900">Upload Dokumen</span>
+                    </CardTitle>
+                    <p className="text-xs text-gray-600 mt-1">
+                      Upload dokumen arsip yang tidak memiliki struktur organisasi
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {/* Year Selection for Upload */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Pilih Tahun
+                        </label>
+                        <select
+                          value={randomUploadYear || selectedYear || ''}
+                          onChange={(e) => setRandomUploadYear(Number(e.target.value))}
+                          className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        >
+                          <option value="">Pilih Tahun</option>
+                          {availableYears.sort((a, b) => b - a).map(year => (
+                            <option key={year} value={year}>{year}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Folder Upload Input - Focus on folder only */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                          <FolderUp className="w-4 h-4 text-blue-600" />
+                          Upload Folder
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="file"
+                            // @ts-ignore - webkitdirectory is not in TypeScript types but works
+                            webkitdirectory=""
+                            directory=""
+                            multiple
+                            onChange={handleRandomDocumentUpload}
+                            disabled={isUploadingRandom || !randomUploadYear}
+                            className="w-full p-3 border-2 border-dashed border-blue-300 rounded-md text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed hover:border-blue-400 transition-colors"
+                            id="folder-upload"
+                          />
+                        </div>
+                        <div className="flex items-start gap-2 p-2 bg-blue-50 rounded text-xs text-blue-700">
+                          <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-semibold mb-1">Cara Upload Folder:</p>
+                            <ul className="list-disc list-inside space-y-0.5">
+                              <li>Klik tombol "Choose Files" atau "Browse"</li>
+                              <li>Pilih folder yang ingin diupload</li>
+                              <li>Struktur folder akan dipertahankan di <span className="font-semibold">"Dokumen Lainnya"</span></li>
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Upload Status */}
+                      {isUploadingRandom && (
+                        <div className="flex items-center space-x-2 p-3 bg-green-100 rounded-md">
+                          <Loader2 className="w-4 h-4 animate-spin text-green-600" />
+                          <span className="text-sm text-green-700">Uploading...</span>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Section 2: Download Dokumen */}
+                <Card className="border-2 border-blue-200 bg-blue-50/30">
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <Download className="w-5 h-5 text-blue-600" />
+                      <span className="text-blue-900">Download Dokumen</span>
+                    </CardTitle>
+                    <p className="text-xs text-gray-600 mt-1">
+                      Filter dan unduh dokumen berdasarkan kategori
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {/* Filter by Aspek (Download section only) */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Filter Aspek
+                        </label>
+                        <select
+                          value={downloadSelectedAspek}
+                          onChange={(e) => setDownloadSelectedAspek(e.target.value)}
+                          className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        >
+                          {uniqueAspects.map(aspek => (
+                            <option key={aspek} value={aspek}>
+                              {aspek === 'all' ? 'Semua Aspek' : aspek}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Filter by Subdirektorat (Download section only) */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Filter PIC / Subdirektorat
+                        </label>
+                        <select
+                          value={downloadSelectedSubdirektorat}
+                          onChange={(e) => setDownloadSelectedSubdirektorat(e.target.value)}
+                          className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        >
+                          {uniqueSubdirektorats.map(subdir => (
+                            <option key={subdir} value={subdir}>
+                              {subdir === 'all' ? 'Semua PIC' : subdir}
+                            </option>
+                          ))}
+                          <option value="dokumen_lainnya">Dokumen Lainnya</option>
+                        </select>
+                      </div>
+
+                      {/* Download Result Count and Button */}
+                      <div className="space-y-3">
+                        <div className="p-3 bg-blue-100 rounded-md">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium text-blue-700">
+                              {downloadFilteredDocuments.length} dokumen tersedia
+                            </span>
+                            <FileText className="w-4 h-4 text-blue-600" />
+                          </div>
+                        </div>
+
+                        {/* Download All Button */}
+                        <Button
+                          onClick={handleBulkDownload}
+                          disabled={isDownloading || downloadFilteredDocuments.length === 0}
+                          className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                        >
+                          {isDownloading ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Downloading... {downloadProgress}%
+                            </>
+                          ) : (
+                            <>
+                              <Download className="w-4 h-4 mr-2" />
+                              Download Semua ({downloadFilteredDocuments.length})
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Documents Table with Integrated Filters */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center space-x-3">
-                    <div className="p-2 bg-gradient-to-br from-blue-100 to-blue-200 rounded-lg">
-                      <Archive className="h-6 w-6 text-blue-600" />
-                    </div>
-                    <div>
-                      <span className="text-xl font-bold">Daftar Dokumen Tahun {selectedYear}</span>
-                      <div className="text-blue-100 text-sm font-normal mt-1">
-                        Total {filteredAndSortedDocuments.length} dokumen ditemukan
-                      </div>
-                    </div>
+                  <CardTitle className="flex items-center space-x-2">
+                    <FileText className="w-5 h-5 text-blue-600" />
+                    <span>Daftar Dokumen Arsip</span>
+                    {fileStatusLoading && (
+                      <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                    )}
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="p-6">
-                  {filteredAndSortedDocuments.length > 0 ? (
-                    viewMode === 'table' ? (
-                      // Table View
-                      <div className="overflow-x-auto">
-                        <Table>
-                          <TableHeader>
-                            <TableRow className="bg-gray-50">
-                              <TableHead 
-                                className="cursor-pointer hover:bg-gray-100 select-none"
-                                onClick={() => handleSort('fileName')}
-                              >
-                                <div className="flex items-center space-x-2">
-                                  <span>Nama File</span>
-                                  {getSortIcon('fileName')}
-                                </div>
-                              </TableHead>
-                              <TableHead 
-                                className="cursor-pointer hover:bg-gray-100 select-none"
-                                onClick={() => handleSort('aspect')}
-                              >
-                                <div className="flex items-center space-x-2">
-                                  <span>Aspek</span>
-                                  {getSortIcon('aspect')}
-                                </div>
-                              </TableHead>
-                              <TableHead 
-                                className="cursor-pointer hover:bg-gray-100 select-none"
-                                onClick={() => handleSort('subdirektorat')}
-                              >
-                                <div className="flex items-center space-x-2">
-                                  <span>Subdirektorat</span>
-                                  {getSortIcon('subdirektorat')}
-                                </div>
-                              </TableHead>
-                              <TableHead 
-                                className="cursor-pointer hover:bg-gray-100 select-none"
-                                onClick={() => handleSort('direktorat')}
-                              >
-                                <div className="flex items-center space-x-2">
-                                  <span>Direktorat</span>
-                                  {getSortIcon('direktorat')}
-                                </div>
-                              </TableHead>
-                              <TableHead 
-                                className="cursor-pointer hover:bg-gray-100 select-none"
-                                onClick={() => handleSort('uploadedBy')}
-                              >
-                                <div className="flex items-center space-x-2">
-                                  <span>Pengunggah</span>
-                                  {getSortIcon('uploadedBy')}
-                                </div>
-                              </TableHead>
-                              <TableHead 
-                                className="cursor-pointer hover:bg-gray-100 select-none"
-                                onClick={() => handleSort('uploadDate')}
-                              >
-                                <div className="flex items-center space-x-2">
-                                  <span>Tanggal Upload</span>
-                                  {getSortIcon('uploadDate')}
-                                </div>
-                              </TableHead>
-                              <TableHead className="text-center">Aksi</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {filteredAndSortedDocuments.map((doc) => {
-                              const isHighlighted = shouldHighlightDocument(doc);
-                              return (
-                              <TableRow 
-                                key={doc.id}
-                                data-doc-id={doc.id}
-                                className={`hover:bg-gray-50 ${isHighlighted ? 'bg-yellow-50 border-yellow-200 border-2' : ''}`}
-                              >
-                                <TableCell className="font-medium">
-                                  <div className="flex items-center space-x-2">
-                                    <FileText className="h-4 w-4 text-blue-600" />
-                                    <span className="truncate max-w-xs" title={doc.fileName}>
-                                      {doc.fileName}
+                <CardContent className="space-y-4">
+                  {/* Search & Filters in same panel */}
+                  <div className="space-y-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    {/* Search */}
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <Input
+                        placeholder="Cari dokumen berdasarkan nama, deskripsi, atau uploader..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10 h-10 bg-white"
+                      />
+                    </div>
+
+                    {/* Table Filters */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-gray-700 flex items-center gap-1">
+                          <Filter className="w-3 h-3" />
+                          Filter Aspek
+                        </label>
+                        <select
+                          value={tableSelectedAspek}
+                          onChange={(e) => setTableSelectedAspek(e.target.value)}
+                          className="w-full p-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                        >
+                          {uniqueAspects.map(aspek => (
+                            <option key={aspek} value={aspek}>
+                              {aspek === 'all' ? 'Semua Aspek' : aspek}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-gray-700 flex items-center gap-1">
+                          <Users className="w-3 h-3" />
+                          Filter PIC / Subdirektorat
+                        </label>
+                        <select
+                          value={tableSelectedSubdirektorat}
+                          onChange={(e) => setTableSelectedSubdirektorat(e.target.value)}
+                          className="w-full p-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                        >
+                          {uniqueSubdirektorats.map(subdir => (
+                            <option key={subdir} value={subdir}>
+                              {subdir === 'all' ? 'Semua PIC' : subdir}
+                            </option>
+                          ))}
+                          <option value="dokumen_lainnya">Dokumen Lainnya</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Table */}
+                  {filteredDocuments.length === 0 ? (
+                    <div className="text-center py-12">
+                      <Archive className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-gray-500 mb-2">
+                        Tidak ada dokumen ditemukan
+                      </h3>
+                      <p className="text-gray-400">
+                        {allUploadedDocuments.length === 0 
+                          ? 'Belum ada dokumen yang diupload untuk tahun ini' 
+                          : 'Coba ubah filter pencarian Anda'
+                        }
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-gray-50">
+                            <TableHead className="w-[50px] text-center">No</TableHead>
+                            <TableHead className="min-w-[200px]">Deskripsi</TableHead>
+                            <TableHead className="w-[150px]">Divisi</TableHead>
+                            <TableHead className="w-[140px]">Nama Pengirim</TableHead>
+                            <TableHead className="w-[100px] text-center">Status</TableHead>
+                            <TableHead className="w-[180px]">File</TableHead>
+                            <TableHead className="w-[200px] text-center">Aksi</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredDocuments.map((doc, index) => {
+                            if (!doc) return null;
+
+                            const IconComponent = getAspectIcon(doc.aspek);
+                            const uploadedDocument = doc.uploadedDocument;
+
+                            return (
+                              <TableRow key={doc.id} className="hover:bg-blue-50/50 transition-colors border-b border-gray-100">
+                                <TableCell className="text-center text-xs text-gray-600 py-2">
+                                  {index + 1}
+                                </TableCell>
+                                <TableCell className="py-2">
+                                  <div>
+                                    <p className="text-xs text-gray-900 line-clamp-2" title={doc.deskripsi}>
+                                      {doc.deskripsi}
+                                    </p>
+                                    <span className="text-[10px] text-gray-500">
+                                      {doc.aspek.replace('ASPEK ', '').substring(0, 20)}
                                     </span>
                                   </div>
                                 </TableCell>
-                                <TableCell>
-                                  <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
-                                    {doc.aspect || 'Dokumen Tanpa Aspek'}
-                                  </Badge>
+                                <TableCell className="py-2">
+                                  {uploadedDocument?.subdirektorat ? (
+                                    <div className="flex items-center space-x-1.5">
+                                      <div className="p-1 rounded bg-purple-100">
+                                        <Building className="w-2.5 h-2.5 text-purple-600" />
+                                      </div>
+                                      <span className="text-xs font-medium text-purple-700 truncate max-w-[120px]" title={uploadedDocument.subdirektorat}>
+                                        {uploadedDocument.subdirektorat}
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-xs text-gray-400 italic">-</span>
+                                  )}
                                 </TableCell>
-                                <TableCell>
-                                  <span className="text-sm text-gray-600">
-                                    {doc.userSubdirektorat || 'Unknown'}
-                                  </span>
+                                <TableCell className="py-2">
+                                  {uploadedDocument?.uploadedBy ? (
+                                    <div className="flex items-center space-x-1.5">
+                                      <div className="p-1 rounded bg-blue-100">
+                                        <UserCheck className="w-2.5 h-2.5 text-blue-600" />
+                                      </div>
+                                      <span className="text-xs font-medium text-blue-700 truncate max-w-[100px]" title={uploadedDocument.uploadedBy}>
+                                        {uploadedDocument.uploadedBy}
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-xs text-gray-400 italic">-</span>
+                                  )}
                                 </TableCell>
-                                <TableCell>
-                                  <span className="text-sm text-gray-600">
-                                    {doc.userDirektorat || 'Unknown'}
-                                  </span>
-                                </TableCell>
-                                <TableCell>
-                                  <div className="flex items-center space-x-2">
-                                    <User className="h-4 w-4 text-gray-400" />
-                                    <span className="text-sm">{doc.uploadedBy}</span>
-                                  </div>
-                                </TableCell>
-                                <TableCell>
-                                  <div className="flex items-center space-x-2">
-                                    <Calendar className="h-4 w-4 text-gray-400" />
-                                    <span className="text-sm">
-                                      {new Date(doc.uploadDate).toLocaleDateString('id-ID')}
+                                <TableCell className="py-2">
+                                  {uploadedDocument ? (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">
+                                      <CheckCircle className="w-3 h-3 mr-1" />
+                                      Upload
                                     </span>
-                                  </div>
+                                  ) : (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">
+                                      <Clock className="w-3 h-3 mr-1" />
+                                      Belum
+                                    </span>
+                                  )}
                                 </TableCell>
-                                <TableCell>
-                                  <div className="flex items-center space-x-2">
+                                <TableCell className="py-2">
+                                  {uploadedDocument ? (
+                                    <div>
+                                      <span className="text-xs text-blue-600 font-medium truncate block max-w-[140px]" title={uploadedDocument.fileName}>
+                                        {uploadedDocument.fileName}
+                                      </span>
+                                      <span className="text-[10px] text-gray-400">
+                                        {new Date(uploadedDocument.uploadDate).toLocaleDateString('id-ID')}
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-xs text-gray-400 italic">-</span>
+                                  )}
+                                </TableCell>
+                                <TableCell className="py-2">
+                                  <div className="flex items-center justify-center gap-1">
+                                    {/* Catatan Button - disabled if no catatan */}
                                     <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => handleDownload(doc)}
-                                      className="border-green-200 text-green-600 hover:bg-green-50"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7"
+                                      onClick={() => handleShowCatatan(doc.id, uploadedDocument, doc.deskripsi)}
+                                      disabled={!uploadedDocument || !uploadedDocument.catatan}
+                                      title={uploadedDocument?.catatan ? "Lihat catatan" : "Tidak ada catatan"}
                                     >
-                                      <Download className="h-4 w-4 mr-1" />
-                                      Download
+                                      <StickyNote className={`w-3.5 h-3.5 ${uploadedDocument?.catatan ? 'text-amber-600' : 'text-gray-300'}`} />
                                     </Button>
+
+                                    {/* Contact Button - WhatsApp or Email */}
+                                    {uploadedDocument && (
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7"
+                                        onClick={() => {
+                                          const whatsapp = uploadedDocument.userWhatsApp;
+                                          const email = uploadedDocument.userEmail;
+                                          if (whatsapp) {
+                                            window.open(`https://wa.me/${whatsapp}`, '_blank');
+                                          } else if (email) {
+                                            window.location.href = `mailto:${email}`;
+                                          }
+                                        }}
+                                        disabled={!uploadedDocument.userWhatsApp && !uploadedDocument.userEmail}
+                                        title={uploadedDocument.userWhatsApp ? "Chat WhatsApp" : uploadedDocument.userEmail ? "Kirim Email" : "Kontak tidak tersedia"}
+                                      >
+                                        {uploadedDocument.userWhatsApp ? (
+                                          <Phone className="w-3.5 h-3.5 text-green-600" />
+                                        ) : (
+                                          <Mail className={`w-3.5 h-3.5 ${uploadedDocument.userEmail ? 'text-blue-600' : 'text-gray-300'}`} />
+                                        )}
+                                      </Button>
+                                    )}
+
+                                    {/* Download Button */}
                                     <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => handleRevision(doc)}
-                                      className="border-blue-200 text-blue-600 hover:bg-blue-50"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7"
+                                      onClick={() => handleDownloadDocument(doc.id, uploadedDocument)}
+                                      disabled={!uploadedDocument}
+                                      title={uploadedDocument ? "Download" : "Belum ada file"}
                                     >
-                                      <MessageSquare className="h-4 w-4 mr-1" />
-                                      Revisi
+                                      <Download className={`w-3.5 h-3.5 ${uploadedDocument ? 'text-green-600' : 'text-gray-300'}`} />
                                     </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => {
-                                        if (confirm(`Apakah Anda yakin ingin menghapus dokumen "${doc.fileName}"?`)) {
-                                          handleDeleteDocument(doc);
-                                        }
-                                      }}
-                                      className="border-red-200 text-red-600 hover:bg-red-50"
-                                    >
-                                      <Trash2 className="h-4 w-4 mr-1" />
-                                      Hapus
-                                    </Button>
+
+                                    {/* Delete Button */}
+                                    {uploadedDocument && (
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7"
+                                        onClick={() => {
+                                          if (confirm(`Hapus "${uploadedDocument.fileName}"?`)) {
+                                            handleDeleteDocument(doc.id);
+                                          }
+                                        }}
+                                        title="Hapus"
+                                        disabled={deletingDocuments.has(doc.id)}
+                                      >
+                                        {deletingDocuments.has(doc.id) ? (
+                                          <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin" />
+                                        ) : (
+                                          <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                                        )}
+                                      </Button>
+                                    )}
                                   </div>
                                 </TableCell>
                               </TableRow>
-                              );
-                            })}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    ) : (
-                      // Grid View
-                    <div className="grid gap-4">
-                        {filteredAndSortedDocuments.map((doc) => {
-                          const isHighlighted = shouldHighlightDocument(doc);
-                          return (
-                          <div 
-                            key={doc.id}
-                            data-doc-id={doc.id}
-                            className={`group bg-white border rounded-xl p-6 hover:shadow-xl hover:scale-[1.02] transition-all duration-300 transform ${
-                              isHighlighted 
-                                ? 'border-yellow-400 border-2 bg-yellow-50 hover:border-yellow-500' 
-                                : 'border-gray-200 hover:border-blue-400'
-                            }`}
-                          >
-                          {/* Header Row */}
-                          <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center space-x-3">
-                              <div className="p-3 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl">
-                                <FileText className="h-6 w-6 text-blue-600" />
-                                </div>
-                              <div>
-                                <h3 className="text-lg font-bold text-gray-900 truncate max-w-[300px]" title={doc.fileName}>
-                                    {doc.fileName}
-                                  </h3>
-                                  <div className="flex items-center space-x-2 mt-1">
-                                    <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs px-2 py-1">
-                                      {formatFileSize(doc.fileSize)}
-                                    </Badge>
-                                    <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs px-2 py-1">
-                                      {doc.status}
-                                    </Badge>
-                                  </div>
-                                </div>
-                        </div>
-                              <div className="flex items-center space-x-2">
-                              <Button
-                                size="sm"
-                                  variant="outline"
-                                onClick={() => handleDownload(doc)}
-                                  className="border-green-200 text-green-600 hover:bg-green-50"
-                              >
-                                <Download className="h-4 w-4 mr-2" />
-                                Download
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleRevision(doc)}
-                                  className="border-blue-200 text-blue-600 hover:bg-blue-50"
-                              >
-                                <MessageSquare className="h-4 w-4 mr-2" />
-                                Revisi
-                              </Button>
-                              <Button
-                                size="sm"
-                                  variant="outline"
-                                  onClick={() => {
-                                    if (confirm(`Apakah Anda yakin ingin menghapus dokumen "${doc.fileName}"?`)) {
-                                      handleDeleteDocument(doc);
-                                    }
-                                  }}
-                                  className="border-red-200 text-red-600 hover:bg-red-50"
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Hapus
-                              </Button>
-                            </div>
-                          </div>
-
-                            {/* Content Grid */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                            {/* User Information */}
-                            <div className="space-y-3">
-                                <div className="flex items-center space-x-2">
-                                  <User className="h-4 w-4 text-gray-500" />
-                                <span className="text-sm font-medium text-gray-700">Pengirim</span>
-                                </div>
-                              <div className="pl-6 space-y-1">
-                                <div className="text-sm font-semibold text-gray-900">{doc.uploadedBy}</div>
-                                  <div className="space-y-1">
-                                    <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs px-2 py-1">
-                                      {doc.userDirektorat}
-                                    </Badge>
-                                    <Badge variant="outline" className="bg-purple-50 border-purple-200 text-purple-700 text-xs px-2 py-1">
-                                      {doc.userSubdirektorat}
-                                    </Badge>
-                                    <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs px-2 py-1">
-                                      {doc.userDivisi}
-                                    </Badge>
-                          </div>
-                              </div>
-                          </div>
-
-                              {/* Document Details */}
-                            <div className="space-y-3">
-                              <div className="flex items-center space-x-2">
-                                <FileText className="h-4 w-4 text-gray-500" />
-                                <span className="text-sm font-medium text-gray-700">Detail Dokumen</span>
-                              </div>
-                              <div className="pl-6 space-y-1">
-                                <Badge variant="outline" className="bg-orange-50 border-orange-200 text-orange-700 text-xs px-2 py-1 max-w-full">
-                                    {doc.aspect || 'Dokumen Tanpa Aspek'}
-                                </Badge>
-                                <div className="flex items-center space-x-1 text-xs text-gray-500">
-                                  <Calendar className="h-3 w-3" />
-                                  <span>{new Date(doc.uploadDate).toLocaleDateString('id-ID')}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                              {/* Contact Information */}
-                            <div className="space-y-3">
-                      <div className="flex items-center space-x-2">
-                                  <Phone className="h-4 w-4 text-gray-500" />
-                                  <span className="text-sm font-medium text-gray-700">Kontak</span>
-                              </div>
-                              <div className="pl-6 space-y-1">
-                                  {doc.userWhatsApp ? (
-                                    <div className="flex items-center space-x-1 text-xs text-green-600">
-                                      <Phone className="h-3 w-3" />
-                                      <span>{doc.userWhatsApp}</span>
-                                    </div>
-                                  ) : null}
-                                  {doc.userEmail ? (
-                                    <div className="flex items-center space-x-1 text-xs text-blue-600">
-                                      <Mail className="h-3 w-3" />
-                                      <span className="truncate">{doc.userEmail}</span>
-                                    </div>
-                                  ) : null}
-                                  {!doc.userWhatsApp && !doc.userEmail ? (
-                                  <div className="text-sm text-gray-500 italic">
-                                      Kontak tidak tersedia
-                                  </div>
-                                  ) : null}
-                              </div>
-                            </div>
-
-                              {/* Additional Info */}
-                            <div className="space-y-3">
-                      <div className="flex items-center space-x-2">
-                                  <FolderOpen className="h-4 w-4 text-gray-500" />
-                                  <span className="text-sm font-medium text-gray-700">Info Tambahan</span>
-                              </div>
-                              <div className="pl-6 space-y-1">
-                                  {doc.checklistDescription && (
-                                    <div className="text-xs text-gray-600">
-                                      <span className="font-medium">Deskripsi:</span> {doc.checklistDescription}
-                                    </div>
-                                  )}
-              </div>
-            </div>
-            </div>
-                              </div>
-                          );
-                        })}
-                            </div>
-                    )
-                  ) : (
-                    <div className="text-center py-16">
-                      <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-blue-200 rounded-full flex items-center justify-center mx-auto mb-6">
-                        <Archive className="h-10 w-10 text-blue-600" />
-                      </div>
-                      <h3 className="text-xl font-bold text-gray-900 mb-3">
-                        Belum Ada Dokumen
-                      </h3>
-                      <p className="text-gray-600 max-w-md mx-auto">
-                        Belum ada dokumen yang tersedia untuk tahun {selectedYear}. 
-                        Dokumen akan muncul di sini setelah diupload oleh admin.
-                      </p>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
                     </div>
                   )}
                 </CardContent>
               </Card>
-                    </div>
-                  ) : (
-                  <div className="text-center py-16">
-              <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Calendar className="h-10 w-10 text-gray-600" />
-                    </div>
-                    <h3 className="text-xl font-bold text-gray-900 mb-3">
-                Pilih Tahun Terlebih Dahulu
-                      </h3>
-                    <p className="text-gray-600 max-w-md mx-auto">
-                Silakan pilih tahun buku untuk melihat arsip dokumen yang tersedia.
-                      </p>
-                    </div>
-                  )}
-          </div>
-                  </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Catatan Dialog */}
+      <CatatanDialog
+        isOpen={isCatatanDialogOpen}
+        onClose={() => setIsCatatanDialogOpen(false)}
+        documentInfo={selectedDocumentForCatatan ? {
+          fileName: selectedDocumentForCatatan.fileName || 'Unknown File',
+          checklistDescription: selectedDocumentForCatatan.title || 'Dokumen GCG',
+          aspect: 'GCG Document',
+          uploadedBy: selectedDocumentForCatatan.uploadedBy || 'Unknown',
+          uploadDate: selectedDocumentForCatatan.uploadDate ? new Date(selectedDocumentForCatatan.uploadDate).toISOString() : new Date().toISOString(),
+          catatan: selectedDocumentForCatatan.catatan || '',
+          subdirektorat: selectedDocumentForCatatan.subdirektorat
+        } : null}
+      />
+
+      {/* Detail Document Dialog */}
+      <DetailDocumentDialog
+        isOpen={isDetailDialogOpen}
+        onClose={() => setIsDetailDialogOpen(false)}
+        document={selectedDocumentForDetail}
+        onView={() => {
+          if (selectedDocumentForDetail) {
+            handleViewDocument(selectedDocumentForDetail.id);
+          }
+        }}
+        onDownload={() => {
+          if (selectedDocumentForDetail) {
+            handleDownloadDocument(selectedDocumentForDetail.id);
+          }
+        }}
+      />
     </>
   );
 };
 
 export default ArsipDokumen;
+

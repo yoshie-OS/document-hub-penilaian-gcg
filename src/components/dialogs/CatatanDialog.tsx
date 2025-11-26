@@ -1,77 +1,132 @@
 import React from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { FileText } from 'lucide-react';
+import { FileText, Calendar, User, MessageSquare } from 'lucide-react';
 
 interface CatatanDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  catatan?: string;
-  documentTitle?: string;
-  fileName?: string;
+  documentInfo: {
+    fileName: string;
+    checklistDescription: string;
+    aspect: string;
+    uploadedBy: string;
+    uploadDate: string;
+    catatan: string;
+    subdirektorat?: string;
+  } | null;
 }
 
-const CatatanDialog: React.FC<CatatanDialogProps> = ({
+export const CatatanDialog: React.FC<CatatanDialogProps> = ({
   isOpen,
   onClose,
-  catatan,
-  documentTitle,
-  fileName
+  documentInfo,
 }) => {
+  if (!documentInfo) return null;
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center space-x-2 text-blue-900">
-            <FileText className="w-5 h-5 text-blue-600" />
-            <span>Catatan Dokumen</span>
+          <DialogTitle className="text-xl font-bold text-gray-900 mb-2">
+            Catatan Dokumen
           </DialogTitle>
-          <DialogDescription className="text-blue-700">
-            Informasi catatan dan detail dokumen
+          <DialogDescription className="text-sm text-gray-600">
+            Detail dan catatan untuk dokumen yang diupload
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6">
-          {/* Document Info */}
-          <Card className="bg-blue-50 border-blue-200">
-            <CardContent className="p-4">
-              <div className="space-y-3">
-                <div>
-                  <h4 className="text-sm font-medium text-blue-900 mb-1">Judul Dokumen</h4>
-                  <p className="text-sm text-blue-700">{documentTitle || 'Tidak ada judul'}</p>
-                </div>
-                <div>
-                  <h4 className="text-sm font-medium text-blue-900 mb-1">Nama File</h4>
-                  <p className="text-sm text-blue-700 font-mono">{fileName || 'Tidak ada nama file'}</p>
-                </div>
+        <div className="space-y-4 mt-4">
+          {/* Document Info Section */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h3 className="text-sm font-semibold text-blue-900 mb-3 flex items-center">
+              <FileText className="w-4 h-4 mr-2" />
+              Informasi Dokumen
+            </h3>
+            <div className="space-y-2">
+              <div className="grid grid-cols-3 gap-2">
+                <span className="text-xs font-medium text-blue-700">Nama File:</span>
+                <span className="text-xs text-blue-900 col-span-2 break-all">{documentInfo.fileName}</span>
               </div>
-            </CardContent>
-          </Card>
-
-
-          {/* Notes Content */}
-          <Card className="bg-yellow-50 border-yellow-200">
-            <CardContent className="p-4">
-              <h4 className="text-sm font-medium text-yellow-900 mb-3">Catatan</h4>
-              {catatan && catatan.trim() ? (
-                <div className="bg-white p-3 rounded-md border border-yellow-200">
-                  <p className="text-sm text-gray-800 whitespace-pre-wrap">{catatan}</p>
-                </div>
-              ) : (
-                <div className="bg-white p-3 rounded-md border border-yellow-200 text-center">
-                  <p className="text-sm text-gray-500 italic">Tidak ada catatan untuk dokumen ini</p>
+              <div className="grid grid-cols-3 gap-2">
+                <span className="text-xs font-medium text-blue-700">Deskripsi:</span>
+                <span className="text-xs text-blue-900 col-span-2">{documentInfo.checklistDescription}</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <span className="text-xs font-medium text-blue-700">Aspek GCG:</span>
+                <span className="text-xs text-blue-900 col-span-2">{documentInfo.aspect}</span>
+              </div>
+              {documentInfo.subdirektorat && (
+                <div className="grid grid-cols-3 gap-2">
+                  <span className="text-xs font-medium text-blue-700">PIC:</span>
+                  <span className="text-xs text-blue-900 col-span-2">{documentInfo.subdirektorat}</span>
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
+
+          {/* Upload Info Section */}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center">
+              <User className="w-4 h-4 mr-2" />
+              Informasi Upload
+            </h3>
+            <div className="space-y-2">
+              <div className="grid grid-cols-3 gap-2">
+                <span className="text-xs font-medium text-gray-700 flex items-center">
+                  <User className="w-3 h-3 mr-1" />
+                  Diupload oleh:
+                </span>
+                <span className="text-xs text-gray-900 col-span-2">{documentInfo.uploadedBy}</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <span className="text-xs font-medium text-gray-700 flex items-center">
+                  <Calendar className="w-3 h-3 mr-1" />
+                  Tanggal Upload:
+                </span>
+                <span className="text-xs text-gray-900 col-span-2">
+                  {new Date(documentInfo.uploadDate).toLocaleString('id-ID', {
+                    dateStyle: 'long',
+                    timeStyle: 'short'
+                  })}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Catatan Section */}
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <h3 className="text-sm font-semibold text-yellow-900 mb-3 flex items-center">
+              <MessageSquare className="w-4 h-4 mr-2" />
+              Catatan
+            </h3>
+            {documentInfo.catatan ? (
+              <div className="bg-white border border-yellow-100 rounded p-3">
+                <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
+                  {documentInfo.catatan}
+                </p>
+              </div>
+            ) : (
+              <div className="text-center py-4">
+                <MessageSquare className="w-8 h-8 text-yellow-300 mx-auto mb-2" />
+                <p className="text-xs text-yellow-600 italic">Tidak ada catatan untuk dokumen ini</p>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex justify-end pt-4">
+        {/* Footer */}
+        <div className="flex justify-end mt-6 pt-4 border-t">
           <Button
             onClick={onClose}
-            className="bg-blue-600 hover:bg-blue-700"
+            variant="outline"
+            className="min-w-[100px]"
           >
             Tutup
           </Button>
@@ -80,5 +135,3 @@ const CatatanDialog: React.FC<CatatanDialogProps> = ({
     </Dialog>
   );
 };
-
-export default CatatanDialog;

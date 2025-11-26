@@ -399,10 +399,14 @@ interface User {
   email: string;
   password: string;
   role: 'superadmin' | 'admin' | 'user';
+  adminLevel?: 1 | 2; // Level admin: 1 bisa edit semua admin, 2 hanya edit diri sendiri
   direktorat?: string;
   subdirektorat?: string;
   divisi?: string;
   whatsapp?: string;
+  phone?: string; // Telepon admin
+  adminEmail?: string; // Email admin untuk user non-admin
+  adminPhone?: string; // Telepon admin untuk user non-admin
   tahun: number;
 }
 
@@ -895,9 +899,9 @@ const PengaturanBaru = () => {
           const apiUsers = await response.json();
           setUsers(apiUsers);
           console.log('PengaturanBaru: Loaded users from API', apiUsers.length);
-          
-          // Cek dan buat akun superadmin kedua jika diperlukan
-          await ensureSecondSuperAdmin(apiUsers);
+
+          // Cek dan buat 2 akun admin default jika diperlukan
+          await ensureTwoDefaultAdmins(apiUsers);
         } else {
           console.error('PengaturanBaru: Failed to load users from API');
           // Fallback to localStorage if API fails
@@ -931,48 +935,91 @@ const PengaturanBaru = () => {
     loadUsersFromAPI();
   }, []);
 
-  // Fungsi untuk memastikan ada 2 superadmin
-  const ensureSecondSuperAdmin = async (currentUsers: User[]) => {
-    const superAdminCount = currentUsers.filter(user => user.role === 'superadmin').length;
-    
-    if (superAdminCount < 2) {
-      try {
-        // Buat akun superadmin kedua
-        const secondSuperAdmin = {
-          name: 'Super Admin 2',
-          email: 'superadmin2@gcg.com',
-          password: 'superadmin123',
-          role: 'superadmin' as const,
+  // Fungsi untuk memastikan ada 2 admin default
+  const ensureTwoDefaultAdmins = async (currentUsers: User[]) => {
+    const admins = currentUsers.filter(user => user.role === 'admin');
+    const adminCount = admins.length;
+
+    // Cek apakah admin1 dan admin2 sudah ada
+    const admin1Exists = admins.some(user => user.adminLevel === 1);
+    const admin2Exists = admins.some(user => user.adminLevel === 2);
+
+    try {
+      // Buat admin1 jika belum ada
+      if (!admin1Exists) {
+        const admin1 = {
+          name: 'Admin 1',
+          email: 'admin1@gcg.com',
+          password: 'admin123',
+          role: 'admin' as const,
+          adminLevel: 1,
           direktorat: '',
           subdirektorat: '',
           divisi: '',
           whatsapp: '',
+          phone: '',
+          adminEmail: '',
+          adminPhone: '',
           tahun: null
         };
 
-        const response = await fetch('http://localhost:5001/api/users', {
+        const response1 = await fetch('http://localhost:5001/api/users', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(secondSuperAdmin),
+          body: JSON.stringify(admin1),
         });
 
-        if (response.ok) {
-          const newUser = await response.json();
+        if (response1.ok) {
+          const newUser = await response1.json();
           setUsers(prev => [...prev, newUser]);
-          console.log('PengaturanBaru: Created second superadmin account', newUser);
-          
-          toast({
-            title: "Akun Superadmin Kedua Dibuat",
-            description: "Akun superadmin kedua telah dibuat secara otomatis (superadmin2@gcg.com)",
-          });
-        } else {
-          console.error('Failed to create second superadmin account');
+          console.log('PengaturanBaru: Created admin1 account', newUser);
         }
-      } catch (error) {
-        console.error('Error creating second superadmin account:', error);
       }
+
+      // Buat admin2 jika belum ada
+      if (!admin2Exists) {
+        const admin2 = {
+          name: 'Admin 2',
+          email: 'admin2@gcg.com',
+          password: 'admin123',
+          role: 'admin' as const,
+          adminLevel: 2,
+          direktorat: '',
+          subdirektorat: '',
+          divisi: '',
+          whatsapp: '',
+          phone: '',
+          adminEmail: '',
+          adminPhone: '',
+          tahun: null
+        };
+
+        const response2 = await fetch('http://localhost:5001/api/users', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(admin2),
+        });
+
+        if (response2.ok) {
+          const newUser = await response2.json();
+          setUsers(prev => [...prev, newUser]);
+          console.log('PengaturanBaru: Created admin2 account', newUser);
+        }
+      }
+
+      // Tampilkan notifikasi jika ada admin yang dibuat
+      if (!admin1Exists || !admin2Exists) {
+        toast({
+          title: "Akun Admin Default Dibuat",
+          description: "Akun admin default telah dibuat secara otomatis (admin1@gcg.com, admin2@gcg.com)",
+        });
+      }
+    } catch (error) {
+      console.error('Error creating default admin accounts:', error);
     }
   };
 
@@ -1289,10 +1336,14 @@ const PengaturanBaru = () => {
     email: '',
     password: '',
     role: 'admin' as 'superadmin' | 'admin' | 'user',
+    adminLevel: undefined as 1 | 2 | undefined,
     direktorat: '',
     subdirektorat: '',
     divisi: '',
-    whatsapp: ''
+    whatsapp: '',
+    phone: '', // Telepon admin
+    adminEmail: '', // Email admin untuk user
+    adminPhone: '' // Telepon admin untuk user
   });
 
 
@@ -1906,12 +1957,51 @@ const PengaturanBaru = () => {
     if (userForm.role === 'superadmin') {
       const currentSuperAdminCount = users.filter(user => user.role === 'superadmin').length;
       const isEditingSuperAdmin = editingUser && editingUser.role === 'superadmin';
-      
+
       // Jika sedang edit superadmin yang sudah ada, tidak perlu cek limit
       if (!isEditingSuperAdmin && currentSuperAdminCount >= 2) {
         toast({
           title: "Error",
           description: "Maksimum hanya 2 akun superadmin yang diperbolehkan!",
+          variant: "destructive"
+        });
+        return;
+      }
+    }
+
+    // Validasi pembatasan admin: harus tetap 2 admin
+    if (userForm.role === 'admin') {
+      const currentAdminCount = users.filter(user => user.role === 'admin').length;
+      const isEditingAdmin = editingUser && editingUser.role === 'admin';
+
+      // Jika membuat admin baru dan sudah ada 2 admin
+      if (!isEditingAdmin && currentAdminCount >= 2) {
+        toast({
+          title: "Error",
+          description: "Hanya diperbolehkan 2 akun admin. Tidak dapat menambah admin baru!",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Jika edit admin existing dan mengubah role ke non-admin
+      if (isEditingAdmin && userForm.role !== 'admin') {
+        toast({
+          title: "Error",
+          description: "Tidak dapat mengubah role admin. Sistem harus memiliki tepat 2 akun admin!",
+          variant: "destructive"
+        });
+        return;
+      }
+    }
+
+    // Jika mengubah user lain menjadi admin tapi sudah ada 2 admin
+    if (editingUser && editingUser.role !== 'admin' && userForm.role === 'admin') {
+      const currentAdminCount = users.filter(user => user.role === 'admin').length;
+      if (currentAdminCount >= 2) {
+        toast({
+          title: "Error",
+          description: "Hanya diperbolehkan 2 akun admin. Tidak dapat menambah admin baru!",
           variant: "destructive"
         });
         return;
@@ -1924,10 +2014,14 @@ const PengaturanBaru = () => {
         email: userForm.email,
         password: userForm.password,
         role: userForm.role,
+        adminLevel: userForm.adminLevel,
         direktorat: userForm.direktorat || '',
         subdirektorat: userForm.subdirektorat || '',
         divisi: userForm.divisi || '',
         whatsapp: userForm.whatsapp || '',
+        phone: userForm.phone || '',
+        adminEmail: userForm.adminEmail || '',
+        adminPhone: userForm.adminPhone || '',
         tahun: null
       };
 
@@ -1997,10 +2091,14 @@ const PengaturanBaru = () => {
         email: '',
         password: '',
         role: 'admin',
+        adminLevel: undefined,
         direktorat: '',
         subdirektorat: '',
         divisi: '',
-        whatsapp: ''
+        whatsapp: '',
+        phone: '',
+        adminEmail: '',
+        adminPhone: ''
       });
       setEditingUser(null);
       setShowUserDialog(false);
@@ -2016,16 +2114,33 @@ const PengaturanBaru = () => {
   };
 
   const handleEditUser = (user: User) => {
+    // Cek permission untuk admin accounts
+    if (user.role === 'admin' && currentUser?.role === 'admin') {
+      // Admin 2 tidak bisa edit admin lain
+      if (currentUser.adminLevel === 2 && user.id !== currentUser.id) {
+        toast({
+          title: "Akses Ditolak",
+          description: "Admin 2 hanya dapat mengedit akun sendiri",
+          variant: "destructive"
+        });
+        return;
+      }
+    }
+
     setEditingUser(user);
     setUserForm({
       name: user.name,
       email: user.email,
       password: user.password,
       role: user.role,
+      adminLevel: user.adminLevel,
       direktorat: user.direktorat || '',
       subdirektorat: user.subdirektorat || '',
       divisi: user.divisi || '',
-      whatsapp: user.whatsapp || ''
+      whatsapp: user.whatsapp || '',
+      phone: user.phone || '',
+      adminEmail: user.adminEmail || '',
+      adminPhone: user.adminPhone || ''
     });
     setShowUserDialog(true);
   };
@@ -2034,6 +2149,22 @@ const PengaturanBaru = () => {
     // Prevent double deletion
     if (deletingUsers.has(userId)) {
       return;
+    }
+
+    // Cek apakah user yang akan dihapus adalah admin
+    const userToDelete = users.find(u => u.id === userId);
+    if (userToDelete && userToDelete.role === 'admin') {
+      const currentAdminCount = users.filter(user => user.role === 'admin').length;
+
+      // Tidak boleh menghapus admin jika hanya ada 2 admin
+      if (currentAdminCount <= 2) {
+        toast({
+          title: "Error",
+          description: "Tidak dapat menghapus akun admin. Sistem harus memiliki tepat 2 akun admin!",
+          variant: "destructive"
+        });
+        return;
+      }
     }
 
     try {
@@ -4871,6 +5002,58 @@ const PengaturanBaru = () => {
                         Format: 08xxx akan otomatis menjadi 628xxx (format internasional)
                       </p>
                     </div>
+
+                    {/* Field Telepon untuk Admin */}
+                    {(userForm.role === 'superadmin' || userForm.role === 'admin') && (
+                      <div>
+                        <Label htmlFor="user-phone" className="text-blue-800 font-medium">Nomor Telepon Admin (Opsional)</Label>
+                        <Input
+                          id="user-phone"
+                          type="tel"
+                          value={userForm.phone}
+                          onChange={(e) => setUserForm(prev => ({ ...prev, phone: e.target.value }))}
+                          placeholder="Contoh: 021-12345678"
+                          className="border-blue-200 focus:border-blue-500 focus:ring-blue-500"
+                        />
+                        <p className="text-xs text-blue-600 mt-1">
+                          Telepon kantor admin yang bisa dihubungi user
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Field Kontak Admin untuk User Regular */}
+                    {userForm.role === 'user' && (
+                      <>
+                        <div>
+                          <Label htmlFor="admin-email" className="text-blue-800 font-medium">Email Admin (Opsional)</Label>
+                          <Input
+                            id="admin-email"
+                            type="email"
+                            value={userForm.adminEmail}
+                            onChange={(e) => setUserForm(prev => ({ ...prev, adminEmail: e.target.value }))}
+                            placeholder="Contoh: admin@example.com"
+                            className="border-blue-200 focus:border-blue-500 focus:ring-blue-500"
+                          />
+                          <p className="text-xs text-blue-600 mt-1">
+                            Email admin yang bisa dihubungi jika butuh bantuan
+                          </p>
+                        </div>
+                        <div>
+                          <Label htmlFor="admin-phone" className="text-blue-800 font-medium">Telepon Admin (Opsional)</Label>
+                          <Input
+                            id="admin-phone"
+                            type="tel"
+                            value={userForm.adminPhone}
+                            onChange={(e) => setUserForm(prev => ({ ...prev, adminPhone: e.target.value }))}
+                            placeholder="Contoh: 021-12345678"
+                            className="border-blue-200 focus:border-blue-500 focus:ring-blue-500"
+                          />
+                          <p className="text-xs text-blue-600 mt-1">
+                            Nomor telepon admin yang bisa dihubungi jika butuh bantuan
+                          </p>
+                        </div>
+                      </>
+                    )}
                     <div className="flex gap-3">
                       <Button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700">
                         <Plus className="w-4 h-4 mr-2" />
@@ -4887,10 +5070,14 @@ const PengaturanBaru = () => {
                             email: '',
                             password: '',
                             role: 'admin',
+                            adminLevel: undefined,
                             direktorat: '',
                             subdirektorat: '',
                             divisi: '',
-                            whatsapp: ''
+                            whatsapp: '',
+                            phone: '',
+                            adminEmail: '',
+                            adminPhone: ''
                           });
                         }}
                         className="flex-1 border-blue-600 text-blue-600 hover:bg-blue-50"

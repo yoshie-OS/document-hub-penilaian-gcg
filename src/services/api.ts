@@ -128,8 +128,17 @@ export const userAPI = {
 
 // AOI Management API
 export const aoiAPI = {
-  // Get all AOI tables
-  getTables: () => apiCall('/aoiTables'),
+  // Get all AOI tables (with optional user filtering)
+  getTables: (params?: { userRole?: string; userSubdirektorat?: string; userDivisi?: string; year?: number }) => {
+    const queryParams = new URLSearchParams();
+    if (params?.userRole) queryParams.append('userRole', params.userRole);
+    if (params?.userSubdirektorat) queryParams.append('userSubdirektorat', params.userSubdirektorat);
+    if (params?.userDivisi) queryParams.append('userDivisi', params.userDivisi);
+    if (params?.year) queryParams.append('year', params.year.toString());
+
+    const url = queryParams.toString() ? `/aoiTables?${queryParams.toString()}` : '/aoiTables';
+    return apiCall(url);
+  },
   
   // Get AOI table by ID
   getTableById: (id: number) => apiCall(`/aoiTables/${id}`),

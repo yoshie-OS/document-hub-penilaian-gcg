@@ -173,24 +173,56 @@ const MonitoringUploadGCG = () => {
       }
     };
 
-    const handleDocumentsUpdated = async () => {
-      console.log('MonitoringUploadGCG: Received documentsUpdated event');
+    const handleDocumentsUpdated = async (event: CustomEvent) => {
+      console.log('MonitoringUploadGCG: Received documentsUpdated event', event.detail);
+
+      // Skip full refresh if this is triggered by delete - state already cleared
+      if (event.detail?.type === 'documentsUpdated' && event.detail?.skipRefresh) {
+        console.log('MonitoringUploadGCG: Skipping refresh (delete operation)');
+        return;
+      }
+
       // Refresh files and checklist status
       try {
         await refreshFiles();
-        await checkSupabaseFileStatus();
+        // Only check supabase status if not a delete event (delete already handled by uploadedFilesChanged)
         console.log('✅ MonitoringUploadGCG: Data refreshed after documentsUpdated');
       } catch (error) {
         console.error('❌ MonitoringUploadGCG: Error refreshing after documentsUpdated:', error);
       }
     };
 
-    const handleUploadedFilesChanged = async () => {
-      console.log('MonitoringUploadGCG: Received uploadedFilesChanged event');
-      // Refresh files and checklist status
+    const handleUploadedFilesChanged = async (event: CustomEvent) => {
+      console.log('MonitoringUploadGCG: Received uploadedFilesChanged event', event.detail);
+
+      // If file was deleted, immediately mark as NOT existing
+      // and DO NOT call checkSupabaseFileStatus to avoid race condition
+      if (event.detail?.type === 'fileDeleted' && event.detail?.checklistId) {
+        const checklistId = event.detail.checklistId;
+        console.log('🧹 MonitoringUploadGCG: Marking deleted checklistId as false:', checklistId);
+        setSupabaseFileStatus(prev => ({
+          ...prev,
+          [checklistId.toString()]: false  // Explicitly mark as not existing
+        }));
+        setSupabaseFileInfo(prev => {
+          const newInfo = { ...prev };
+          delete newInfo[checklistId.toString()];  // Remove file info
+          return newInfo;
+        });
+      }
+
+      // For delete events, just force UI update - don't refresh from backend
+      // This prevents race condition where backend data isn't updated yet
+      if (event.detail?.type === 'fileDeleted') {
+        setForceUpdate(prev => prev + 1);
+        console.log('✅ MonitoringUploadGCG: UI updated after delete (no backend refresh)');
+        return;
+      }
+
+      // For other events (upload), refresh from backend
       try {
         await refreshFiles();
-        await checkSupabaseFileStatus();
+        setForceUpdate(prev => prev + 1);
         console.log('✅ MonitoringUploadGCG: Data refreshed after uploadedFilesChanged');
       } catch (error) {
         console.error('❌ MonitoringUploadGCG: Error refreshing after uploadedFilesChanged:', error);
@@ -379,19 +411,31 @@ const MonitoringUploadGCG = () => {
   // Get uploaded document for dokumen GCG - now uses Supabase file status with localStorage fallback
   const getUploadedDocument = useCallback((checklistId: number) => {
     if (!selectedYear) return null;
-    
-    // First check if file exists in Supabase
-    const supabaseExists = supabaseFileStatus[checklistId.toString()];
-    if (supabaseExists && supabaseFileInfo[checklistId.toString()]) {
-      return supabaseFileInfo[checklistId.toString()];
+
+    const checklistIdStr = checklistId.toString();
+
+    // Check if explicitly marked as NOT existing in Supabase (deleted or never uploaded)
+    if (checklistIdStr in supabaseFileStatus && !supabaseFileStatus[checklistIdStr]) {
+      // Explicitly marked as not existing - return null (no fallback)
+      return null;
     }
-    
-    // Fallback to localStorage for backward compatibility
-    const yearFiles = getFilesByYear(selectedYear);
-    const checklistIdInt = Math.floor(checklistId);
-    const foundFile = yearFiles.find(file => file.checklistId === checklistIdInt);
-    
-    return foundFile;
+
+    // Check if file exists in Supabase with info
+    if (supabaseFileStatus[checklistIdStr] && supabaseFileInfo[checklistIdStr]) {
+      return supabaseFileInfo[checklistIdStr];
+    }
+
+    // Only fallback to context if we haven't explicitly checked this checklist yet
+    // (supabaseFileStatus doesn't have this key at all)
+    if (!(checklistIdStr in supabaseFileStatus)) {
+      const yearFiles = getFilesByYear(selectedYear);
+      const checklistIdInt = Math.floor(checklistId);
+      const foundFile = yearFiles.find(file => file.checklistId === checklistIdInt);
+      return foundFile;
+    }
+
+    // Default: no document found
+    return null;
   }, [supabaseFileStatus, supabaseFileInfo, getFilesByYear, selectedYear]);
 
   // Get assignment data for checklist item
@@ -511,7 +555,7 @@ const MonitoringUploadGCG = () => {
                 if (fileExists && fileStatus) {
                   // Create file info object compatible with localStorage format
                   const fileInfoObj = {
-                    id: `supabase_${item.id}`,
+                    id: fileStatus.id || `supabase_${item.id}`,  // Use real UUID from backend
                     fileName: fileStatus.fileName,
                     fileSize: fileStatus.size,
                     uploadDate: new Date(fileStatus.lastModified),
@@ -927,7 +971,7 @@ const MonitoringUploadGCG = () => {
   // Handle delete document
   const handleDeleteDocument = useCallback(async (checklistId: number, documentId: string) => {
     console.log('🗑️ MonitoringUploadGCG: Starting delete process', { checklistId, documentId });
-    
+
     try {
       console.log(`🌐 MonitoringUploadGCG: Sending DELETE request to /api/delete-file/${documentId}`);
       const response = await fetch(`http://localhost:5001/api/delete-file/${documentId}`, {
@@ -939,36 +983,53 @@ const MonitoringUploadGCG = () => {
       if (response.ok) {
         const responseData = await response.json();
         console.log('✅ MonitoringUploadGCG: Delete successful', responseData);
-        
+
         toast({
           title: "Berhasil",
           description: "Dokumen berhasil dihapus",
         });
-        
+
+        // IMMEDIATELY mark as NOT existing (false) instead of deleting key
+        // This ensures getUploadedDocument knows file was explicitly deleted
+        console.log('🧹 MonitoringUploadGCG: Marking file as deleted for checklistId:', checklistId);
+        setSupabaseFileStatus(prev => ({
+          ...prev,
+          [checklistId.toString()]: false  // Explicitly mark as not existing
+        }));
+        setSupabaseFileInfo(prev => {
+          const newInfo = { ...prev };
+          delete newInfo[checklistId.toString()];  // Remove file info
+          return newInfo;
+        });
+
         // Dispatch events to notify other components
         console.log('📢 MonitoringUploadGCG: Dispatching events for sync');
         window.dispatchEvent(new CustomEvent('uploadedFilesChanged', {
-          detail: { 
-            type: 'fileDeleted', 
+          detail: {
+            type: 'fileDeleted',
             fileId: documentId,
             checklistId: checklistId,
             timestamp: new Date().toISOString()
           }
         }));
-        
+
         window.dispatchEvent(new CustomEvent('documentsUpdated', {
-          detail: { 
-            type: 'documentsUpdated', 
+          detail: {
+            type: 'documentsUpdated',
             year: selectedYear,
+            skipRefresh: true, // Tell event handler to skip refresh for delete
             timestamp: new Date().toISOString()
           }
         }));
-        
-        // Refresh the files to update the UI
-        console.log('🔄 MonitoringUploadGCG: Refreshing data after delete');
-        await refreshFiles();
-        await checkSupabaseFileStatus();
-        
+
+        // DO NOT call refreshFiles() here - this causes race condition
+        // where backend hasn't fully processed delete but we're already fetching
+        // The local state is already cleared above, just force UI update
+        console.log('🚫 MonitoringUploadGCG: Skipping refreshFiles (race condition prevention)');
+
+        // Force UI update
+        setForceUpdate(prev => prev + 1);
+
         console.log('✅ MonitoringUploadGCG: Delete process completed successfully');
       } else {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
@@ -983,7 +1044,7 @@ const MonitoringUploadGCG = () => {
         variant: "destructive",
       });
     }
-  }, [toast, refreshFiles, checkSupabaseFileStatus, selectedYear]);
+  }, [toast, refreshFiles, selectedYear]);
 
   // Handle navigate to archive with highlight
   const handleViewInArchive = useCallback((item: { id: number; aspek: string; deskripsi: string; pic?: string }) => {
@@ -1571,7 +1632,7 @@ const MonitoringUploadGCG = () => {
                                 <Loader2 className="w-3 h-3 mr-1 animate-spin" />
                                 Checking
                               </span>
-                            ) : item.status === 'uploaded' ? (
+                            ) : uploadedDocument ? (
                               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">
                                 <CheckCircle className="w-3 h-3 mr-1" />
                                 Upload
@@ -1630,9 +1691,10 @@ const MonitoringUploadGCG = () => {
                             size="icon"
                             className="h-7 w-7"
                             onClick={() => handleViewInArchive(item)}
-                            title="Lihat di Arsip"
+                            disabled={!uploadedDocument}
+                            title={uploadedDocument ? "Lihat di Arsip" : "Belum ada file"}
                           >
-                            <Eye className="w-3.5 h-3.5 text-blue-600" />
+                            <Eye className={`w-3.5 h-3.5 ${uploadedDocument ? 'text-blue-600' : 'text-gray-300'}`} />
                           </Button>
 
                           {uploadedDocument && (

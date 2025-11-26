@@ -157,7 +157,17 @@ export const YearProvider: React.FC<YearProviderProps> = ({ children }) => {
       
       const deleteResult = await deleteResponse.json();
       console.log(`YearContext: Successfully deleted year ${year} from backend:`, deleteResult);
-      
+
+      // Log cleanup stats if available
+      if (deleteResult.cleanup_stats) {
+        console.log(`YearContext: Backend cleanup stats:`, deleteResult.cleanup_stats);
+        const stats = deleteResult.cleanup_stats;
+        const totalCleaned = Object.values(stats).reduce((sum: number, val: any) => {
+          return typeof val === 'number' ? sum + val : sum;
+        }, 0);
+        console.log(`YearContext: Total ${totalCleaned} records cleaned from backend`);
+      }
+
       // Clean up all frontend data related to the year
       cleanupYearData(year);
       

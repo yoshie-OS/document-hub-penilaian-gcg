@@ -17,8 +17,8 @@ export interface UploadedFile {
 
 interface FileUploadContextType {
   uploadedFiles: UploadedFile[];
-  uploadFile: (file: File, year: number, checklistId?: number, checklistDescription?: string, aspect?: string, subdirektorat?: string, catatan?: string) => Promise<void>;
-  reUploadFile: (file: File, year: number, checklistId?: number, checklistDescription?: string, aspect?: string, subdirektorat?: string, catatan?: string) => Promise<void>;
+  uploadFile: (file: File, year: number, checklistId?: number, checklistDescription?: string, aspect?: string, subdirektorat?: string, catatan?: string, rowNumber?: number) => Promise<void>;
+  reUploadFile: (file: File, year: number, checklistId?: number, checklistDescription?: string, aspect?: string, subdirektorat?: string, catatan?: string, rowNumber?: number) => Promise<void>;
   deleteFile: (fileId: string) => Promise<void>;
   deleteFileByFileName: (fileName: string) => Promise<void>;
   refreshFiles: () => Promise<void>;
@@ -35,8 +35,12 @@ const FileUploadContext = createContext<FileUploadContextType | undefined>(undef
 
 export const FileUploadProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  // Track recently deleted checklistIds to prevent polling from restoring them
+  const [recentlyDeletedIds, setRecentlyDeletedIds] = useState<Set<number>>(new Set());
+  // Flag to temporarily pause polling after delete operations
+  const [pausePolling, setPausePolling] = useState(false);
 
-  // Load data from backend API on mount  
+  // Load data from backend API on mount
   useEffect(() => {
     const loadFiles = async () => {
       try {
@@ -46,16 +50,77 @@ export const FileUploadProvider: React.FC<{ children: ReactNode }> = ({ children
         console.error('Error loading files on mount:', error);
       }
     };
-    
+
     loadFiles();
-    
-    // Add polling to ensure data is always fresh
+
+    // Add polling to ensure data is always fresh (increased to 10 seconds to reduce conflicts)
     const interval = setInterval(() => {
+      // Skip polling if paused (after delete operation)
+      if (pausePolling) {
+        console.log('FileUploadContext: Polling skipped (paused after delete)');
+        return;
+      }
       console.log('FileUploadContext: Polling for file updates...');
-      refreshFiles();
-    }, 3000); // Poll every 3 seconds for more aggressive updates
-    
+      refreshFilesWithExclusions();
+    }, 10000); // Poll every 10 seconds (reduced frequency)
+
     return () => clearInterval(interval);
+  }, [pausePolling]);
+
+  // Refresh files but exclude recently deleted items
+  const refreshFilesWithExclusions = async () => {
+    try {
+      console.log('FileUploadContext: Refreshing files (with exclusions)...');
+      const files = await fetchFiles();
+
+      // Filter out recently deleted files
+      const filteredFiles = files.filter(file => {
+        if (file.checklistId && recentlyDeletedIds.has(file.checklistId)) {
+          console.log(`FileUploadContext: Excluding recently deleted checklistId ${file.checklistId}`);
+          return false;
+        }
+        return true;
+      });
+
+      setUploadedFiles(filteredFiles);
+      console.log('FileUploadContext: Files refreshed (with exclusions), count:', filteredFiles.length);
+    } catch (error) {
+      console.error('Error refreshing files:', error);
+    }
+  };
+
+  // Listen for file deleted events to track recently deleted IDs
+  useEffect(() => {
+    const handleFileDeleted = (event: CustomEvent) => {
+      const checklistId = event.detail?.checklistId;
+      if (checklistId) {
+        console.log(`FileUploadContext: Tracking deleted checklistId ${checklistId}`);
+        setRecentlyDeletedIds(prev => new Set([...prev, checklistId]));
+
+        // Pause polling for 5 seconds after delete
+        setPausePolling(true);
+        setTimeout(() => {
+          setPausePolling(false);
+          console.log('FileUploadContext: Resuming polling after delete cooldown');
+        }, 5000);
+
+        // Remove from recently deleted after 30 seconds (backend should be fully updated by then)
+        setTimeout(() => {
+          setRecentlyDeletedIds(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(checklistId);
+            console.log(`FileUploadContext: Removed checklistId ${checklistId} from recently deleted`);
+            return newSet;
+          });
+        }, 30000);
+      }
+    };
+
+    window.addEventListener('uploadedFilesChanged', handleFileDeleted as EventListener);
+
+    return () => {
+      window.removeEventListener('uploadedFilesChanged', handleFileDeleted as EventListener);
+    };
   }, []);
 
   // Fetch files from backend API
@@ -198,14 +263,18 @@ export const FileUploadProvider: React.FC<{ children: ReactNode }> = ({ children
 
   const reUploadFile = async (file: File, year: number, checklistId?: number, checklistDescription?: string, aspect?: string, subdirektorat?: string, catatan?: string, rowNumber?: number) => {
     try {
-      // First, delete existing file with same checklistId
+      // First, refresh files to get latest data from backend
+      const latestFiles = await fetchFiles();
+
+      // Then delete existing file with same checklistId
       if (checklistId) {
-        const existingFile = uploadedFiles.find(f => f.checklistId === checklistId);
+        const existingFile = latestFiles.find(f => f.checklistId === checklistId && f.year === year);
         if (existingFile) {
+          console.log('ReUpload: Deleting existing file:', existingFile.id, existingFile.fileName);
           await deleteFile(existingFile.id);
         }
       }
-      
+
       // Then upload new file
       await uploadFile(file, year, checklistId, checklistDescription, aspect, subdirektorat, catatan, rowNumber);
     } catch (error) {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Sidebar from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
-import { PageHeaderPanel, YearSelectorPanel } from '@/components/panels';
+import { PageHeaderPanel } from '@/components/panels';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,7 +13,7 @@ import { useDocumentMetadata } from '@/contexts/DocumentMetadataContext';
 import { useFileUpload } from '@/contexts/FileUploadContext';
 import { useChecklist } from '@/contexts/ChecklistContext';
 import { useToast } from '@/hooks/use-toast';
-import CatatanDialog from '@/components/dialogs/CatatanDialog';
+import { CatatanDialog, DetailDocumentDialog } from '@/components/dialogs';
 import {
   Archive,
   Search,
@@ -30,7 +30,11 @@ import {
   Building,
   UserCheck,
   Loader2,
-  RefreshCw
+  RefreshCw,
+  Info,
+  Trash2,
+  MessageSquare,
+  Upload
 } from 'lucide-react';
 
 
@@ -64,10 +68,33 @@ const ArsipDokumen = () => {
     subdirektorat?: string;
   } | null>(null);
 
+  // State for detail dialog
+  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
+  const [selectedDocumentForDetail, setSelectedDocumentForDetail] = useState<{
+    id: number;
+    aspek: string;
+    deskripsi: string;
+    tahun: number;
+    fileName?: string;
+    fileSize?: number;
+    uploadDate?: Date;
+    uploadedBy?: string;
+    subdirektorat?: string;
+    catatan?: string;
+    status?: string;
+  } | null>(null);
+
+  // State for delete operation
+  const [deletingDocuments, setDeletingDocuments] = useState<Set<number>>(new Set());
+
   // State to track actual file existence from Supabase
   const [supabaseFileStatus, setSupabaseFileStatus] = useState<{[key: string]: boolean}>({});
   const [supabaseFileInfo, setSupabaseFileInfo] = useState<{[key: string]: any}>({});
   const [fileStatusLoading, setFileStatusLoading] = useState<boolean>(false);
+
+  // State for random document upload
+  const [isUploadingRandom, setIsUploadingRandom] = useState(false);
+  const [randomUploadYear, setRandomUploadYear] = useState<number | null>(null);
 
   // Check if dokumen GCG item is uploaded - now uses Supabase file status
   const isChecklistUploaded = useCallback((checklistId: number) => {
@@ -213,6 +240,156 @@ const ArsipDokumen = () => {
     loadAllFileStatuses();
   }, [selectedYear, checklist, availableYears]);
 
+  // Function to reload file statuses - extracted for reuse
+  const reloadFileStatuses = useCallback(async () => {
+    if (!selectedYear || availableYears.length === 0) return;
+
+    console.log('🔄 ArsipDokumen: Reloading file statuses...');
+
+    try {
+      setFileStatusLoading(true);
+
+      const yearChecklist = checklist.filter(item => item.tahun === selectedYear);
+
+      if (yearChecklist.length === 0) {
+        setFileStatusLoading(false);
+        return;
+      }
+
+      // Group by subdirektorat for batch API calls
+      const subdirektoratGroups = yearChecklist.reduce((groups, item) => {
+        let subdirektorat = 'Unknown';
+
+        const storedAssignments = localStorage.getItem('checklistAssignments');
+        if (storedAssignments) {
+          try {
+            const allAssignments = JSON.parse(storedAssignments);
+            const itemAssignment = allAssignments.find((assignment: any) =>
+              assignment.checklistId === item.id && assignment.tahun === selectedYear
+            );
+
+            if (itemAssignment) {
+              subdirektorat = itemAssignment.subdirektorat || itemAssignment.divisi || 'Unknown';
+            }
+          } catch (error) {
+            console.error('Error parsing assignments:', error);
+          }
+        }
+
+        if (!groups[subdirektorat]) {
+          groups[subdirektorat] = [];
+        }
+        groups[subdirektorat].push(item.id);
+        return groups;
+      }, {} as Record<string, number[]>);
+
+      const newFileStatus: Record<string, boolean> = {};
+      const newFileInfo: Record<string, any> = {};
+
+      for (const [subdirektorat, checklistIds] of Object.entries(subdirektoratGroups)) {
+        try {
+          const response = await fetch('http://localhost:5001/api/check-gcg-files', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('authToken') || 'demo-token'}`,
+            },
+            body: JSON.stringify({
+              year: selectedYear,
+              picName: subdirektorat.replace(/ /g, '_'),
+              checklistIds: checklistIds
+            }),
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+
+            if (result.fileStatuses) {
+              Object.entries(result.fileStatuses).forEach(([checklistId, fileStatus]: [string, any]) => {
+                newFileStatus[checklistId] = fileStatus.exists || false;
+
+                if (fileStatus.exists && fileStatus.fileName) {
+                  newFileInfo[checklistId] = {
+                    id: fileStatus.id || `supabase_${checklistId}`,
+                    fileName: fileStatus.fileName,
+                    fileSize: fileStatus.size,
+                    uploadDate: new Date(fileStatus.lastModified),
+                    checklistId: parseInt(checklistId),
+                    catatan: fileStatus.catatan || '',
+                    uploadedBy: fileStatus.uploadedBy || 'Unknown',
+                    subdirektorat: fileStatus.subdirektorat || subdirektorat,
+                    aspect: fileStatus.aspect || '',
+                    checklistDescription: fileStatus.checklistDescription || ''
+                  };
+                }
+              });
+            }
+          }
+        } catch (error) {
+          console.error(`Error checking files for subdirektorat ${subdirektorat}:`, error);
+        }
+      }
+
+      setSupabaseFileStatus(newFileStatus);
+      setSupabaseFileInfo(newFileInfo);
+      console.log('✅ ArsipDokumen: File statuses reloaded successfully');
+
+    } catch (error) {
+      console.error('Error reloading file statuses:', error);
+    } finally {
+      setFileStatusLoading(false);
+    }
+  }, [selectedYear, checklist, availableYears]);
+
+  // Listen for file changes from other components (Monitoring, FileUploadContext)
+  useEffect(() => {
+    const handleFilesChanged = (event: CustomEvent) => {
+      console.log('📢 ArsipDokumen: Received uploadedFilesChanged event', event.detail);
+
+      // If file was deleted, immediately mark as NOT existing
+      // and DO NOT reload from backend to avoid race condition
+      if (event.detail?.type === 'fileDeleted' && event.detail?.checklistId) {
+        const checklistId = event.detail.checklistId;
+        console.log('🧹 ArsipDokumen: Marking deleted checklistId as false:', checklistId);
+        setSupabaseFileStatus(prev => ({
+          ...prev,
+          [checklistId.toString()]: false  // Explicitly mark as not existing
+        }));
+        setSupabaseFileInfo(prev => {
+          const newInfo = { ...prev };
+          delete newInfo[checklistId.toString()];  // Remove file info
+          return newInfo;
+        });
+        console.log('✅ ArsipDokumen: File marked as deleted (no backend refresh)');
+        return; // Don't reload from backend - state is already correct
+      }
+
+      // Reload file statuses only for non-delete events (upload, etc)
+      reloadFileStatuses();
+    };
+
+    const handleDocumentsUpdated = (event: CustomEvent) => {
+      console.log('📢 ArsipDokumen: Received documentsUpdated event', event.detail);
+
+      // Skip reload for delete events to avoid race condition
+      if (event.detail?.type === 'documentsUpdated' && event.detail?.skipRefresh) {
+        console.log('ArsipDokumen: Skipping reload (delete operation)');
+        return;
+      }
+
+      // Reload file statuses when documents are updated
+      reloadFileStatuses();
+    };
+
+    window.addEventListener('uploadedFilesChanged', handleFilesChanged as EventListener);
+    window.addEventListener('documentsUpdated', handleDocumentsUpdated as EventListener);
+
+    return () => {
+      window.removeEventListener('uploadedFilesChanged', handleFilesChanged as EventListener);
+      window.removeEventListener('documentsUpdated', handleDocumentsUpdated as EventListener);
+    };
+  }, [reloadFileStatuses]);
+
   // Get all uploaded documents for the selected year
   const allUploadedDocuments = useMemo(() => {
     if (!selectedYear) return [];
@@ -268,8 +445,18 @@ const ArsipDokumen = () => {
       }
 
       // Subdirektorat filter
-      if (selectedSubdirektorat !== 'all' && doc.uploadedDocument?.subdirektorat !== selectedSubdirektorat) {
-        return false;
+      if (selectedSubdirektorat !== 'all') {
+        if (selectedSubdirektorat === 'dokumen_lainnya') {
+          // Show documents from Dokumen_Lainnya folder
+          if (doc.uploadedDocument?.subdirektorat !== 'Dokumen_Lainnya') {
+            return false;
+          }
+        } else {
+          // Regular subdirektorat filter
+          if (doc.uploadedDocument?.subdirektorat !== selectedSubdirektorat) {
+            return false;
+          }
+        }
       }
 
       return true;
@@ -381,6 +568,136 @@ const ArsipDokumen = () => {
       });
     }
   }, [getUploadedDocument, checklist, toast]);
+
+  // Handle show detail
+  const handleShowDetail = useCallback((checklistId: number) => {
+    const uploadedDocument = getUploadedDocument(checklistId);
+    const checklistItem = checklist.find(item => item.id === checklistId);
+
+    if (uploadedDocument && checklistItem) {
+      setSelectedDocumentForDetail({
+        id: checklistId,
+        aspek: checklistItem.aspek || 'Dokumen GCG',
+        deskripsi: checklistItem.deskripsi || '',
+        tahun: selectedYear || new Date().getFullYear(),
+        fileName: uploadedDocument.fileName || 'Unknown File',
+        fileSize: uploadedDocument.fileSize,
+        uploadDate: uploadedDocument.uploadDate,
+        uploadedBy: uploadedDocument.uploadedBy || 'Unknown',
+        subdirektorat: uploadedDocument.subdirektorat || 'Unknown',
+        catatan: uploadedDocument.catatan || '',
+        status: 'uploaded'
+      });
+      setIsDetailDialogOpen(true);
+    } else {
+      toast({
+        title: "Dokumen tidak ditemukan",
+        description: "Dokumen belum diupload atau tidak tersedia",
+        variant: "destructive"
+      });
+    }
+  }, [getUploadedDocument, checklist, selectedYear, toast]);
+
+  // Handle delete document
+  const handleDeleteDocument = useCallback(async (checklistId: number) => {
+    const uploadedDocument = getUploadedDocument(checklistId);
+
+    if (!uploadedDocument) {
+      toast({
+        title: "Error",
+        description: "Dokumen tidak ditemukan",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Prevent double deletion
+    if (deletingDocuments.has(checklistId)) {
+      return;
+    }
+
+    // Confirm deletion
+    if (!window.confirm('Apakah Anda yakin ingin menghapus dokumen ini?')) {
+      return;
+    }
+
+    setDeletingDocuments(prev => new Set(prev).add(checklistId));
+
+    try {
+      console.log('🗑️ ArsipDokumen: Starting delete process', { checklistId, documentId: uploadedDocument.id });
+
+      const response = await fetch(`http://localhost:5001/api/delete-file/${uploadedDocument.id}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        const responseData = await response.json();
+        console.log('✅ ArsipDokumen: Delete successful', responseData);
+
+        toast({
+          title: "Berhasil",
+          description: "Dokumen berhasil dihapus",
+        });
+
+        // IMMEDIATELY mark as NOT existing (false) instead of deleting key
+        // This ensures UI knows file was explicitly deleted
+        console.log('🧹 ArsipDokumen: Marking file as deleted for checklistId:', checklistId);
+        setSupabaseFileStatus(prev => ({
+          ...prev,
+          [checklistId.toString()]: false  // Explicitly mark as not existing
+        }));
+        setSupabaseFileInfo(prev => {
+          const newInfo = { ...prev };
+          delete newInfo[checklistId.toString()];  // Remove file info
+          return newInfo;
+        });
+
+        // Dispatch events to notify other components (Monitoring)
+        console.log('📢 ArsipDokumen: Dispatching events for sync');
+        window.dispatchEvent(new CustomEvent('uploadedFilesChanged', {
+          detail: {
+            type: 'fileDeleted',
+            fileId: uploadedDocument.id,
+            checklistId: checklistId,
+            timestamp: new Date().toISOString()
+          }
+        }));
+
+        window.dispatchEvent(new CustomEvent('documentsUpdated', {
+          detail: {
+            type: 'documentsUpdated',
+            year: selectedYear,
+            skipRefresh: true, // Tell event handler to skip refresh for delete
+            timestamp: new Date().toISOString()
+          }
+        }));
+
+        // DO NOT call reloadFileStatuses() here - this causes race condition
+        // where backend hasn't fully processed delete but we're already fetching
+        // The local state is already cleared above
+        console.log('🚫 ArsipDokumen: Skipping reloadFileStatuses (race condition prevention)');
+
+        console.log('✅ ArsipDokumen: Delete process completed successfully');
+      } else {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('❌ ArsipDokumen: Delete failed', { status: response.status, error: errorData });
+        throw new Error(errorData.error || 'Failed to delete document');
+      }
+    } catch (error) {
+      console.error('❌ ArsipDokumen: Delete error:', error);
+      toast({
+        title: "Error",
+        description: `Gagal menghapus dokumen: ${error}`,
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingDocuments(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(checklistId);
+        return newSet;
+      });
+    }
+  }, [getUploadedDocument, deletingDocuments, selectedYear, toast, reloadFileStatuses]);
 
   // Handle bulk download of all documents
   const handleBulkDownload = async () => {
@@ -506,6 +823,65 @@ const ArsipDokumen = () => {
     }
   };
 
+  // Handle random document upload (dokumen lainnya)
+  const handleRandomDocumentUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    const uploadYear = randomUploadYear || selectedYear;
+    if (!uploadYear) {
+      toast({
+        title: "Error",
+        description: "Pilih tahun terlebih dahulu",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsUploadingRandom(true);
+
+    try {
+      for (const file of Array.from(files)) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('year', uploadYear.toString());
+        formData.append('category', 'dokumen_lainnya'); // Special category for unstructured docs
+        formData.append('uploadedBy', JSON.parse(localStorage.getItem('user') || '{}').name || 'Unknown');
+
+        const response = await fetch('http://localhost:5001/api/upload-random-document', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error(`Upload failed for ${file.name}: ${response.status}`);
+        }
+      }
+
+      toast({
+        title: "✅ Upload Berhasil",
+        description: `${files.length} dokumen berhasil diupload ke folder "Dokumen Lainnya"`,
+        duration: 5000
+      });
+
+      // Refresh file list
+      setSupabaseFileStatus({});
+      setSupabaseFileInfo({});
+
+    } catch (error) {
+      console.error('Random upload error:', error);
+      toast({
+        title: "❌ Upload Gagal",
+        description: error instanceof Error ? error.message : "Terjadi kesalahan saat upload",
+        variant: "destructive"
+      });
+    } finally {
+      setIsUploadingRandom(false);
+      // Reset file input
+      event.target.value = '';
+    }
+  };
+
   // Get aspect icon
   const getAspectIcon = useCallback((aspekName: string) => {
     if (aspekName === 'KESELURUHAN') return TrendingUp;
@@ -550,14 +926,77 @@ const ArsipDokumen = () => {
             ]}
           />
 
-          {/* Year Selector Panel */}
-          <YearSelectorPanel
-            selectedYear={selectedYear}
-            onYearChange={setSelectedYear}
-            availableYears={availableYears}
-            title="Tahun Buku"
-            description="Pilih tahun buku untuk mengakses arsip dokumen"
-          />
+          {/* Year Selection - Single Line with Upload/View indication */}
+          <div className="mb-6 bg-white rounded-lg p-3 shadow-sm border border-gray-100">
+            {/* Main Row */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-blue-600" />
+                <span className="text-sm font-medium text-gray-700">Tahun Buku:</span>
+              </div>
+
+              {/* Year Buttons */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {availableYears.sort((a, b) => b - a).map((year, index) => {
+                  const isLatestYear = index === 0;
+                  const isSelected = selectedYear === year;
+
+                  return (
+                    <Button
+                      key={year}
+                      variant={isSelected ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setSelectedYear(year)}
+                      title={isLatestYear ? `${year} - Tahun Aktif (Upload, View, Download)` : `${year} - Arsip (View & Download saja)`}
+                      className={`h-8 px-3 transition-all ${
+                        isSelected
+                          ? 'bg-blue-600 text-white hover:bg-blue-700'
+                          : isLatestYear
+                            ? 'border-green-300 text-green-700 hover:bg-green-50 hover:border-green-400'
+                            : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      <span className="mr-1.5">{year}</span>
+                      {isLatestYear ? (
+                        <Upload className="w-3.5 h-3.5" />
+                      ) : (
+                        <Eye className="w-3.5 h-3.5" />
+                      )}
+                    </Button>
+                  );
+                })}
+              </div>
+
+              {/* Status Indicator */}
+              {selectedYear && (
+                <div className="flex items-center gap-2 ml-auto">
+                  {selectedYear === availableYears.sort((a, b) => b - a)[0] ? (
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-700">
+                      <Upload className="w-3 h-3 mr-1" />
+                      Tahun Aktif - Upload
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-600">
+                      <Eye className="w-3 h-3 mr-1" />
+                      Arsip - View/Download
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Legend Row - Below buttons */}
+            <div className="flex items-center gap-4 mt-2 pt-2 border-t border-gray-100 text-xs text-gray-500">
+              <span className="inline-flex items-center gap-1">
+                <Upload className="w-3 h-3 text-green-600" />
+                <span>= Tahun Aktif (Upload, View, Download)</span>
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <Eye className="w-3 h-3 text-gray-500" />
+                <span>= Arsip (View & Download)</span>
+              </span>
+            </div>
+          </div>
 
           {selectedYear && (
             <div className="space-y-6">
@@ -622,75 +1061,144 @@ const ArsipDokumen = () => {
                 </CardContent>
               </Card>
 
-              {/* Search and Filter Panel */}
+              {/* Upload & Download Sections */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Section 1: Upload Dokumen */}
+                <Card className="border-2 border-green-200 bg-green-50/30">
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <Upload className="w-5 h-5 text-green-600" />
+                      <span className="text-green-900">Upload Dokumen</span>
+                    </CardTitle>
+                    <p className="text-xs text-gray-600 mt-1">
+                      Upload dokumen arsip yang tidak memiliki struktur organisasi
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {/* Year Selection for Upload */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Pilih Tahun
+                        </label>
+                        <select
+                          value={randomUploadYear || selectedYear || ''}
+                          onChange={(e) => setRandomUploadYear(Number(e.target.value))}
+                          className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        >
+                          <option value="">Pilih Tahun</option>
+                          {availableYears.sort((a, b) => b - a).map(year => (
+                            <option key={year} value={year}>{year}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* File Upload Input */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Pilih File
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="file"
+                            multiple
+                            accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png"
+                            onChange={handleRandomDocumentUpload}
+                            disabled={isUploadingRandom || !randomUploadYear}
+                            className="w-full p-2 border-2 border-dashed border-green-300 rounded-md text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-green-100 file:text-green-700 hover:file:bg-green-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                          />
+                        </div>
+                        <p className="text-xs text-gray-500">
+                          Dokumen akan disimpan ke folder <span className="font-semibold text-green-600">"Dokumen Lainnya"</span>
+                        </p>
+                      </div>
+
+                      {/* Upload Status */}
+                      {isUploadingRandom && (
+                        <div className="flex items-center space-x-2 p-3 bg-green-100 rounded-md">
+                          <Loader2 className="w-4 h-4 animate-spin text-green-600" />
+                          <span className="text-sm text-green-700">Uploading...</span>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Section 2: Download Dokumen */}
+                <Card className="border-2 border-blue-200 bg-blue-50/30">
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <Download className="w-5 h-5 text-blue-600" />
+                      <span className="text-blue-900">Download Dokumen</span>
+                    </CardTitle>
+                    <p className="text-xs text-gray-600 mt-1">
+                      Filter dan unduh dokumen berdasarkan kategori
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {/* Filter by Aspek */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Filter Aspek
+                        </label>
+                        <select
+                          value={selectedAspek}
+                          onChange={(e) => setSelectedAspek(e.target.value)}
+                          className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        >
+                          {uniqueAspects.map(aspek => (
+                            <option key={aspek} value={aspek}>
+                              {aspek === 'all' ? 'Semua Aspek' : aspek}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Filter by Subdirektorat */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Filter PIC / Subdirektorat
+                        </label>
+                        <select
+                          value={selectedSubdirektorat}
+                          onChange={(e) => setSelectedSubdirektorat(e.target.value)}
+                          className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        >
+                          {uniqueSubdirektorats.map(subdir => (
+                            <option key={subdir} value={subdir}>
+                              {subdir === 'all' ? 'Semua PIC' : subdir}
+                            </option>
+                          ))}
+                          <option value="dokumen_lainnya">Dokumen Lainnya</option>
+                        </select>
+                      </div>
+
+                      {/* Download Result Count */}
+                      <div className="p-3 bg-blue-100 rounded-md">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-blue-700">
+                            {filteredDocuments.length} dokumen tersedia
+                          </span>
+                          <FileText className="w-4 h-4 text-blue-600" />
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Search Bar - Separate Row */}
               <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Filter className="w-5 h-5 text-gray-600" />
-                    <span>Filter & Pencarian</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">
-                        Pencarian
-                      </label>
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                        <Input
-                          placeholder="Cari dokumen..."
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                          className="pl-10"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">
-                        Aspek
-                      </label>
-                      <select
-                        value={selectedAspek}
-                        onChange={(e) => setSelectedAspek(e.target.value)}
-                        className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      >
-                        {uniqueAspects.map(aspek => (
-                          <option key={aspek} value={aspek}>
-                            {aspek === 'all' ? 'Semua Aspek' : aspek}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">
-                        Subdirektorat
-                      </label>
-                      <select
-                        value={selectedSubdirektorat}
-                        onChange={(e) => setSelectedSubdirektorat(e.target.value)}
-                        className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      >
-                        {uniqueSubdirektorats.map(subdir => (
-                          <option key={subdir} value={subdir}>
-                            {subdir === 'all' ? 'Semua Subdirektorat' : subdir}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">
-                        Hasil
-                      </label>
-                      <div className="p-2 bg-gray-50 rounded-md text-center">
-                        <span className="text-sm font-medium text-gray-600">
-                          {filteredDocuments.length} dokumen ditemukan
-                        </span>
-                      </div>
-                    </div>
+                <CardContent className="p-4">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                    <Input
+                      placeholder="Cari dokumen berdasarkan nama, deskripsi, atau uploader..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10 h-11"
+                    />
                   </div>
                 </CardContent>
               </Card>
@@ -724,113 +1232,142 @@ const ArsipDokumen = () => {
                     <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
-                          <TableRow>
-                            <TableHead className="w-[50px]">No</TableHead>
-                            <TableHead className="w-[80px]">Aspek</TableHead>
-                            <TableHead className="min-w-[300px]">Deskripsi Dokumen</TableHead>
-                            <TableHead className="w-[200px]">Subdirektorat</TableHead>
-                            <TableHead className="w-[250px]">Informasi File</TableHead>
-                            <TableHead className="w-[150px]">Tanggal Upload</TableHead>
-                            <TableHead className="w-[200px]">Aksi</TableHead>
+                          <TableRow className="bg-gray-50">
+                            <TableHead className="w-[50px] text-center">No</TableHead>
+                            <TableHead className="w-[60px]">Aspek</TableHead>
+                            <TableHead className="min-w-[250px]">Deskripsi</TableHead>
+                            <TableHead className="w-[180px]">PIC</TableHead>
+                            <TableHead className="w-[100px] text-center">Status</TableHead>
+                            <TableHead className="w-[200px]">File</TableHead>
+                            <TableHead className="w-[240px] text-center">Aksi</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {filteredDocuments.map((doc, index) => {
                             if (!doc) return null;
-                            
+
                             const IconComponent = getAspectIcon(doc.aspek);
                             const uploadedDocument = doc.uploadedDocument;
-                            
+
                             return (
-                              <TableRow key={doc.id} className="hover:bg-gray-50">
-                                <TableCell className="font-medium text-center">
+                              <TableRow key={doc.id} className="hover:bg-blue-50/50 transition-colors border-b border-gray-100">
+                                <TableCell className="text-center text-xs text-gray-600 py-2">
                                   {index + 1}
                                 </TableCell>
-                                <TableCell>
-                                  <div className="flex items-center space-x-2">
-                                    <div className="p-1.5 rounded-md bg-blue-100">
-                                      <IconComponent className="w-3 h-3 text-blue-600" />
-                                    </div>
+                                <TableCell className="py-2">
+                                  <div className="p-1.5 rounded-md bg-blue-100">
+                                    <IconComponent className="w-3 h-3 text-blue-600" />
                                   </div>
                                 </TableCell>
-                                <TableCell>
-                                  <div className="space-y-1">
-                                    <p className="text-sm font-medium text-gray-900 leading-tight">
+                                <TableCell className="py-2">
+                                  <div>
+                                    <p className="text-xs text-gray-900 line-clamp-2" title={doc.deskripsi}>
                                       {doc.deskripsi}
                                     </p>
-                                    <Badge variant="outline" className="text-xs">
-                                      {doc.aspek}
-                                    </Badge>
-                                  </div>
-                                </TableCell>
-                                <TableCell>
-                                  <div className="flex items-center space-x-2">
-                                    <div className="p-1.5 rounded-md bg-green-100">
-                                      <Building className="w-3 h-3 text-green-600" />
-                                    </div>
-                                    <span className="text-sm font-medium text-green-700">
-                                      {uploadedDocument?.subdirektorat || 'Unknown'}
+                                    <span className="text-[10px] text-gray-500">
+                                      {doc.aspek.replace('ASPEK ', '').substring(0, 20)}
                                     </span>
                                   </div>
                                 </TableCell>
-                                <TableCell className="max-w-xs">
-                                  <div className="space-y-1">
-                                    <div className="flex items-center space-x-2">
-                                      <FileText className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                                      <span 
-                                        className="text-sm font-medium text-gray-900 truncate block max-w-[200px]" 
-                                        title={uploadedDocument?.fileName}
-                                      >
-                                        {uploadedDocument?.fileName}
+                                <TableCell className="py-2">
+                                  {uploadedDocument?.subdirektorat ? (
+                                    <div className="flex items-center space-x-1.5">
+                                      <div className="p-1 rounded bg-green-100">
+                                        <Building className="w-2.5 h-2.5 text-green-600" />
+                                      </div>
+                                      <span className="text-xs font-medium text-green-700 truncate max-w-[140px]" title={uploadedDocument.subdirektorat}>
+                                        {uploadedDocument.subdirektorat}
                                       </span>
                                     </div>
-                                    <div className="text-xs text-gray-500">
-                                      Oleh: {uploadedDocument?.uploadedBy || 'Unknown'}
-                                    </div>
-                                  </div>
+                                  ) : (
+                                    <span className="text-xs text-gray-400 italic">-</span>
+                                  )}
                                 </TableCell>
-                                <TableCell>
-                                  <div className="flex items-center space-x-2">
-                                    <Calendar className="w-4 h-4 text-gray-400" />
-                                    <span className="text-sm text-gray-600">
-                                      {new Date(uploadedDocument?.uploadDate || '').toLocaleDateString('id-ID')}
+                                <TableCell className="py-2">
+                                  {uploadedDocument ? (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">
+                                      <CheckCircle className="w-3 h-3 mr-1" />
+                                      Upload
                                     </span>
-                                  </div>
+                                  ) : (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">
+                                      <Clock className="w-3 h-3 mr-1" />
+                                      Belum
+                                    </span>
+                                  )}
                                 </TableCell>
-                                <TableCell>
-                                  <div className="flex items-center space-x-2">
-                                    {/* View Button */}
-                                    <Button 
-                                      variant="outline" 
-                                      size="sm"
-                                      onClick={() => handleViewDocument(doc.id)}
-                                      className="border-blue-200 text-blue-600 hover:bg-blue-50"
-                                      title="Lihat dokumen"
-                                    >
-                                      <Eye className="w-4 h-4" />
-                                    </Button>
-                                    
-                                    {/* Download Button */}
-                                    <Button 
-                                      variant="outline" 
-                                      size="sm"
-                                      onClick={() => handleDownloadDocument(doc.id)}
-                                      className="border-green-200 text-green-600 hover:bg-green-50"
-                                      title="Download dokumen"
-                                    >
-                                      <Download className="w-4 h-4" />
-                                    </Button>
-                                    
+                                <TableCell className="py-2">
+                                  {uploadedDocument ? (
+                                    <div>
+                                      <span className="text-xs text-blue-600 font-medium truncate block max-w-[150px]" title={uploadedDocument.fileName}>
+                                        {uploadedDocument.fileName}
+                                      </span>
+                                      <span className="text-[10px] text-gray-400">
+                                        {new Date(uploadedDocument.uploadDate).toLocaleDateString('id-ID')}
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-xs text-gray-400 italic">-</span>
+                                  )}
+                                </TableCell>
+                                <TableCell className="py-2">
+                                  <div className="flex items-center justify-center gap-1">
                                     {/* Catatan Button */}
-                                    <Button 
-                                      variant="outline" 
-                                      size="sm"
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7"
                                       onClick={() => handleShowCatatan(doc.id)}
-                                      className="border-purple-200 text-purple-600 hover:bg-purple-50"
-                                      title="Lihat catatan dokumen"
+                                      disabled={!uploadedDocument}
+                                      title={uploadedDocument ? "Lihat catatan" : "Belum ada file"}
                                     >
-                                      <FileText className="w-4 h-4" />
+                                      <MessageSquare className={`w-3.5 h-3.5 ${uploadedDocument ? 'text-yellow-600' : 'text-gray-300'}`} />
                                     </Button>
+
+                                    {/* Download Button */}
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7"
+                                      onClick={() => handleDownloadDocument(doc.id)}
+                                      disabled={!uploadedDocument}
+                                      title={uploadedDocument ? "Download" : "Belum ada file"}
+                                    >
+                                      <Download className={`w-3.5 h-3.5 ${uploadedDocument ? 'text-green-600' : 'text-gray-300'}`} />
+                                    </Button>
+
+                                    {/* View Button */}
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7"
+                                      onClick={() => handleViewDocument(doc.id)}
+                                      disabled={!uploadedDocument}
+                                      title={uploadedDocument ? "Lihat di arsip" : "Belum ada file"}
+                                    >
+                                      <Eye className={`w-3.5 h-3.5 ${uploadedDocument ? 'text-blue-600' : 'text-gray-300'}`} />
+                                    </Button>
+
+                                    {uploadedDocument && (
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7"
+                                        onClick={() => {
+                                          if (confirm(`Hapus "${uploadedDocument.fileName}"?`)) {
+                                            handleDeleteDocument(doc.id);
+                                          }
+                                        }}
+                                        title="Hapus"
+                                        disabled={deletingDocuments.has(doc.id)}
+                                      >
+                                        {deletingDocuments.has(doc.id) ? (
+                                          <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin" />
+                                        ) : (
+                                          <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                                        )}
+                                      </Button>
+                                    )}
                                   </div>
                                 </TableCell>
                               </TableRow>
@@ -851,9 +1388,32 @@ const ArsipDokumen = () => {
       <CatatanDialog
         isOpen={isCatatanDialogOpen}
         onClose={() => setIsCatatanDialogOpen(false)}
-        catatan={selectedDocumentForCatatan?.catatan}
-        documentTitle={selectedDocumentForCatatan?.title}
-        fileName={selectedDocumentForCatatan?.fileName}
+        documentInfo={selectedDocumentForCatatan ? {
+          fileName: selectedDocumentForCatatan.fileName || 'Unknown File',
+          checklistDescription: selectedDocumentForCatatan.title || 'Dokumen GCG',
+          aspect: 'GCG Document',
+          uploadedBy: selectedDocumentForCatatan.uploadedBy || 'Unknown',
+          uploadDate: selectedDocumentForCatatan.uploadDate ? new Date(selectedDocumentForCatatan.uploadDate).toISOString() : new Date().toISOString(),
+          catatan: selectedDocumentForCatatan.catatan || '',
+          subdirektorat: selectedDocumentForCatatan.subdirektorat
+        } : null}
+      />
+
+      {/* Detail Document Dialog */}
+      <DetailDocumentDialog
+        isOpen={isDetailDialogOpen}
+        onClose={() => setIsDetailDialogOpen(false)}
+        document={selectedDocumentForDetail}
+        onView={() => {
+          if (selectedDocumentForDetail) {
+            handleViewDocument(selectedDocumentForDetail.id);
+          }
+        }}
+        onDownload={() => {
+          if (selectedDocumentForDetail) {
+            handleDownloadDocument(selectedDocumentForDetail.id);
+          }
+        }}
       />
     </>
   );
