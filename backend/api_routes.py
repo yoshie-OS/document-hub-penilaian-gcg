@@ -865,3 +865,226 @@ def export_performa_gcg():
         as_attachment=True,
         download_name=filename
     )
+
+
+# ============================================
+# UPLOADED FILES TRACKING
+# ============================================
+
+@api_bp.route('/uploaded-files', methods=['GET', 'POST', 'DELETE'])
+def uploaded_files():
+    """File uploads tracking endpoint"""
+    if request.method == 'GET':
+        year = request.args.get('year', type=int)
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            if year:
+                cursor.execute("""
+                    SELECT * FROM uploaded_files
+                    WHERE year = ?
+                    ORDER BY upload_date DESC
+                """, (year,))
+            else:
+                cursor.execute("""
+                    SELECT * FROM uploaded_files
+                    ORDER BY year DESC, upload_date DESC
+                """)
+
+            rows = cursor.fetchall()
+            return jsonify([dict(row) for row in rows])
+
+    elif request.method == 'POST':
+        data = request.json
+
+        required_fields = ['id', 'file_name', 'year']
+        if not all(field in data for field in required_fields):
+            return jsonify({'error': 'Missing required fields'}), 400
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO uploaded_files (
+                    id, file_name, file_size, year, checklist_id,
+                    checklist_description, aspect, status
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                data['id'], data['file_name'], data.get('file_size'),
+                data['year'], data.get('checklist_id'),
+                data.get('checklist_description'), data.get('aspect'),
+                data.get('status', 'uploaded')
+            ))
+
+        return jsonify({'id': data['id'], 'message': 'File uploaded'}), 201
+
+    elif request.method == 'DELETE':
+        file_id = request.args.get('id')
+        if not file_id:
+            return jsonify({'error': 'Missing file id'}), 400
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM uploaded_files WHERE id = ?", (file_id,))
+
+        return jsonify({'message': 'File deleted'})
+
+
+@api_bp.route('/upload-gcg-file', methods=['POST'])
+def upload_gcg_file():
+    """GCG file upload endpoint - handles multipart/form-data file uploads"""
+    from werkzeug.utils import secure_filename
+    import os
+    import uuid
+
+    # Check if file is in request
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file part in request'}), 400
+
+    file = request.files['file']
+
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+
+    # Get additional form data
+    year = request.form.get('year', type=int)
+    checklist_id = request.form.get('checklist_id', type=int)
+    checklist_description = request.form.get('checklist_description')
+    aspect = request.form.get('aspect')
+
+    if not year:
+        return jsonify({'error': 'Year is required'}), 400
+
+    # Create uploads directory if it doesn't exist
+    upload_dir = os.path.join(os.path.dirname(__file__), '..', 'uploads', str(year))
+    os.makedirs(upload_dir, exist_ok=True)
+
+    # Generate unique filename
+    file_id = str(uuid.uuid4())
+    filename = secure_filename(file.filename)
+    file_path = os.path.join(upload_dir, f"{file_id}_{filename}")
+
+    # Save file
+    file.save(file_path)
+    file_size = os.path.getsize(file_path)
+
+    # Save to database
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO uploaded_files (
+                id, file_name, file_size, year, checklist_id,
+                checklist_description, aspect, status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            file_id, filename, file_size, year, checklist_id,
+            checklist_description, aspect, 'uploaded'
+        ))
+
+    return jsonify({
+        'id': file_id,
+        'file_name': filename,
+        'file_size': file_size,
+        'file_path': file_path,
+        'message': 'File uploaded successfully'
+    }), 201
+
+
+@api_bp.route('/aoiDocuments', methods=['GET', 'POST', 'PUT', 'DELETE'])
+def aoi_documents():
+    """AOI (Articles of Incorporation) documents endpoint"""
+    if request.method == 'GET':
+        year = request.args.get('year', type=int)
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            if year:
+                cursor.execute("""
+                    SELECT * FROM document_metadata
+                    WHERE year = ? AND document_type = 'AOI' AND status = 'active'
+                    ORDER BY upload_date DESC
+                """, (year,))
+            else:
+                cursor.execute("""
+                    SELECT * FROM document_metadata
+                    WHERE document_type = 'AOI' AND status = 'active'
+                    ORDER BY year DESC, upload_date DESC
+                """)
+
+            rows = cursor.fetchall()
+            return jsonify([dict(row) for row in rows])
+
+    elif request.method == 'POST':
+        data = request.json
+        data['document_type'] = 'AOI'  # Force document type to AOI
+
+        required_fields = ['id', 'title', 'file_name', 'year']
+        if not all(field in data for field in required_fields):
+            return jsonify({'error': 'Missing required fields'}), 400
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO document_metadata (
+                    id, title, document_number, document_date, description,
+                    gcg_principle, document_type, document_category, direksi,
+                    subdirektorat, division, file_name, file_size, file_url,
+                    status, confidentiality, year, uploaded_by, upload_date,
+                    checklist_id, checklist_description, aspect
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                data['id'], data['title'], data.get('document_number'),
+                data.get('document_date'), data.get('description'),
+                data.get('gcg_principle'), data['document_type'],
+                data.get('document_category'), data.get('direksi'),
+                data.get('subdirektorat'), data.get('division'),
+                data['file_name'], data.get('file_size'), data.get('file_url'),
+                data.get('status', 'active'), data.get('confidentiality'),
+                data['year'], data.get('uploaded_by'), data.get('upload_date'),
+                data.get('checklist_id'), data.get('checklist_description'),
+                data.get('aspect')
+            ))
+        return jsonify({'id': data['id'], 'message': 'AOI document created'}), 201
+
+    elif request.method == 'PUT':
+        doc_id = request.args.get('id')
+        if not doc_id:
+            return jsonify({'error': 'Missing document id'}), 400
+
+        data = request.json
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            update_fields = []
+            params = []
+
+            for field in ['title', 'document_number', 'document_date', 'description',
+                         'file_name', 'file_url', 'confidentiality']:
+                if field in data:
+                    update_fields.append(f'{field} = ?')
+                    params.append(data[field])
+
+            if not update_fields:
+                return jsonify({'error': 'No fields to update'}), 400
+
+            update_fields.append('updated_at = ?')
+            params.append(datetime.now().isoformat())
+            params.append(doc_id)
+
+            query = f"UPDATE document_metadata SET {', '.join(update_fields)} WHERE id = ?"
+            cursor.execute(query, params)
+
+        return jsonify({'message': 'AOI document updated'})
+
+    elif request.method == 'DELETE':
+        doc_id = request.args.get('id')
+        if not doc_id:
+            return jsonify({'error': 'Missing document id'}), 400
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE document_metadata SET status = 'deleted' WHERE id = ?", (doc_id,))
+
+        return jsonify({'message': 'AOI document deleted'})

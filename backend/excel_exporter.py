@@ -169,16 +169,29 @@ class ExcelExporter:
                 WHERE tahun = {current_year} AND is_active = 1
                 ORDER BY nama
             """
-            anak_perusahaan_query = f"""
-                SELECT * FROM anak_perusahaan
-                WHERE tahun = {current_year} AND is_active = 1
-                ORDER BY kategori, nama
-            """
 
             df_direktorat = pd.read_sql_query(direktorat_query, conn)
             df_subdirektorat = pd.read_sql_query(subdirektorat_query, conn)
             df_divisi = pd.read_sql_query(divisi_query, conn)
-            df_anak = pd.read_sql_query(anak_perusahaan_query, conn)
+
+            # Check if anak_perusahaan table exists
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='anak_perusahaan'")
+            has_anak = cursor.fetchone() is not None
+
+            if has_anak:
+                anak_perusahaan_query = f"""
+                    SELECT * FROM anak_perusahaan
+                    WHERE tahun = {current_year} AND is_active = 1
+                    ORDER BY kategori, nama
+                """
+                df_anak = pd.read_sql_query(anak_perusahaan_query, conn)
+            else:
+                df_anak = pd.DataFrame()
+
+            # Check if we have any data
+            if df_direktorat.empty and df_subdirektorat.empty and df_divisi.empty:
+                raise ValueError(f"No organizational structure data found for year {current_year}")
 
             filename = self._generate_filename('organizational_structure', year)
             filepath = os.path.join(self.export_dir, filename)
@@ -187,7 +200,9 @@ class ExcelExporter:
                 df_direktorat.to_excel(writer, sheet_name='Direktorat', index=False)
                 df_subdirektorat.to_excel(writer, sheet_name='Subdirektorat', index=False)
                 df_divisi.to_excel(writer, sheet_name='Divisi', index=False)
-                df_anak.to_excel(writer, sheet_name='Anak Perusahaan', index=False)
+
+                if has_anak and not df_anak.empty:
+                    df_anak.to_excel(writer, sheet_name='Anak Perusahaan', index=False)
 
                 for sheet in writer.sheets.values():
                     self._format_worksheet(sheet)

@@ -6,32 +6,41 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+/tmp/
 
-node_modules
-dist
-dist-ssr
+# Dependencies
+node_modules/
+dist/
+dist-ssr/
 *.local
 
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
-.idea
+.idea/
 .DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-BLACKBOX.md
 
-# Environment variables (contains Supabase credentials)
+# Documentation (exclude all markdown files except README.md)
+*.md
+!README.md
+
+# Environment variables
 .env
+.env.local
+.env.*.local
 
-# Local data storage (CSV configs and uploaded documents)
+# Local data storage (exclude CSV and uploaded files, keep database)
 data/
 web-output/
 backend/uploads/
 backend/outputs/
+backend/exports/
+.claude/
 
 # Python
 __pycache__/
@@ -42,6 +51,19 @@ __pycache__/
 venv/
 env/
 ENV/
+*.pyc
 
-# Test files
-test_supabase.py
+# Database (keep only the main database in backend folder)
+# backend/gcg_database.db is tracked
+gcg_database.db
+gcg_data.db
+
+# Test and temporary files
+test_*.py
+*_test.py
+*.tmp
+*.bak
+
+# Build artifacts
+build/
+*.egg-info/

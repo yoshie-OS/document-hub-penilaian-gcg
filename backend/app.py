@@ -90,8 +90,8 @@ project_root = str(Path(__file__).parent.parent.parent)
 
 app = Flask(__name__)
 # Enable CORS for React frontend with exposed headers
-CORS(app, 
-     origins=["http://localhost:8081", "http://localhost:8080", "http://localhost:3000", "http://127.0.0.1:8081", "http://127.0.0.1:8080", "http://127.0.0.1:3000"],
+CORS(app,
+     origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:8081", "http://localhost:8080", "http://localhost:3000", "http://127.0.0.1:8081", "http://127.0.0.1:8080", "http://127.0.0.1:3000"],
      methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
      allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
      expose_headers=['Content-Disposition', 'Content-Type', 'Content-Length'])
@@ -3375,40 +3375,47 @@ def download_gcg_file():
 
 
 # ========================
-# CONFIGURATION MANAGEMENT ENDPOINTS
+# OLD CONFIGURATION MANAGEMENT ENDPOINTS - DISABLED
+# ========================
+# These old routes use CSV/storage_service (Supabase) and are now DISABLED.
+# The new SQLite-based routes are in api_config_routes.py (registered as blueprints).
+# To re-enable these old routes, change @app_OLD.route back to @app.route
 # ========================
 
 @app.route('/api/config/aspects', methods=['GET'])
 def get_aspects():
     """Get all aspects, optionally filtered by year"""
     try:
+        from database import get_db_connection
         year = request.args.get('year')
-        
-        # Read aspects from storage (CSV for easier reading)
-        aspects_data = storage_service.read_csv('config/aspects.csv')
-        safe_print(f"🔍 DEBUG: Read CSV data: {aspects_data}")
-        
-        if aspects_data is None:
-            return jsonify({'aspects': []}), 200
-            
-        # Replace NaN values with empty strings before converting to dict
-        aspects_data = aspects_data.fillna('')
 
-        # Convert DataFrame to list of dictionaries
-        aspects_list = aspects_data.to_dict('records')
-        
-        # Filter by year if provided
-        if year:
-            try:
+        # Read aspects from SQLite database (NEW)
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            if year:
                 year_int = int(year)
-                aspects_list = [aspect for aspect in aspects_list if aspect.get('tahun') == year_int]
-            except ValueError:
-                return jsonify({'error': 'Invalid year format'}), 400
-        
+                cursor.execute("""
+                    SELECT id, nama, deskripsi, tahun, urutan, is_active, created_at
+                    FROM aspek_master
+                    WHERE tahun = ? AND is_active = 1
+                    ORDER BY urutan, nama
+                """, (year_int,))
+            else:
+                cursor.execute("""
+                    SELECT id, nama, deskripsi, tahun, urutan, is_active, created_at
+                    FROM aspek_master
+                    WHERE is_active = 1
+                    ORDER BY tahun, urutan, nama
+                """)
+            rows = cursor.fetchall()
+            aspects_list = [dict(row) for row in rows]
+
         return jsonify({'aspects': aspects_list}), 200
-        
+
     except Exception as e:
         safe_print(f"Error getting aspects: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'aspects': []}), 200
 
 @app.route('/api/config/aspects', methods=['POST'])
@@ -3518,28 +3525,56 @@ def delete_aspect(aspect_id):
 @app.route('/api/config/checklist', methods=['GET'])
 def get_checklist():
     """Get all checklist items, optionally filtered by year"""
+    from database import get_db_connection
     try:
-        # Read checklist from storage
-        checklist_data = storage_service.read_csv('config/checklist.csv')
-        if checklist_data is not None:
-            # Replace NaN values with empty strings before converting to dict
-            checklist_data = checklist_data.fillna('')
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
 
             # Filter by year if provided
             year = request.args.get('year')
             if year:
                 try:
                     year_int = int(year)
-                    checklist_data = checklist_data[checklist_data['tahun'] == year_int]
-                    safe_print(f"DEBUG: Filtered checklist for year {year_int}, found {len(checklist_data)} items")
+                    cursor.execute("""
+                        SELECT id, aspek, deskripsi, tahun, created_at, is_active
+                        FROM checklist_gcg
+                        WHERE tahun = ? AND is_active = 1
+                        ORDER BY id
+                    """, (year_int,))
+                    safe_print(f"DEBUG: Fetching checklist for year {year_int}")
                 except ValueError:
                     safe_print(f"WARNING: Invalid year parameter: {year}")
+                    return jsonify({'checklist': []}), 200
+            else:
+                # Return all checklist items if no year specified
+                cursor.execute("""
+                    SELECT id, aspek, deskripsi, tahun, created_at, is_active
+                    FROM checklist_gcg
+                    WHERE is_active = 1
+                    ORDER BY tahun DESC, id
+                """)
 
-            checklist_items = checklist_data.to_dict(orient='records')
+            rows = cursor.fetchall()
+            checklist_items = []
+            for idx, row in enumerate(rows, 1):
+                checklist_items.append({
+                    'id': row[0],
+                    'aspek': row[1] or '',
+                    'deskripsi': row[2] or '',
+                    'tahun': row[3],
+                    'created_at': row[4],
+                    'is_active': row[5],
+                    'rowNumber': idx,
+                    'pic': ''  # PIC is managed in checklist_assignments table
+                })
+
+            safe_print(f"DEBUG: Returning {len(checklist_items)} checklist items")
             return jsonify({'checklist': checklist_items}), 200
-        return jsonify({'checklist': []}), 200
+
     except Exception as e:
         safe_print(f"Error getting checklist: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'checklist': []}), 200
 
 @app.route('/api/config/checklist', methods=['POST'])
@@ -4064,6 +4099,124 @@ def migrate_checklist_year():
         return jsonify({'error': f'Failed to migrate checklist year: {str(e)}'}), 500
 
 
+# Register API route blueprints for SQLite backend
+try:
+    from api_routes import api_bp
+    from api_config_routes import config_bp
+    app.register_blueprint(api_bp)
+    app.register_blueprint(config_bp)
+    safe_print("✅ Registered SQLite API routes and config endpoints")
+except ImportError as e:
+    safe_print(f"⚠️ SQLite API routes not available: {e}")
+
+
+# EXCEL EXPORT ENDPOINTS
+from excel_exporter import ExcelExporter
+exporter = ExcelExporter()
+
+@app.route('/api/export/users', methods=['GET'])
+def export_users_route():
+    """Export users to Excel"""
+    try:
+        filepath = exporter.export_users()
+        return send_file(filepath, as_attachment=True, download_name=os.path.basename(filepath))
+    except Exception as e:
+        safe_print(f"Error exporting users: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/export/checklist', methods=['GET'])
+def export_checklist_route():
+    """Export GCG checklist to Excel"""
+    try:
+        year = request.args.get('year', type=int)
+        filepath = exporter.export_checklist_gcg(year=year)
+        return send_file(filepath, as_attachment=True, download_name=os.path.basename(filepath))
+    except Exception as e:
+        safe_print(f"Error exporting checklist: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/export/documents', methods=['GET'])
+def export_documents_route():
+    """Export documents to Excel"""
+    try:
+        year = request.args.get('year', type=int)
+        filepath = exporter.export_documents(year=year)
+        return send_file(filepath, as_attachment=True, download_name=os.path.basename(filepath))
+    except Exception as e:
+        safe_print(f"Error exporting documents: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/export/org-structure', methods=['GET'])
+def export_org_structure_route():
+    """Export organizational structure to Excel"""
+    try:
+        year = request.args.get('year', type=int)
+        filepath = exporter.export_organizational_structure(year=year)
+        return send_file(filepath, as_attachment=True, download_name=os.path.basename(filepath))
+    except ValueError as e:
+        # Handle data not found errors with 404
+        safe_print(f"Data not found: {e}")
+        return jsonify({'error': str(e)}), 404
+    except Exception as e:
+        safe_print(f"Error exporting org structure: {e}")
+        return jsonify({'error': f'Failed to export: {str(e)}'}), 500
+
+@app.route('/api/export/gcg-assessment', methods=['GET'])
+def export_gcg_assessment_route():
+    """Export GCG assessment to Excel"""
+    try:
+        year = request.args.get('year', type=int)
+        filepath = exporter.export_gcg_assessment(year=year)
+        return send_file(filepath, as_attachment=True, download_name=os.path.basename(filepath))
+    except Exception as e:
+        safe_print(f"Error exporting GCG assessment: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/export/all', methods=['GET'])
+def export_all_route():
+    """Export all data to Excel"""
+    try:
+        year = request.args.get('year', type=int)
+        filepath = exporter.export_all_data(year=year)
+        return send_file(filepath, as_attachment=True, download_name=os.path.basename(filepath))
+    except Exception as e:
+        safe_print(f"Error exporting all data: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/export/history', methods=['GET'])
+def export_history_route():
+    """Get export history"""
+    from database import get_db_connection
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT e.id, e.export_type, e.file_name, e.year,
+                       u.name as exported_by_name, e.export_date,
+                       e.row_count, e.file_size
+                FROM excel_exports e
+                LEFT JOIN users u ON e.exported_by = u.id
+                ORDER BY e.export_date DESC
+                LIMIT 50
+            """)
+            rows = cursor.fetchall()
+            history = []
+            for row in rows:
+                history.append({
+                    'id': row[0],
+                    'export_type': row[1],
+                    'file_name': row[2],
+                    'year': row[3],
+                    'exported_by_name': row[4],
+                    'export_date': row[5],
+                    'row_count': row[6],
+                    'file_size': row[7]
+                })
+            return jsonify({'success': True, 'data': history}), 200
+    except Exception as e:
+        safe_print(f"Error getting export history: {e}")
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     safe_print(">> Starting POS Data Cleaner 2 Web API")
     safe_print(f"   Upload folder: {UPLOAD_FOLDER}")
@@ -4285,52 +4438,107 @@ def delete_tahun_buku(tahun_id):
 
 @app.route('/api/config/struktur-organisasi', methods=['GET'])
 def get_struktur_organisasi():
-    """Get all struktur organisasi data"""
+    """Get all struktur organisasi data from SQLite"""
+    from database import get_db_connection
     try:
-        # Read struktur organisasi from storage
-        struktur_data = storage_service.read_csv('config/struktur-organisasi.csv')
-        
-        if struktur_data is None:
-            return jsonify({
-                'direktorat': [],
-                'subdirektorat': [],
-                'divisi': [],
-                'anak_perusahaan': []
-            }), 200
-            
-        # Convert DataFrame to list and fix NaN values
-        struktur_data = struktur_data.fillna('')  # Replace NaN with empty string
-        struktur_list = struktur_data.to_dict('records')
-        
-        # Clean up the data - convert empty strings back to None for parent_id and handle numeric fields
-        for item in struktur_list:
-            # Handle parent_id - convert empty string back to None, ensure it's an integer if not None
-            if item.get('parent_id') == '' or pd.isna(item.get('parent_id')):
-                item['parent_id'] = None
-            elif item.get('parent_id') is not None:
-                try:
-                    item['parent_id'] = int(float(item['parent_id']))  # Handle float to int conversion
-                except (ValueError, TypeError):
-                    item['parent_id'] = None
-            
-            # Ensure ID is integer
-            if item.get('id') is not None:
-                try:
-                    item['id'] = int(float(item['id']))
-                except (ValueError, TypeError):
-                    item['id'] = int(time.time() * 1000000)  # Fallback ID
-        
-        result = {
-            'direktorat': [item for item in struktur_list if item.get('type') == 'direktorat'],
-            'subdirektorat': [item for item in struktur_list if item.get('type') == 'subdirektorat'],
-            'divisi': [item for item in struktur_list if item.get('type') == 'divisi'],
-            'anak_perusahaan': [item for item in struktur_list if item.get('type') == 'anak_perusahaan']
-        }
-        
-        return jsonify(result), 200
-        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            # Get direktorat
+            cursor.execute("""
+                SELECT id, nama, deskripsi, tahun, created_at, is_active
+                FROM direktorat
+                WHERE is_active = 1
+                ORDER BY nama
+            """)
+            direktorat = []
+            for row in cursor.fetchall():
+                direktorat.append({
+                    'id': row[0],
+                    'nama': row[1],
+                    'deskripsi': row[2] or '',
+                    'tahun': row[3],
+                    'createdAt': row[4],
+                    'isActive': row[5],
+                    'type': 'direktorat'
+                })
+
+            # Get subdirektorat
+            cursor.execute("""
+                SELECT id, nama, direktorat_id, deskripsi, tahun, created_at, is_active
+                FROM subdirektorat
+                WHERE is_active = 1
+                ORDER BY nama
+            """)
+            subdirektorat = []
+            for row in cursor.fetchall():
+                subdirektorat.append({
+                    'id': row[0],
+                    'nama': row[1],
+                    'direktoratId': row[2],
+                    'parent_id': row[2],
+                    'deskripsi': row[3] or '',
+                    'tahun': row[4],
+                    'createdAt': row[5],
+                    'isActive': row[6],
+                    'type': 'subdirektorat'
+                })
+
+            # Get divisi
+            cursor.execute("""
+                SELECT id, nama, subdirektorat_id, deskripsi, tahun, created_at, is_active
+                FROM divisi
+                WHERE is_active = 1
+                ORDER BY nama
+            """)
+            divisi = []
+            for row in cursor.fetchall():
+                divisi.append({
+                    'id': row[0],
+                    'nama': row[1],
+                    'subdirektoratId': row[2],
+                    'parent_id': row[2],
+                    'deskripsi': row[3] or '',
+                    'tahun': row[4],
+                    'createdAt': row[5],
+                    'isActive': row[6],
+                    'type': 'divisi'
+                })
+
+            # Get anak perusahaan
+            cursor.execute("""
+                SELECT id, nama, kategori, deskripsi, tahun, created_at, is_active
+                FROM anak_perusahaan
+                WHERE is_active = 1
+                ORDER BY nama
+            """)
+            anak_perusahaan = []
+            for row in cursor.fetchall():
+                anak_perusahaan.append({
+                    'id': row[0],
+                    'nama': row[1],
+                    'kategori': row[2],
+                    'deskripsi': row[3] or '',
+                    'tahun': row[4],
+                    'createdAt': row[5],
+                    'isActive': row[6],
+                    'type': 'anak_perusahaan'
+                })
+
+            result = {
+                'direktorat': direktorat,
+                'subdirektorat': subdirektorat,
+                'divisi': divisi,
+                'anak_perusahaan': anak_perusahaan
+            }
+
+            safe_print(f"✓ Returning struktur organisasi: {len(direktorat)} dir, {len(subdirektorat)} sub, {len(divisi)} div, {len(anak_perusahaan)} anak")
+            return jsonify(result), 200
+
     except Exception as e:
         safe_print(f"❌ Error getting struktur organisasi: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/config/struktur-organisasi', methods=['POST'])
@@ -5310,7 +5518,8 @@ def refresh_tracking_tables():
         traceback.print_exc()
         return jsonify({'error': f'Failed to refresh tracking tables: {str(e)}'}), 500
 
+
 if __name__ == '__main__':
     import os
-    port = int(os.environ.get('FLASK_PORT', 5001))
-    app.run(debug=True, host='0.0.0.0', port=port)
+    port = int(os.environ.get('FLASK_PORT', 5000))
+    app.run(debug=True, host='0.0.0.0', port=port, use_reloader=False)
