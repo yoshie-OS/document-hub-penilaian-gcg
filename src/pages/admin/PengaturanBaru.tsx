@@ -21,6 +21,7 @@ import { useToast } from '@/hooks/use-toast';
 import { seedUser } from '@/lib/seed/seedUser';
 import { seedChecklistGCG } from '@/lib/seed/seedChecklistGCG';
 import { ActionButton } from '@/components/panels';
+import ExportDatabaseButton from '@/components/ExportDatabaseButton';
 
 // Data subdirektorat untuk assignment
 const SUBDIREKTORAT_OPTIONS = [
@@ -1814,13 +1815,18 @@ const PengaturanBaru = () => {
              <TabsContent value="kelola-dokumen">
                <Card className="border-0 shadow-lg">
                  <CardHeader>
-                   <CardTitle className="flex items-center space-x-2">
-                     <FileText className="w-5 h-5 text-orange-600" />
-                     <span>Setup Kelola Dokumen GCG</span>
-                   </CardTitle>
-                   <CardDescription>
-                     Setup dokumen GCG dan aspek untuk tahun buku baru dengan tabel inline editing
-                   </CardDescription>
+                   <div className="flex items-center justify-between">
+                     <div>
+                       <CardTitle className="flex items-center space-x-2">
+                         <FileText className="w-5 h-5 text-orange-600" />
+                         <span>Setup Kelola Dokumen GCG</span>
+                       </CardTitle>
+                       <CardDescription>
+                         Setup dokumen GCG dan aspek untuk tahun buku baru dengan tabel inline editing
+                       </CardDescription>
+                     </div>
+                     <ExportDatabaseButton year={selectedYear} />
+                   </div>
                  </CardHeader>
                  <CardContent className="space-y-6">
                                                            {/* Quick Actions */}

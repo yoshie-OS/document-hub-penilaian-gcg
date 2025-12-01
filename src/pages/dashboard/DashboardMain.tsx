@@ -10,6 +10,7 @@ import MonthlyTrends from '@/components/dashboard/MonthlyTrends';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { useYear } from '@/contexts/YearContext';
 import { PageHeaderPanel } from '@/components/panels';
+import { DownloadAllDataButton } from '@/components/ExportButton';
 
 const DashboardMain = () => {
   const { isSidebarOpen } = useSidebar();
@@ -31,10 +32,13 @@ const DashboardMain = () => {
       `}>
         <div className="p-6">
           {/* Header */}
-          <PageHeaderPanel
-            title="Dashboard"
-            subtitle={selectedYear ? `Statistik GCG Document Hub - Tahun ${selectedYear}` : "Selamat datang di GCG Document Hub"}
-          />
+          <div className="flex items-center justify-between mb-6">
+            <PageHeaderPanel
+              title="Dashboard"
+              subtitle={selectedYear ? `Statistik GCG Document Hub - Tahun ${selectedYear}` : "Selamat datang di GCG Document Hub"}
+            />
+            {selectedYear && <DownloadAllDataButton year={selectedYear} />}
+          </div>
 
           {/* Year Selector */}
           <div id="year-selector">

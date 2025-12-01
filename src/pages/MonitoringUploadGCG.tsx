@@ -24,6 +24,7 @@ import FileUploadDialog from '@/components/dashboard/FileUploadDialog';
 import { YearSelectorPanel, PageHeaderPanel, FormDialog, ConfirmDialog, IconButton } from '@/components/panels';
 import YearStatisticsPanel from '@/components/dashboard/YearStatisticsPanel';
 import { OverviewTab, KelolaAspekTab, KelolaDokumenTab } from '@/components/monitoring';
+import { DownloadChecklistButton } from '@/components/ExportButton';
 import { 
   FileText, 
   CheckCircle, 
@@ -679,18 +680,21 @@ const MonitoringUploadGCG = () => {
       `}>
         <div className="p-6">
           {/* Enhanced Header */}
-          <PageHeaderPanel
-            title="Monitoring & Upload GCG"
-                          subtitle="Monitoring dan pengelolaan dokumen GCG berdasarkan tahun buku"
-            badge={{ text: selectedYear.toString(), variant: "default" }}
-            actions={[
-              {
-                label: "Upload Dokumen",
-                onClick: () => setIsUploadDialogOpen(true),
-                icon: <Upload className="w-4 h-4" />
-              }
-            ]}
-          />
+          <div className="flex items-center justify-between mb-6">
+            <PageHeaderPanel
+              title="Monitoring & Upload GCG"
+              subtitle="Monitoring dan pengelolaan dokumen GCG berdasarkan tahun buku"
+              badge={{ text: selectedYear.toString(), variant: "default" }}
+              actions={[
+                {
+                  label: "Upload Dokumen",
+                  onClick: () => setIsUploadDialogOpen(true),
+                  icon: <Upload className="w-4 h-4" />
+                }
+              ]}
+            />
+            <DownloadChecklistButton year={selectedYear} />
+          </div>
 
           {/* Enhanced Year Selection */}
           <YearSelectorPanel

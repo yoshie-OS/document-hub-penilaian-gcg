@@ -23,6 +23,8 @@ import DashboardAdmin from './pages/admin/DashboardAdmin';
 import KelolaAkun from './pages/admin/KelolaAkun';
 import MetaData from './pages/admin/MetaData';
 import PengaturanBaru from './pages/admin/PengaturanBaru';
+import PerformaGCG from './pages/PerformaGCG';
+import ExportPage from './pages/ExportPage';
 import NotFound from './pages/NotFound';
 import { useUser } from './contexts/UserContext';
 
@@ -104,20 +106,23 @@ const AppRoutes = () => {
           </SuperAdminRoute>
         } 
       />
-      <Route 
-        path="/performa-gcg" 
+      <Route
+        path="/performa-gcg"
         element={
-          <SuperAdminRoute>
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-              <div className="text-center">
-                <h1 className="text-2xl font-bold text-gray-900 mb-4">Performa GCG</h1>
-                <p className="text-gray-600">Halaman performa GCG akan dikembangkan selanjutnya</p>
-              </div>
-            </div>
-          </SuperAdminRoute>
-        } 
+          <ProtectedRoute>
+            <PerformaGCG />
+          </ProtectedRoute>
+        }
       />
-      
+      <Route
+        path="/export"
+        element={
+          <ProtectedRoute>
+            <ExportPage />
+          </ProtectedRoute>
+        }
+      />
+
       {/* Super Admin Routes */}
       <Route 
         path="/admin" 

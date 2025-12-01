@@ -27,9 +27,12 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
   // Inisialisasi user dari localStorage atau seed
   useEffect(() => {
-    // Selalu update dengan data seed terbaru
-    localStorage.setItem("users", JSON.stringify(seedUser));
-    
+    // Only seed users if they don't exist (first time setup)
+    const existingUsers = localStorage.getItem("users");
+    if (!existingUsers) {
+      localStorage.setItem("users", JSON.stringify(seedUser));
+    }
+
     const currentUser = localStorage.getItem("currentUser");
     if (currentUser) {
       setUser(JSON.parse(currentUser));

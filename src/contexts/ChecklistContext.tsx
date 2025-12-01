@@ -1,5 +1,7 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from "react";
 import { seedChecklistGCG } from "@/lib/seed/seedChecklistGCG";
+
+const API_BASE_URL = 'http://localhost:5000/api';
 
 export interface ChecklistGCG {
   id: number;
@@ -25,123 +27,170 @@ const ChecklistContext = createContext<ChecklistContextType | undefined>(undefin
 
 export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
   const [checklist, setChecklist] = useState<ChecklistGCG[]>([]);
+  const isMigratingRef = useRef(false);
+  const hasFetchedRef = useRef(false);
+
+  // Fetch from API
+  const fetchChecklist = useCallback(async () => {
+    if (hasFetchedRef.current) return; // Prevent multiple fetches
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/checklist`);
+      if (response.ok) {
+        const data = await response.json();
+        setChecklist(data);
+        hasFetchedRef.current = true;
+        console.log(`✅ Loaded ${data.length} items from database`);
+      } else {
+        console.error('Failed to fetch checklist, status:', response.status);
+      }
+    } catch (error) {
+      console.error('Error fetching checklist:', error);
+    }
+  }, []);
+
+  // Auto-migrate localStorage to SQLite on first load
+  const migrateFromLocalStorage = useCallback(async () => {
+    if (isMigratingRef.current) return; // Prevent duplicate migration
+
+    const alreadyMigrated = localStorage.getItem('checklistMigrated');
+    if (alreadyMigrated === 'true') {
+      console.log('✅ Already migrated, loading from database...');
+      await fetchChecklist();
+      return;
+    }
+
+    const localData = localStorage.getItem("checklistGCG");
+    if (!localData) {
+      console.log('📦 No localStorage data to migrate, using database seed');
+      await fetchChecklist();
+      localStorage.setItem('checklistMigrated', 'true');
+      return;
+    }
+
+    isMigratingRef.current = true;
+
+    try {
+      const items = JSON.parse(localData);
+      console.log(`🔄 Migrating ${items.length} checklist items to SQLite...`);
+
+      for (const item of items) {
+        await fetch(`${API_BASE_URL}/checklist`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            aspek: item.aspek,
+            deskripsi: item.deskripsi,
+            tahun: item.tahun || 2024
+          })
+        });
+      }
+
+      console.log('✅ Migration complete! Backing up localStorage...');
+      localStorage.setItem('checklistGCG_backup', localData);
+      localStorage.setItem('checklistMigrated', 'true');
+
+      await fetchChecklist();
+    } catch (error) {
+      console.error('❌ Migration error:', error);
+      isMigratingRef.current = false;
+    }
+  }, [fetchChecklist]);
 
   // Function to ensure all years have checklist data
-  const ensureAllYearsHaveData = useCallback(() => {
-    const currentYear = new Date().getFullYear();
-    const allYears = [];
-    for (let year = currentYear; year >= 2014; year--) {
-      allYears.push(year);
-    }
-    
-    setChecklist(prevChecklist => {
-      let hasChanges = false;
-      const updatedChecklist = [...prevChecklist];
-      
-      allYears.forEach(year => {
-        const existingData = prevChecklist.filter(item => item.tahun === year);
-        if (existingData.length === 0) {
-          const yearData = seedChecklistGCG.map(item => ({ ...item, tahun: year }));
-          updatedChecklist.push(...yearData);
-          hasChanges = true;
-        }
-      });
-      
-      if (hasChanges) {
-        localStorage.setItem("checklistGCG", JSON.stringify(updatedChecklist));
-        return updatedChecklist;
-      }
-      return prevChecklist;
-    });
-  }, []);
+  const ensureAllYearsHaveData = useCallback(async () => {
+    await fetchChecklist();
+  }, [fetchChecklist]);
 
   useEffect(() => {
-    const data = JSON.parse(localStorage.getItem("checklistGCG") || "null");
-    if (!data) {
-      // Initialize with default data for all available years (2014 to current year)
-      const currentYear = new Date().getFullYear();
-      const allYears = [];
-      for (let year = currentYear; year >= 2014; year--) {
-        allYears.push(year);
-      }
-      
-      const defaultData = [];
-      allYears.forEach(year => {
-        const yearData = seedChecklistGCG.map(item => ({ ...item, tahun: year }));
-        defaultData.push(...yearData);
-      });
-      
-      localStorage.setItem("checklistGCG", JSON.stringify(defaultData));
-      setChecklist(defaultData);
-    } else {
-      setChecklist(data);
-      // Ensure all years have data even if some are missing
-      setTimeout(() => {
-        ensureAllYearsHaveData();
-      }, 100);
-    }
-  }, []);
+    // Skip migration for now - just load from database
+    console.log('📦 Loading checklist from SQLite database...');
+    fetchChecklist();
+  }, []); // Empty deps - only run once on mount
 
   const getChecklistByYear = (year: number): ChecklistGCG[] => {
     return checklist.filter(item => item.tahun === year);
   };
 
-  const initializeYearData = (year: number) => {
+  const refetch = async () => {
+    hasFetchedRef.current = false;
+    await fetchChecklist();
+  };
+
+  const initializeYearData = async (year: number) => {
     const existingData = checklist.filter(item => item.tahun === year);
     if (existingData.length === 0) {
-      // Initialize with default data for the new year
       const defaultData = seedChecklistGCG.map(item => ({ ...item, tahun: year }));
-      const updated = [...checklist, ...defaultData];
-      setChecklist(updated);
-      localStorage.setItem("checklistGCG", JSON.stringify(updated));
+      for (const item of defaultData) {
+        await fetch(`${API_BASE_URL}/checklist`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ aspek: item.aspek, deskripsi: item.deskripsi, tahun: year })
+        });
+      }
+      await refetch();
     }
   };
 
-  const addChecklist = (aspek: string, deskripsi: string, year: number) => {
-    const newChecklist = { id: Date.now(), aspek, deskripsi, tahun: year };
-    const updated = [...checklist, newChecklist];
-    setChecklist(updated);
-    localStorage.setItem("checklistGCG", JSON.stringify(updated));
+  const addChecklist = async (aspek: string, deskripsi: string, year: number) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/checklist`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ aspek, deskripsi, tahun: year })
+      });
+      if (response.ok) {
+        await refetch();
+      }
+    } catch (error) {
+      console.error('Error adding checklist:', error);
+    }
   };
 
-  const editChecklist = (id: number, aspek: string, deskripsi: string, year: number) => {
-    const updated = checklist.map((c) => (c.id === id ? { ...c, aspek, deskripsi, tahun: year } : c));
-    setChecklist(updated);
-    localStorage.setItem("checklistGCG", JSON.stringify(updated));
+  const editChecklist = async (id: number, aspek: string, deskripsi: string, year: number) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/checklist/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ aspek, deskripsi, tahun: year })
+      });
+      if (response.ok) {
+        await refetch();
+      }
+    } catch (error) {
+      console.error('Error editing checklist:', error);
+    }
   };
 
-  const deleteChecklist = (id: number, year: number) => {
-    const updated = checklist.filter((c) => c.id !== id);
-    setChecklist(updated);
-    localStorage.setItem("checklistGCG", JSON.stringify(updated));
+  const deleteChecklist = async (id: number, year: number) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/checklist/${id}`, {
+        method: 'DELETE'
+      });
+      if (response.ok) {
+        await refetch();
+      }
+    } catch (error) {
+      console.error('Error deleting checklist:', error);
+    }
   };
 
-  const addAspek = (aspek: string, year: number) => {
-    const newChecklist = { 
-      id: Date.now(), 
-      aspek, 
-      deskripsi: `Item dokumen GCG untuk ${aspek}`, 
-      tahun: year 
-    };
-    const updated = [...checklist, newChecklist];
-    setChecklist(updated);
-    localStorage.setItem("checklistGCG", JSON.stringify(updated));
+  const addAspek = async (aspek: string, year: number) => {
+    await addChecklist(aspek, `Item dokumen GCG untuk ${aspek}`, year);
   };
 
-  const editAspek = (oldAspek: string, newAspek: string, year: number) => {
-    const updated = checklist.map((c) => 
-      c.aspek === oldAspek && c.tahun === year 
-        ? { ...c, aspek: newAspek } 
-        : c
-    );
-    setChecklist(updated);
-    localStorage.setItem("checklistGCG", JSON.stringify(updated));
+  const editAspek = async (oldAspek: string, newAspek: string, year: number) => {
+    const itemsToUpdate = checklist.filter(c => c.aspek === oldAspek && c.tahun === year);
+    for (const item of itemsToUpdate) {
+      await editChecklist(item.id, newAspek, item.deskripsi, year);
+    }
   };
 
-  const deleteAspek = (aspek: string, year: number) => {
-    const updated = checklist.filter((c) => !(c.aspek === aspek && c.tahun === year));
-    setChecklist(updated);
-    localStorage.setItem("checklistGCG", JSON.stringify(updated));
+  const deleteAspek = async (aspek: string, year: number) => {
+    const itemsToDelete = checklist.filter(c => c.aspek === aspek && c.tahun === year);
+    for (const item of itemsToDelete) {
+      await deleteChecklist(item.id, year);
+    }
   };
 
   return (

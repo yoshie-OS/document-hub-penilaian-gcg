@@ -137,10 +137,10 @@ const DashboardStats = () => {
     created(slider) {
       slider.moveToIdx(0, true);
     },
-    updated(slider) {
-      // Force recalculation on window resize or sidebar toggle
-      slider.update();
-    }
+    // Commented out - causes infinite recursion
+    // updated(slider) {
+    //   slider.update();
+    // }
   }, [autoplayPlugin]);
 
   // Update slider when sidebar state changes
