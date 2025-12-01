@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useUser } from '@/contexts/UserContext';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { Badge } from '@/components/ui/badge';
+import { ExportModal } from '@/components/ExportModal';
 import {
   LayoutDashboard,
   Shield,
@@ -18,7 +19,8 @@ import {
   ChevronDown,
   ChevronRight,
   Calendar,
-  Users
+  Users,
+  Download
 } from 'lucide-react';
 
 interface MenuItem {
@@ -42,6 +44,7 @@ const Sidebar = () => {
   const { user, logout } = useUser();
   const { isSidebarOpen, closeSidebar } = useSidebar();
   const [expandedMenus, setExpandedMenus] = useState<Set<string>>(new Set(['Pengaturan']));
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   const menuItems: MenuItem[] = [];
 
@@ -345,6 +348,19 @@ const Sidebar = () => {
           </div>
         </nav>
 
+        {/* Export Button (for superadmin only) */}
+        {user?.role === 'superadmin' && (
+          <div className="absolute bottom-20 left-4 right-4">
+            <button
+              onClick={() => setIsExportModalOpen(true)}
+              className="w-full flex items-center space-x-3 px-4 py-3 text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg transition-all duration-200 border border-gray-700"
+            >
+              <Download className="w-5 h-5" />
+              <span className="font-medium">Export Data</span>
+            </button>
+          </div>
+        )}
+
         {/* Logout Button */}
         <div className="absolute bottom-6 left-4 right-4">
           <button
@@ -356,6 +372,9 @@ const Sidebar = () => {
           </button>
         </div>
       </div>
+
+      {/* Export Modal */}
+      <ExportModal open={isExportModalOpen} onOpenChange={setIsExportModalOpen} />
     </>
   );
 };
