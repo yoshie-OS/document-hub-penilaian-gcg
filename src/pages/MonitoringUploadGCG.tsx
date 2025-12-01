@@ -1,263 +1,279 @@
-import React, { useState, useMemo, useEffect, useCallback, memo, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import Sidebar from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-import { useChecklist, ChecklistGCG } from '@/contexts/ChecklistContext';
+import { useChecklist } from '@/contexts/ChecklistContext';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { useDocumentMetadata } from '@/contexts/DocumentMetadataContext';
 import { useFileUpload } from '@/contexts/FileUploadContext';
 import { useYear } from '@/contexts/YearContext';
 import { useUser } from '@/contexts/UserContext';
+import { useStrukturPerusahaan } from '@/contexts/StrukturPerusahaanContext';
+
 import { useToast } from '@/hooks/use-toast';
-import FileUploadDialog from '@/components/dashboard/FileUploadDialog';
-import { YearSelectorPanel, PageHeaderPanel, FormDialog, ConfirmDialog, IconButton } from '@/components/panels';
-import YearStatisticsPanel from '@/components/dashboard/YearStatisticsPanel';
-import { OverviewTab, KelolaAspekTab, KelolaDokumenTab } from '@/components/monitoring';
-import { 
-  FileText, 
-  CheckCircle, 
-  Clock, 
-  Upload, 
+import { AdminUploadDialog } from '@/components/dialogs';
+import { PageHeaderPanel } from '@/components/panels';
+
+import {
+  FileText,
+  CheckCircle,
+  Clock,
+  Upload,
   Filter,
   Eye,
-  Calendar,
   TrendingUp,
-  AlertCircle,
-  RotateCcw,
   Search,
-  BookOpen,
-  Zap,
-  Plus,
   Download,
-  Edit,
+  Plus,
+  User,
+  Loader2,
+  RefreshCw,
   Trash2,
-  Settings,
-  List,
+  BarChart3,
+  AlertCircle,
+  Calendar,
+  Replace,
+  X,
+  ChevronDown,
 } from 'lucide-react';
 
-
-
-interface ChecklistAssignment {
-  id: number;
-  checklistId: number;
-  subdirektorat: string;
-  aspek: string;
-  deskripsi: string;
-  tahun: number;
-  assignedBy: string;
-  assignedAt: Date;
-  status: 'assigned' | 'in_progress' | 'completed';
-  notes?: string;
-}
-
-// Data subdirektorat yang dioptimasi - dipindah ke luar komponen
-const SUBDIREKTORAT_OPTIONS = [
-  { value: "Sub Direktorat Government and Corporate Business", label: "Government & Corporate Business" },
-  { value: "Sub Direktorat Consumer Business", label: "Consumer Business" },
-  { value: "Sub Direktorat Enterprise Business", label: "Enterprise Business" },
-  { value: "Sub Direktorat Retail Business", label: "Retail Business" },
-  { value: "Sub Direktorat Wholesale and International Business", label: "Wholesale & International Business" },
-  { value: "Sub Direktorat Courier and Logistic Operation", label: "Courier & Logistic Operation" },
-  { value: "Sub Direktorat International Post Services", label: "International Post Services" },
-  { value: "Sub Direktorat Digital Services", label: "Digital Services" },
-  { value: "Sub Direktorat Frontino Management and Financial Transaction Services", label: "Frontino Management & Financial Transaction" },
-  { value: "Sub Direktorat Financial Operation and Business Partner", label: "Financial Operation & Business Partner" },
-  { value: "Sub Direktorat Financial Policy and Asset Management", label: "Financial Policy & Asset Management" },
-  { value: "Sub Direktorat Risk Management", label: "Risk Management" },
-  { value: "Sub Direktorat Human Capital Policy and Strategy", label: "Human Capital Policy & Strategy" },
-  { value: "Sub Direktorat Human Capital Service and Business Partner", label: "Human Capital Service & Business Partner" },
-  { value: "Sub Direktorat Strategic Planning and Business Development", label: "Strategic Planning & Business Development" },
-  { value: "Sub Direktorat Portfolio Management", label: "Portfolio Management" }
-];
-
-// Komponen Assignment Dropdown yang dioptimasi dengan button sederhana
-const AssignmentDropdown = memo(({ 
-  item, 
-  onAssign, 
-  isSuperAdmin,
-  currentAssignmentLabel
-}: { 
-  item: { id: number; aspek: string; deskripsi: string }; 
-  onAssign: (checklistId: number, subdirektorat: string, aspek: string, deskripsi: string) => void;
-  isSuperAdmin: boolean;
-  currentAssignmentLabel?: string | null;
-}) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  const handleAssign = useCallback(async (value: string) => {
-    setIsLoading(true);
-    try {
-      // Simulate async operation untuk menghindari lag
-      await new Promise(resolve => setTimeout(resolve, 10));
-      onAssign(item.id, value, item.aspek, item.deskripsi);
-      setIsOpen(false);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [item, onAssign]);
-
-  // Memoize dropdown options untuk performa
-  const dropdownOptions = useMemo(() => (
-    SUBDIREKTORAT_OPTIONS.map((option) => (
-      <button
-        key={option.value}
-        onClick={() => handleAssign(option.value)}
-        disabled={isLoading}
-        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {option.label}
-      </button>
-    ))
-  ), [handleAssign, isLoading]);
-
-  // Handle click outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isOpen]);
-
-  if (!isSuperAdmin) return null;
-
-  return (
-    <div className="relative" ref={dropdownRef}>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => setIsOpen(!isOpen)}
-        disabled={isLoading}
-        className={`w-56 justify-between disabled:opacity-50 ${currentAssignmentLabel ? 'border-blue-300 bg-blue-50 text-blue-700' : ''}`}
-      >
-        <span className="truncate text-left">
-          {isLoading 
-            ? 'Assigning...'
-            : currentAssignmentLabel 
-              ? `Assigned: ${currentAssignmentLabel}`
-              : 'Assign ke Subdirektorat'}
-        </span>
-        <svg
-          className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </Button>
-      
-      {isOpen && (
-        <div className="absolute z-50 mt-1 w-56 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
-          <div className="py-1">
-            {dropdownOptions}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-});
-
-AssignmentDropdown.displayName = 'AssignmentDropdown';
-
-
-
 const MonitoringUploadGCG = () => {
+  console.log('🔍 MonitoringUploadGCG component rendering...');
+  
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { 
     checklist, 
-    ensureAllYearsHaveData, 
-    addChecklist, 
-    editChecklist, 
-    deleteChecklist,
-    addAspek,
-    editAspek,
-    deleteAspek
+    ensureAllYearsHaveData
   } = useChecklist();
   const { documents, getDocumentsByYear } = useDocumentMetadata();
-  const { getYearStats, getFilesByYear } = useFileUpload();
+  const { getFilesByYear, refreshFiles } = useFileUpload();
   const { isSidebarOpen } = useSidebar();
   const { selectedYear, setSelectedYear } = useYear();
-  const { toast } = useToast();
   const { user } = useUser();
+  const { toast } = useToast();
+  const { subdirektorat: strukturSubdirektorat, divisi: strukturDivisi } = useStrukturPerusahaan();
+
+  console.log('🔍 Context data loaded:', {
+    checklistLength: checklist?.length || 0,
+    documentsLength: documents?.length || 0,
+    selectedYear,
+    user: user?.name || 'Unknown'
+  });
+
   const [selectedAspek, setSelectedAspek] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [selectedPIC, setSelectedPIC] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>('');
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
+
+  // State untuk PIC filter dropdown
+  const [isPICDropdownOpen, setIsPICDropdownOpen] = useState(false);
+  const [picFilterType, setPicFilterType] = useState<'divisi' | 'subdirektorat'>('divisi');
+  const [picSearchTerm, setPicSearchTerm] = useState<string>('');
   const [selectedChecklistItem, setSelectedChecklistItem] = useState<{
     id: number;
     aspek: string;
     deskripsi: string;
+    rowNumber?: number;
+    pic?: string;
   } | null>(null);
+  // Force re-render state untuk memastikan data terupdate
+  const [forceUpdate, setForceUpdate] = useState(0);
   
-  // State untuk assignment dokumen GCG
-  const [assignments, setAssignments] = useState<ChecklistAssignment[]>([]);
-
-  // Load assignments from localStorage on mount
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem('checklistAssignments');
-      if (stored) {
-        const parsed = JSON.parse(stored) as ChecklistAssignment[];
-        setAssignments(parsed);
-      }
-    } catch (err) {
-      console.error('Failed to load checklistAssignments from localStorage', err);
-    }
-  }, []);
   
-  // State untuk tab
-  const [activeTab, setActiveTab] = useState<'rekap' | 'kelola-aspek' | 'kelola-dokumen'>('rekap');
+  // State to track actual file existence from Supabase
+  const [supabaseFileStatus, setSupabaseFileStatus] = useState<{[key: string]: boolean}>({});
+  // State to store file information from Supabase
+  const [supabaseFileInfo, setSupabaseFileInfo] = useState<{[key: string]: any}>({});
+  // State to track which files are being checked for loading spinners
+  const [fileStatusLoading, setFileStatusLoading] = useState<boolean>(false);
+  // State to track individual items being checked
+  const [itemsBeingChecked, setItemsBeingChecked] = useState<Set<number>>(new Set());
+  // State to track batch progress
+  const [batchProgress, setBatchProgress] = useState<{current: number, total: number} | null>(null);
+  // State to track refresh/rescan progress
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   
-  // State untuk kelola aspek
-  const [isAddAspekDialogOpen, setIsAddAspekDialogOpen] = useState(false);
-  const [isEditAspekDialogOpen, setIsEditAspekDialogOpen] = useState(false);
-  const [selectedAspekForEdit, setSelectedAspekForEdit] = useState<string>('');
-  const [aspekForm, setAspekForm] = useState({
-    nama: '',
-    deskripsi: ''
-  });
   
-  // State untuk kelola dokumen
-  const [isAddChecklistDialogOpen, setIsAddChecklistDialogOpen] = useState(false);
-  const [isEditChecklistDialogOpen, setIsEditChecklistDialogOpen] = useState(false);
-  const [selectedChecklistForEdit, setSelectedChecklistForEdit] = useState<ChecklistGCG | null>(null);
-  const [checklistForm, setChecklistForm] = useState({
-    aspek: '',
-    deskripsi: ''
-  });
-  const [selectedAspekForChecklist, setSelectedAspekForChecklist] = useState<string>('all');
-  const [searchTermChecklist, setSearchTermChecklist] = useState<string>('');
-
-
 
   // Ensure all years have dokumen GCG data when component mounts
   useEffect(() => {
     ensureAllYearsHaveData();
   }, [ensureAllYearsHaveData]);
+
+  // Close PIC dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (isPICDropdownOpen && !target.closest('[data-pic-dropdown]')) {
+        setIsPICDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isPICDropdownOpen]);
+
+  // Listen for real-time updates from PengaturanBaru and FileUploadDialog
+  useEffect(() => {
+    const handleChecklistUpdate = (event: CustomEvent) => {
+      if (event.detail?.type === 'checklistUpdated') {
+        console.log('MonitoringUploadGCG: Received checklist update from PengaturanBaru', event.detail.data);
+        // Force re-render using setSelectedYear like admin dashboard
+        if (selectedYear) {
+          setTimeout(() => {
+            setSelectedYear(selectedYear);
+          }, 100);
+        }
+      }
+    };
+
+    const handleAspectsUpdate = (event: CustomEvent) => {
+      if (event.detail?.type === 'aspectsUpdated') {
+        console.log('MonitoringUploadGCG: Received aspects update from PengaturanBaru', event.detail.data);
+        // Force re-render using setSelectedYear like admin dashboard
+        if (selectedYear) {
+          setTimeout(() => {
+            setSelectedYear(selectedYear);
+          }, 100);
+        }
+      }
+    };
+
+    // Listen for file upload events from FileUploadDialog
+    const handleFileUploaded = (event: CustomEvent) => {
+      console.log('MonitoringUploadGCG: Received fileUploaded event from FileUploadDialog');
+      
+      // If we have specific upload details, rescan only that row
+      const uploadDetails = event.detail;
+      if (uploadDetails?.checklistId && uploadDetails?.rowNumber) {
+        setTimeout(() => {
+          rescanSingleRow(uploadDetails.checklistId, uploadDetails.rowNumber);
+        }, 1000); // Wait a bit for Supabase to sync
+      } else {
+        // Fallback: full rescan if no specific details
+        setTimeout(() => {
+          checkSupabaseFileStatus();
+        }, 1000);
+      }
+      
+      // Force re-render using setSelectedYear like admin dashboard
+      if (selectedYear) {
+        setTimeout(() => {
+          setSelectedYear(selectedYear);
+        }, 100);
+      }
+    };
+
+    const handleDocumentsUpdated = async (event: CustomEvent) => {
+      console.log('MonitoringUploadGCG: Received documentsUpdated event', event.detail);
+
+      // Skip full refresh if this is triggered by delete - state already cleared
+      if (event.detail?.type === 'documentsUpdated' && event.detail?.skipRefresh) {
+        console.log('MonitoringUploadGCG: Skipping refresh (delete operation)');
+        return;
+      }
+
+      // Refresh files and checklist status
+      try {
+        await refreshFiles();
+        // Only check supabase status if not a delete event (delete already handled by uploadedFilesChanged)
+        console.log('✅ MonitoringUploadGCG: Data refreshed after documentsUpdated');
+      } catch (error) {
+        console.error('❌ MonitoringUploadGCG: Error refreshing after documentsUpdated:', error);
+      }
+    };
+
+    const handleUploadedFilesChanged = async (event: CustomEvent) => {
+      console.log('MonitoringUploadGCG: Received uploadedFilesChanged event', event.detail);
+
+      // If file was deleted, immediately mark as NOT existing
+      // and DO NOT call checkSupabaseFileStatus to avoid race condition
+      if (event.detail?.type === 'fileDeleted' && event.detail?.checklistId) {
+        const checklistId = event.detail.checklistId;
+        console.log('🧹 MonitoringUploadGCG: Marking deleted checklistId as false:', checklistId);
+        setSupabaseFileStatus(prev => ({
+          ...prev,
+          [checklistId.toString()]: false  // Explicitly mark as not existing
+        }));
+        setSupabaseFileInfo(prev => {
+          const newInfo = { ...prev };
+          delete newInfo[checklistId.toString()];  // Remove file info
+          return newInfo;
+        });
+      }
+
+      // For delete events, just force UI update - don't refresh from backend
+      // This prevents race condition where backend data isn't updated yet
+      if (event.detail?.type === 'fileDeleted') {
+        setForceUpdate(prev => prev + 1);
+        console.log('✅ MonitoringUploadGCG: UI updated after delete (no backend refresh)');
+        return;
+      }
+
+      // For other events (upload), refresh from backend
+      try {
+        await refreshFiles();
+        setForceUpdate(prev => prev + 1);
+        console.log('✅ MonitoringUploadGCG: Data refreshed after uploadedFilesChanged');
+      } catch (error) {
+        console.error('❌ MonitoringUploadGCG: Error refreshing after uploadedFilesChanged:', error);
+      }
+    };
+
+    const handleAssignmentsUpdated = () => {
+      console.log('MonitoringUploadGCG: Received assignmentsUpdated event from FileUploadDialog');
+      // Force re-render using setSelectedYear like admin dashboard
+      setForceUpdate(prev => prev + 1);
+    };
+
+    const handleChecklistAssignmentsChanged = () => {
+      console.log('MonitoringUploadGCG: Received checklistAssignmentsChanged event from FileUploadDialog');
+      // Force re-render using setSelectedYear like admin dashboard
+      setForceUpdate(prev => prev + 1);
+    };
+
+    // Listen for localStorage changes
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === 'uploadedFiles' || event.key === 'checklistAssignments') {
+        console.log('MonitoringUploadGCG: Detected localStorage change:', event.key);
+        // Force re-render using setSelectedYear like admin dashboard
+        if (selectedYear) {
+          setTimeout(() => {
+            setSelectedYear(selectedYear);
+          }, 100);
+        }
+      }
+    };
+
+    window.addEventListener('checklistUpdated', handleChecklistUpdate as EventListener);
+    window.addEventListener('aspectsUpdated', handleAspectsUpdate as EventListener);
+    window.addEventListener('fileUploaded', handleFileUploaded);
+    window.addEventListener('documentsUpdated', handleDocumentsUpdated);
+    window.addEventListener('uploadedFilesChanged', handleUploadedFilesChanged);
+    window.addEventListener('assignmentsUpdated', handleAssignmentsUpdated);
+    window.addEventListener('checklistAssignmentsChanged', handleChecklistAssignmentsChanged);
+    window.addEventListener('storage', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('checklistUpdated', handleChecklistUpdate as EventListener);
+      window.removeEventListener('aspectsUpdated', handleAspectsUpdate as EventListener);
+      window.removeEventListener('fileUploaded', handleFileUploaded);
+      window.removeEventListener('documentsUpdated', handleDocumentsUpdated);
+      window.removeEventListener('uploadedFilesChanged', handleUploadedFilesChanged);
+      window.removeEventListener('assignmentsUpdated', handleAssignmentsUpdated);
+      window.removeEventListener('checklistAssignmentsChanged', handleChecklistAssignmentsChanged);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [selectedYear]);
 
   // Auto-set filters from URL parameters
   useEffect(() => {
@@ -296,50 +312,332 @@ const MonitoringUploadGCG = () => {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
+  // Polling untuk memastikan data terupdate dari localStorage
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Check if localStorage has been updated
+      const storedData = localStorage.getItem("checklistGCG");
+      if (storedData) {
+        try {
+          const parsedData = JSON.parse(storedData);
+          if (Array.isArray(parsedData) && parsedData.length !== checklist.length) {
+            console.log('MonitoringUploadGCG: Detected localStorage change, updating...', {
+              stored: parsedData.length,
+              current: checklist.length
+            });
+            // Force re-render using setSelectedYear like admin dashboard
+            if (selectedYear) {
+              setTimeout(() => {
+                setSelectedYear(selectedYear);
+              }, 100);
+            }
+          }
+        } catch (error) {
+          console.error('MonitoringUploadGCG: Error parsing localStorage data', error);
+        }
+      }
+    }, 2000); // Check every 2 seconds
+
+    return () => clearInterval(interval);
+  }, [checklist.length]);
+
   // Use years from global context
   const { availableYears } = useYear();
   const years = availableYears;
 
   // Get unique aspects for selected year
   const aspects = useMemo(() => {
+    if (!selectedYear) return [];
     const yearChecklist = checklist.filter(item => item.tahun === selectedYear);
-    return [...new Set(yearChecklist.map(item => item.aspek))];
+    const uniqueAspects = [...new Set(yearChecklist.map(item => item.aspek || 'Dokumen Tanpa Aspek'))];
+    return uniqueAspects;
   }, [checklist, selectedYear]);
 
-  // Ringkasan assignment per subdirektorat (Breakdown Penugasan)
-  const assignmentSummary = useMemo(() => {
-    const yearAssignments = assignments.filter(a => a.tahun === selectedYear);
-    if (yearAssignments.length === 0) return [] as Array<{ sub: string; display: string; total: number; completed: number; percent: number }>;
-    const bySub: Record<string, number[]> = {};
-    yearAssignments.forEach(a => {
-      if (!bySub[a.subdirektorat]) bySub[a.subdirektorat] = [];
-      bySub[a.subdirektorat].push(a.checklistId);
-    });
-    const yearFiles = getFilesByYear(selectedYear);
-    const isChecklistUploadedId = (checklistId: number) => yearFiles.some(f => f.checklistId === checklistId);
-    const clean = (name: string) => name.replace(/^\s*Sub\s*Direktorat\s*/i, '').trim();
-    return Object.entries(bySub).map(([sub, checklistIds]) => {
-      const total = checklistIds.length;
-      const completed = checklistIds.filter(id => isChecklistUploadedId(id)).length;
-      const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
-      return { sub, display: clean(sub), total, completed, percent };
-    }).sort((a, b) => a.display.localeCompare(b.display));
-  }, [assignments, selectedYear, getFilesByYear]);
+  // Get unique PIC values for filter (legacy - masih digunakan untuk filter logic)
+  const picValues = useMemo(() => {
+    if (!selectedYear) return [];
 
-  // Check if dokumen GCG item is uploaded - menggunakan data yang sama dengan DashboardStats
+    const yearChecklist = checklist.filter(item => item.tahun === selectedYear);
+    const allPICs = yearChecklist
+      .map(item => item.pic)
+      .filter(Boolean)
+      .filter(pic => pic.trim() !== '');
+
+    const uniquePICs = Array.from(new Set(allPICs)).sort();
+
+    return uniquePICs;
+  }, [selectedYear, checklist]);
+
+  // Get PIC options based on filter type (divisi/subdirektorat)
+  const picFilterOptions = useMemo(() => {
+    if (picFilterType === 'divisi') {
+      return strukturDivisi?.map(d => d.nama).filter(Boolean).sort() || [];
+    } else {
+      return strukturSubdirektorat?.map(s => s.nama).filter(Boolean).sort() || [];
+    }
+  }, [picFilterType, strukturDivisi, strukturSubdirektorat]);
+
+  // Filtered PIC options based on search
+  const filteredPicOptions = useMemo(() => {
+    if (!picSearchTerm.trim()) return picFilterOptions;
+    return picFilterOptions.filter(name =>
+      name.toLowerCase().includes(picSearchTerm.toLowerCase())
+    );
+  }, [picFilterOptions, picSearchTerm]);
+
+  // Check if dokumen GCG item is uploaded - now uses Supabase file status
   const isChecklistUploaded = useCallback((checklistId: number) => {
+    if (!selectedYear) return false;
+    
+    // Check Supabase file status first (authoritative)
+    const supabaseExists = supabaseFileStatus[checklistId.toString()] || false;
+    // Uncomment for detailed debugging:
+    // console.log('MonitoringUploadGCG: isChecklistUploaded called for checklistId:', checklistId, 'supabaseExists:', supabaseExists);
+    
+    if (supabaseExists) {
+      return true;
+    }
+    
+    // Fallback to localStorage for backward compatibility
     const yearFiles = getFilesByYear(selectedYear);
-    return yearFiles.some(file => file.checklistId === checklistId);
-  }, [getFilesByYear, selectedYear]);
+    const checklistIdInt = Math.floor(checklistId);
+    const localFileExists = yearFiles.some(file => file.checklistId === checklistIdInt);
+    // Uncomment for detailed debugging:
+    // console.log('MonitoringUploadGCG: localStorage fallback for checklistId:', checklistId, 'localFileExists:', localFileExists);
+    
+    return localFileExists;
+  }, [supabaseFileStatus, getFilesByYear, selectedYear]);
 
-  // Get uploaded document for dokumen GCG - menggunakan data yang sama dengan DashboardStats
+  // Get uploaded document for dokumen GCG - now uses Supabase file status with localStorage fallback
   const getUploadedDocument = useCallback((checklistId: number) => {
-    const yearFiles = getFilesByYear(selectedYear);
-    return yearFiles.find(file => file.checklistId === checklistId);
-  }, [getFilesByYear, selectedYear]);
+    if (!selectedYear) return null;
 
-  // Filter dokumen GCG berdasarkan aspek dan status - menggunakan data yang sama dengan DashboardStats
+    const checklistIdStr = checklistId.toString();
+
+    // Check if explicitly marked as NOT existing in Supabase (deleted or never uploaded)
+    if (checklistIdStr in supabaseFileStatus && !supabaseFileStatus[checklistIdStr]) {
+      // Explicitly marked as not existing - return null (no fallback)
+      return null;
+    }
+
+    // Check if file exists in Supabase with info
+    if (supabaseFileStatus[checklistIdStr] && supabaseFileInfo[checklistIdStr]) {
+      return supabaseFileInfo[checklistIdStr];
+    }
+
+    // Only fallback to context if we haven't explicitly checked this checklist yet
+    // (supabaseFileStatus doesn't have this key at all)
+    if (!(checklistIdStr in supabaseFileStatus)) {
+      const yearFiles = getFilesByYear(selectedYear);
+      const checklistIdInt = Math.floor(checklistId);
+      const foundFile = yearFiles.find(file => file.checklistId === checklistIdInt);
+      return foundFile;
+    }
+
+    // Default: no document found
+    return null;
+  }, [supabaseFileStatus, supabaseFileInfo, getFilesByYear, selectedYear]);
+
+  // Get assignment data for checklist item
+  const getAssignmentData = useCallback((checklistId: number) => {
+    if (!selectedYear) return null;
+    
+    const checklistItem = checklist.find(item => 
+      item.id === checklistId && item.tahun === selectedYear
+    );
+    
+    if (!checklistItem || !checklistItem.pic) return null;
+    
+    // Return simplified assignment data structure for backward compatibility
+    return {
+      checklistId: checklistId,
+      subdirektorat: checklistItem.pic,
+      divisi: checklistItem.pic, // For compatibility with existing code
+      assignmentType: 'subdirektorat',
+      tahun: selectedYear,
+      assignedAt: new Date().toISOString()
+    };
+  }, [selectedYear, checklist]);
+
+  // Function to check file existence from Supabase
+  const checkSupabaseFileStatus = useCallback(async () => {
+    if (!selectedYear || !checklist.length) return;
+
+    // Set loading state
+    setFileStatusLoading(true);
+    setBatchProgress(null);
+    
+    // Initialize all items as being checked
+    const allItemIds = new Set(checklist.map(item => item.id));
+    setItemsBeingChecked(allItemIds);
+
+    try {
+      // Group checklist items by PIC to minimize API calls
+      const itemsByPIC = new Map<string, Array<{id: number, rowNumber: number}>>();
+      
+      checklist
+        .filter(item => item.tahun === selectedYear)
+        .forEach((item, index) => {
+          // Get PIC from checklist item, fallback to current user's subdirektorat
+          const picName = item.pic || user?.subdirektorat || 'UNKNOWN_PIC';
+          
+          if (!itemsByPIC.has(picName)) {
+            itemsByPIC.set(picName, []);
+          }
+          itemsByPIC.get(picName)!.push({
+            id: item.id,
+            rowNumber: item.rowNumber || (index + 1) // Use stable rowNumber or fallback to index+1
+          });
+        });
+
+      console.log('MonitoringUploadGCG: Checking file status for PICs:', Array.from(itemsByPIC.keys()));
+
+      // Check files for each PIC in batches of 10
+      const newFileStatus: {[key: string]: boolean} = {};
+      const newFileInfo: {[key: string]: any} = {};
+      const BATCH_SIZE = 10;
+      
+      // Calculate total batches for progress tracking
+      let totalBatches = 0;
+      for (const [picName, items] of itemsByPIC) {
+        totalBatches += Math.ceil(items.length / BATCH_SIZE);
+      }
+      setBatchProgress({current: 0, total: totalBatches});
+      
+      let currentBatch = 0;
+      
+      for (const [picName, items] of itemsByPIC) {
+        // Split items into batches of 10
+        const batches = [];
+        for (let i = 0; i < items.length; i += BATCH_SIZE) {
+          batches.push(items.slice(i, i + BATCH_SIZE));
+        }
+        
+        console.log(`MonitoringUploadGCG: Processing ${items.length} files for ${picName} in ${batches.length} batches`);
+        
+        // Process each batch
+        for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+          const batch = batches[batchIndex];
+          currentBatch++;
+          setBatchProgress({current: currentBatch, total: totalBatches});
+          
+          console.log(`MonitoringUploadGCG: Processing batch ${batchIndex + 1}/${batches.length} for ${picName} (${batch.length} files) - Overall: ${currentBatch}/${totalBatches}`);
+          
+          try {
+            const requestBody = {
+              picName,
+              year: selectedYear,
+              checklistIds: batch.map(item => item.id)  // Use checklist IDs instead of row numbers
+            };
+            
+            const response = await fetch('http://localhost:5001/api/check-gcg-files', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(requestBody),
+            });
+
+            if (response.ok) {
+              const result = await response.json();
+              
+              // Create batch-specific updates
+              const batchFileStatus: {[key: string]: boolean} = {};
+              const batchFileInfo: {[key: string]: any} = {};
+              
+              // Map results back to checklist IDs
+              batch.forEach(item => {
+                const fileStatus = result.fileStatuses?.[item.id.toString()];
+                const fileExists = fileStatus?.exists || false;
+                batchFileStatus[item.id.toString()] = fileExists;
+                newFileStatus[item.id.toString()] = fileExists; // Keep for final state
+                
+                if (fileExists && fileStatus) {
+                  // Create file info object compatible with localStorage format
+                  const fileInfoObj = {
+                    id: fileStatus.id || `supabase_${item.id}`,  // Use real UUID from backend
+                    fileName: fileStatus.fileName,
+                    fileSize: fileStatus.size,
+                    uploadDate: new Date(fileStatus.lastModified),
+                    year: selectedYear,
+                    checklistId: item.id,
+                    status: 'uploaded',
+                    catatan: fileStatus.catatan || ''
+                  };
+                  batchFileInfo[item.id.toString()] = fileInfoObj;
+                  newFileInfo[item.id.toString()] = fileInfoObj; // Keep for final state
+                }
+                
+                console.log('MonitoringUploadGCG: Mapped file status - ID:', item.id, 'Row:', item.rowNumber, 'Exists:', fileExists);
+              });
+              
+              // Update state immediately after each batch for progressive loading
+              setSupabaseFileStatus(prev => ({...prev, ...batchFileStatus}));
+              setSupabaseFileInfo(prev => ({...prev, ...batchFileInfo}));
+              
+              // Remove processed items from being checked
+              setItemsBeingChecked(prev => {
+                const newSet = new Set(prev);
+                batch.forEach(item => newSet.delete(item.id));
+                return newSet;
+              });
+              
+            } else {
+              console.error(`MonitoringUploadGCG: API call failed for ${picName} batch ${batchIndex + 1} with status:`, response.status);
+            }
+          } catch (error) {
+            console.error(`Error checking files for PIC: ${picName} batch ${batchIndex + 1}`, error);
+            
+            // Create batch-specific error updates
+            const batchErrorStatus: {[key: string]: boolean} = {};
+            
+            // Set all items for this batch as not uploaded on error
+            batch.forEach(item => {
+              batchErrorStatus[item.id.toString()] = false;
+              newFileStatus[item.id.toString()] = false; // Keep for final state
+            });
+            
+            // Update state immediately for this batch
+            setSupabaseFileStatus(prev => ({...prev, ...batchErrorStatus}));
+            
+            // Remove processed items from being checked even on error
+            setItemsBeingChecked(prev => {
+              const newSet = new Set(prev);
+              batch.forEach(item => newSet.delete(item.id));
+              return newSet;
+            });
+          }
+          
+          // Small delay between batches to prevent overwhelming the server
+          if (batchIndex < batches.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+        }
+      }
+
+      // Final update (already done progressively above)
+      console.log('MonitoringUploadGCG: Batch processing complete - Total items:', Object.keys(newFileStatus).length, 'True values:', Object.values(newFileStatus).filter(Boolean).length);
+      console.log('MonitoringUploadGCG: Updated Supabase file info - Files with info:', Object.keys(newFileInfo).length);
+      
+    } catch (error) {
+      console.error('Error checking Supabase file status:', error);
+    } finally {
+      // Clear loading and progress states
+      setFileStatusLoading(false);
+      setBatchProgress(null);
+      setItemsBeingChecked(new Set()); // Clear all checking states
+    }
+  }, [selectedYear, checklist, getAssignmentData, user]);
+
+  // Check Supabase file status when year or checklist changes
+  useEffect(() => {
+    checkSupabaseFileStatus();
+  }, [checkSupabaseFileStatus]);
+
+  // Filter dokumen GCG berdasarkan aspek, status, dan PIC - menggunakan data yang sama dengan DashboardStats
   const filteredChecklist = useMemo(() => {
+    if (!selectedYear) return [];
+    
     const yearChecklist = checklist.filter(item => item.tahun === selectedYear);
     let filtered = yearChecklist.map(item => ({
       ...item,
@@ -347,11 +645,18 @@ const MonitoringUploadGCG = () => {
     }));
 
     if (selectedAspek !== 'all') {
-      filtered = filtered.filter(item => item.aspek === selectedAspek);
+      filtered = filtered.filter(item => (item.aspek || 'Dokumen Tanpa Aspek') === selectedAspek);
     }
 
     if (selectedStatus !== 'all') {
       filtered = filtered.filter(item => item.status === selectedStatus);
+    }
+
+    // Filter by PIC
+    if (selectedPIC !== 'all') {
+      filtered = filtered.filter(item => {
+        return item.pic === selectedPIC;
+      });
     }
 
     if (debouncedSearchTerm) {
@@ -361,14 +666,12 @@ const MonitoringUploadGCG = () => {
     }
 
     return filtered;
-  }, [checklist, selectedAspek, selectedStatus, selectedYear, debouncedSearchTerm, isChecklistUploaded]);
-
-
-
-
+  }, [checklist, selectedAspek, selectedStatus, selectedPIC, selectedYear, debouncedSearchTerm, isChecklistUploaded, getAssignmentData, forceUpdate, supabaseFileStatus, supabaseFileInfo]);
 
   // Navigate to dashboard with document highlight
   const handleViewDocument = useCallback((checklistId: number) => {
+    if (!selectedYear) return;
+    
     const uploadedFile = getUploadedDocument(checklistId);
     if (uploadedFile) {
       // Find the corresponding document in DocumentMetadata using fileName
@@ -387,46 +690,197 @@ const MonitoringUploadGCG = () => {
   }, [getUploadedDocument, documents, selectedYear, navigate]);
 
   // Handle download document
-  const handleDownloadDocument = useCallback((checklistId: number) => {
-    const uploadedDocument = getUploadedDocument(checklistId);
-    if (uploadedDocument) {
-      try {
-        // Create a blob from the file data (simulated for now)
-        const blob = new Blob(['Document content'], { type: 'application/pdf' });
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = uploadedDocument.fileName || `${uploadedDocument.fileName}.pdf`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-        
-        // Show success message
-        toast({
-          title: "Download berhasil",
-          description: `File ${uploadedDocument.fileName} berhasil diunduh`,
-        });
-      } catch (error) {
-        console.error('Download error:', error);
-        toast({
-          title: "Download gagal",
-          description: "Terjadi kesalahan saat mengunduh file",
-          variant: "destructive"
-        });
+  const handleDownloadDocument = useCallback(async (checklistId: number, rowNumber: number) => {
+    if (!selectedYear) return;
+    
+    try {
+      // Get PIC from checklist item, fallback to current user's subdirektorat  
+      const checklistItem = checklist.find(item => item.id === checklistId && item.tahun === selectedYear);
+      const picName = checklistItem?.pic || user?.subdirektorat || 'UNKNOWN_PIC';
+      
+      // Use fetch to download the file as a blob
+      const response = await fetch('http://localhost:5001/api/download-gcg-file', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          picName,
+          year: selectedYear,
+          rowNumber
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-    } else {
+
+      // Get the filename from the Content-Disposition header if available
+      const contentDisposition = response.headers.get('content-disposition');
+      let filename = `document_${selectedYear}_${rowNumber}`; // Default filename without extension
+      
+      if (contentDisposition) {
+        // Match: filename="actual_filename.ext" or filename=actual_filename.ext
+        const filenameMatch = contentDisposition.match(/filename="([^"]+)"|filename=([^;\s]+)/);
+        if (filenameMatch) {
+          // Use the captured group that matched (either quoted or unquoted)
+          filename = filenameMatch[1] || filenameMatch[2];
+        }
+      }
+
+      // Convert response to blob
+      const blob = await response.blob();
+      
+      // Create a temporary URL for the blob
+      const url = window.URL.createObjectURL(blob);
+      
+      // Create a temporary download link and trigger it
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      link.style.display = 'none';
+      
+      document.body.appendChild(link);
+      
+      // For Firefox and other browsers that might try to open PDFs inline,
+      // dispatch a proper click event
+      const clickEvent = new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+        view: window
+      });
+      link.dispatchEvent(clickEvent);
+      
+      document.body.removeChild(link);
+      
+      // Clean up the temporary URL
+      window.URL.revokeObjectURL(url);
+      
+      // Show success message
       toast({
-        title: "File tidak ditemukan",
-        description: "Dokumen belum diupload atau tidak tersedia",
+        title: "Download berhasil",
+        description: `Dokumen untuk ${picName} berhasil diunduh`,
+      });
+    } catch (error) {
+      console.error('Download error:', error);
+      toast({
+        title: "Download gagal",
+        description: error instanceof Error ? error.message : "Terjadi kesalahan saat download dokumen",
         variant: "destructive"
       });
     }
-  }, [getUploadedDocument, toast]);
+  }, [selectedYear, checklist, toast, user]);
+
+  // Handle refresh/rescan - reload checklist data and rescan storage
+  const handleRefreshRescan = useCallback(async () => {
+    if (isRefreshing) return; // Prevent multiple simultaneous refreshes
+    
+    setIsRefreshing(true);
+    try {
+      toast({
+        title: "Memuat ulang data...",
+        description: "Memperbarui daftar dokumen dan memindai ulang storage",
+      });
+
+      // 1. Refresh checklist data (reload from backend)
+      await ensureAllYearsHaveData();
+      
+      // 2. Refresh uploaded files data (reload from backend)
+      await refreshFiles();
+      
+      // 3. Rescan Supabase storage for file changes
+      await checkSupabaseFileStatus();
+      
+      toast({
+        title: "Data berhasil diperbarui",
+        description: "Daftar dokumen dan storage telah dipindai ulang",
+      });
+      
+    } catch (error) {
+      console.error('Error during refresh/rescan:', error);
+      toast({
+        title: "Gagal memperbarui data",
+        description: "Terjadi kesalahan saat memperbarui data",
+        variant: "destructive"
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [isRefreshing, ensureAllYearsHaveData, refreshFiles, checkSupabaseFileStatus, toast]);
+
+  // Function to rescan a single row after upload
+  const rescanSingleRow = useCallback(async (checklistId: number, rowNumber: number) => {
+    if (!selectedYear) return;
+    
+    // Find the specific item
+    const item = checklist.find(item => item.id === checklistId);
+    if (!item) return;
+    
+    // Get PIC from checklist item, fallback to current user's subdirektorat
+    const picName = item.pic || user?.subdirektorat || 'UNKNOWN_PIC';
+    
+    
+    // Add this item to being checked
+    setItemsBeingChecked(prev => new Set(prev.add(checklistId)));
+    
+    try {
+      const requestBody = {
+        picName,
+        year: selectedYear,
+        checklistIds: [checklistId]  // Use checklist ID instead of row number
+      };
+      
+      const response = await fetch('http://localhost:5001/api/check-gcg-files', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        const fileStatus = result.fileStatuses?.[checklistId.toString()];
+        const fileExists = fileStatus?.exists || false;
+        
+        // Update states for this single item
+        setSupabaseFileStatus(prev => ({...prev, [checklistId.toString()]: fileExists}));
+        
+        if (fileExists && fileStatus) {
+          const fileInfoObj = {
+            id: `supabase_${checklistId}`,
+            fileName: fileStatus.fileName,
+            fileSize: fileStatus.size,
+            uploadDate: new Date(fileStatus.lastModified),
+            year: selectedYear,
+            checklistId: checklistId,
+            status: 'uploaded',
+            catatan: fileStatus.catatan || ''
+          };
+          setSupabaseFileInfo(prev => ({...prev, [checklistId.toString()]: fileInfoObj}));
+        }
+        
+        console.log('MonitoringUploadGCG: Single row rescan complete - ID:', checklistId, 'Exists:', fileExists);
+      }
+    } catch (error) {
+      console.error('Error rescanning single row:', error);
+      // Set as not uploaded on error
+      setSupabaseFileStatus(prev => ({...prev, [checklistId.toString()]: false}));
+    } finally {
+      // Remove from being checked
+      setItemsBeingChecked(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(checklistId);
+        return newSet;
+      });
+    }
+  }, [selectedYear, checklist, getAssignmentData, user]);
+
 
   // Get aspect icon - konsisten dengan dashboard
   const getAspectIcon = useCallback((aspekName: string) => {
     if (aspekName === 'KESELURUHAN') return TrendingUp;
+    if (aspekName === 'Dokumen Tanpa Aspek') return Plus;
     if (aspekName.includes('ASPEK I')) return FileText;
     if (aspekName.includes('ASPEK II')) return CheckCircle;
     if (aspekName.includes('ASPEK III')) return TrendingUp;
@@ -439,6 +893,7 @@ const MonitoringUploadGCG = () => {
   // Mapping warna unik untuk tiap aspek - sama dengan dashboard
   const ASPECT_COLORS: Record<string, string> = {
     'KESELURUHAN': '#7c3aed', // ungu gelap untuk keseluruhan
+    'Dokumen Tanpa Aspek': '#6b7280', // abu-abu
     'ASPEK I. Komitmen': '#2563eb', // biru
     'ASPEK II. RUPS': '#059669',    // hijau
     'ASPEK III. Dewan Komisaris': '#f59e42', // oranye
@@ -469,22 +924,30 @@ const MonitoringUploadGCG = () => {
       aspek: 'KESELURUHAN',
       totalItems,
       uploadedCount,
+      pendingCount: totalItems - uploadedCount,
       progress
     };
-  }, [selectedYear, checklist, isChecklistUploaded]);
+  }, [selectedYear, checklist, isChecklistUploaded, supabaseFileStatus]);
+
+  // Get color based on progress - sama dengan Dashboard
+  const getProgressColor = useCallback((progress: number) => {
+    if (progress >= 80) return { bg: 'bg-green-500', text: 'text-green-600', light: 'bg-green-100' };
+    if (progress >= 50) return { bg: 'bg-yellow-500', text: 'text-yellow-600', light: 'bg-yellow-100' };
+    if (progress >= 25) return { bg: 'bg-orange-500', text: 'text-orange-600', light: 'bg-orange-100' };
+    return { bg: 'bg-red-500', text: 'text-red-600', light: 'bg-red-100' };
+  }, []);
 
   // Get aspect statistics for year book
   const getAspectStats = useMemo(() => {
     if (!selectedYear) return [];
 
     const yearChecklist = checklist.filter(item => item.tahun === selectedYear);
-    const yearDocuments = getDocumentsByYear(selectedYear);
 
     // Get unique aspects
-    const uniqueAspects = Array.from(new Set(yearChecklist.map(item => item.aspek)));
+    const uniqueAspects = Array.from(new Set(yearChecklist.map(item => item.aspek || 'Dokumen Tanpa Aspek')));
 
     return uniqueAspects.map(aspek => {
-      const aspectItems = yearChecklist.filter(item => item.aspek === aspek);
+      const aspectItems = yearChecklist.filter(item => (item.aspek || 'Dokumen Tanpa Aspek') === aspek);
       const totalItems = aspectItems.length;
       const uploadedCount = aspectItems.filter(item => isChecklistUploaded(item.id)).length;
       const progress = totalItems > 0 ? Math.round((uploadedCount / totalItems) * 100) : 0;
@@ -493,185 +956,138 @@ const MonitoringUploadGCG = () => {
         aspek,
         totalItems,
         uploadedCount,
+        pendingCount: totalItems - uploadedCount,
         progress
       };
     }).sort((a, b) => b.progress - a.progress); // Sort by progress descending
-  }, [selectedYear, checklist, getDocumentsByYear, isChecklistUploaded]);
-
-
-
-
-
-  // Get status badge color
-  const getStatusBadge = useCallback((status: string) => {
-    if (status === 'uploaded') {
-      return <Badge className="bg-green-100 text-green-800 border-green-200">
-        <CheckCircle className="w-3 h-3 mr-1" />
-        Sudah Upload
-      </Badge>;
-    }
-    return <Badge variant="secondary" className="border-yellow-200 text-yellow-700 bg-yellow-50">
-      <Clock className="w-3 h-3 mr-1" />
-      Belum Upload
-    </Badge>;
-  }, []);
+  }, [selectedYear, checklist, isChecklistUploaded, supabaseFileStatus]);
 
   // Handle upload button click
-  const handleUploadClick = useCallback((item: { id: number; aspek: string; deskripsi: string }) => {
-    setSelectedChecklistItem(item);
+  const handleUploadClick = useCallback((item: { id: number; aspek: string; deskripsi: string; rowNumber?: number; pic?: string }, rowNumber: number) => {
+    setSelectedChecklistItem({ ...item, rowNumber: item.rowNumber || rowNumber });
     setIsUploadDialogOpen(true);
   }, []);
 
-  // Handle assignment - dioptimasi dengan useCallback
-  const handleAssignment = useCallback((checklistId: number, subdirektorat: string, aspek: string, deskripsi: string) => {
-    const newAssignment: ChecklistAssignment = {
-      id: Date.now(),
-      checklistId,
-      subdirektorat,
-      aspek,
-      deskripsi,
-      tahun: selectedYear,
-      assignedBy: user?.name || 'Super Admin',
-      assignedAt: new Date(),
-      status: 'assigned'
-    };
-    // Update state and persist to localStorage so radar & panels dapat membaca
-    setAssignments(prev => {
-      // Replace existing assignment for this checklistId & year if any
-      const next = [...prev.filter(a => !(a.checklistId === checklistId && a.tahun === selectedYear)), newAssignment];
-      try {
-        localStorage.setItem('checklistAssignments', JSON.stringify(next));
-        // Notify other panels/components to refresh
-        try {
-          window.dispatchEvent(new Event('assignmentsUpdated'));
-        } catch {}
-      } catch (err) {
-        console.error('Failed to persist checklistAssignments', err);
+  // Handle delete document
+  const handleDeleteDocument = useCallback(async (checklistId: number, documentId: string) => {
+    console.log('🗑️ MonitoringUploadGCG: Starting delete process', { checklistId, documentId });
+
+    try {
+      console.log(`🌐 MonitoringUploadGCG: Sending DELETE request to /api/delete-file/${documentId}`);
+      const response = await fetch(`http://localhost:5001/api/delete-file/${documentId}`, {
+        method: 'DELETE',
+      });
+
+      console.log(`📡 MonitoringUploadGCG: Delete response status: ${response.status}`);
+
+      if (response.ok) {
+        const responseData = await response.json();
+        console.log('✅ MonitoringUploadGCG: Delete successful', responseData);
+
+        toast({
+          title: "Berhasil",
+          description: "Dokumen berhasil dihapus",
+        });
+
+        // IMMEDIATELY mark as NOT existing (false) instead of deleting key
+        // This ensures getUploadedDocument knows file was explicitly deleted
+        console.log('🧹 MonitoringUploadGCG: Marking file as deleted for checklistId:', checklistId);
+        setSupabaseFileStatus(prev => ({
+          ...prev,
+          [checklistId.toString()]: false  // Explicitly mark as not existing
+        }));
+        setSupabaseFileInfo(prev => {
+          const newInfo = { ...prev };
+          delete newInfo[checklistId.toString()];  // Remove file info
+          return newInfo;
+        });
+
+        // Dispatch events to notify other components
+        console.log('📢 MonitoringUploadGCG: Dispatching events for sync');
+        window.dispatchEvent(new CustomEvent('uploadedFilesChanged', {
+          detail: {
+            type: 'fileDeleted',
+            fileId: documentId,
+            checklistId: checklistId,
+            timestamp: new Date().toISOString()
+          }
+        }));
+
+        window.dispatchEvent(new CustomEvent('documentsUpdated', {
+          detail: {
+            type: 'documentsUpdated',
+            year: selectedYear,
+            skipRefresh: true, // Tell event handler to skip refresh for delete
+            timestamp: new Date().toISOString()
+          }
+        }));
+
+        // DO NOT call refreshFiles() here - this causes race condition
+        // where backend hasn't fully processed delete but we're already fetching
+        // The local state is already cleared above, just force UI update
+        console.log('🚫 MonitoringUploadGCG: Skipping refreshFiles (race condition prevention)');
+
+        // Force UI update
+        setForceUpdate(prev => prev + 1);
+
+        console.log('✅ MonitoringUploadGCG: Delete process completed successfully');
+      } else {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('❌ MonitoringUploadGCG: Delete failed', { status: response.status, error: errorData });
+        throw new Error(errorData.error || 'Failed to delete document');
       }
-      return next;
-    });
-    toast({
-      title: "Assignment Berhasil",
-              description: `Dokumen GCG berhasil ditugaskan ke ${subdirektorat}`,
-    });
-  }, [selectedYear, user?.name, toast]);
-
-  // Fungsi untuk mengelola aspek
-  const handleAddAspek = () => {
-    if (!aspekForm.nama.trim()) {
+    } catch (error) {
+      console.error('❌ MonitoringUploadGCG: Delete error:', error);
       toast({
         title: "Error",
-        description: "Nama aspek harus diisi!",
-        variant: "destructive"
+        description: `Gagal menghapus dokumen: ${error}`,
+        variant: "destructive",
       });
-      return;
     }
+  }, [toast, refreshFiles, selectedYear]);
 
-    addAspek(aspekForm.nama, selectedYear);
-    setAspekForm({ nama: '', deskripsi: '' });
-    setIsAddAspekDialogOpen(false);
+  // Handle navigate to archive with highlight
+  const handleViewInArchive = useCallback((item: { id: number; aspek: string; deskripsi: string; pic?: string }) => {
+    console.log('🎯 MonitoringUploadGCG: Preparing to navigate to archive', {
+      itemId: item.id,
+      aspek: item.aspek,
+      deskripsi: item.deskripsi,
+      pic: item.pic
+    });
+    
+    // Store the search criteria for highlighting
+    const searchCriteria = {
+      checklistId: item.id,
+      aspect: item.aspek || 'Dokumen Tanpa Aspek',
+      description: item.deskripsi,
+      pic: item.pic || '',
+      timestamp: new Date().toISOString() // Add timestamp for uniqueness
+    };
+    
+    console.log('📝 Storing highlight criteria:', searchCriteria);
+    
+    // Store in localStorage for the archive page to use
+    localStorage.setItem('archiveHighlight', JSON.stringify(searchCriteria));
+    
+    // Verify storage
+    const stored = localStorage.getItem('archiveHighlight');
+    console.log('✅ Verified storage:', stored);
+    
+    // Navigate to archive page
+    navigate('/admin/arsip-dokumen');
+    
     toast({
-      title: "Berhasil",
-      description: "Aspek berhasil ditambahkan!",
+      title: "Navigasi ke Arsip",
+      description: `Membuka arsip dokumen dengan highlight untuk: ${item.deskripsi}`,
     });
-  };
+  }, [navigate, toast]);
 
-  const handleEditAspek = () => {
-    if (!selectedAspekForEdit || !aspekForm.nama.trim()) {
-      toast({
-        title: "Error",
-        description: "Nama aspek harus diisi!",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    editAspek(selectedAspekForEdit, aspekForm.nama, selectedYear);
-    setAspekForm({ nama: '', deskripsi: '' });
-    setIsEditAspekDialogOpen(false);
-    setSelectedAspekForEdit('');
-    toast({
-      title: "Berhasil",
-      description: "Aspek berhasil diperbarui!",
-    });
-  };
-
-  const handleDeleteAspek = (aspekName: string) => {
-    deleteAspek(aspekName, selectedYear);
-    toast({
-      title: "Berhasil",
-      description: "Aspek berhasil dihapus!",
-    });
-  };
-
-  // Fungsi untuk mengelola dokumen GCG
-  const handleAddChecklist = () => {
-    if (!checklistForm.aspek.trim() || !checklistForm.deskripsi.trim()) {
-      toast({
-        title: "Error",
-        description: "Aspek dan deskripsi harus diisi!",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    addChecklist(checklistForm.aspek, checklistForm.deskripsi, selectedYear);
-    setChecklistForm({ aspek: '', deskripsi: '' });
-    setIsAddChecklistDialogOpen(false);
-    toast({
-      title: "Berhasil",
-              description: "Dokumen GCG berhasil ditambahkan!",
-    });
-  };
-
-  const handleEditDokumenGCG = () => {
-    if (!selectedChecklistForEdit || !checklistForm.aspek.trim() || !checklistForm.deskripsi.trim()) {
-      toast({
-        title: "Error",
-        description: "Aspek dan deskripsi harus diisi!",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    editChecklist(selectedChecklistForEdit.id, checklistForm.aspek, checklistForm.deskripsi, selectedYear);
-    setChecklistForm({ aspek: '', deskripsi: '' });
-    setIsEditChecklistDialogOpen(false);
-    setSelectedChecklistForEdit(null);
-    toast({
-      title: "Berhasil",
-              description: "Dokumen GCG berhasil diperbarui!",
-    });
-  };
-
-  const handleDeleteChecklist = (checklistId: number) => {
-    deleteChecklist(checklistId, selectedYear);
-    toast({
-      title: "Berhasil",
-              description: "Dokumen GCG berhasil dihapus!",
-    });
-  };
-
-  // Filter checklist berdasarkan aspek dan pencarian
-  const filteredChecklistItems = useMemo(() => {
-    const yearChecklist = checklist.filter(item => item.tahun === selectedYear);
-    return yearChecklist.filter(item => {
-      const matchesAspek = selectedAspekForChecklist === 'all' || item.aspek === selectedAspekForChecklist;
-      const matchesSearch = item.deskripsi.toLowerCase().includes(searchTermChecklist.toLowerCase()) ||
-                           item.aspek.toLowerCase().includes(searchTermChecklist.toLowerCase());
-      return matchesAspek && matchesSearch;
-    });
-  }, [checklist, selectedYear, selectedAspekForChecklist, searchTermChecklist]);
-
-  // Virtual scrolling - batasi jumlah item yang ditampilkan untuk performa
-  const displayedChecklistItems = useMemo(() => {
-    return filteredChecklistItems.slice(0, 100); // Tampilkan maksimal 100 item
-  }, [filteredChecklistItems]);
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50">
-      <Sidebar />
-      <Topbar />
+  // Error boundary for rendering
+  try {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50">
+        <Sidebar />
+        <Topbar />
       
       <div className={`
         transition-all duration-300 ease-in-out pt-16
@@ -680,390 +1096,622 @@ const MonitoringUploadGCG = () => {
         <div className="p-6">
           {/* Enhanced Header */}
           <PageHeaderPanel
-            title="Monitoring & Upload GCG"
-                          subtitle="Monitoring dan pengelolaan dokumen GCG berdasarkan tahun buku"
-            badge={{ text: selectedYear.toString(), variant: "default" }}
-            actions={[
-              {
-                label: "Upload Dokumen",
-                onClick: () => setIsUploadDialogOpen(true),
-                icon: <Upload className="w-4 h-4" />
-              }
-            ]}
+            title="Monitoring & Upload Dokumen"
+            subtitle="Monitoring dan pengelolaan dokumen GCG berdasarkan tahun buku"
+            badge={{ 
+              text: selectedYear ? selectedYear.toString() : 'Belum dipilih', 
+              variant: selectedYear ? "default" : "secondary" 
+            }}
           />
 
-          {/* Enhanced Year Selection */}
-          <YearSelectorPanel
-            selectedYear={selectedYear}
-            onYearChange={setSelectedYear}
-            availableYears={years}
-            title="Tahun Buku"
-                            description="Pilih tahun buku untuk melihat dokumen GCG"
-          />
+          {/* Year Selection - Single Line with Upload/View indication */}
+          <div className="mb-6 bg-white rounded-lg p-3 shadow-sm border border-gray-100">
+            {/* Main Row */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-blue-600" />
+                <span className="text-sm font-medium text-gray-700">Tahun Buku:</span>
+              </div>
 
+              {/* Year Buttons */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {years.sort((a, b) => b - a).map((year, index) => {
+                  const isLatestYear = index === 0;
+                  const isSelected = selectedYear === year;
 
+                  return (
+                    <Button
+                      key={year}
+                      variant={isSelected ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setSelectedYear(year)}
+                      title={isLatestYear ? `${year} - Tahun Aktif (Upload, View, Download)` : `${year} - Arsip (View & Download saja)`}
+                      className={`h-8 px-3 transition-all ${
+                        isSelected
+                          ? 'bg-blue-600 text-white hover:bg-blue-700'
+                          : isLatestYear
+                            ? 'border-green-300 text-green-700 hover:bg-green-50 hover:border-green-400'
+                            : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      <span className="mr-1.5">{year}</span>
+                      {isLatestYear ? (
+                        <Upload className="w-3.5 h-3.5" />
+                      ) : (
+                        <Eye className="w-3.5 h-3.5" />
+                      )}
+                    </Button>
+                  );
+                })}
+              </div>
 
-          {/* Tabs System */}
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)} className="w-full">
-            <TabsList className="grid w-full grid-cols-3 mb-6">
-              <TabsTrigger value="rekap" className="flex items-center space-x-2">
-                <FileText className="w-4 h-4" />
-                <span>Rekap</span>
-              </TabsTrigger>
-              <TabsTrigger value="kelola-aspek" className="flex items-center space-x-2">
-                <Settings className="w-4 h-4" />
-                <span>Kelola Aspek</span>
-              </TabsTrigger>
-                              <TabsTrigger value="kelola-dokumen" className="flex items-center space-x-2">
-                <List className="w-4 h-4" />
-                                        <span>Kelola Dokumen</span>
-              </TabsTrigger>
-            </TabsList>
+              {/* Status Indicator */}
+              {selectedYear && (
+                <div className="flex items-center gap-2 ml-auto">
+                  {selectedYear === years.sort((a, b) => b - a)[0] ? (
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-700">
+                      <Upload className="w-3 h-3 mr-1" />
+                      Tahun Aktif - Upload
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-600">
+                      <Eye className="w-3 h-3 mr-1" />
+                      Arsip - View/Download
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
 
-            {/* Tab Rekap */}
-            <TabsContent value="rekap">
-                              {/* Statistik Tahun Buku */}
-                {selectedYear && (
-                  <YearStatisticsPanel 
-                    selectedYear={selectedYear}
-                    aspectStats={getAspectStats}
-                    overallProgress={getOverallProgress}
-                    getAspectIcon={getAspectIcon}
-                    getAspectColor={getAspectColor}
-                    onAspectClick={(aspectName) => setSelectedAspek(aspectName)}
-                    isSidebarOpen={isSidebarOpen}
-                    title="Statistik Tahun Buku"
-                    description={`Overview dokumen dan assessment dokumen GCG tahun ${selectedYear}`}
-                    maxCardsInSlider={4}
-                    showViewAllButton={true}
-                    showOverallProgress={true}
-                  />
-                )}
+            {/* Legend Row - Below buttons */}
+            <div className="flex items-center gap-4 mt-2 pt-2 border-t border-gray-100 text-xs text-gray-500">
+              <span className="inline-flex items-center gap-1">
+                <Upload className="w-3 h-3 text-green-600" />
+                <span>= Tahun Aktif (Upload, View, Download)</span>
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <Eye className="w-3 h-3 text-gray-500" />
+                <span>= Arsip (View & Download)</span>
+              </span>
+            </div>
+          </div>
 
-              {/* Breakdown Penugasan Subdirektorat */}
-              <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm mb-6">
+          {/* Warning jika belum ada tahun yang dipilih */}
+          {!selectedYear && (
+            <Card className="border-0 shadow-lg bg-yellow-50 border-yellow-200 mb-6">
+              <CardContent className="p-6">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
+                    <Clock className="w-5 h-5 text-yellow-600" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-yellow-900 mb-1">
+                      Belum Ada Tahun Buku yang Dipilih
+                    </h3>
+                    <p className="text-yellow-700 text-sm">
+                      Silakan pilih tahun buku terlebih dahulu untuk melihat monitoring dan dokumen GCG. 
+                      Jika belum ada tahun buku, buat terlebih dahulu di menu "Pengaturan Baru" → "Tahun Buku".
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Konten Rekap */}
+          {selectedYear && getOverallProgress ? (
+            <>
+              {/* Progress Keseluruhan - Sama seperti Dashboard */}
+              <Card className="mb-6 border-0 shadow-lg bg-gradient-to-br from-purple-600 to-indigo-700 text-white">
+                <CardContent className="p-4">
+                  <div className="flex flex-col md:flex-row items-center gap-4">
+                    {/* Circular Progress */}
+                    <div className="relative w-28 h-28 flex-shrink-0">
+                      <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                        <circle
+                          cx="50"
+                          cy="50"
+                          r="42"
+                          fill="none"
+                          stroke="rgba(255,255,255,0.2)"
+                          strokeWidth="10"
+                        />
+                        <circle
+                          cx="50"
+                          cy="50"
+                          r="42"
+                          fill="none"
+                          stroke="white"
+                          strokeWidth="10"
+                          strokeLinecap="round"
+                          strokeDasharray={`${getOverallProgress.progress * 2.64} 264`}
+                          className="transition-all duration-1000 ease-out"
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="text-center">
+                          <span className="text-2xl font-bold">{getOverallProgress.progress}%</span>
+                          <p className="text-[10px] text-purple-200">Selesai</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Stats Info */}
+                    <div className="flex-1 text-center md:text-left">
+                      <h2 className="text-lg font-bold mb-1">Progress Keseluruhan</h2>
+                      <p className="text-purple-200 text-xs mb-3">Tahun Buku {selectedYear}</p>
+
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="bg-white/10 rounded-lg p-2 text-center">
+                          <FileText className="w-4 h-4 mx-auto mb-0.5" />
+                          <p className="text-lg font-bold">{getOverallProgress.totalItems}</p>
+                          <p className="text-[10px] text-purple-200">Total Dokumen</p>
+                        </div>
+                        <div className="bg-white/10 rounded-lg p-2 text-center">
+                          <CheckCircle className="w-4 h-4 mx-auto mb-0.5" />
+                          <p className="text-lg font-bold">{getOverallProgress.uploadedCount}</p>
+                          <p className="text-[10px] text-purple-200">Selesai</p>
+                        </div>
+                        <div className="bg-white/10 rounded-lg p-2 text-center">
+                          <Clock className="w-4 h-4 mx-auto mb-0.5" />
+                          <p className="text-lg font-bold">{getOverallProgress.pendingCount}</p>
+                          <p className="text-[10px] text-purple-200">Belum Upload</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Progress Per Aspek - Sama seperti Dashboard */}
+              <Card className="mb-6 border-0 shadow-xl bg-white/80 backdrop-blur-sm">
                 <CardHeader>
-                  <CardTitle className="text-indigo-900">Breakdown Penugasan Subdirektorat</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    <BarChart3 className="w-6 h-6 text-blue-600" />
+                    Progress Per Aspek
+                  </CardTitle>
                   <CardDescription>
-                    Ringkasan jumlah dokumen GCG yang ditugaskan dan selesai per subdirektorat pada tahun {selectedYear}
+                    Klik pada aspek untuk memfilter tabel dokumen di bawah
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {assignmentSummary.length === 0 ? (
-                    <div className="text-sm text-gray-500">Belum ada penugasan untuk tahun ini.</div>
+                  {getAspectStats.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                      {getAspectStats.map((aspect, index) => {
+                        const colors = getProgressColor(aspect.progress);
+                        return (
+                          <div
+                            key={index}
+                            onClick={() => setSelectedAspek(aspect.aspek)}
+                            className={`p-4 bg-white border rounded-xl shadow-sm hover:shadow-lg transition-all cursor-pointer group ${
+                              selectedAspek === aspect.aspek ? 'border-blue-500 ring-2 ring-blue-200' : 'border-gray-200 hover:border-blue-300'
+                            }`}
+                          >
+                            <div className="flex items-center gap-4">
+                              {/* Mini Circular Progress */}
+                              <div className="relative w-16 h-16 flex-shrink-0">
+                                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                                  <circle
+                                    cx="50"
+                                    cy="50"
+                                    r="42"
+                                    fill="none"
+                                    stroke="#e5e7eb"
+                                    strokeWidth="10"
+                                  />
+                                  <circle
+                                    cx="50"
+                                    cy="50"
+                                    r="42"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="10"
+                                    strokeLinecap="round"
+                                    strokeDasharray={`${aspect.progress * 2.64} 264`}
+                                    style={{ stroke: colors.bg.includes('green') ? '#22c55e' : colors.bg.includes('yellow') ? '#eab308' : colors.bg.includes('orange') ? '#f97316' : '#ef4444' }}
+                                  />
+                                </svg>
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                  <span className={`text-sm font-bold ${colors.text}`}>{aspect.progress}%</span>
+                                </div>
+                              </div>
+
+                              {/* Aspect Info */}
+                              <div className="flex-1 min-w-0">
+                                <h4 className="font-semibold text-gray-900 text-sm truncate group-hover:text-blue-600 transition-colors" title={aspect.aspek}>
+                                  {aspect.aspek}
+                                </h4>
+                                <p className="text-xs text-gray-500 mt-1">
+                                  {aspect.uploadedCount} / {aspect.totalItems} dokumen
+                                </p>
+                                <div className="flex items-center gap-2 mt-1">
+                                  {aspect.pendingCount > 0 ? (
+                                    <span className="inline-flex items-center text-xs text-orange-600">
+                                      <AlertCircle className="w-3 h-3 mr-1" />
+                                      {aspect.pendingCount} belum
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center text-xs text-green-600">
+                                      <CheckCircle className="w-3 h-3 mr-1" />
+                                      Lengkap
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {assignmentSummary.map((row, idx) => (
-                        <div key={idx} className="p-4 bg-gray-50 rounded-lg border border-gray-100">
-                          <div className="text-sm font-semibold text-gray-900 mb-1 text-center truncate">{row.display}</div>
-                          <div className="flex items-center justify-center space-x-2 mb-2">
-                            <span className="text-base font-bold text-blue-600">{row.completed}/{row.total}</span>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div 
-                              className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-700"
-                              style={{ width: `${row.percent}%` }}
-                            />
-                          </div>
-                        </div>
-                      ))}
+                    <div className="text-center py-8 text-gray-500">
+                      <FileText className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                      <p>Tidak ada data aspek untuk tahun ini</p>
                     </div>
                   )}
                 </CardContent>
               </Card>
 
-              <Card className="border-0 shadow-lg bg-gradient-to-r from-white to-indigo-50">
-                <CardHeader>
+              {/* Daftar Dokumen GCG */}
+              <Card className="border-0 shadow-lg bg-white/90 backdrop-blur-sm" id="dokumen-gcg-table">
+                <CardHeader className="pb-4">
+                  {/* Header Row */}
                   <div className="flex items-center justify-between mb-4">
                     <div>
-                      <CardTitle className="flex items-center space-x-2 text-indigo-900">
-                        <FileText className="w-5 h-5 text-indigo-600" />
-                        <span>Daftar Dokumen GCG - Tahun {selectedYear}</span>
+                      <CardTitle className="flex items-center gap-2 text-gray-900">
+                        <FileText className="w-5 h-5 text-blue-600" />
+                        Daftar Dokumen GCG
                       </CardTitle>
-                      <CardDescription className="text-indigo-700 mt-2">
-                        {searchTerm ? (
-                          <span>
-                            <span className="font-semibold text-indigo-600">{filteredChecklist.length}</span> item ditemukan untuk pencarian "{searchTerm}"
-                          </span>
-                        ) : (
-                          <span>
-                            <span className="font-semibold text-indigo-600">{filteredChecklist.length}</span> item ditemukan
-                          </span>
-                        )}
+                      <CardDescription className="mt-1">
+                        <span className="font-semibold text-blue-600">{filteredChecklist.length}</span> dokumen
+                        {searchTerm && <span> untuk "{searchTerm}"</span>}
                       </CardDescription>
                     </div>
-                  </div>
-
-
-
-              {/* All Filters Integrated */}
-              <div className="space-y-4">
-                {/* Search Bar */}
-                <div>
-                  <label className="text-sm font-semibold text-gray-700 mb-2 block flex items-center">
-                    <Search className="w-4 h-4 mr-2 text-blue-600" />
-                    Pencarian Dokumen
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Search className="h-4 w-4 text-gray-400" />
-                    </div>
-                    <Input
-                      type="text"
-                      placeholder="Cari berdasarkan deskripsi dokumen GCG..."
-                      className="pl-10 pr-10"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                    {searchTerm && (
+                    <div className="flex items-center gap-2">
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
-                        onClick={() => setSearchTerm('')}
-                        className="absolute inset-y-0 right-0 px-3 text-gray-400 hover:text-gray-600"
+                        onClick={handleRefreshRescan}
+                        disabled={isRefreshing || fileStatusLoading}
+                        className="text-xs"
                       >
-                        <RotateCcw className="w-4 h-4" />
+                        {isRefreshing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                       </Button>
-                    )}
+                    </div>
                   </div>
-                </div>
 
-                {/* Filter Row */}
-                <div className="flex flex-wrap items-center gap-4">
-                  {/* Aspek Filter */}
-                  <div className="flex-1 min-w-0">
-                    <label className="text-sm font-semibold text-gray-700 mb-2 block flex items-center">
-                      <Filter className="w-4 h-4 mr-2 text-orange-600" />
-                      Filter Aspek
-                    </label>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      variant={selectedAspek === 'all' ? "default" : "outline"}
-                      onClick={() => setSelectedAspek('all')}
-                      size="sm"
-                        className={selectedAspek === 'all' 
-                          ? 'bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700' 
-                          : 'border-orange-200 text-orange-600 hover:bg-orange-50'
-                        }
-                    >
-                      Semua Aspek
-                    </Button>
-                      {aspects.map(aspek => {
-                        const IconComponent = getAspectIcon(aspek);
-                        return (
-                      <Button
-                        key={aspek}
-                        variant={selectedAspek === aspek ? "default" : "outline"}
-                        onClick={() => setSelectedAspek(aspek)}
-                        size="sm"
-                            className={`text-xs flex items-center space-x-2 ${
-                              selectedAspek === aspek 
-                                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700' 
-                                : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                            }`}
-                          >
-                            <IconComponent className={`w-3 h-3 ${selectedAspek === aspek ? 'text-white' : 'text-gray-600'}`} />
-                            <span>{aspek.replace('ASPEK ', '').replace('. ', ' - ')}</span>
-                      </Button>
-                        );
-                      })}
+                  {/* Compact Filters */}
+                  <div className="space-y-3">
+                    {/* Search */}
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Input
+                        type="text"
+                        placeholder="Cari dokumen..."
+                        className="pl-9 h-9 text-sm"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                      />
+                    </div>
+
+                    {/* Filter Row */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* Aspek Dropdown */}
+                      <Select value={selectedAspek} onValueChange={setSelectedAspek}>
+                        <SelectTrigger className="w-[180px] h-8 text-xs">
+                          <Filter className="w-3 h-3 mr-1 text-gray-400" />
+                          <SelectValue placeholder="Filter Aspek" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Semua Aspek</SelectItem>
+                          {aspects.map(aspek => (
+                            <SelectItem key={aspek} value={aspek}>
+                              {aspek.replace('ASPEK ', '').substring(0, 30)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      {/* Status Buttons */}
+                      <div className="flex items-center gap-1 p-1 bg-gray-100 rounded-lg">
+                        <Button
+                          variant={selectedStatus === 'all' ? 'default' : 'ghost'}
+                          size="sm"
+                          onClick={() => setSelectedStatus('all')}
+                          className="h-6 px-2 text-xs"
+                        >
+                          Semua
+                        </Button>
+                        <Button
+                          variant={selectedStatus === 'uploaded' ? 'default' : 'ghost'}
+                          size="sm"
+                          onClick={() => setSelectedStatus('uploaded')}
+                          className={`h-6 px-2 text-xs ${selectedStatus === 'uploaded' ? 'bg-green-600' : ''}`}
+                        >
+                          <CheckCircle className="w-3 h-3 mr-1" />
+                          Upload
+                        </Button>
+                        <Button
+                          variant={selectedStatus === 'not_uploaded' ? 'default' : 'ghost'}
+                          size="sm"
+                          onClick={() => setSelectedStatus('not_uploaded')}
+                          className={`h-6 px-2 text-xs ${selectedStatus === 'not_uploaded' ? 'bg-orange-600' : ''}`}
+                        >
+                          <Clock className="w-3 h-3 mr-1" />
+                          Belum
+                        </Button>
+                      </div>
+
+                      {/* PIC Dropdown dengan Switch dan Search */}
+                      <div className="relative" data-pic-dropdown>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setIsPICDropdownOpen(!isPICDropdownOpen);
+                            setPicSearchTerm('');
+                          }}
+                          className="w-[180px] h-8 text-xs justify-between"
+                        >
+                          <div className="flex items-center">
+                            <User className="w-3 h-3 mr-1 text-gray-400" />
+                            <span className="truncate">
+                              {selectedPIC === 'all' ? 'Semua PIC' : selectedPIC.substring(0, 18) + (selectedPIC.length > 18 ? '...' : '')}
+                            </span>
+                          </div>
+                          <ChevronDown className="w-3 h-3 ml-1" />
+                        </Button>
+
+                        {isPICDropdownOpen && (
+                          <div className="absolute z-50 mt-1 w-[280px] bg-white border border-gray-200 rounded-md shadow-lg max-h-80 overflow-hidden">
+                            {/* Type Switch */}
+                            <div className="sticky top-0 bg-gray-50 border-b border-gray-200 p-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-medium text-gray-700">Tipe:</span>
+                                <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+                                  <button
+                                    onClick={() => {
+                                      setPicFilterType('divisi');
+                                      setSelectedPIC('all');
+                                    }}
+                                    className={`px-2 py-1 text-xs font-medium rounded-md transition-all ${
+                                      picFilterType === 'divisi'
+                                        ? 'bg-blue-600 text-white shadow-sm'
+                                        : 'text-gray-600 hover:text-gray-800 hover:bg-gray-200'
+                                    }`}
+                                  >
+                                    Divisi
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setPicFilterType('subdirektorat');
+                                      setSelectedPIC('all');
+                                    }}
+                                    className={`px-2 py-1 text-xs font-medium rounded-md transition-all ${
+                                      picFilterType === 'subdirektorat'
+                                        ? 'bg-blue-600 text-white shadow-sm'
+                                        : 'text-gray-600 hover:text-gray-800 hover:bg-gray-200'
+                                    }`}
+                                  >
+                                    Subdirektorat
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Search Input */}
+                            <div className="sticky top-[44px] bg-white border-b border-gray-200 p-2">
+                              <div className="relative">
+                                <Input
+                                  type="text"
+                                  placeholder={`Cari ${picFilterType === 'divisi' ? 'divisi' : 'subdirektorat'}...`}
+                                  value={picSearchTerm}
+                                  onChange={(e) => setPicSearchTerm(e.target.value)}
+                                  className="h-7 text-xs pr-7"
+                                  autoFocus
+                                />
+                                {picSearchTerm && (
+                                  <button
+                                    onClick={() => setPicSearchTerm('')}
+                                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Options List */}
+                            <div className="max-h-[180px] overflow-y-auto py-1">
+                              {/* Semua PIC option */}
+                              <button
+                                onClick={() => {
+                                  setSelectedPIC('all');
+                                  setIsPICDropdownOpen(false);
+                                }}
+                                className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 ${
+                                  selectedPIC === 'all' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'
+                                }`}
+                              >
+                                Semua PIC
+                              </button>
+
+                              {filteredPicOptions.length === 0 ? (
+                                <div className="px-3 py-2 text-xs text-gray-500">
+                                  {picSearchTerm.trim()
+                                    ? `Tidak ada ${picFilterType === 'divisi' ? 'divisi' : 'subdirektorat'} yang cocok`
+                                    : `Belum ada ${picFilterType === 'divisi' ? 'divisi' : 'subdirektorat'}`}
+                                </div>
+                              ) : (
+                                filteredPicOptions.map((name) => (
+                                  <button
+                                    key={name}
+                                    onClick={() => {
+                                      setSelectedPIC(name);
+                                      setIsPICDropdownOpen(false);
+                                    }}
+                                    className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 ${
+                                      selectedPIC === name ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'
+                                    }`}
+                                  >
+                                    {name}
+                                  </button>
+                                ))
+                              )}
+                            </div>
+
+                            {/* Footer */}
+                            <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-3 py-1.5 text-xs text-gray-500">
+                              {picSearchTerm.trim()
+                                ? `${filteredPicOptions.length} dari ${picFilterOptions.length}`
+                                : `${picFilterOptions.length} ${picFilterType === 'divisi' ? 'divisi' : 'subdirektorat'}`}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-
-                  {/* Status Filter */}
-                  <div className="flex-1 min-w-0">
-                    <label className="text-sm font-semibold text-gray-700 mb-2 block flex items-center">
-                      <TrendingUp className="w-4 h-4 mr-2 text-orange-600" />
-                      Filter Status
-                    </label>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      variant={selectedStatus === 'all' ? "default" : "outline"}
-                      onClick={() => setSelectedStatus('all')}
-                      size="sm"
-                        className={selectedStatus === 'all' 
-                          ? 'bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700' 
-                          : 'border-orange-200 text-orange-600 hover:bg-orange-50'
-                        }
-                    >
-                      Semua Status
-                    </Button>
-                    <Button
-                      variant={selectedStatus === 'uploaded' ? "default" : "outline"}
-                      onClick={() => setSelectedStatus('uploaded')}
-                      size="sm"
-                        className={selectedStatus === 'uploaded' 
-                          ? 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700' 
-                          : 'border-green-200 text-green-600 hover:bg-green-50'
-                        }
-                    >
-                        <CheckCircle className="w-3 h-3 mr-1" />
-                      Sudah Upload
-                    </Button>
-                    <Button
-                      variant={selectedStatus === 'not_uploaded' ? "default" : "outline"}
-                      onClick={() => setSelectedStatus('not_uploaded')}
-                      size="sm"
-                        className={selectedStatus === 'not_uploaded' 
-                          ? 'bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700' 
-                          : 'border-yellow-200 text-yellow-600 hover:bg-yellow-50'
-                        }
-                    >
-                        <Clock className="w-3 h-3 mr-1" />
-                      Belum Upload
-                    </Button>
-                  </div>
-                </div>
-
-                  {/* Reset Button */}
-                  <div className="flex items-end">
-                  <Button 
-                    variant="outline" 
-                    onClick={() => {
-                      setSelectedAspek('all');
-                      setSelectedStatus('all');
-                        setSearchTerm('');
-                    }}
-                      className="border-orange-200 text-orange-600 hover:bg-orange-50"
-                  >
-                      <RotateCcw className="w-4 h-4 mr-2" />
-                    Reset Filter
-                  </Button>
-                </div>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div id="checklist-table" className="overflow-hidden rounded-lg border border-indigo-100">
+                </CardHeader>
+            <CardContent className="px-0 pb-0">
+              <div id="checklist-table" className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                    <TableRow className="bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-100">
-                      <TableHead className="text-indigo-900 font-semibold">No</TableHead>
-                      <TableHead className="text-indigo-900 font-semibold">Aspek</TableHead>
-                                                  <TableHead className="text-indigo-900 font-semibold">Deskripsi Dokumen GCG</TableHead>
-                      <TableHead className="text-indigo-900 font-semibold">Status</TableHead>
-                      <TableHead className="text-indigo-900 font-semibold">File</TableHead>
-                      <TableHead className="text-indigo-900 font-semibold">Aksi</TableHead>
+                    <TableRow className="bg-gray-50 border-b border-gray-200">
+                      <TableHead className="text-gray-700 font-medium text-xs w-12">No</TableHead>
+                      <TableHead className="text-gray-700 font-medium text-xs w-32">Aspek</TableHead>
+                      <TableHead className="text-gray-700 font-medium text-xs">Deskripsi</TableHead>
+                      <TableHead className="text-gray-700 font-medium text-xs w-36">PIC</TableHead>
+                      <TableHead className="text-gray-700 font-medium text-xs w-28">Status</TableHead>
+                      <TableHead className="text-gray-700 font-medium text-xs w-44">File</TableHead>
+                      <TableHead className="text-gray-700 font-medium text-xs w-32 text-center">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                     {filteredChecklist.map((item, index) => {
                       const IconComponent = getAspectIcon(item.aspek);
                       const uploadedDocument = getUploadedDocument(item.id);
+                      const assignmentData = getAssignmentData(item.id);
+                      
+                      // Debug logging for assignment data
+                      if (assignmentData) {
+                        console.log('MonitoringUploadGCG: Assignment data for item', item.id, ':', {
+                          divisi: assignmentData.divisi,
+                          subdirektorat: assignmentData.subdirektorat,
+                          assignmentType: assignmentData.assignmentType,
+                          fullData: assignmentData
+                        });
+                      }
                       
                       return (
-                        <TableRow key={item.id} className="hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 transition-colors duration-200">
-                          <TableCell className="font-medium text-gray-700">
+                        <TableRow key={item.id} className="hover:bg-blue-50/50 transition-colors border-b border-gray-100">
+                          <TableCell className="text-xs text-gray-600 py-2">
                             {index + 1}
                           </TableCell>
-                          <TableCell className="max-w-xs">
-                            <div className="flex items-center space-x-2">
-                              <div className="p-1.5 rounded-md bg-gray-100">
-                                <IconComponent className="w-3 h-3 text-gray-600" />
-                              </div>
-                              <span className="text-xs text-gray-600 truncate">
-                                {item.aspek}
-                              </span>
-                            </div>
+                          <TableCell className="py-2">
+                            <span className="text-xs text-gray-600 line-clamp-2" title={item.aspek || 'Dokumen Tanpa Aspek'}>
+                              {(item.aspek || 'Tanpa Aspek').replace('ASPEK ', '').substring(0, 20)}
+                            </span>
                           </TableCell>
-                      <TableCell className="max-w-md">
-                            <div className="text-sm font-semibold text-gray-900 leading-relaxed" title={item.deskripsi}>
+                      <TableCell className="py-2">
+                            <div className="text-xs text-gray-900 line-clamp-2" title={item.deskripsi}>
                           {item.deskripsi}
                         </div>
                       </TableCell>
-                      <TableCell>
-                            {item.status === 'uploaded' ? (
-                              <span className="flex items-center text-green-600 text-sm font-medium">
-                                <CheckCircle className="w-4 h-4 mr-1" />
-                                Sudah Upload
+                      <TableCell className="py-2">
+                        {assignmentData ? (
+                          <span className="text-xs text-purple-600 font-medium line-clamp-1" title={assignmentData.divisi || assignmentData.subdirektorat}>
+                            {(assignmentData.divisi || assignmentData.subdirektorat).substring(0, 20)}{(assignmentData.divisi || assignmentData.subdirektorat).length > 20 ? '...' : ''}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400 italic">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="py-2">
+                            {itemsBeingChecked.has(item.id) ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700">
+                                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                Checking
+                              </span>
+                            ) : uploadedDocument ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">
+                                <CheckCircle className="w-3 h-3 mr-1" />
+                                Upload
                               </span>
                             ) : (
-                              <span className="flex items-center text-gray-400 text-sm">
-                                <Clock className="w-4 h-4 mr-1" />
-                                Belum Upload
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">
+                                <Clock className="w-3 h-3 mr-1" />
+                                Belum
                               </span>
                             )}
                       </TableCell>
-                      <TableCell>
-                            {uploadedDocument ? (
-                              <div className="space-y-1">
-                                <div className="flex items-center space-x-2">
-                                  <FileText className="w-4 h-4 text-blue-600" />
-                                  <span className="text-sm font-medium text-gray-900 truncate" title={uploadedDocument.fileName}>
-                                    {uploadedDocument.fileName}
-                                  </span>
-                                </div>
-                                <div className="text-xs text-gray-500">
-                                  Nama File: {uploadedDocument.fileName}
-                                </div>
-                                <div className="text-xs text-gray-500">
-                                  Tanggal Upload: {new Date(uploadedDocument.uploadDate).toLocaleDateString('id-ID')}
-                                </div>
-                              </div>
+                      <TableCell className="py-2">
+                        {uploadedDocument ? (
+                          <div>
+                            <span className="text-xs text-blue-600 font-medium truncate block max-w-[150px]" title={uploadedDocument.fileName}>
+                              {uploadedDocument.fileName}
+                            </span>
+                            <span className="text-[10px] text-gray-400">
+                              {new Date(uploadedDocument.uploadDate).toLocaleDateString('id-ID')}
+                            </span>
+                          </div>
                         ) : (
-                              <div className="text-sm text-gray-400 italic">
-                                Belum ada file
-                              </div>
+                          <span className="text-xs text-gray-400 italic">-</span>
                         )}
                       </TableCell>
-                      <TableCell>
-                        <div className="flex space-x-2">
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => handleViewDocument(item.id)}
+                      <TableCell className="py-2">
+                        <div className="flex items-center justify-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={() => handleDownloadDocument(item.id, item.id)}
                                 disabled={!isChecklistUploaded(item.id)}
-                                className={`${
-                                  isChecklistUploaded(item.id)
-                                    ? 'border-blue-200 text-blue-600 hover:bg-blue-50'
-                                    : 'border-gray-200 text-gray-400 cursor-not-allowed'
-                                }`}
-                                title={
-                                  isChecklistUploaded(item.id)
-                                    ? 'Lihat dokumen di Dashboard'
-                                    : 'Dokumen belum diupload'
-                                }
+                                title={isChecklistUploaded(item.id) ? 'Download' : 'Belum ada file'}
                               >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => handleDownloadDocument(item.id)}
-                                disabled={!isChecklistUploaded(item.id)}
-                                className={`${
-                                  isChecklistUploaded(item.id)
-                                    ? 'border-green-200 text-green-600 hover:bg-green-50'
-                                    : 'border-gray-200 text-gray-400 cursor-not-allowed'
-                                }`}
-                                title={
-                                  isChecklistUploaded(item.id)
-                                    ? 'Download dokumen'
-                                    : 'Dokumen belum diupload'
-                                }
-                              >
-                                <Download className="w-4 h-4" />
+                                <Download className={`w-3.5 h-3.5 ${isChecklistUploaded(item.id) ? 'text-green-600' : 'text-gray-300'}`} />
                               </Button>
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => handleUploadClick(item)}
-                                className="border-orange-200 text-orange-600 hover:bg-orange-50"
-                                title="Upload dokumen baru"
+
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={() => handleUploadClick(item, item.rowNumber || (index + 1))}
+                                disabled={itemsBeingChecked.has(item.id)}
+                                title={uploadedDocument ? 'Reupload / Ganti File' : 'Upload'}
                               >
-                            <Upload className="w-4 h-4" />
+                            {uploadedDocument ? (
+                              <Replace className={`w-3.5 h-3.5 ${itemsBeingChecked.has(item.id) ? 'text-gray-300' : 'text-blue-600'}`} />
+                            ) : (
+                              <Upload className={`w-3.5 h-3.5 ${itemsBeingChecked.has(item.id) ? 'text-gray-300' : 'text-orange-600'}`} />
+                            )}
                           </Button>
-                      <AssignmentDropdown 
-                        item={item}
-                        onAssign={handleAssignment}
-                        isSuperAdmin={user?.role === 'superadmin'}
-                        currentAssignmentLabel={(() => {
-                          const a = assignments.find(a => a.checklistId === item.id && a.tahun === selectedYear);
-                          if (!a) return null;
-                          const opt = SUBDIREKTORAT_OPTIONS.find(o => o.value === a.subdirektorat);
-                          return opt?.label || a.subdirektorat;
-                        })()}
-                      />
+
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => handleViewInArchive(item)}
+                            disabled={!uploadedDocument}
+                            title={uploadedDocument ? "Lihat di Arsip" : "Belum ada file"}
+                          >
+                            <Eye className={`w-3.5 h-3.5 ${uploadedDocument ? 'text-blue-600' : 'text-gray-300'}`} />
+                          </Button>
+
+                          {uploadedDocument && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => {
+                                if (confirm(`Hapus "${uploadedDocument.fileName}"?`)) {
+                                  handleDeleteDocument(item.id, uploadedDocument.id);
+                                }
+                              }}
+                              title="Hapus"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -1073,463 +1721,135 @@ const MonitoringUploadGCG = () => {
               </Table>
               
               {filteredChecklist.length === 0 && (
-                  <div className="text-center py-12 bg-gradient-to-br from-gray-50 to-blue-50">
-                    <div className="p-4 bg-white rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center shadow-lg">
-                      <FileText className="w-8 h-8 text-gray-400" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-700 mb-2">
-                      Tidak ada item yang ditemukan
-                    </h3>
-                    <p className="text-gray-500">
-                      Coba ubah filter atau pilih tahun yang berbeda
-                    </p>
+                  <div className="text-center py-8 border-t border-gray-100">
+                    <FileText className="w-10 h-10 text-gray-300 mx-auto mb-2" />
+                    <p className="text-sm text-gray-500">Tidak ada dokumen ditemukan</p>
+                    <p className="text-xs text-gray-400">Ubah filter atau pilih tahun lain</p>
                 </div>
               )}
                 </div>
               </CardContent>
             </Card>
-            </TabsContent>
-
-            {/* Tab Kelola Aspek */}
-            <TabsContent value="kelola-aspek">
-              <Card className="border-0 shadow-lg bg-gradient-to-r from-white to-emerald-50">
-                <CardHeader>
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <CardTitle className="flex items-center space-x-2 text-emerald-900">
-                        <Settings className="w-5 h-5 text-emerald-600" />
-                        <span>Kelola Aspek - Tahun {selectedYear}</span>
-                      </CardTitle>
-                      <CardDescription className="text-emerald-700 mt-2">
-                        Kelola aspek-aspek GCG untuk tahun {selectedYear}
-                      </CardDescription>
-                    </div>
-                    <Button 
-                      onClick={() => {
-                        setAspekForm({ nama: '', deskripsi: '' });
-                        setIsAddAspekDialogOpen(true);
-                      }}
-                      className="bg-emerald-600 hover:bg-emerald-700"
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Tambah Aspek
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {(() => {
-                      const yearChecklist = checklist.filter(item => item.tahun === selectedYear);
-                      const uniqueAspek = [...new Set(yearChecklist.map(item => item.aspek))];
-                      return uniqueAspek.map(aspekName => (
-                        <div key={aspekName} className="flex items-center justify-between p-4 bg-white rounded-lg border border-emerald-200 shadow-sm">
-                          <div className="flex items-center space-x-3">
-                            <div className="p-2 rounded-lg bg-emerald-50">
-                              <Settings className="w-4 h-4 text-emerald-600" />
-                            </div>
-                            <div>
-                              <h3 className="font-semibold text-gray-900">{aspekName}</h3>
-                              <p className="text-sm text-gray-600">
-                                {yearChecklist.filter(item => item.aspek === aspekName).length} item checklist
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex space-x-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setSelectedAspekForEdit(aspekName);
-                                setAspekForm({ nama: aspekName, deskripsi: '' });
-                                setIsEditAspekDialogOpen(true);
-                              }}
-                              className="border-blue-200 text-blue-600 hover:bg-blue-50"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleDeleteAspek(aspekName)}
-                              className="border-red-200 text-red-600 hover:bg-red-50"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      ));
-                    })()}
-                    
-                    {(() => {
-                      const yearChecklist = checklist.filter(item => item.tahun === selectedYear);
-                      const uniqueAspek = [...new Set(yearChecklist.map(item => item.aspek))];
-                      return uniqueAspek.length === 0;
-                    })() && (
-                      <div className="text-center py-12 bg-gradient-to-br from-emerald-50 to-blue-50">
-                        <div className="p-4 bg-white rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center shadow-lg">
-                          <Settings className="w-8 h-8 text-emerald-400" />
-                        </div>
-                        <h3 className="text-lg font-semibold text-emerald-700 mb-2">
-                          Belum ada aspek
+            </>
+          ) : (
+            <Card className="border-0 shadow-lg bg-blue-50 border-blue-200 mb-6">
+              <CardContent className="p-6">
+                <div className="text-center">
+                  <FileText className="w-16 h-16 text-blue-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-blue-900 mb-2">
+                    Pilih Tahun Buku untuk Melihat Monitoring
                         </h3>
-                        <p className="text-emerald-600">
-                          Tambahkan aspek pertama untuk tahun {selectedYear}
-                        </p>
+                  <p className="text-blue-700 text-sm mb-4">
+                    Setelah memilih tahun buku, Anda akan dapat melihat:
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-left max-w-2xl mx-auto">
+                    <div className="flex items-start space-x-2">
+                      <CheckCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                        <h4 className="font-medium text-blue-900">Statistik Dokumen</h4>
+                        <p className="text-sm text-blue-700">Progress upload per aspek GCG</p>
+                    </div>
+                  </div>
+                    <div className="flex items-start space-x-2">
+                      <TrendingUp className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                        <h4 className="font-medium text-blue-900">Overview Progress</h4>
+                        <p className="text-sm text-blue-700">Ringkasan keseluruhan dokumen</p>
+                        </div>
                       </div>
-                    )}
+                    <div className="flex items-start space-x-2">
+                      <Upload className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                            <div>
+                        <h4 className="font-medium text-blue-900">Upload Dokumen</h4>
+                        <p className="text-sm text-blue-700">Upload dan kelola file GCG</p>
+                            </div>
+                          </div>
+                          </div>
                   </div>
                 </CardContent>
               </Card>
-            </TabsContent>
-
-            {/* Tab Kelola Dokumen */}
-                          <TabsContent value="kelola-dokumen">
-              <Card className="border-0 shadow-lg bg-gradient-to-r from-white to-purple-50">
-                <CardHeader>
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <CardTitle className="flex items-center space-x-2 text-purple-900">
-                        <List className="w-5 h-5 text-purple-600" />
-                        <span>Kelola Dokumen - Tahun {selectedYear}</span>
-                      </CardTitle>
-                      <CardDescription className="text-purple-700 mt-2">
-                        Kelola dokumen GCG untuk tahun {selectedYear}
-                      </CardDescription>
-                    </div>
-                    <Button 
-                      onClick={() => {
-                        setChecklistForm({ aspek: '', deskripsi: '' });
-                        setIsAddChecklistDialogOpen(true);
-                      }}
-                      className="bg-purple-600 hover:bg-purple-700"
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Tambah Checklist
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {/* Filter dan Pencarian */}
-                  <div className="mb-6 space-y-4">
-                    {/* Search Bar */}
-                    <div>
-                      <label className="text-sm font-semibold text-gray-700 mb-2 block flex items-center">
-                        <Search className="w-4 h-4 mr-2 text-purple-600" />
-                        Pencarian Deskripsi Dokumen GCG
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <Search className="h-4 w-4 text-gray-400" />
-                        </div>
-                        <Input
-                          type="text"
-                          placeholder="Cari berdasarkan deskripsi dokumen GCG..."
-                          className="pl-10 pr-10"
-                          value={searchTermChecklist}
-                          onChange={(e) => setSearchTermChecklist(e.target.value)}
-                        />
-                        {searchTermChecklist && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setSearchTermChecklist('')}
-                            className="absolute inset-y-0 right-0 px-3 text-gray-400 hover:text-gray-600"
-                          >
-                            <RotateCcw className="w-4 h-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Filter Row */}
-                    <div className="flex flex-wrap items-center gap-4">
-                      {/* Aspek Filter */}
-                      <div className="flex-1 min-w-0">
-                        <label className="text-sm font-semibold text-gray-700 mb-2 block flex items-center">
-                          <Filter className="w-4 h-4 mr-2 text-purple-600" />
-                          Filter Aspek
-                        </label>
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            variant={selectedAspekForChecklist === 'all' ? "default" : "outline"}
-                            onClick={() => setSelectedAspekForChecklist('all')}
-                            size="sm"
-                            className={selectedAspekForChecklist === 'all' 
-                              ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700' 
-                              : 'border-purple-200 text-purple-600 hover:bg-purple-50'
-                            }
-                          >
-                            Semua Aspek
-                          </Button>
-                          {(() => {
-                            const yearChecklist = checklist.filter(item => item.tahun === selectedYear);
-                            const uniqueAspek = [...new Set(yearChecklist.map(item => item.aspek))];
-                            return uniqueAspek.map(aspek => {
-                              const IconComponent = getAspectIcon(aspek);
-                              return (
-                                <Button
-                                  key={aspek}
-                                  variant={selectedAspekForChecklist === aspek ? "default" : "outline"}
-                                  onClick={() => setSelectedAspekForChecklist(aspek)}
-                                  size="sm"
-                                  className={`text-xs flex items-center space-x-2 ${
-                                    selectedAspekForChecklist === aspek 
-                                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700' 
-                                      : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                                  }`}
-                                >
-                                  <IconComponent className={`w-3 h-3 ${selectedAspekForChecklist === aspek ? 'text-white' : 'text-gray-600'}`} />
-                                  <span>{aspek.replace('ASPEK ', '').replace('. ', ' - ')}</span>
-                                </Button>
-                              );
-                            });
-                          })()}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Tabel Checklist */}
-                  <div className="space-y-4">
-                    {displayedChecklistItems.map(item => (
-                      <div key={item.id} className="flex items-center justify-between p-4 bg-white rounded-lg border border-purple-200 shadow-sm">
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-3 mb-2">
-                            <div className="p-2 bg-purple-50 rounded-lg">
-                              <List className="w-4 h-4 text-purple-600" />
-                            </div>
-                            <div>
-                              <h3 className="text-sm text-gray-600">{item.aspek}</h3>
-                              <p className="font-semibold text-gray-900">{item.deskripsi}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-4 text-xs text-gray-500">
-                            <span>Status: {isChecklistUploaded(item.id) ? 'Sudah Upload' : 'Belum Upload'}</span>
-                            <span>Tahun: {item.tahun}</span>
-                          </div>
-                        </div>
-                        <div className="flex space-x-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedChecklistForEdit(item);
-                              setChecklistForm({ aspek: item.aspek, deskripsi: item.deskripsi });
-                              setIsEditChecklistDialogOpen(true);
-                            }}
-                            className="border-blue-200 text-blue-600 hover:bg-blue-50"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDeleteChecklist(item.id)}
-                            className="border-red-200 text-red-600 hover:bg-red-50"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                    
-                    {filteredChecklistItems.length === 0 && (
-                      <div className="text-center py-12 bg-gradient-to-br from-purple-50 to-blue-50">
-                        <div className="p-4 bg-white rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center shadow-lg">
-                          <List className="w-8 h-8 text-purple-400" />
-                        </div>
-                        <h3 className="text-lg font-semibold text-purple-700 mb-2">
-                          Tidak ada checklist yang ditemukan
-                        </h3>
-                        <p className="text-purple-600">
-                          {searchTermChecklist || selectedAspekForChecklist !== 'all' 
-                            ? 'Coba ubah filter atau pencarian' 
-                            : 'Tambahkan dokumen GCG pertama untuk tahun ' + selectedYear}
-                        </p>
-                      </div>
-                    )}
-                    
-                    {/* Info jumlah item yang ditampilkan */}
-                    {filteredChecklistItems.length > 0 && (
-                      <div className="text-center py-4 text-sm text-gray-500">
-                        Menampilkan {displayedChecklistItems.length} dari {filteredChecklistItems.length} checklist
-                        {filteredChecklistItems.length > 100 && (
-                          <span className="block mt-1 text-xs text-gray-400">
-                            (Maksimal 100 item ditampilkan untuk performa optimal)
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+          )}
         </div>
       </div>
 
-      {/* Dialog Tambah Aspek */}
-      <FormDialog
-        isOpen={isAddAspekDialogOpen}
-        onClose={() => setIsAddAspekDialogOpen(false)}
-        onSubmit={handleAddAspek}
-        title="Tambah Aspek"
-        description={`Tambahkan aspek baru untuk tahun ${selectedYear}`}
-        variant="add"
-        submitText="Tambah Aspek"
-      >
-        <div className="space-y-4">
-          <div>
-            <Label htmlFor="nama-aspek">Nama Aspek</Label>
-            <Input
-              id="nama-aspek"
-              value={aspekForm.nama}
-              onChange={(e) => setAspekForm(prev => ({ ...prev, nama: e.target.value }))}
-              placeholder="Masukkan nama aspek..."
-              required
-            />
-          </div>
-          <div>
-            <Label htmlFor="deskripsi-aspek">Deskripsi (Opsional)</Label>
-            <Textarea
-              id="deskripsi-aspek"
-              value={aspekForm.deskripsi}
-              onChange={(e) => setAspekForm(prev => ({ ...prev, deskripsi: e.target.value }))}
-              placeholder="Masukkan deskripsi aspek..."
-              rows={3}
-            />
-          </div>
-        </div>
-      </FormDialog>
-
-      {/* Dialog Edit Aspek */}
-      <FormDialog
-        isOpen={isEditAspekDialogOpen}
-        onClose={() => setIsEditAspekDialogOpen(false)}
-        onSubmit={handleEditAspek}
-        title="Edit Aspek"
-        description={`Edit aspek untuk tahun ${selectedYear}`}
-        variant="edit"
-        submitText="Update Aspek"
-      >
-        <div className="space-y-4">
-          <div>
-            <Label htmlFor="edit-nama-aspek">Nama Aspek</Label>
-            <Input
-              id="edit-nama-aspek"
-              value={aspekForm.nama}
-              onChange={(e) => setAspekForm(prev => ({ ...prev, nama: e.target.value }))}
-              placeholder="Masukkan nama aspek..."
-              required
-            />
-          </div>
-          <div>
-            <Label htmlFor="edit-deskripsi-aspek">Deskripsi (Opsional)</Label>
-            <Textarea
-              id="edit-deskripsi-aspek"
-              value={aspekForm.deskripsi}
-              onChange={(e) => setAspekForm(prev => ({ ...prev, deskripsi: e.target.value }))}
-              placeholder="Masukkan deskripsi aspek..."
-              rows={3}
-            />
-          </div>
-        </div>
-      </FormDialog>
-
-      {/* Dialog Tambah Checklist */}
-      <FormDialog
-        isOpen={isAddChecklistDialogOpen}
-        onClose={() => setIsAddChecklistDialogOpen(false)}
-        onSubmit={handleAddChecklist}
-        title="Tambah Dokumen GCG"
-        description={`Tambahkan dokumen GCG baru untuk tahun ${selectedYear}`}
-        variant="add"
-        submitText="Tambah Dokumen GCG"
-      >
-        <div className="space-y-4">
-          <div>
-            <Label htmlFor="aspek-checklist">Aspek</Label>
-            <Select value={checklistForm.aspek} onValueChange={(value) => setChecklistForm(prev => ({ ...prev, aspek: value }))}>
-              <SelectTrigger>
-                <SelectValue placeholder="Pilih aspek" />
-              </SelectTrigger>
-              <SelectContent>
-                {(() => {
-                  const yearChecklist = checklist.filter(item => item.tahun === selectedYear);
-                  const uniqueAspek = [...new Set(yearChecklist.map(item => item.aspek))];
-                  return uniqueAspek.map(aspekName => (
-                    <SelectItem key={aspekName} value={aspekName}>{aspekName}</SelectItem>
-                  ));
-                })()}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label htmlFor="deskripsi-checklist">Deskripsi</Label>
-            <Textarea
-              id="deskripsi-checklist"
-              value={checklistForm.deskripsi}
-              onChange={(e) => setChecklistForm(prev => ({ ...prev, deskripsi: e.target.value }))}
-              placeholder="Masukkan deskripsi checklist..."
-              rows={3}
-              required
-            />
-          </div>
-        </div>
-      </FormDialog>
-
-      {/* Dialog Edit Checklist */}
-      <FormDialog
-        isOpen={isEditChecklistDialogOpen}
-        onClose={() => setIsEditChecklistDialogOpen(false)}
-        onSubmit={handleEditDokumenGCG}
-        title="Edit Dokumen GCG"
-        description={`Edit dokumen GCG untuk tahun ${selectedYear}`}
-        variant="edit"
-        submitText="Update Dokumen GCG"
-      >
-        <div className="space-y-4">
-          <div>
-            <Label htmlFor="edit-aspek-checklist">Aspek</Label>
-            <Select value={checklistForm.aspek} onValueChange={(value) => setChecklistForm(prev => ({ ...prev, aspek: value }))}>
-              <SelectTrigger>
-                <SelectValue placeholder="Pilih aspek" />
-              </SelectTrigger>
-              <SelectContent>
-                {(() => {
-                  const yearChecklist = checklist.filter(item => item.tahun === selectedYear);
-                  const uniqueAspek = [...new Set(yearChecklist.map(item => item.aspek))];
-                  return uniqueAspek.map(aspekName => (
-                    <SelectItem key={aspekName} value={aspekName}>{aspekName}</SelectItem>
-                  ));
-                })()}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label htmlFor="edit-deskripsi-checklist">Deskripsi</Label>
-            <Textarea
-              id="edit-deskripsi-checklist"
-              value={checklistForm.deskripsi}
-              onChange={(e) => setChecklistForm(prev => ({ ...prev, deskripsi: e.target.value }))}
-              placeholder="Masukkan deskripsi checklist..."
-              rows={3}
-              required
-            />
-          </div>
-        </div>
-      </FormDialog>
 
       {/* File Upload Dialog */}
-      <FileUploadDialog
+      <AdminUploadDialog
         isOpen={isUploadDialogOpen}
         onOpenChange={setIsUploadDialogOpen}
-        checklistId={selectedChecklistItem?.id}
-        checklistDescription={selectedChecklistItem?.deskripsi}
-        aspect={selectedChecklistItem?.aspek}
+        checklistItem={selectedChecklistItem}
+        rowNumber={selectedChecklistItem?.rowNumber}
+        isReUpload={false}
+        onUploadSuccess={() => {
+          // Rescan only the uploaded row instead of all rows
+          if (selectedChecklistItem && selectedChecklistItem.rowNumber) {
+            setTimeout(() => {
+              rescanSingleRow(selectedChecklistItem.id, selectedChecklistItem.rowNumber);
+            }, 500); // Shorter delay for single row
+          }
+          
+          // Dispatch custom event for real-time updates without page restart
+          console.log('MonitoringUploadGCG: Upload success, rescanning single row:', selectedChecklistItem?.id);
+          
+          // Force refresh of all contexts with delay
+          setTimeout(() => {
+            console.log('MonitoringUploadGCG: Dispatching events after upload success');
+            
+            // Force refresh files from context
+            refreshFiles();
+            
+          window.dispatchEvent(new CustomEvent('fileUploaded', {
+            detail: { 
+              type: 'fileUploaded', 
+              year: selectedYear,
+              checklistId: selectedChecklistItem?.id,
+              rowNumber: selectedChecklistItem?.rowNumber,
+              timestamp: new Date().toISOString()
+            }
+          }));
+          
+          window.dispatchEvent(new CustomEvent('uploadedFilesChanged', {
+            detail: { 
+              type: 'uploadedFilesChanged', 
+              year: selectedYear,
+              checklistId: selectedChecklistItem?.id,
+              timestamp: new Date().toISOString()
+            }
+          }));
+            
+            window.dispatchEvent(new CustomEvent('documentsUpdated', {
+              detail: { 
+                type: 'documentsUpdated', 
+                year: selectedYear,
+                timestamp: new Date().toISOString()
+              }
+            }));
+          }, 300);
+        }}
       />
+
     </div>
-  );
+    );
+  } catch (error) {
+    console.error('❌ Error rendering MonitoringUploadGCG:', error);
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-red-600 mb-4">Error Rendering Page</h1>
+          <p className="text-gray-600 mb-4">Terjadi kesalahan saat merender halaman Monitoring & Upload Dokumen.</p>
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4 text-left">
+            <p className="text-sm text-red-700 font-mono">{error?.toString()}</p>
+          </div>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Refresh Halaman
+          </button>
+        </div>
+      </div>
+    );
+  }
 };
 
 export default MonitoringUploadGCG; 

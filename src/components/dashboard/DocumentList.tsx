@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,9 +12,8 @@ import { useDocumentMetadata } from '@/contexts/DocumentMetadataContext';
 import { useFileUpload } from '@/contexts/FileUploadContext';
 import { useChecklist } from '@/contexts/ChecklistContext';
 import { useDirektorat } from '@/contexts/DireksiContext';
-import { useYear } from '@/contexts/YearContext';
-
 import { useStrukturPerusahaan } from '@/contexts/StrukturPerusahaanContext';
+import { useYear } from '@/contexts/YearContext';
 import { useToast } from '@/hooks/use-toast';
 import { 
   FileText, 
@@ -60,22 +59,44 @@ const DocumentList: React.FC<DocumentListProps> = ({
   const { selectedYear } = useYear();
   const { checklist } = useChecklist();
   const { direktorat } = useDirektorat();
-  // Klasifikasi data removed - using hardcoded options instead
-  const klasifikasiPrinsip = ['Transparansi', 'Akuntabilitas', 'Responsibilitas', 'Independensi', 'Kewajaran', 'Kepatuhan'];
-  const klasifikasiJenis = ['Dokumen Internal', 'Dokumen Eksternal', 'Laporan', 'SOP', 'Kebijakan', 'Prosedur'];
-  const klasifikasiKategori = ['GCG', 'Operasional', 'Keuangan', 'SDM', 'Teknologi', 'Lainnya'];
-  const klasifikasiData = [
-    ...klasifikasiPrinsip.map(nama => ({ nama, tipe: 'prinsip' as const, isActive: true })),
-    ...klasifikasiJenis.map(nama => ({ nama, tipe: 'jenis' as const, isActive: true })),
-    ...klasifikasiKategori.map(nama => ({ nama, tipe: 'kategori' as const, isActive: true }))
-  ];
-  const { direktorat: direktorats, subdirektorat: subDirektorats } = useStrukturPerusahaan();
+  const { direktorat: direktoratsCtx, subdirektorat: subdirektoratsCtx } = useStrukturPerusahaan();
+  
+  // Transform object arrays to string arrays for display
+  const direktorats = useMemo(() => {
+    if (!direktoratsCtx || !Array.isArray(direktoratsCtx)) return [];
+    if (!selectedYear) return [];
+    
+    try {
+      return direktoratsCtx
+        .filter(item => item && item.tahun === selectedYear && item.nama)
+        .map(item => String(item.nama))
+        .filter(Boolean);
+    } catch (error) {
+      console.error('Error processing direktorat data:', error);
+      return [];
+    }
+  }, [direktoratsCtx, selectedYear]);
+  
+  const subDirektorats = useMemo(() => {
+    if (!subdirektoratsCtx || !Array.isArray(subdirektoratsCtx)) return [];
+    if (!selectedYear) return [];
+    
+    try {
+      return subdirektoratsCtx
+        .filter(item => item && item.tahun === selectedYear && item.nama)
+        .map(item => String(item.nama))
+        .filter(Boolean);
+    } catch (error) {
+      console.error('Error processing subdirektorat data:', error);
+      return [];
+    }
+  }, [subdirektoratsCtx, selectedYear]);
+  
+
   const { toast } = useToast();
   
   // Filter state
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedPrinciple, setSelectedPrinciple] = useState('all');
-  const [selectedType, setSelectedType] = useState('all');
   const [selectedDirektorat, setSelectedDirektorat] = useState('all');
   const [selectedSubDirektorat, setSelectedSubDirektorat] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
@@ -148,13 +169,7 @@ const DocumentList: React.FC<DocumentListProps> = ({
       );
     }
 
-    if (selectedPrinciple !== 'all') {
-      filtered = filtered.filter(doc => doc.gcgPrinciple === selectedPrinciple);
-    }
 
-    if (selectedType !== 'all') {
-      filtered = filtered.filter(doc => doc.documentType === selectedType);
-    }
 
     if (selectedDirektorat !== 'all') {
       filtered = filtered.filter(doc => doc.direktorat === selectedDirektorat);
@@ -401,7 +416,7 @@ ${senderName}
 ${senderEmail}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Dikirim dari GCG Document Hub
+                Dikirim dari Good Corporate Governance Documents Management System
 Tahun: ${doc.year || new Date().getFullYear()}`);
 
       // Open Gmail web directly (default behavior)
@@ -603,28 +618,15 @@ Tahun: ${doc.year || new Date().getFullYear()}`);
               
               {/* Action Buttons */}
               <div className="flex items-center space-x-2 ml-4">
-                <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => setSelectedDocument(doc)}
-                      className="hover:bg-blue-50 hover:border-blue-200"
-                    >
-                      <Eye className="w-4 h-4 mr-1" />
-                      Detail
-                    </Button>
-                  </DialogTrigger>
-                  
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => handleDownloadDocument(doc)}
-                    className="hover:bg-green-50 hover:border-green-200"
-                  >
-                    <Download className="w-4 h-4 mr-1" />
-                    Unduh
-                  </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => handleDownloadDocument(doc)}
+                  className="hover:bg-green-50 hover:border-green-200"
+                >
+                  <Download className="w-4 h-4 mr-1" />
+                  Unduh
+                </Button>
                   
                   <Button 
                     variant="outline" 

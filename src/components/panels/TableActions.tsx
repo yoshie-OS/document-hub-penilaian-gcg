@@ -51,8 +51,7 @@ const TableActions: React.FC<TableActionsProps> = ({
         return <Trash2 className="w-4 h-4" />;
       case 'download':
         return <Download className="w-4 h-4" />;
-      case 'view':
-        return <Eye className="w-4 h-4" />;
+
       case 'copy':
         return <Copy className="w-4 h-4" />;
       case 'share':

@@ -10,19 +10,28 @@ import { SidebarProvider } from './contexts/SidebarContext';
 import { YearProvider } from './contexts/YearContext';
 
 import { StrukturPerusahaanProvider } from './contexts/StrukturPerusahaanContext';
+import { AOIProvider } from './contexts/AOIContext';
+import { AOIDocumentProvider } from './contexts/AOIDocumentContext';
 import { Toaster } from './components/ui/toaster';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/auth/Login';
 import Register from './pages/Register';
 import DashboardMain from './pages/dashboard/DashboardMain';
+import DocumentManagement from './pages/DocumentManagement';
+import PenilaianGCG from './pages/PenilaianGCG';
 import MonitoringUploadGCG from './pages/MonitoringUploadGCG';
-
 import ArsipDokumen from './pages/admin/ArsipDokumen';
-import StrukturPerusahaan from './pages/admin/StrukturPerusahaan';
 import DashboardAdmin from './pages/admin/DashboardAdmin';
-import KelolaAkun from './pages/admin/KelolaAkun';
-import MetaData from './pages/admin/MetaData';
 import PengaturanBaru from './pages/admin/PengaturanBaru';
+import AOIManagement from './pages/admin/AOIManagement';
+import EditSuperAdmin from './pages/admin/EditSuperAdmin';
+import {
+  PengaturanHub,
+  TahunBukuPage,
+  StrukturOrganisasiPage,
+  ManajemenAkunPage,
+  KelolaDokumenPage
+} from './pages/admin/pengaturan';
 import NotFound from './pages/NotFound';
 import { useUser } from './contexts/UserContext';
 
@@ -76,12 +85,12 @@ const AppRoutes = () => {
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         
-        {/* Dashboard - Different for Super Admin and Admin */}
+        {/* Dashboard - Super Admin goes to DashboardMain, Admin goes to DashboardAdmin */}
         <Route 
           path="/dashboard" 
           element={
             <ProtectedRoute>
-              {user.role === 'admin' ? <DashboardAdmin /> : <DashboardMain />}
+              {user?.role === 'admin' ? <Navigate to="/admin/dashboard" replace /> : <DashboardMain />}
             </ProtectedRoute>
           } 
         />
@@ -107,14 +116,9 @@ const AppRoutes = () => {
       <Route 
         path="/performa-gcg" 
         element={
-          <SuperAdminRoute>
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-              <div className="text-center">
-                <h1 className="text-2xl font-bold text-gray-900 mb-4">Performa GCG</h1>
-                <p className="text-gray-600">Halaman performa GCG akan dikembangkan selanjutnya</p>
-              </div>
-            </div>
-          </SuperAdminRoute>
+          <ProtectedRoute>
+            <PenilaianGCG />
+          </ProtectedRoute>
         } 
       />
       
@@ -134,14 +138,6 @@ const AppRoutes = () => {
       />
 
       <Route 
-        path="/admin/kelola-akun" 
-        element={
-          <SuperAdminRoute>
-            <KelolaAkun />
-          </SuperAdminRoute>
-        } 
-      />
-      <Route 
         path="/admin/arsip-dokumen" 
         element={
           <SuperAdminRoute>
@@ -149,29 +145,71 @@ const AppRoutes = () => {
           </SuperAdminRoute>
         } 
       />
-      <Route 
-        path="/admin/struktur-perusahaan" 
-        element={
-          <SuperAdminRoute>
-            <StrukturPerusahaan />
-          </SuperAdminRoute>
-        } 
-      />
-      <Route 
-        path="/admin/meta-data" 
-        element={
-          <SuperAdminRoute>
-            <MetaData />
-          </SuperAdminRoute>
-        } 
-      />
-      <Route 
-        path="/admin/pengaturan-baru" 
+      <Route
+        path="/admin/pengaturan-baru"
         element={
           <SuperAdminRoute>
             <PengaturanBaru />
           </SuperAdminRoute>
-        } 
+        }
+      />
+
+      {/* New Pengaturan Routes */}
+      <Route
+        path="/admin/pengaturan"
+        element={
+          <SuperAdminRoute>
+            <PengaturanHub />
+          </SuperAdminRoute>
+        }
+      />
+      <Route
+        path="/admin/pengaturan/tahun-buku"
+        element={
+          <SuperAdminRoute>
+            <TahunBukuPage />
+          </SuperAdminRoute>
+        }
+      />
+      <Route
+        path="/admin/pengaturan/struktur-organisasi"
+        element={
+          <SuperAdminRoute>
+            <StrukturOrganisasiPage />
+          </SuperAdminRoute>
+        }
+      />
+      <Route
+        path="/admin/pengaturan/manajemen-akun"
+        element={
+          <SuperAdminRoute>
+            <ManajemenAkunPage />
+          </SuperAdminRoute>
+        }
+      />
+      <Route
+        path="/admin/pengaturan/kelola-dokumen"
+        element={
+          <SuperAdminRoute>
+            <KelolaDokumenPage />
+          </SuperAdminRoute>
+        }
+      />
+      <Route
+        path="/admin/aoi-management"
+        element={
+          <SuperAdminRoute>
+            <AOIManagement />
+          </SuperAdminRoute>
+        }
+      />
+      <Route
+        path="/admin/edit-superadmin"
+        element={
+          <SuperAdminRoute>
+            <EditSuperAdmin />
+          </SuperAdminRoute>
+        }
       />
       <Route path="/login" element={<Navigate to="/dashboard" replace />} />
       <Route path="/register" element={<Navigate to="/dashboard" replace />} />
@@ -189,14 +227,18 @@ const App = () => {
           <ChecklistProvider>
             <FileUploadProvider>
               <DocumentMetadataProvider>
-                <YearProvider>
-                    <StrukturPerusahaanProvider>
-                      <SidebarProvider>
-                        <AppRoutes />
-                        <Toaster />
-                      </SidebarProvider>
-                    </StrukturPerusahaanProvider>
-                </YearProvider>
+                                  <YearProvider>
+                      <StrukturPerusahaanProvider>
+                        <AOIProvider>
+                          <AOIDocumentProvider>
+                            <SidebarProvider>
+                              <AppRoutes />
+                              <Toaster />
+                            </SidebarProvider>
+                          </AOIDocumentProvider>
+                        </AOIProvider>
+                      </StrukturPerusahaanProvider>
+                  </YearProvider>
               </DocumentMetadataProvider>
             </FileUploadProvider>
           </ChecklistProvider>

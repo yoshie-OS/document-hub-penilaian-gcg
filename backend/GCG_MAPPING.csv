@@ -1,0 +1,57 @@
+Level,Type,Section,No,Deskripsi,Jumlah_Parameter,Bobot
+1,header,I,0.0,KOMITMEN TERHADAP PENERAPAN TATA KELOLA PERUSAHAAN YANG BAIK SECARA BERKELANJUTAN,,
+2,indicator,I,1.0,Perusahaan memiliki Pedoman Tata Kelola Perusahaan yang Baik (GCG Code) dan pedoman perilaku (code of conduct ).,2.0,1.218
+2,indicator,I,2.0,Perusahaan melaksanakan Pedoman Tata Kelola Perusahaan yang Baik dan Pedoman Perilaku secara konsisten.,2.0,1.217
+2,indicator,I,3.0,Perusahaan melakukan pengukuran terhadap penerapan Tata Kelola Perusahaan yang Baik.,2.0,0.608
+2,indicator,I,4.0,Perusahaan melakukan koordinasi pengelolaan dan administrasi Laporan Harta Kekayaan Penyelenggara Negara (LHKPN).,3.0,1.37
+2,indicator,I,5.0,Perusahaan melaksanakan program pengendalian gratifikasi sesuai ketentuan yang berlaku.,3.0,1.37
+2,indicator,I,6.0,Perusahaan melaksanakan kebijakan atas sistem pelaporan atas dugaan penyimpangan pada perusahaan yang bersangkutan (whistle blowing system).,3.0,1.217
+3,subtotal,I,0.0,JUMLAH I,15.0,7.0
+1,header,II,0.0,PEMEGANG SAHAM DAN RUPS/PEMILIK MODAL,,
+2,indicator,II,7.0,RUPS/Pemilik Modal melakukan pengangkatan dan pemberhentian Direksi .,6.0,2.423
+2,indicator,II,8.0,RUPS/Pemilik Modal melakukan pengangkatan dan pemberhentian Dewan Komisaris/Dewan Pengawas.,5.0,1.731
+2,indicator,II,9.0,RUPS/Pemilik Modal memberikan keputusan yang diperlukan untuk menjaga kepentingan usaha perusahaan dalam jangka panjang dan jangka pendek sesuai dengan dengan peraturan perundang-undangan dan/atau anggaran dasar.,3.0,1.385
+2,indicator,II,10.0,RUPS/Pemilik Modal memberikan persetujuan laporan tahunan termasuk pengesahan laporan keuangan serta tugas pengawasan Dewan Komisaris/Dewan Pengawas sesuai peraturan perundang-undangan dan/atau anggaran dasar.,6.0,2.077
+2,indicator,II,11.0,RUPS/Pemilik Modal mengambil keputusan melalui proses yang terbuka dan adil serta dapat dipertanggungjawabkan.,2.0,0.519
+2,indicator,II,12.0,Pemegang Saham/Pemilik Modal melaksanakan Tata Kelola Perusahaan yang Baik sesuai dengan wewenang dan tanggung jawabnya.,3.0,0.865
+3,subtotal,II,0.0,JUMLAH II,25.0,9.0
+1,header,III,0.0,DEWAN KOMISARIS/DEWAN PENGAWAS,,
+2,indicator,III,13.0,Dewan Komisaris/Dewan Pengawas melaksanakan program pelatihan/pembelajaran secara berkelanjutan.,2.0,1.348
+2,indicator,III,14.0,Dewan Komisaris/Dewan Pengawas melakukan pembagian tugas dan menetapkan faktor-faktor yang dibutuhkan untuk mendukung pelaksanaan tugas Dewan Komisaris/Dewan Pengawas.,4.0,2.127
+2,indicator,III,15.0,Dewan Komisaris/Dewan Pengawas memberikan persetujuan atas rancangan RJPP dan RKAP yang disampaikan oleh Direksi.,2.0,2.904
+2,indicator,III,16.0,Dewan Komisaris/Dewan Pengawas memberikan arahan terhadap Direksi atas implementasi rencana dan kebijakan perusahaan.,9.0,9.593
+2,indicator,III,17.0,Dewan Komisaris/Dewan Pengawas melaksanakan pengawasan terhadap Direksi atas implementasi rencana dan kebijakan perusahaan.,6.0,6.479
+2,indicator,III,18.0,Dewan Komisaris/Dewan Pengawas melakukan pengawasan terhadap pelaksanaan kebijakan pengelolaan anak perusahaan/perusahaan patungan.,2.0,1.504
+2,indicator,III,19.0,"Dewan Komisaris/Dewan Pengawas berperan dalam pencalonan anggota Direksi, menilai kinerja Direksi (individu dan kolegial) dan mengusulkan tantiem/ insentif kinerja sesuai ketentuan yang berlaku dan mempertimbangkan kinerja Direksi.",3.0,2.437
+2,indicator,III,20.0,Dewan Komisaris/Dewan Pengawas melakukan tindakan terhadap potensi benturan kepentingan yang menyangkut dirinya.,1.0,0.571
+2,indicator,III,21.0,Dewan Komisaris/Dewan Pengawas memantau dan memastikan bahwa prinsip prinsip Tata Kelola Perusahaan yang Baik telah diterapkan secara efektif dan berkelanjutan.,2.0,1.659
+2,indicator,III,22.0,Dewan Komisaris/Dewan Pengawas menyelenggarakan rapat Dewan Komisaris/Dewan Pengawas yang efektif dan menghadiri rapat tersebut sesuai dengan ketentuan perundang-undangan.,3.0,1.348
+2,indicator,III,23.0,Dewan Komisaris/Dewan Pengawas memiliki Sekretaris Dewan Komisaris/Dewan Pengawas untuk mendukung tugas kesekretariatan Dewan Komisaris/Dewan Pengawas.,4.0,2.593
+2,indicator,III,24.0,Dewan Komisaris/Dewan Pengawas memiliki Komite Dewan Komisaris/Dewan Pengawas yang efektif.,5.0,2.437
+3,subtotal,III,0.0,JUMLAH III,43.0,35.0
+1,header,IV,0.0,DIREKSI,,
+2,indicator,IV,25.0,Direksi melaksanakan program pelatihan/pembelajaran secara berkelanjutan.,2.0,1.089
+2,indicator,IV,26.0,"Direksi melakukan pembagian tugas/fungsi, wewenang dan tanggung jawab secara jelas.",3.0,1.867
+2,indicator,IV,27.0,Direksi menyusun perencanaan perusahaan.,5.0,4.044
+2,indicator,IV,28.0,Direksi berperan dalam pemenuhan target kinerja perusahaan.,11.0,8.089
+2,indicator,IV,29.0,Direksi melaksanakan pengendalian operasional dan keuangan terhadap implementasi rencana dan kebijakan perusahaan.,4.0,3.266
+2,indicator,IV,30.0,Direksi melaksanakan pengurusan perusahaan sesuai dengan peraturan perundang-undangan yang berlaku dan anggaran dasar.,2.0,0.778
+2,indicator,IV,31.0,Direksi melakukan hubungan yang bernilai tambah bagi perusahaan dan stakeholders.,8.0,6.689
+2,indicator,IV,32.0,Direksi memonitor dan mengelola potensi benturan kepentingan anggota Direksi dan manajemen di bawah Direksi.,2.0,1.089
+2,indicator,IV,33.0,Direksi memastikan perusahaan melaksanakan keterbukaan informasi dan komunikasi sesuai peraturan perundang-undangan yang berlaku dan penyampaian informasi kepada Dewan Komisaris/Dewan Pengawas dan Pemegang Saham tepat waktu.,2.0,1.089
+2,indicator,IV,34.0,Direksi menyelenggarakan rapat Direksi dan menghadiri Rapat Dewan Komisaris/Dewan Pengawas sesuai dengan ketentuan perundang-undangan.,5.0,1.556
+2,indicator,IV,35.0,Direksi menyelenggarakan pengawasan intern yang berkualitas dan efektif.,3.0,1.711
+2,indicator,IV,36.0,Direksi menyelenggarakan fungsi sekretaris perusahaan yang berkualitas dan efektif.,3.0,1.711
+2,indicator,IV,37.0,Direksi menyelenggarakan RUPS Tahunan dan RUPS lainnya sesuai peraturan perundang-undangan.,2.0,2.022
+3,subtotal,IV,0.0,JUMLAH IV,52.0,35.0
+1,header,V,0.0,PENGUNGKAPAN INFORMASI DAN TRANSPARANSI,,
+2,indicator,V,38.0,Perusahaan menyediakan informasi perusahaan kepada stakeholders.,2.0,0.435
+2,indicator,V,39.0,"Perusahaan menyediakan bagi stakeholder akses atas informasi perusahaan yang relevan, memadai, dan dapat diandalkan secara tepat waktu dan berkala.",5.0,2.32
+2,indicator,V,40.0,Perusahaan mengungkapkan informasi penting dalam Laporan Tahunan dan Laporan Keuangan sesuai dengan peraturan perundang-undangan.,7.0,3.341
+2,indicator,V,41.0,Perusahaan memperolah penghargaan atau award dalam bidang GCG dan bidang-bidang lainnya.,2.0,2.904
+3,subtotal,V,0.0,JUMLAH V,16.0,9.0
+1,header,VI,0.0,ASPEK LAINNYA,,
+2,indicator,VI,42.0,Praktik Tata Kelola Perusahaan menjadi contoh atau benchmark bagi perusahaan perusahaan lainnya di Indonesia;,1.0,5.0
+2,indicator,VI,43.0,"Praktik Tata Kelola Perusahaan menyimpang dari prinsip-prinsip Tata Kelola Perusahaan yang Baik sesuai Pedoman Penerapan Tata Kelola Perusahaan yang Baik (Good Corporate Governance ) pada Badan Usaha Milik Negara, , Pedoman Umum Good Corporate Governance Indonesia, dan standar-standar praktik dan ketentuan lainnya.",1.0,-5.0
+3,subtotal,VI,0.0,JUMLAH VI,2.0,5.0
+4,total,,0.0,JUMLAH I s.d VI,153.0,100.0

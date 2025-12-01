@@ -1,0 +1,14 @@
+{
+  "/api/*": "/$1",
+  "/api/users/:id/documents": "/user_documents?userId=:id",
+  "/api/users/:id/aoi-documents": "/aoi_documents?userId=:id",
+  "/api/aoi-tables/:id/recommendations": "/aoi_recommendations?aoiTableId=:id",
+  "/api/struktur-perusahaan/direktorat": "/struktur_perusahaan/direktorat",
+  "/api/struktur-perusahaan/subdirektorat": "/struktur_perusahaan/subdirektorat",
+  "/api/struktur-perusahaan/divisi": "/struktur_perusahaan/divisi",
+  "/api/struktur-perusahaan/cascade": "/struktur_perusahaan",
+  "/api/documents/by-year/:year": "/user_documents?tahun=:year",
+  "/api/aoi-documents/by-year/:year": "/aoi_documents?tahun=:year",
+  "/api/checklist-gcg": "/checklist_gcg",
+  "/api/years": "/years"
+}

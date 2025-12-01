@@ -1,19 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useUser } from '@/contexts/UserContext';
 import { useSidebar } from '@/contexts/SidebarContext';
-import { 
-  LayoutDashboard, 
+import { Badge } from '@/components/ui/badge';
+import {
+  LayoutDashboard,
   Shield,
-  UserCog,
-  ListTodo,
   LogOut,
   BarChart3,
   PanelLeft,
   FileText,
   Settings,
+  User,
   Building2,
-  Lock
+  Layers,
+  Briefcase,
+  ChevronDown,
+  ChevronRight,
+  Calendar,
+  Users
 } from 'lucide-react';
 
 interface MenuItem {
@@ -22,75 +27,80 @@ interface MenuItem {
   path: string;
   badge?: string | null;
   badgeIcon?: any;
+  subItems?: SubMenuItem[];
 }
 
-// No longer need SubMenuItem interface since there are no submenus
+interface SubMenuItem {
+  name: string;
+  icon: any;
+  path: string;
+}
 
 const Sidebar = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useUser();
   const { isSidebarOpen, closeSidebar } = useSidebar();
-  // No longer need expandedMenus state since there are no submenus
+  const [expandedMenus, setExpandedMenus] = useState<Set<string>>(new Set(['Pengaturan']));
 
-  // No longer need auto-expand logic since there are no submenus
+  const menuItems: MenuItem[] = [];
 
-  const menuItems: MenuItem[] = [
-    { 
-      name: 'Dashboard', 
-      icon: LayoutDashboard, 
-      path: '/dashboard',
-      badge: null
-    },
-
-    { 
-      name: 'Performa GCG', 
-      icon: BarChart3, 
-      path: '/performa-gcg',
-      badge: null,
-      badgeIcon: Lock
-    }
-  ];
-
-  // Tambahkan menu Super Admin hanya untuk Super Admin
+  // Tambahkan menu Super Admin dengan urutan yang diminta
   if (user?.role === 'superadmin') {
     menuItems.push(
       {
-        name: 'Monitoring & Upload GCG',
+        name: 'Pengaturan',
+        icon: Settings,
+        path: '/admin/pengaturan',
+        subItems: [
+          { name: 'Tahun Buku', icon: Calendar, path: '/admin/pengaturan/tahun-buku' },
+          { name: 'Struktur Organisasi', icon: Building2, path: '/admin/pengaturan/struktur-organisasi' },
+          { name: 'Manajemen Akun', icon: Users, path: '/admin/pengaturan/manajemen-akun' },
+          { name: 'Kelola Dokumen', icon: FileText, path: '/admin/pengaturan/kelola-dokumen' }
+        ]
+      },
+      {
+        name: 'Dashboard',
+        icon: LayoutDashboard,
+        path: '/dashboard'
+      },
+      {
+        name: 'Monitoring & Upload Dokumen',
         icon: PanelLeft,
-        path: '/list-gcg',
-        badgeIcon: Lock
+        path: '/list-gcg'
       },
       {
         name: 'Arsip Dokumen',
         icon: FileText,
-        path: '/admin/arsip-dokumen',
-        badgeIcon: Lock
+        path: '/admin/arsip-dokumen'
       },
       {
-        name: 'Manajemen User',
-        icon: UserCog,
-        path: '/admin/kelola-akun',
-        badgeIcon: Lock
+        name: 'Performa GCG',
+        icon: BarChart3,
+        path: '/performa-gcg'
       },
       {
-        name: 'Struktur Organisasi',
-        icon: Building2,
-        path: '/admin/struktur-perusahaan',
-        badgeIcon: Lock
-      },
-
-      {
-        name: 'Pengaturan Metadata',
-        icon: Settings,
-        path: '/admin/meta-data',
-        badgeIcon: Lock
-      },
-      {
-        name: 'Pengaturan Baru',
-        icon: Settings,
-        path: '/admin/pengaturan-baru',
-        badgeIcon: Lock
+        name: 'AOI Management',
+        icon: FileText,
+        path: '/admin/aoi-management'
+      }
+    );
+  } else if (user?.role === 'admin') {
+    // Untuk admin, hanya dashboard admin
+    menuItems.push(
+      { 
+        name: 'Dashboard', 
+        icon: LayoutDashboard, 
+        path: '/admin/dashboard'
+      }
+    );
+  } else {
+    // Untuk user non-admin, hanya dashboard
+    menuItems.push(
+      { 
+        name: 'Dashboard', 
+        icon: LayoutDashboard, 
+        path: '/dashboard'
       }
     );
   }
@@ -104,18 +114,39 @@ const Sidebar = () => {
   };
 
   const handleMainMenuClick = (item: MenuItem) => {
-    // Navigate directly to the page
-    navigate(item.path);
-    
-    // Close sidebar on mobile
+    if (item.subItems && item.subItems.length > 0) {
+      // Toggle submenu
+      setExpandedMenus(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(item.name)) {
+          newSet.delete(item.name);
+        } else {
+          newSet.add(item.name);
+        }
+        return newSet;
+      });
+
+      // Also navigate to the main page (e.g., Pengaturan hub page)
+      navigate(item.path);
+    } else {
+      // Navigate directly to the page
+      navigate(item.path);
+
+      // Close sidebar on mobile
+      if (window.innerWidth < 1024) {
+        closeSidebar();
+      }
+    }
+  };
+
+  const handleSubItemClick = (path: string) => {
+    navigate(path);
     if (window.innerWidth < 1024) {
       closeSidebar();
     }
   };
 
-  // No longer need handleSubItemClick since there are no submenus
-
-  // No longer need isMenuExpanded since there are no submenus
+  const isMenuExpanded = (name: string) => expandedMenus.has(name);
 
   return (
     <>
@@ -129,27 +160,109 @@ const Sidebar = () => {
       
       {/* Sidebar */}
       <div className={`
-        fixed top-0 left-0 h-full bg-gray-900 z-40 transition-all duration-300 ease-in-out
+        fixed top-16 left-0 h-[calc(100vh-4rem)] bg-gray-900 z-40 transition-all duration-300 ease-in-out
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
         w-64 shadow-xl overflow-y-auto
       `}>
-        {/* Logo */}
-        <div className="p-6 border-b border-gray-800">
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">GCG</span>
+        {/* Profile Section for Admin */}
+        {user?.role === 'admin' && (
+          <div className="px-4 pb-6 mt-8">
+            {/* Profile Header */}
+            <div className="mb-3">
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-2">
+                Informasi Akun
+              </h3>
             </div>
-            <span className="text-white font-semibold text-lg">Document Hub</span>
+            
+            {/* Profile Card */}
+            <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl border border-gray-700/50 shadow-lg overflow-hidden">
+              {/* Profile Header with Avatar */}
+              <div className="p-4 bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-b border-gray-700/50">
+                <div className="flex items-center space-x-3">
+                  <div className="relative">
+                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg">
+                      <User className="h-6 w-6 text-white" />
+                    </div>
+                    {/* Online indicator */}
+                    <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-gray-900 rounded-full"></div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-white text-sm truncate">{user.name}</p>
+                    <div className="flex items-center space-x-2 mt-1">
+                      <Badge className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-2 py-1">
+                        Admin
+                      </Badge>
+                      <span className="text-xs text-gray-400">• Aktif</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Account Information */}
+              <div className="p-4 space-y-3">
+                {/* Direktorat */}
+                <div className="flex items-center space-x-3 p-2 bg-gray-800/50 rounded-lg border border-gray-700/30 hover:bg-gray-800/70 transition-colors">
+                  <div className="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                    <Building2 className="h-4 w-4 text-blue-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-gray-400 uppercase tracking-wider">Direktorat</p>
+                    <p className="text-sm font-medium text-gray-200 truncate">
+                      {user.direktorat || 'Tidak ada'}
+                    </p>
+                  </div>
+                </div>
+                
+                {/* Subdirektorat */}
+                <div className="flex items-center space-x-3 p-2 bg-gray-800/50 rounded-lg border border-gray-700/30 hover:bg-gray-800/70 transition-colors">
+                  <div className="w-8 h-8 bg-purple-500/20 rounded-lg flex items-center justify-center">
+                    <Layers className="h-4 w-4 text-purple-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-gray-400 uppercase tracking-wider">Subdirektorat</p>
+                    <p className="text-sm font-medium text-gray-200 truncate">
+                      {user.subdirektorat || 'Tidak ada'}
+                    </p>
+                  </div>
+                </div>
+                
+                {/* Divisi */}
+                <div className="flex items-center space-x-3 p-2 bg-gray-800/50 rounded-lg border border-gray-700/30 hover:bg-gray-800/70 transition-colors">
+                  <div className="w-8 h-8 bg-emerald-500/20 rounded-lg flex items-center justify-center">
+                    <Briefcase className="h-4 w-4 text-emerald-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-gray-400 uppercase tracking-wider">Divisi</p>
+                    <p className="text-sm font-medium text-gray-200 truncate">
+                      {user.divisi || 'Tidak ada'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Quick Stats */}
+              <div className="px-4 pb-4">
+                <div className="bg-gray-800/30 rounded-lg p-3 border border-gray-700/30">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-400">Status Akun</span>
+                    <span className="text-green-400 font-medium">• Aktif</span>
+                  </div>
+                  <div className="mt-2 text-xs text-gray-500">
+                    Terakhir login: {new Date().toLocaleDateString('id-ID')}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Menu Items */}
-        <nav className="mt-6 pb-20">
+        <nav className="pt-2 pb-20">
           <div className="px-4 space-y-1">
             {menuItems
               .filter(item => {
-                      // Hide Performa GCG menu if user is not superadmin
-      if (item.name === 'Performa GCG' && user?.role !== 'superadmin') {
+                // Hide Performa GCG menu if user is not superadmin
+                if (item.name === 'Performa GCG' && user?.role !== 'superadmin') {
                   return false;
                 }
                 return true;
@@ -157,17 +270,20 @@ const Sidebar = () => {
               .map((item) => {
               const Icon = item.icon;
               const active = isActive(item.path);
-              
+              const hasSubItems = item.subItems && item.subItems.length > 0;
+              const expanded = isMenuExpanded(item.name);
+
               return (
                 <div key={item.name}>
                   {/* Main Menu Item */}
                   <div className="relative">
-                    <Link
-                      to={item.path}
+                    <button
                       onClick={() => handleMainMenuClick(item)}
-                      className={`flex items-center justify-between px-4 py-3 rounded-lg transition-all duration-200 group ${
-                        active 
-                          ? 'bg-blue-600 text-white' 
+                      className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-all duration-200 group ${
+                        active && !hasSubItems
+                          ? 'bg-blue-600 text-white'
+                          : hasSubItems && expanded
+                          ? 'bg-gray-800 text-white'
                           : 'text-gray-300 hover:bg-gray-800 hover:text-white'
                       }`}
                     >
@@ -184,9 +300,45 @@ const Sidebar = () => {
                             {item.badge}
                           </span>
                         )}
+                        {hasSubItems && (
+                          expanded
+                            ? <ChevronDown className="w-4 h-4" />
+                            : <ChevronRight className="w-4 h-4" />
+                        )}
                       </div>
-                    </Link>
+                    </button>
                   </div>
+
+                  {/* Sub Menu Items */}
+                  {hasSubItems && expanded && (
+                    <div className="mt-1 ml-4 space-y-1">
+                      {item.subItems!.map((subItem) => {
+                        const SubIcon = subItem.icon;
+                        const subActive = isActive(subItem.path);
+                        return (
+                          <button
+                            key={subItem.name}
+                            onClick={() => handleSubItemClick(subItem.path)}
+                            className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-all duration-200 ${
+                              subActive
+                                ? 'bg-blue-600 text-white'
+                                : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                            }`}
+                          >
+                            <SubIcon className="w-4 h-4" />
+                            <span className="text-sm">{subItem.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Add separator after Pengaturan */}
+                  {item.name === 'Pengaturan' && (
+                    <div className="my-3 px-4">
+                      <div className="h-px bg-gray-700"></div>
+                    </div>
+                  )}
                 </div>
               );
             })}

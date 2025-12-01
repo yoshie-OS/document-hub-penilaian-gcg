@@ -9,7 +9,7 @@ interface Account {
   id: number;
   email: string;
   name: string;
-  role: 'admin' | 'user' | 'superadmin';
+  role: 'admin' | 'superadmin';
   direktorat?: string;
   subdirektorat?: string;
   divisi?: string;

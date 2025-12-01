@@ -1,0 +1,19 @@
+{
+  "port": 3001,
+  "host": "localhost",
+  "watch": true,
+  "middlewares": ["./middleware/cors.js"],
+  "routes": "./routes.json",
+  "static": "./public",
+  "no-cors": false,
+  "no-gzip": false,
+  "read-only": false,
+  "no-body-parser": false,
+  "no-clipboard": false,
+  "no-compression": false,
+  "no-cors": false,
+  "no-gzip": false,
+  "no-body-parser": false,
+  "no-clipboard": false,
+  "no-compression": false
+}
