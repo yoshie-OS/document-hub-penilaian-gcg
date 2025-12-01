@@ -72,7 +72,7 @@ const Register = () => {
           email,
           password,
           name,
-          role: 'user' as const,
+          role: 'admin' as const,
           createdAt: new Date().toISOString()
         };
 
@@ -97,14 +97,16 @@ const Register = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
-              <img 
-                src="/aset/POSIND_2023_(with_wordmark).svg.png" 
-                alt="POS Indonesia" 
-                className="h-10 w-auto"
-              />
+              <div className="h-10 w-10 flex items-center justify-center">
+                <img 
+                  src="/logo.png" 
+                  alt="POS Indonesia Logo" 
+                  className="w-full h-full object-contain"
+                />
+              </div>
               <div className="hidden md:block">
-                <h1 className="text-xl font-bold text-blue-900">GCG Document Hub</h1>
-                <p className="text-sm text-blue-600">Sistem Manajemen Dokumen GCG</p>
+                <h1 className="text-xl font-bold text-blue-900">Good Corporate Governance Documents Management System</h1>
+                <p className="text-sm text-blue-600">PT POS INDONESIA (PERSERO)</p>
               </div>
             </div>
             <div className="flex items-center space-x-4">
@@ -143,7 +145,7 @@ const Register = () => {
                   <span className="block text-blue-200">Good Corporate Governance</span>
                 </h2>
                 <p className="text-xl text-blue-100 mb-8 leading-relaxed">
-                  Dapatkan akses ke sistem manajemen dokumen GCG yang terintegrasi dan aman. 
+                  Dapatkan akses ke sistem manajemen dokumen Good Corporate Governance yang terintegrasi dan aman. 
                   Dukung implementasi Good Corporate Governance yang transparan dan akuntabel bersama POS Indonesia.
                 </p>
               </div>
@@ -214,13 +216,15 @@ const Register = () => {
           <div className="w-full max-w-md">
             {/* Mobile Logo */}
             <div className="lg:hidden text-center mb-8">
-              <img 
-                src="/aset/POSIND_2023_(with_wordmark).svg.png" 
-                alt="POS Indonesia" 
-                className="h-12 w-auto mx-auto mb-4"
-              />
-              <h2 className="text-2xl font-bold text-blue-900 mb-2">GCG Document Hub</h2>
-              <p className="text-blue-600">Sistem Manajemen Dokumen GCG</p>
+              <div className="h-12 w-12 flex items-center justify-center mx-auto mb-4">
+                <img 
+                  src="/logo.png" 
+                  alt="POS Indonesia Logo" 
+                  className="w-full h-full object-contain"
+                />
+              </div>
+              <h2 className="text-2xl font-bold text-blue-900 mb-2">Good Corporate Governance Documents Management System</h2>
+              <p className="text-blue-600">PT POS INDONESIA (PERSERO)</p>
             </div>
 
             {/* Register Form */}
@@ -228,7 +232,7 @@ const Register = () => {
               <CardContent className="p-8">
                 <div className="text-center mb-8">
                   <h2 className="text-2xl font-bold text-blue-900 mb-2">Daftar Akun User</h2>
-                  <p className="text-blue-600">Buat akun baru untuk mengakses sistem GCG</p>
+                  <p className="text-blue-600">Buat akun baru untuk mengakses sistem Good Corporate Governance</p>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
@@ -416,7 +420,7 @@ const Register = () => {
             {/* Footer */}
             <div className="mt-8 text-center text-sm text-blue-500">
               <p>© 2024 POS Indonesia. All rights reserved.</p>
-              <p className="mt-1">Sistem Manajemen Dokumen GCG</p>
+                              <p className="mt-1">Sistem Manajemen Dokumen Good Corporate Governance</p>
             </div>
           </div>
         </div>

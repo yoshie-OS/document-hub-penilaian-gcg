@@ -70,8 +70,6 @@ const RekapTab: React.FC<RekapTabProps> = ({
           isSidebarOpen={isSidebarOpen}
           title="Statistik Tahun Buku"
           description={`Overview dokumen dan assessment dokumen GCG tahun ${selectedYear}`}
-          maxCardsInSlider={4}
-          showViewAllButton={true}
           showOverallProgress={true}
         />
       )}

@@ -34,7 +34,7 @@ interface AccountFormData {
   email: string;
   password: string;
   name: string;
-  role: 'admin' | 'user';
+  role: 'admin';
   direktorat: string;
   subdirektorat: string;
   divisi: string;
@@ -53,7 +53,7 @@ const AddAccountDialog: React.FC<AddAccountDialogProps> = ({
     email: '',
     password: '',
     name: '',
-    role: 'user',
+            role: 'admin',
     direktorat: '',
     subdirektorat: '',
     divisi: ''
@@ -73,7 +73,7 @@ const AddAccountDialog: React.FC<AddAccountDialogProps> = ({
         email: '',
         password: '',
         name: '',
-        role: 'user',
+        role: 'admin',
         direktorat: '',
         subdirektorat: '',
         divisi: ''
@@ -191,10 +191,10 @@ const AddAccountDialog: React.FC<AddAccountDialogProps> = ({
         <DialogHeader>
           <DialogTitle className="flex items-center space-x-2">
             <UserPlus className="w-5 h-5 text-blue-600" />
-            <span>Tambah Akun Baru</span>
+            <span>Tambah PIC Baru</span>
           </DialogTitle>
           <DialogDescription>
-            Buat akun baru untuk pengguna sistem GCG Document Hub
+                            Buat akun PIC baru untuk pengguna sistem Good Corporate Governance Documents Management System
           </DialogDescription>
         </DialogHeader>
 
@@ -331,19 +331,13 @@ const AddAccountDialog: React.FC<AddAccountDialogProps> = ({
                 </Label>
                 <Select 
                   value={formData.role} 
-                  onValueChange={(value: 'admin' | 'user') => handleInputChange('role', value)}
+                  onValueChange={(value: 'admin') => handleInputChange('role', value)}
                   disabled={isLoading}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="user">
-                      <div className="flex items-center space-x-2">
-                        <User className="w-4 h-4" />
-                        <span>User</span>
-                      </div>
-                    </SelectItem>
                     <SelectItem value="admin">
                       <div className="flex items-center space-x-2">
                         <UserCheck className="w-4 h-4" />
@@ -358,8 +352,7 @@ const AddAccountDialog: React.FC<AddAccountDialogProps> = ({
                   <Badge variant="outline" className={getRoleColor(formData.role)}>
                     {getRoleIcon(formData.role)}
                     <span className="ml-1">
-                      {formData.role === 'admin' ? 'Akses admin terbatas' :
-                       'Akses user standar'}
+                      Akses admin terbatas
                     </span>
                   </Badge>
                 </div>
@@ -455,7 +448,7 @@ const AddAccountDialog: React.FC<AddAccountDialogProps> = ({
               ) : (
                 <>
                   <UserPlus className="w-4 h-4 mr-2" />
-                  Tambah Akun
+                  Tambah PIC
                 </>
               )}
             </Button>

@@ -54,7 +54,7 @@ interface IconButtonProps extends ActionButtonProps {
   label?: string;
 }
 
-const ActionButton: React.FC<ActionButtonProps> = ({
+const ActionButton = React.forwardRef<HTMLButtonElement, ActionButtonProps>(({
   onClick,
   variant = 'default',
   size = 'default',
@@ -67,7 +67,7 @@ const ActionButton: React.FC<ActionButtonProps> = ({
   icon,
   iconPosition = 'left',
   tooltip
-}) => {
+}, ref) => {
   const buttonContent = (
     <>
       {isLoading ? (
@@ -87,6 +87,7 @@ const ActionButton: React.FC<ActionButtonProps> = ({
 
   return (
     <Button
+      ref={ref}
       type={type}
       variant={variant}
       size={size}
@@ -98,7 +99,9 @@ const ActionButton: React.FC<ActionButtonProps> = ({
       {buttonContent}
     </Button>
   );
-};
+});
+
+ActionButton.displayName = 'ActionButton';
 
 const IconButton: React.FC<IconButtonProps> = ({
   action,
@@ -128,8 +131,7 @@ const IconButton: React.FC<IconButtonProps> = ({
         return <Download className="w-4 h-4" />;
       case 'upload':
         return <Upload className="w-4 h-4" />;
-      case 'view':
-        return <Eye className="w-4 h-4" />;
+
       case 'search':
         return <Search className="w-4 h-4" />;
       case 'filter':
@@ -193,8 +195,7 @@ const IconButton: React.FC<IconButtonProps> = ({
         return 'default';
       case 'edit':
         return 'outline';
-      case 'view':
-        return 'ghost';
+
       default:
         return variant;
     }
@@ -214,8 +215,7 @@ const IconButton: React.FC<IconButtonProps> = ({
         return 'Download';
       case 'upload':
         return 'Upload';
-      case 'view':
-        return 'Lihat';
+
       case 'search':
         return 'Cari';
       case 'filter':

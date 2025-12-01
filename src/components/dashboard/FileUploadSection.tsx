@@ -144,8 +144,11 @@ const FileUploadSection = () => {
                         type="file"
                         ref={fileInputRef}
                         onChange={handleFileSelect}
-                        accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                        accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.txt,.md,.markdown,text/plain,text/markdown"
                       />
+                      <p className="text-xs text-gray-500 mt-1">
+                        PDF, Word, Excel, gambar, txt atau markdown (maks. 16MB)
+                      </p>
                       {selectedFile && (
                         <div className="mt-2 p-2 bg-gray-50 rounded text-sm">
                           <p><strong>Nama File:</strong> {selectedFile.name}</p>

@@ -26,24 +26,24 @@ const AnalysisCard: React.FC<AnalysisCardProps> = ({
 
   return (
     <Card
-      className={`rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-[1.04] cursor-pointer group bg-gradient-to-br from-white via-gray-50 to-gray-100 border-0 ${highlightBorder ? 'border-b-4' : ''}`}
+      className={`rounded-xl shadow-md hover:shadow-lg transition-all duration-300 hover:scale-[1.02] cursor-pointer group bg-gradient-to-br from-white via-gray-50 to-gray-100 border-0 ${highlightBorder ? 'border-b-3' : ''}`}
       style={highlightBorder ? { borderBottomColor: highlightBorder } : {}}
       onClick={onClick}
     >
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between gap-4">
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between gap-3">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center space-x-3 mb-3">
+            <div className="flex items-center space-x-2 mb-2">
               <div 
-                className="w-14 h-14 rounded-xl flex items-center justify-center bg-opacity-20 shadow-inner"
+                className="w-10 h-10 rounded-lg flex items-center justify-center bg-opacity-20 shadow-inner"
                 style={{ backgroundColor: color + '22' }}
               >
                 <Icon 
-                  className="w-8 h-8 drop-shadow-lg"
+                  className="w-5 h-5 drop-shadow-lg"
                   style={{ color: color }}
                 />
               </div>
-              <span className="text-lg font-bold" style={{ color }}>{title}</span>
+              <span className="text-sm font-bold" style={{ color }}>{title}</span>
             </div>
             <div className="flex items-center space-x-2 mb-2">
               <span className="inline-block px-2 py-0.5 rounded bg-gray-200 text-xs font-semibold text-gray-700">
@@ -54,17 +54,17 @@ const AnalysisCard: React.FC<AnalysisCardProps> = ({
                 {subtitle}
               </span>
             </div>
-            <div className="pt-2">
-              <div className="border-t border-gray-200 w-16 mb-2"></div>
+            <div className="pt-1">
+              <div className="border-t border-gray-200 w-12 mb-1"></div>
             </div>
           </div>
-          {/* Progress Circle */}
-          <div className="relative w-20 h-20">
-            <svg className="w-20 h-20 transform -rotate-90" viewBox="0 0 36 36">
+          {/* Progress Circle - Keep reasonably large for highlight */}
+          <div className="relative w-16 h-16">
+            <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
               <path
                 className="text-gray-200"
                 stroke="currentColor"
-                strokeWidth="5"
+                strokeWidth="4"
                 fill="none"
                 d="M18 2.0845
                   a 15.9155 15.9155 0 0 1 0 31.831
@@ -73,17 +73,17 @@ const AnalysisCard: React.FC<AnalysisCardProps> = ({
               <path
                 className="transition-all duration-500 ease-in-out drop-shadow-lg"
                 stroke={color}
-                strokeWidth="5"
+                strokeWidth="4"
                 strokeDasharray={`${percentage}, 100`}
                 fill="none"
                 d="M18 2.0845
                   a 15.9155 15.9155 0 0 1 0 31.831
                   a 15.9155 15.9155 0 0 1 0 -31.831"
-                style={{ filter: `drop-shadow(0 0 6px ${color}55)` }}
+                style={{ filter: `drop-shadow(0 0 4px ${color}55)` }}
               />
             </svg>
             <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-lg font-bold" style={{ color }}>{percentage}%</span>
+              <span className="text-base font-bold" style={{ color }}>{percentage}%</span>
             </div>
           </div>
         </div>

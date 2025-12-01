@@ -1,0 +1,6 @@
+"id","type","nama","deskripsi","parent_id","created_at","updated_at","kode","tahun","is_active"
+1758214086005372,"direktorat","Test Direktorat","Testing direktorat","","2025-09-18T23:48:06.005375","","","",""
+1763920645255255,"subdirektorat","tes subdit","",1758214086005372.0,"2025-11-24T00:57:25.255261","","","",""
+1763920660549642,"anak_perusahaan","tes anper","","","2025-11-24T00:57:40.549648","","","",""
+1763920668468881,"divisi","tes div","",1763920645255255.0,"2025-11-24T00:57:48.468886","","","",""
+1763921593802009,"divisi","nama divisinya panjang banget kira kira gimana yak?","",1763920645255255.0,"2025-11-24T01:13:13.802017","","","",""

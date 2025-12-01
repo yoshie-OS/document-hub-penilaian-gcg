@@ -79,12 +79,13 @@ const YearlyScoreChart: React.FC<YearlyScoreChartProps> = ({ data, allYears, yea
 
   // chartAreaWidth dinamis sesuai jumlah tahun yang terfilter
   const filteredYearsCount = data.length;
-  let chartAreaWidth = 1000;
-  if (filteredYearsCount > 15) chartAreaWidth = 1500;
-  else if (filteredYearsCount > 10) chartAreaWidth = 1250;
+  // Penilai ellipsis config
+  const penilaiMaxLength = 18;
+  let chartAreaWidth = 1250;
+  if (filteredYearsCount > 5) chartAreaWidth = 1500;
   const yAxisPadding = 60;
   const barAreaHeight = 270; // tinggi area bar tetap
-  const xAxisLabelPadding = 60; // ruang bawah untuk label X
+  const xAxisLabelPadding = 80; // ruang bawah untuk label X
   const chartHeight = barAreaHeight + xAxisLabelPadding; // total tinggi SVG
   const chartWidth = chartAreaWidth - yAxisPadding;
 
@@ -95,7 +96,7 @@ const YearlyScoreChart: React.FC<YearlyScoreChartProps> = ({ data, allYears, yea
   if (maxScoreY > 100) maxScoreY = 104.99;
 
   const barWidth = 40;
-  const barSidePadding = 24; // padding kiri-kanan chart agar bar tidak mepet
+  const barSidePadding = 70; // padding kiri-kanan chart agar bar tidak mepet
   const barGap = data.length > 1 ? (chartWidth - (data.length * barWidth) - 2 * barSidePadding) / (data.length - 1) : 0;
 
   // Fungsi konversi skor ke posisi Y pada chart
@@ -208,6 +209,15 @@ const YearlyScoreChart: React.FC<YearlyScoreChartProps> = ({ data, allYears, yea
                 const yearLabelY = barAreaHeight + 20;
                 const penilaiLabelY = barAreaHeight + 36;
                 const penjelasanLabelY = barAreaHeight + 32;
+                // Penilai ellipsis logic
+                let penilaiDisplay = yearData.penilai;
+                if (
+                  filteredYearsCount > 7 &&
+                  yearData.penilai &&
+                  String(yearData.penilai).length > penilaiMaxLength
+                ) {
+                  penilaiDisplay = String(yearData.penilai).slice(0, penilaiMaxLength) + '...';
+                }
                 return (
                   <g 
                     key={yearData.year} 
@@ -223,29 +233,31 @@ const YearlyScoreChart: React.FC<YearlyScoreChartProps> = ({ data, allYears, yea
                       style={{ transform: hoveredYear === yearData.year ? 'scale(1.05)' : 'scale(1)', transformOrigin: `${barWidth/2}px ${barAreaHeight}px` }}
                     />
                     {/* Label tahun */}
-                    <text x={barWidth / 2} y={yearLabelY} textAnchor="middle" fontSize="14" fill="#000000ff">
+                    <text x={barWidth / 2} y={yearLabelY} textAnchor="middle" fontSize="15" fill="#000000ff">
                       {yearData.year}
                     </text>
                     {/* Jenis Penilaian di bawah tahun */}
                     {yearData.jenisPenilaian && (
-                      <text x={barWidth / 2} y={yearLabelY + 16} textAnchor="middle" fontSize="11" fill="#888">
+                      <text x={barWidth / 2} y={yearLabelY + 16} textAnchor="middle" fontSize="13" fill="#64748b">
                         {yearData.jenisPenilaian}
                       </text>
                     )}
                     {yearData.penjelasan && (
-                      <foreignObject x={-30} y={penjelasanLabelY + 10} width={barWidth + 60} height={40} xmlns="http://www.w3.org/1999/xhtml">
+                      <foreignObject x={-(400 - barWidth)/2} y={penjelasanLabelY + 10} width={400} height={40} xmlns="http://www.w3.org/1999/xhtml">
                         <div style={{
                           color: '#64748b',
-                          fontSize: '11px',
+                          fontSize: '13px',
                           textAlign: 'center',
                           wordBreak: 'break-word',
                           whiteSpace: 'pre-line',
-                          maxWidth: `${barWidth + 60}px`,
                           margin: '0 auto',
                           lineHeight: 1.2,
                           padding: 0,
                         }}>
                           {yearData.penjelasan}
+                          {yearData.penilai && String(yearData.penilai).trim() && String(yearData.penilai).toLowerCase() !== 'nan' && (
+                            <><br /><span style={{ whiteSpace: 'nowrap', display: 'inline-block' }}>{penilaiDisplay}</span></>
+                          )}
                         </div>
                       </foreignObject>
                     )}
@@ -396,10 +408,10 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, rawData = [], onBarCli
     return years;
   }, [data]);
 
-  // Default filter: 9 tahun terakhir
+  // Default filter: 5 tahun terakhir
   React.useEffect(() => {
     if (!yearFilter && allYears.length > 0) {
-      const last9 = allYears.slice(-9);
+      const last9 = allYears.slice(-5);
       setYearFilter({ start: last9[0], end: last9[last9.length - 1] });
     }
   }, [allYears, yearFilter]);
@@ -418,10 +430,10 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, rawData = [], onBarCli
   }, []);
   
   // Default bar width & gap, can be overridden by props
-  let barWidth = propBarWidth ?? 20;
-  let barGap = propBarGap ?? 4;
+  let barWidth = propBarWidth ?? 30;
+  let barGap = propBarGap ?? 8;
   // Tambahkan variabel yearGap untuk jarak antar tahun
-  let yearGap = 4; // default jarak antar tahun
+  let yearGap = 24; // default jarak antar tahun
 
   // Jika rentang tahun 1-5, buat bar lebih lebar
   // Hitung jumlah tahun unik yang benar-benar ada dalam data terfilter
@@ -432,35 +444,23 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, rawData = [], onBarCli
 
   // Aturan penentuan barWidth/barGap/yearGap
   if (chartMode === 'aspek') {
-    if (numberOfYears > 5) {
-      // Aturan 1: tahun > 5, default
-      barWidth = 20;
-      barGap = 4;
-      yearGap = 4;
-    } else if (numberOfYears < 3) {
-      // Aturan 2: tahun < 3
+    if (numberOfYears < 3) {
+      // Aturan khusus: tahun < 3 dan totalBars <= 20
       if (totalBars <= 20) {
         barWidth = 40;
         barGap = 10;
         yearGap = 30;
       } else {
-        // Kembali ke default
-        barWidth = 20;
-        barGap = 4;
-        yearGap = 4;
-      }
-    } else if (numberOfYears < 6) {
-      // Aturan 3: tahun < 6
-      if (totalBars <= 30) {
+        // Default
         barWidth = 30;
         barGap = 8;
         yearGap = 24;
-      } else {
-        // Kembali ke default
-        barWidth = 20;
-        barGap = 4;
-        yearGap = 4;
       }
+    } else {
+      // Default
+      barWidth = 30;
+      barGap = 8;
+      yearGap = 24;
     }
   }
 
@@ -486,10 +486,7 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, rawData = [], onBarCli
   const chartWidth = Math.max(window.innerWidth - 70, 600); // 180px for sidebar, min 600px
   const barAreaHeight = Math.max(data.length * 50, 300); // 100px per bar, min 400px
 
-  // Cek apakah tahun punya Level 2
-  const hasLevel2 = (yearData: ProcessedGCGData) => yearData.hasLevel2Data;
-
-  // Batang tahun hanya bisa diklik jika ada Level 2, atau jika tidak ada Level 2 aspek tidak bisa diklik
+  // Bar tahun
   const handleBarClick = (e: React.MouseEvent, yearData: ProcessedGCGData) => {
     e.stopPropagation();
     setSelectedYear(yearData.year);
@@ -502,12 +499,6 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, rawData = [], onBarCli
     setSelectedSection({ year, section });
   };
 
-  const handleSectionLinkClick = (e: React.MouseEvent, yearData: ProcessedGCGData, section: string) => {
-    e.stopPropagation();
-    if (hasLevel2(yearData)) {
-      navigate(`/page-b?year=${yearData.year}&section=${section}`);
-    }
-  };
 
   // Lebar area chart (harus sama dengan maxWidth di style)
   // chartAreaWidth dinamis sesuai jumlah tahun
@@ -564,7 +555,7 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, rawData = [], onBarCli
                 const rows: ProcessedGCGData[][] = [];
                 let currentRow: ProcessedGCGData[] = [];
                 let currentAspectCount = 0;
-                const maxAspectsPerRow = 54;
+                const maxAspectsPerRow = 30;
 
                 for (const yearData of filteredData) {
                   const yearAspectCount = yearData.sections.length;
@@ -581,7 +572,7 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, rawData = [], onBarCli
                 }
 
                 return (
-                  <div className="flex flex-col items-center w-full gap-12" style={{ paddingTop: `${CHART_VERTICAL_PADDING}px` }}>
+                  <div className="flex flex-col items-center w-full gap-[80px]" style={{ paddingTop: `${CHART_VERTICAL_PADDING}px` }}>
                     {rows.map((row, rowIdx) => {
                       const allCapaianInRow = row.flatMap(yearData => yearData.sections.map(s => s.capaian));
                       const minCapaian = Math.min(0, ...allCapaianInRow);
@@ -693,7 +684,7 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, rawData = [], onBarCli
                                     left: hoverBoxLeft,
                                     top: -12,
                                     width: `${hoverBoxWidth}px`,
-                                    height: '340px',
+                                    height: '372.5px',
                                     background: 'transparent',
                                     border: hoveredBar === yearData.year ? '2px solid #ffffffff' : '2px solid transparent',
                                     boxSizing: 'border-box',
@@ -752,7 +743,7 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, rawData = [], onBarCli
                                         >
                                           <div
                                             className="absolute left-1/2 -translate-x-1/2"
-                                            style={{ top: '-18px', fontSize: '10px', color: isNeg ? '#c00' : '#222', fontWeight: 600 }}
+                                            style={{ top: '-18px', fontSize: '11px', color: isNeg ? '#c00' : '#222', fontWeight: 600 }}
                                           >
                                             {capaianLabel}
                                           </div>
@@ -785,7 +776,7 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, rawData = [], onBarCli
                                 >
                                   <div style={{ position: 'absolute', top: `${chartHeight - 200}px`, left: 0, width: '100%' }}>
                                     <div className="flex flex-col items-center text-[11px] text-muted-foreground w-full" style={{ paddingBottom: '5px', gap: '4px' }}>
-                                      <span className="block text-xs font-medium text-center group-hover:underline group-hover:text-blue-700 transition" style={{ color: '#222' }}>{yearData.year}</span>
+                                      <span className="block text-xs font-medium text-center group-hover:underline group-hover:text-blue-700 transition" style={{ color: '#222', fontSize: '14px' }}>{yearData.year}</span>
                                       <span
                                         style={{
                                           display: 'block',
@@ -797,12 +788,16 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, rawData = [], onBarCli
                                           overflowWrap: 'break-word',
                                           lineHeight: 1.2,
                                           margin: '0 auto',
+                                          fontSize: '13px',
                                         }}
                                       >
                                         {yearData.jenisPenilaian ?? '-'}
                                       </span>
-                                      <span>Skor: {typeof yearData.totalScore === 'number' ? yearData.totalScore.toFixed(2) : '-'}</span>
-                                      <span>{yearData.penjelasan ?? '-'}</span>
+                                      <span style={{ fontSize: '13px' }}>Skor: {typeof yearData.totalScore === 'number' ? <b>{yearData.totalScore.toFixed(2)}</b> : <b>-</b>}</span>
+                                      <span style={{ fontSize: '13px' }}>{yearData.penjelasan ?? '-'}</span>
+                                      {yearData.penilai && String(yearData.penilai).trim() && String(yearData.penilai).toLowerCase() !== 'nan' && (
+                                        <span style={{ fontSize: '13px' }}>{yearData.penilai}</span>
+                                      )}
                                     </div>
                                   </div>
                                 </div>
@@ -820,7 +815,7 @@ export const GCGChart: React.FC<GCGChartProps> = ({ data, rawData = [], onBarCli
           </div>
 
           {/* Area deskripsi aspek split 3 kolom: kiri, tengah, kanan (tabel kosong) */}
-          <div className="mt-16 pl-11 pr-11 w-full rounded-lg mb-[-10px]">
+          <div className="mt-[80px] pl-11 pr-11 w-full rounded-lg mb-[-10px]">
             <div className="flex flex-row w-full gap-0">
               {/* Kiri: semua DonutChart aspek I-VI, 2/5 width */}
               <div className="basis-[40%] flex flex-col gap-2 items-end pr-0 bg-blue-50/10">

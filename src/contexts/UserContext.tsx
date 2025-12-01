@@ -1,77 +1,139 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { seedUser } from "@/lib/seed/seedUser";
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { userAPI } from '@/services/api';
 
-export type UserRole = "superadmin" | "admin" | "user";
 export interface User {
-  id: number;
-  email: string;
-  password: string;
-  role: UserRole;
+  id: string;
   name: string;
-  direktorat?: string;
-  subDirektorat?: string; // mempertahankan casing historis jika ada penggunaan lama
-  subdirektorat?: string; // normalisasi baru
-  divisi?: string;
+  email: string;
+  role: 'superadmin' | 'admin' | 'user';
+  direktorat: string;
+  subdirektorat: string;
+  divisi: string;
+  createdAt: string;
+  status: 'active' | 'inactive';
 }
 
 interface UserContextType {
   user: User | null;
-  login: (email: string, password: string) => boolean;
+  login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
+  isLoading: boolean;
+  error: string | null;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
-export const UserProvider = ({ children }: { children: ReactNode }) => {
+export const useUser = () => {
+  const context = useContext(UserContext);
+  if (context === undefined) {
+    throw new Error('useUser must be used within a UserProvider');
+  }
+  return context;
+};
+
+interface UserProviderProps {
+  children: ReactNode;
+}
+
+export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Inisialisasi user dari localStorage atau seed
+  // Check for existing user session on mount
   useEffect(() => {
-    // Only seed users if they don't exist (first time setup)
-    const existingUsers = localStorage.getItem("users");
-    if (!existingUsers) {
-      localStorage.setItem("users", JSON.stringify(seedUser));
-    }
+    const checkExistingSession = async () => {
+      try {
+        const storedUser = localStorage.getItem('user');
+        const authToken = localStorage.getItem('authToken');
+        
+        if (storedUser && authToken) {
+          const userData = JSON.parse(storedUser);
+          setUser(userData);
+        }
+      } catch (err) {
+        console.error('Error checking existing session:', err);
+        // Clear invalid data
+        localStorage.removeItem('user');
+        localStorage.removeItem('authToken');
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-    const currentUser = localStorage.getItem("currentUser");
-    if (currentUser) {
-      setUser(JSON.parse(currentUser));
-    }
+    checkExistingSession();
   }, []);
 
-  const login = (email: string, password: string) => {
-    const users: User[] = JSON.parse(localStorage.getItem("users") || "[]");
-    const found = users.find(
-      (u) => u.email === email && u.password === password
-    );
-    if (found) {
-      // Normalisasi field nama organisasi
-      const normalized: User = {
-        ...found,
-        subdirektorat: (found as any).subdirektorat || (found as any).subDirektorat || '',
-        subDirektorat: (found as any).subDirektorat || (found as any).subdirektorat || ''
-      };
-      setUser(found);
-      localStorage.setItem("currentUser", JSON.stringify(normalized));
-      return true;
+  const login = async (email: string, password: string): Promise<boolean> => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      // Try API login first
+      try {
+        const userData = await userAPI.login(email, password);
+        setUser(userData);
+        return true;
+      } catch (apiError) {
+        console.warn('API login failed, falling back to local data:', apiError);
+
+        // Check local users first (from PengaturanBaru or EditSuperAdmin)
+        const localUsers = localStorage.getItem('users');
+        if (localUsers) {
+          try {
+            const users = JSON.parse(localUsers);
+            const localUser = users.find((u: any) => u.email === email && u.password === password);
+            if (localUser) {
+              const { password: _, ...userWithoutPassword } = localUser;
+              // Convert id to string to match interface
+              const userData = {
+                ...userWithoutPassword,
+                id: String(userWithoutPassword.id),
+                createdAt: userWithoutPassword.createdAt || new Date().toISOString(),
+                status: 'active' as const
+              };
+              setUser(userData);
+              localStorage.setItem('user', JSON.stringify(userData));
+              localStorage.setItem('authToken', `local-${userData.id}`);
+              return true;
+            }
+          } catch (parseError) {
+            console.warn('Failed to parse local users:', parseError);
+          }
+        }
+
+        // No hardcoded fallback - credentials must be valid in API or localStorage
+        // This ensures that changed passwords are always respected
+        throw new Error('Invalid credentials');
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Login failed';
+      setError(errorMessage);
+      return false;
+    } finally {
+      setIsLoading(false);
     }
-    return false;
   };
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem("currentUser");
+    setError(null);
+    localStorage.removeItem('user');
+    localStorage.removeItem('authToken');
+    userAPI.logout();
+  };
+
+  const value: UserContextType = {
+    user,
+    login,
+    logout,
+    isLoading,
+    error
   };
 
   return (
-    <UserContext.Provider value={{ user, login, logout }}>
+    <UserContext.Provider value={value}>
       {children}
     </UserContext.Provider>
   );
-};
-
-export const useUser = () => {
-  const ctx = useContext(UserContext);
-  if (!ctx) throw new Error("useUser must be used within UserProvider");
-  return ctx;
 }; 

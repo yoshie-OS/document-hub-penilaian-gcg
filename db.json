@@ -1,0 +1,177 @@
+{
+  "users": [
+    {
+      "id": "1",
+      "name": "Super Admin",
+      "email": "arsippostgcg@gmail.com",
+      "password": "postarsipGCG.",
+      "role": "superadmin",
+      "direktorat": "DIREKTORAT UTAMA",
+      "subdirektorat": "SUB DIREKTORAT UTAMA",
+      "divisi": "DIVISI UTAMA",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "status": "active"
+    },
+    {
+      "id": "2",
+      "name": "Admin GCG",
+      "email": "admin@posindonesia.co.id",
+      "password": "admin123",
+      "role": "admin",
+      "direktorat": "DIREKTORAT BISNIS JASA KEUANGAN",
+      "subdirektorat": "SUB DIREKTORAT GOVERNMENT AND CORPORATE BUSINESS",
+      "divisi": "PENYALURAN DANA",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "status": "active"
+    },
+    {
+      "id": "3",
+      "name": "User Regular",
+      "email": "user@posindonesia.co.id",
+      "password": "user123",
+      "role": "user",
+      "direktorat": "DIREKTORAT BISNIS JASA KEUANGAN",
+      "subdirektorat": "SUB DIREKTORAT GOVERNMENT AND CORPORATE BUSINESS",
+      "divisi": "PENYALURAN DANA",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "status": "active"
+    }
+  ],
+  "aoiTables": [
+    {
+      "id": 1,
+      "nama": "AOI GCG 2024 - DIREKTORAT BISNIS JASA KEUANGAN / SUB DIREKTORAT GOVERNMENT AND CORPORATE BUSINESS / PENYALURAN DANA",
+      "tahun": 2024,
+      "targetType": "divisi",
+      "targetDirektorat": "DIREKTORAT BISNIS JASA KEUANGAN",
+      "targetSubdirektorat": "SUB DIREKTORAT GOVERNMENT AND CORPORATE BUSINESS",
+      "targetDivisi": "PENYALURAN DANA",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "status": "active"
+    }
+  ],
+  "aoiRecommendations": [
+    {
+      "id": 1,
+      "aoiTableId": 1,
+      "jenis": "REKOMENDASI",
+      "no": 1,
+      "isi": "Perlu peningkatan dalam implementasi Good Corporate Governance",
+      "tingkatUrgensi": "TINGGI",
+      "aspekAOI": "TATA KELOLA",
+      "pihakTerkait": "DIREKSI",
+      "organPerusahaan": "RUPS",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "status": "active"
+    },
+    {
+      "id": 2,
+      "aoiTableId": 1,
+      "jenis": "SARAN",
+      "no": 1,
+      "isi": "Saran untuk peningkatan transparansi",
+      "tingkatUrgensi": "SEDANG",
+      "aspekAOI": "TRANSPARANSI",
+      "pihakTerkait": "DEWAN KOMISARIS",
+      "organPerusahaan": "DEWAN KOMISARIS",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "status": "active"
+    }
+  ],
+  "aoiDocuments": [
+    {
+      "id": "1",
+      "fileName": "Dokumen_AOI_Rekomendasi_1.pdf",
+      "fileSize": 1024000,
+      "uploadDate": "2024-01-01T00:00:00.000Z",
+      "aoiRecommendationId": 1,
+      "aoiJenis": "REKOMENDASI",
+      "aoiUrutan": 1,
+      "userId": "2",
+      "userDirektorat": "DIREKTORAT BISNIS JASA KEUANGAN",
+      "userSubdirektorat": "SUB DIREKTORAT GOVERNMENT AND CORPORATE BUSINESS",
+      "userDivisi": "PENYALURAN DANA",
+      "fileType": "application/pdf",
+      "status": "active",
+      "tahun": 2024
+    }
+  ],
+  "userDocuments": [
+    {
+      "id": "1",
+      "fileName": "Dokumen_GCG_2024.pdf",
+      "fileSize": 2048000,
+      "uploadDate": "2024-01-01T00:00:00.000Z",
+      "userId": "2",
+      "userDirektorat": "DIREKTORAT BISNIS JASA KEUANGAN",
+      "userSubdirektorat": "SUB DIREKTORAT GOVERNMENT AND CORPORATE BUSINESS",
+      "userDivisi": "PENYALURAN DANA",
+      "fileType": "application/pdf",
+      "status": "uploaded",
+      "tahun": 2024,
+      "checklistId": "1",
+      "checklistDescription": "Laporan Tahunan GCG",
+      "source": "REGULAR"
+    }
+  ],
+  "checklists": [
+    {
+      "id": "1",
+      "nama": "Laporan Tahunan GCG",
+      "deskripsi": "Laporan tahunan implementasi Good Corporate Governance",
+      "kategori": "LAPORAN",
+      "tahun": 2024,
+      "status": "active"
+    },
+    {
+      "id": "2",
+      "nama": "Dokumen RUPS",
+      "deskripsi": "Dokumen Rapat Umum Pemegang Saham",
+      "kategori": "RUPS",
+      "tahun": 2024,
+      "status": "active"
+    }
+  ],
+  "strukturPerusahaan": {
+    "direktorat": [
+      {
+        "id": "1",
+        "nama": "DIREKTORAT UTAMA",
+        "kode": "DU"
+      },
+      {
+        "id": "2",
+        "nama": "DIREKTORAT BISNIS JASA KEUANGAN",
+        "kode": "DBJK"
+      }
+    ],
+    "subdirektorat": [
+      {
+        "id": "1",
+        "direktoratId": "1",
+        "nama": "SUB DIREKTORAT UTAMA",
+        "kode": "SDU"
+      },
+      {
+        "id": "2",
+        "direktoratId": "2",
+        "nama": "SUB DIREKTORAT GOVERNMENT AND CORPORATE BUSINESS",
+        "kode": "SGBC"
+      }
+    ],
+    "divisi": [
+      {
+        "id": "1",
+        "subdirektoratId": "1",
+        "nama": "DIVISI UTAMA",
+        "kode": "DU"
+      },
+      {
+        "id": "2",
+        "subdirektoratId": "2",
+        "nama": "PENYALURAN DANA",
+        "kode": "PD"
+      }
+    ]
+  }
+}

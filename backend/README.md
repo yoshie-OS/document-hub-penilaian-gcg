@@ -1,282 +1,420 @@
-# 🐍 **GCG Performa Backend - Python API**
+# 🚀 GCG Document Hub Backend
 
-Backend API untuk fitur **Performa GCG** (GCG Performance Assessment) yang memproses file Excel BPKP.
+Backend API untuk aplikasi GCG Document Hub yang dibangun dengan Node.js, Express.js, dan PostgreSQL.
 
----
+## 📋 Table of Contents
 
-## **📋 Fitur**
+- [Features](#-features)
+- [Tech Stack](#-tech-stack)
+- [Prerequisites](#-prerequisites)
+- [Installation](#-installation)
+- [Configuration](#-configuration)
+- [Database Setup](#-database-setup)
+- [API Documentation](#-api-documentation)
+- [Development](#-development)
+- [Deployment](#-deployment)
 
-- ✅ **Upload & Process Excel Files** - Otomatis extract data dari file Excel BPKP
-- ✅ **Data Storage** - Simpan data ke Excel file (web-output/output.xlsx)
-- ✅ **API Endpoints** - RESTful API untuk frontend
-- ✅ **File Management** - Upload, process, dan retrieve processed files
+## ✨ Features
 
----
+- 🔐 **Authentication & Authorization** - JWT-based auth dengan role-based access control
+- 📁 **Document Management** - Upload, download, dan manajemen dokumen GCG
+- 👥 **User Management** - CRUD operations untuk users, admin, dan super admin
+- 🏢 **Organizational Structure** - Manajemen direktorat, subdirektorat, dan divisi
+- 📊 **Metadata Management** - Pengelolaan aspek GCG dan klasifikasi
+- 🔍 **Advanced Search** - Full-text search dengan filter dan pagination
+- 📈 **Audit Logging** - Tracking semua aktivitas dan akses dokumen
+- 🚀 **Real-time Updates** - WebSocket support untuk real-time notifications
+- 🛡️ **Security** - Rate limiting, CORS, Helmet, dan input validation
 
-## **🛠️ Tech Stack**
+## 🛠️ Tech Stack
 
-- **Python** 3.8+
-- **Flask** - Web framework
-- **pandas** - Excel processing
-- **openpyxl** - Excel read/write
-- **CORS** - Cross-origin requests
+- **Runtime:** Node.js 18+
+- **Framework:** Express.js
+- **Language:** TypeScript
+- **Database:** PostgreSQL
+- **ORM:** Prisma (optional)
+- **Authentication:** JWT + bcrypt
+- **File Upload:** Multer
+- **Validation:** Zod + express-validator
+- **Testing:** Jest
+- **Linting:** ESLint
 
----
+## 📋 Prerequisites
 
-## **📋 Prerequisites**
+Sebelum memulai, pastikan Anda memiliki:
 
-- Python 3.8 atau lebih baru
-- pip (Python package manager)
+- **Node.js** 18.0.0 atau lebih baru
+- **npm** 8.0.0 atau lebih baru
+- **PostgreSQL** 12.0 atau lebih baru
+- **Git** untuk version control
 
----
+## 🚀 Installation
 
-## **🚀 Setup & Installation**
+### 1. Clone Repository
+```bash
+git clone <repository-url>
+cd pos-gcg-document-hub/backend
+```
 
-### **1. Install Python Dependencies**
+### 2. Install Dependencies
+```bash
+npm install
+```
+
+### 3. Environment Setup
+```bash
+# Copy environment file
+cp env.example .env
+
+# Edit .env file sesuai konfigurasi Anda
+nano .env
+```
+
+### 4. Database Setup
+```bash
+# Buat database PostgreSQL
+createdb gcg_document_hub
+
+# Jalankan migration
+npm run db:migrate
+
+# Seed data (optional)
+npm run db:seed
+```
+
+### 5. Start Development Server
+```bash
+npm run dev
+```
+
+Server akan berjalan di `http://localhost:3001`
+
+## ⚙️ Configuration
+
+### Environment Variables
+
+Buat file `.env` berdasarkan `env.example`:
+
+```env
+# Server Configuration
+NODE_ENV=development
+PORT=3001
+HOST=localhost
+
+# Database Configuration
+DATABASE_URL="postgresql://username:password@localhost:5432/gcg_document_hub"
+DATABASE_HOST=localhost
+DATABASE_PORT=5432
+DATABASE_NAME=gcg_document_hub
+DATABASE_USER=postgres
+DATABASE_PASSWORD=your_password
+
+# JWT Configuration
+JWT_SECRET=your_super_secret_jwt_key_here_make_it_long_and_random
+JWT_EXPIRES_IN=7d
+JWT_REFRESH_SECRET=your_refresh_token_secret_here
+JWT_REFRESH_EXPIRES_IN=30d
+
+# File Upload Configuration
+UPLOAD_DIR=./uploads
+MAX_FILE_SIZE=10485760
+ALLOWED_FILE_TYPES=pdf,doc,docx,xls,xlsx,ppt,pptx,txt,jpg,jpeg,png
+```
+
+## 🗄️ Database Setup
+
+### 1. PostgreSQL Installation
+
+**Windows:**
+- Download dari [postgresql.org](https://www.postgresql.org/download/windows/)
+- Install dengan default settings
+
+**macOS:**
+```bash
+brew install postgresql
+brew services start postgresql
+```
+
+**Ubuntu/Debian:**
+```bash
+sudo apt update
+sudo apt install postgresql postgresql-contrib
+sudo systemctl start postgresql
+sudo systemctl enable postgresql
+```
+
+### 2. Create Database & User
+
+```sql
+-- Connect to PostgreSQL
+sudo -u postgres psql
+
+-- Create database
+CREATE DATABASE gcg_document_hub;
+
+-- Create user (optional)
+CREATE USER gcg_user WITH PASSWORD 'your_password';
+GRANT ALL PRIVILEGES ON DATABASE gcg_document_hub TO gcg_user;
+
+-- Exit
+\q
+```
+
+### 3. Run Migrations
 
 ```bash
-cd backend
-pip install -r requirements.txt
+# Run initial migration
+npm run db:migrate
+
+# Check migration status
+npm run db:status
+
+# Reset database (careful!)
+npm run db:reset
 ```
 
-### **2. Verify Installation**
+## 📚 API Documentation
 
-```bash
-python --version  # Should be 3.8+
-pip list | grep -E "Flask|pandas|openpyxl"
+### Base URL
+```
+http://localhost:3001/api
 ```
 
----
+### Authentication Endpoints
 
-## **▶️ Running the Backend**
-
-### **Development Mode**
-
-```bash
-cd backend
-python app.py
-```
-
-Server akan berjalan di: **http://localhost:5000**
-
-### **Production Mode (optional)**
-
-```bash
-gunicorn -w 4 -b 0.0.0.0:5000 app:app
-```
-
----
-
-## **📡 API Endpoints**
-
-### **1. Upload Excel File**
-```
-POST /api/upload-excel
-```
-
-**Request:**
-- Content-Type: `multipart/form-data`
-- Body:
-  - `file`: Excel file (.xlsx)
-  - `year` (optional): Year for the assessment
-
-**Response:**
+#### POST /auth/login
 ```json
 {
-  "success": true,
-  "message": "File processed successfully",
-  "data": [
-    {
-      "Tahun": 2024,
-      "Section": "ASPEK I",
-      "Deskripsi": "Komitmen GCG",
-      "Bobot": 15.0,
-      "Skor": 13.5,
-      "Capaian": 90.0,
-      "Penjelasan": "Sangat Baik"
-    }
-  ]
+  "email": "user@example.com",
+  "password": "password123"
 }
 ```
 
-### **2. Get GCG Chart Data**
-```
-GET /api/gcg-chart-data?year=2024
-```
-
-**Response:**
+#### POST /auth/register
 ```json
 {
-  "success": true,
-  "data": [...]
+  "name": "John Doe",
+  "email": "john@example.com",
+  "password": "password123",
+  "role": "user",
+  "direktoratId": "uuid-here"
 }
 ```
 
-### **3. Get Processed Files List**
-```
-GET /api/processed-files
-```
-
-**Response:**
+#### POST /auth/refresh
 ```json
 {
-  "success": true,
-  "files": [
-    {
-      "filename": "processed_UUID_Penilaian_BPKP_2024.xlsx",
-      "size": 12345,
-      "created_at": "2024-11-30T12:00:00"
-    }
-  ]
+  "refreshToken": "your-refresh-token"
 }
 ```
 
----
+### Document Endpoints
 
-## **📁 Directory Structure**
+#### GET /documents
+```
+GET /api/documents?page=1&limit=10&search=keyword&year=2024
+```
+
+#### POST /documents/upload
+```
+POST /api/documents/upload
+Content-Type: multipart/form-data
+
+file: [file]
+aspectId: "uuid-here"
+year: 2024
+```
+
+#### GET /documents/:id
+```
+GET /api/documents/uuid-here
+Authorization: Bearer <token>
+```
+
+### User Management Endpoints
+
+#### GET /users
+```
+GET /api/users?role=admin&direktoratId=uuid-here
+Authorization: Bearer <token>
+```
+
+#### PUT /users/:id
+```json
+{
+  "name": "Updated Name",
+  "role": "admin",
+  "direktoratId": "new-uuid"
+}
+```
+
+## 🧪 Development
+
+### Available Scripts
+
+```bash
+# Development
+npm run dev          # Start development server with hot reload
+npm run build        # Build TypeScript to JavaScript
+npm run start        # Start production server
+
+# Database
+npm run db:migrate   # Run database migrations
+npm run db:seed      # Seed database with sample data
+npm run db:reset     # Reset database (careful!)
+
+# Testing
+npm run test         # Run tests
+npm run test:watch   # Run tests in watch mode
+
+# Linting
+npm run lint         # Check code style
+npm run lint:fix     # Fix code style issues
+```
+
+### Project Structure
 
 ```
 backend/
-├── app.py                   # Main Flask application
-├── requirements.txt         # Python dependencies
-├── GCG_MAPPING.csv         # Excel column mapping config
-├── storage_service.py      # File storage utilities
-├── windows_utils.py        # Windows compatibility utilities
-├── uploads/                # Uploaded Excel files
-├── outputs/                # Processed Excel files
-└── web-output/             # Centralized data file
-    └── output.xlsx         # Main data file (Excel "database")
+├── src/
+│   ├── config/          # Configuration files
+│   ├── controllers/      # Route controllers
+│   ├── middleware/       # Custom middleware
+│   ├── models/          # Database models
+│   ├── routes/          # API routes
+│   ├── services/        # Business logic
+│   ├── types/           # TypeScript type definitions
+│   ├── utils/           # Utility functions
+│   └── index.ts         # Main server file
+├── database/
+│   ├── migrations/      # Database migrations
+│   ├── seeds/           # Database seeders
+│   └── schema.sql       # Database schema
+├── uploads/             # File upload directory
+├── logs/                # Application logs
+├── tests/               # Test files
+├── package.json
+├── tsconfig.json
+└── README.md
 ```
 
----
+### Code Style
 
-## **📊 How Excel Processing Works**
-
-### **Input File Format (BPKP)**
-
-Excel file dengan struktur:
-
-| Section | Deskripsi | Jumlah Parameter | Bobot | Skor | Capaian | Penjelasan |
-|---------|-----------|------------------|-------|------|---------|------------|
-| ASPEK I | Komitmen GCG | 15 | 15.0 | 13.5 | 90.0% | Sangat Baik |
-| ASPEK II | RUPS | 8 | 10.0 | 8.2 | 82.0% | Baik |
-| ... | ... | ... | ... | ... | ... | ... |
-
-### **Processing Flow**
-
-```
-1. User uploads: Penilaian_BPKP_2024.xlsx
-   ↓
-2. Backend saves to: uploads/UUID_Penilaian_BPKP_2024.xlsx
-   ↓
-3. Python extracts data using GCG_MAPPING.csv
-   ↓
-4. Saves processed data to:
-   - outputs/processed_UUID_Penilaian_BPKP_2024.xlsx
-   - web-output/output.xlsx (centralized)
-   ↓
-5. Frontend fetches via: GET /api/gcg-chart-data
-   ↓
-6. Table auto-populates with data
-```
-
----
-
-## **⚙️ Configuration**
-
-### **GCG_MAPPING.csv**
-
-Maps Excel columns to data fields:
-
-```csv
-Column,Field,Description
-A,Section,Aspek (I, II, III, etc.)
-B,Deskripsi,Description of aspect
-C,Jumlah_Parameter,Number of parameters
-D,Bobot,Weight/bobot
-E,Skor,Score achieved
-F,Capaian,Achievement percentage
-G,Penjelasan,Qualitative assessment
-```
-
-Modify this file to adapt to different Excel formats.
-
----
-
-## **🔧 Troubleshooting**
-
-### **Issue: Port 5000 already in use**
+Project menggunakan ESLint dengan konfigurasi TypeScript:
 
 ```bash
-# Find process using port 5000
-lsof -i :5000
+# Check code style
+npm run lint
 
-# Kill the process
-kill -9 <PID>
-
-# Or use a different port
-# Edit app.py, change: app.run(port=5001)
+# Fix automatically fixable issues
+npm run lint:fix
 ```
 
-### **Issue: CORS errors**
+## 🚀 Deployment
 
-Make sure CORS is enabled in `app.py`:
-
-```python
-from flask_cors import CORS
-CORS(app, resources={r"/api/*": {"origins": "*"}})
-```
-
-### **Issue: Module not found**
+### Production Build
 
 ```bash
-pip install -r requirements.txt
+# Build application
+npm run build
+
+# Start production server
+npm start
 ```
 
----
+### Environment Variables
 
-## **📝 Development Notes**
+Pastikan semua environment variables production sudah diset dengan benar:
 
-### **Adding New Endpoints**
-
-```python
-@app.route('/api/your-endpoint', methods=['GET', 'POST'])
-def your_endpoint():
-    # Your logic here
-    return jsonify({
-        'success': True,
-        'data': your_data
-    })
+```env
+NODE_ENV=production
+PORT=3001
+DATABASE_URL=your_production_database_url
+JWT_SECRET=your_production_jwt_secret
 ```
 
-### **Modifying Excel Processing**
+### PM2 (Process Manager)
 
-Edit the processing logic in `app.py`:
+```bash
+# Install PM2 globally
+npm install -g pm2
 
-```python
-def process_bpkp_file(file_path, year):
-    df = pd.read_excel(file_path)
-    # Your custom processing logic
-    return processed_data
+# Start application
+pm2 start dist/index.js --name "gcg-backend"
+
+# Monitor application
+pm2 monit
+
+# View logs
+pm2 logs gcg-backend
 ```
 
----
+### Docker (Optional)
 
-## **🚀 Next Steps**
+```dockerfile
+FROM node:18-alpine
 
-1. ✅ Install dependencies: `pip install -r requirements.txt`
-2. ✅ Run the backend: `python app.py`
-3. ✅ Test upload endpoint: Use frontend or Postman
-4. ✅ Check `web-output/output.xlsx` for processed data
+WORKDIR /app
 
----
+COPY package*.json ./
+RUN npm ci --only=production
 
-## **📞 Support**
+COPY dist ./dist
 
-For issues or questions:
-- Check the main project documentation
-- Review the code comments in `app.py`
-- Check error logs in console output
+EXPOSE 3001
+
+CMD ["npm", "start"]
+```
+
+## 🔧 Troubleshooting
+
+### Common Issues
+
+1. **Database Connection Failed**
+   - Pastikan PostgreSQL berjalan
+   - Check database credentials di `.env`
+   - Verify database exists
+
+2. **Port Already in Use**
+   - Change port di `.env`
+   - Kill process using port: `lsof -ti:3001 | xargs kill -9`
+
+3. **JWT Token Invalid**
+   - Check JWT_SECRET di `.env`
+   - Verify token expiration
+   - Check token format
+
+### Logs
+
+Application logs tersimpan di `./logs/app.log`:
+
+```bash
+# View real-time logs
+tail -f logs/app.log
+
+# Search for errors
+grep "ERROR" logs/app.log
+```
+
+## 🤝 Contributing
+
+1. Fork repository
+2. Create feature branch: `git checkout -b feature/amazing-feature`
+3. Commit changes: `git commit -m 'Add amazing feature'`
+4. Push to branch: `git push origin feature/amazing-feature`
+5. Open Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 📞 Support
+
+Jika Anda mengalami masalah atau memiliki pertanyaan:
+
+- Create issue di GitHub
+- Contact development team
+- Check documentation
 
 ---
 

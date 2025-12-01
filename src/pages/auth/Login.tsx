@@ -1,11 +1,21 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useNavigate } from 'react-router-dom';
+import { useUser } from '@/contexts/UserContext';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { useUser } from '@/contexts/UserContext';
-import { Shield, Eye, EyeOff, Mail, Lock, ArrowRight, Building2, Users, FileText, CheckCircle, Globe, Award, Zap } from 'lucide-react';
+import {
+  User,
+  Lock,
+  Eye,
+  EyeOff,
+  ArrowRight,
+  Shield,
+  FileText,
+  BarChart3,
+  Users,
+  CheckCircle
+} from 'lucide-react';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -20,282 +30,301 @@ const Login = () => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
-    
-    // Simulate loading
-    setTimeout(() => {
-      const success = login(email, password);
-      
-      if (success) {
-        navigate('/dashboard');
-      } else {
-        setError('Email atau password salah');
+
+    setTimeout(async () => {
+      try {
+        const success = await login(email, password);
+
+        if (success) {
+          navigate('/dashboard');
+        } else {
+          setError('Email atau password salah');
+        }
+      } catch (err) {
+        setError('Terjadi kesalahan saat login');
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     }, 1000);
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-amber-50 to-emerald-50">
-      {/* Navigation Header */}
-      <nav className="bg-white/80 backdrop-blur-md border-b border-blue-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-4">
-              <img 
-                src="/aset/POSIND_2023_(with_wordmark).svg.png" 
-                alt="POS Indonesia" 
-                className="h-10 w-auto"
-              />
-              <div className="hidden md:block">
-                <h1 className="text-xl font-bold text-blue-900">GCG Document Hub</h1>
-                <p className="text-sm text-blue-600">Sistem Manajemen Dokumen GCG</p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <Link 
-                to="/register" 
-                className="text-blue-600 hover:text-blue-800 font-medium transition-colors"
-              >
-                Daftar
-              </Link>
-              <Link 
-                to="/login" 
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Masuk
-              </Link>
-            </div>
-          </div>
-        </div>
-      </nav>
+  const features = [
+    {
+      icon: FileText,
+      title: "Manajemen Dokumen",
+      description: "Kelola dokumen GCG dengan terstruktur"
+    },
+    {
+      icon: BarChart3,
+      title: "Monitoring Real-time",
+      description: "Pantau progress upload dan compliance"
+    },
+    {
+      icon: Users,
+      title: "Multi-User Access",
+      description: "Akses berbasis role dan divisi"
+    },
+    {
+      icon: CheckCircle,
+      title: "Compliance Tracking",
+      description: "Lacak kepatuhan GCG secara otomatis"
+    }
+  ];
 
-      <div className="flex min-h-[calc(100vh-4rem)]">
-        {/* Left Side - Landing Content */}
-        <div className="hidden lg:flex flex-1 bg-gradient-to-br from-blue-600 via-indigo-700 to-purple-800 relative overflow-hidden">
-          {/* Background Pattern */}
-          <div className="absolute inset-0">
-            <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent"></div>
-            <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.1),transparent_50%)]"></div>
-            <div className="absolute bottom-0 right-0 w-full h-full bg-[radial-gradient(circle_at_70%_80%,rgba(255,255,255,0.1),transparent_50%)]"></div>
-          </div>
-          
-          <div className="relative z-10 flex flex-col justify-center px-12 text-white">
-            <div className="max-w-2xl">
-              <div className="mb-8">
-                <h2 className="text-5xl font-bold mb-6 leading-tight">
-                  Sistem Manajemen Dokumen
-                  <span className="block text-blue-200">Good Corporate Governance</span>
-                </h2>
-                <p className="text-xl text-blue-100 mb-8 leading-relaxed">
-                  Platform terintegrasi untuk mengelola dokumen GCG dengan efisien, terstruktur, dan aman. 
-                  Dukung implementasi Good Corporate Governance yang transparan dan akuntabel.
-                </p>
+  return (
+    <div className="min-h-screen bg-[#1e3a5f] relative overflow-hidden">
+      {/* Animated Background Elements */}
+      <div className="absolute inset-0 overflow-hidden">
+        {/* Gradient Overlay */}
+        <div className="absolute inset-0 bg-gradient-to-br from-[#1e3a5f] via-[#2d4a6f] to-[#1a2f4a]"></div>
+
+        {/* Animated Circles */}
+        <div className="absolute top-20 left-10 w-72 h-72 bg-[#ff6b35]/10 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-20 right-10 w-96 h-96 bg-[#ff6b35]/10 rounded-full blur-3xl animate-pulse delay-1000"></div>
+        <div className="absolute top-1/2 left-1/3 w-64 h-64 bg-white/5 rounded-full blur-2xl animate-pulse delay-500"></div>
+
+        {/* Grid Pattern */}
+        <div className="absolute inset-0 opacity-5">
+          <div className="h-full w-full" style={{
+            backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)',
+            backgroundSize: '50px 50px'
+          }}></div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="relative z-10 min-h-screen flex">
+        {/* Left Side - Branding & Features */}
+        <div className="hidden lg:flex flex-1 flex-col justify-center px-12 xl:px-20">
+          {/* Logo & Title */}
+          <div className="mb-12">
+            <div className="flex items-center space-x-4 mb-8">
+              <div className="w-16 h-16 bg-white rounded-2xl p-2 shadow-2xl">
+                <img
+                  src="/logo.png"
+                  alt="POS Indonesia Logo"
+                  className="w-full h-full object-contain"
+                />
               </div>
-              
-              {/* Key Features */}
-              <div className="space-y-8">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="flex items-start space-x-4">
-                    <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
-                      <FileText className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold mb-2">Manajemen Dokumen</h3>
-                      <p className="text-blue-100 text-sm leading-relaxed">
-                        Upload, organize, dan kelola dokumen GCG dengan struktur folder yang terorganisir.
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start space-x-4">
-                    <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
-                      <Building2 className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold mb-2">Struktur Organisasi</h3>
-                      <p className="text-blue-100 text-sm leading-relaxed">
-                        Kelola struktur Direktorat, Subdirektorat, dan Divisi sesuai organisasi.
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start space-x-4">
-                    <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
-                      <Award className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold mb-2">Compliance GCG</h3>
-                      <p className="text-blue-100 text-sm leading-relaxed">
-                        Dukung implementasi Good Corporate Governance yang sesuai standar.
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start space-x-4">
-                    <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
-                      <Shield className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold mb-2">Keamanan Data</h3>
-                      <p className="text-blue-100 text-sm leading-relaxed">
-                        Dokumen tersimpan dengan aman dan hanya dapat diakses oleh pihak berwenang.
-                      </p>
-                    </div>
-                  </div>
-                </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white leading-tight">PT POS INDONESIA (PERSERO)</h1>
+                <p className="text-[#ff6b35] font-medium">Logistik Indonesia</p>
               </div>
             </div>
+
+            <h2 className="text-3xl xl:text-4xl font-bold text-white leading-tight mb-6">
+              Good Corporate Governance
+              <span className="block text-[#ff6b35]">Documents Management System</span>
+            </h2>
+
+            <p className="text-lg text-white/70 max-w-lg leading-relaxed">
+              Platform terintegrasi untuk mengelola, memantau, dan memastikan kepatuhan dokumen
+              Good Corporate Governance secara efisien dan transparan.
+            </p>
           </div>
-          
-          {/* Decorative Elements */}
-          <div className="absolute top-20 right-20 w-32 h-32 bg-white/10 rounded-full blur-xl animate-pulse"></div>
-          <div className="absolute bottom-20 left-20 w-24 h-24 bg-white/10 rounded-full blur-xl animate-pulse delay-1000"></div>
-          <div className="absolute top-1/2 right-10 w-16 h-16 bg-white/10 rounded-full blur-xl animate-pulse delay-500"></div>
+
+          {/* Features Grid */}
+          <div className="grid grid-cols-2 gap-6">
+            {features.map((feature, index) => (
+              <div
+                key={index}
+                className="group p-5 rounded-2xl bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/10 hover:border-[#ff6b35]/30 transition-all duration-300 cursor-default"
+              >
+                <div className="w-12 h-12 rounded-xl bg-[#ff6b35]/20 flex items-center justify-center mb-4 group-hover:bg-[#ff6b35]/30 transition-colors">
+                  <feature.icon className="w-6 h-6 text-[#ff6b35]" />
+                </div>
+                <h3 className="text-white font-semibold mb-2">{feature.title}</h3>
+                <p className="text-white/60 text-sm">{feature.description}</p>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Right Side - Login Form */}
-        <div className="flex-1 flex items-center justify-center p-6">
+        <div className="flex-1 flex items-center justify-center p-6 lg:p-12">
           <div className="w-full max-w-md">
-            {/* Mobile Header */}
+            {/* Mobile Logo */}
             <div className="lg:hidden text-center mb-8">
-              <img 
-                src="/aset/POSIND_2023_(with_wordmark).svg.png" 
-                alt="POS Indonesia" 
-                className="h-12 w-auto mx-auto mb-4"
-              />
-              <h2 className="text-2xl font-bold text-blue-900 mb-2">GCG Document Hub</h2>
-              <p className="text-blue-600">Sistem Manajemen Dokumen GCG</p>
+              <div className="w-20 h-20 bg-white rounded-2xl p-3 shadow-2xl mx-auto mb-4">
+                <img
+                  src="/logo.png"
+                  alt="POS Indonesia Logo"
+                  className="w-full h-full object-contain"
+                />
+              </div>
+              <h1 className="text-xl font-bold text-white leading-tight">
+                Good Corporate Governance
+                <span className="block text-[#ff6b35]">Documents Management System</span>
+              </h1>
+              <p className="text-white/80 mt-2">PT POS INDONESIA (PERSERO)</p>
             </div>
 
-            {/* Login Form */}
-            <Card className="border-0 shadow-2xl bg-white/90 backdrop-blur-sm">
-              <CardContent className="p-8">
-                <div className="text-center mb-8">
-                  <h2 className="text-2xl font-bold text-blue-900 mb-2">Masuk ke Sistem</h2>
-                  <p className="text-blue-600">Akses sistem manajemen dokumen GCG</p>
+            {/* Login Card */}
+            <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-white/20 shadow-2xl">
+              {/* Card Header */}
+              <div className="text-center mb-8">
+                <div className="w-16 h-16 bg-gradient-to-br from-[#ff6b35] to-[#ff8c5a] rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-[#ff6b35]/30">
+                  <Shield className="w-8 h-8 text-white" />
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-2">Selamat Datang</h2>
+                <p className="text-white/60">Masuk ke sistem manajemen GCG</p>
+              </div>
+
+              {/* Login Form */}
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Email/Username Field */}
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-white/80 text-sm font-medium">
+                    Email / Username
+                  </Label>
+                  <div className="relative group">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                      <User className="w-5 h-5 text-white/40 group-focus-within:text-[#ff6b35] transition-colors" />
+                    </div>
+                    <Input
+                      id="email"
+                      type="text"
+                      placeholder="Masukkan email atau username"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="pl-12 h-14 bg-white/10 border-white/20 text-white placeholder:text-white/40 rounded-xl focus:border-[#ff6b35] focus:ring-[#ff6b35]/20 transition-all"
+                      required
+                    />
+                  </div>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="email" className="text-sm font-medium text-blue-700">
-                      Email
-                    </Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-400 w-5 h-5" />
-                      <Input
-                        id="email"
-                        type="email"
-                        placeholder="Masukkan email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="pl-10 h-12 border-blue-200 focus:border-blue-500 focus:ring-blue-500"
-                        required
-                      />
+                {/* Password Field */}
+                <div className="space-y-2">
+                  <Label htmlFor="password" className="text-white/80 text-sm font-medium">
+                    Password
+                  </Label>
+                  <div className="relative group">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none z-10">
+                      <Lock className="w-5 h-5 text-white/40 group-focus-within:text-[#ff6b35] transition-colors" />
                     </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="password" className="text-sm font-medium text-blue-700">
-                      Password
-                    </Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-400 w-5 h-5" />
-                      <Input
-                        id="password"
-                        type={showPassword ? "text" : "password"}
-                        placeholder="Masukkan password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="pl-10 pr-12 h-12 border-blue-200 focus:border-blue-500 focus:ring-blue-500"
-                        required
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent text-blue-400 hover:text-blue-600"
-                        onClick={() => setShowPassword(!showPassword)}
-                      >
-                        {showPassword ? (
-                          <EyeOff className="h-5 w-5" />
-                        ) : (
-                          <Eye className="h-5 w-5" />
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-
-                  {error && (
-                    <div className="text-sm text-red-600 bg-red-50 p-4 rounded-lg border border-red-200 flex items-center space-x-2">
-                      <Shield className="w-4 h-4" />
-                      <span>{error}</span>
-                    </div>
-                  )}
-
-                  <Button 
-                    type="submit" 
-                    className="w-full h-12 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium rounded-lg shadow-lg hover:shadow-xl transition-all duration-200"
-                    disabled={isLoading}
-                  >
-                    {isLoading ? (
-                      <div className="flex items-center space-x-2">
-                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        <span>Memproses...</span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-center space-x-2">
-                        <span>Masuk</span>
-                        <ArrowRight className="w-4 h-4" />
-                      </div>
-                    )}
-                  </Button>
-                </form>
-
-                {/* Demo Account Info */}
-                <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <h4 className="text-sm font-medium text-blue-900 mb-2 flex items-center space-x-2">
-                    <CheckCircle className="w-4 h-4" />
-                    <span>Demo Account</span>
-                  </h4>
-                  <div className="space-y-1 text-sm text-blue-800">
-                    <p><span className="font-medium">Email:</span> arsippostgcg@gmail.com</p>
-                    <p><span className="font-medium">Password:</span> postarsipGCG.</p>
-                  </div>
-                  <div className="mt-3 pt-3 border-t border-blue-200">
+                    <input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Masukkan password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full pl-12 pr-12 h-14 bg-white/10 border border-white/20 text-white placeholder:text-white/40 rounded-xl focus:border-[#ff6b35] focus:ring-2 focus:ring-[#ff6b35]/20 focus:outline-none transition-all"
+                      required
+                    />
                     <button
-                      onClick={() => {
-                        localStorage.clear();
-                        window.location.reload();
-                      }}
-                      className="text-xs text-blue-600 hover:text-blue-800 underline"
+                      type="button"
+                      className="absolute right-0 top-0 h-full px-4 text-white/40 hover:text-white transition-colors"
+                      onClick={() => setShowPassword(!showPassword)}
                     >
-                      Reset Data (jika login bermasalah)
+                      {showPassword ? (
+                        <EyeOff className="w-5 h-5" />
+                      ) : (
+                        <Eye className="w-5 h-5" />
+                      )}
                     </button>
                   </div>
                 </div>
 
-                {/* Register Link */}
-                <div className="mt-6 text-center">
-                  <p className="text-sm text-blue-600">
-                    Belum punya akun?{' '}
-                    <Link to="/register" className="text-blue-600 hover:text-blue-700 font-medium">
-                      Daftar sebagai User
-                    </Link>
-                  </p>
+                {/* Error Message */}
+                {error && (
+                  <div className="flex items-center space-x-3 p-4 bg-red-500/20 border border-red-500/30 rounded-xl text-red-200 text-sm animate-shake">
+                    <Shield className="w-5 h-5 flex-shrink-0" />
+                    <span>{error}</span>
+                  </div>
+                )}
+
+                {/* Submit Button */}
+                <Button
+                  type="submit"
+                  className="w-full h-14 bg-gradient-to-r from-[#ff6b35] to-[#ff8c5a] hover:from-[#ff5722] hover:to-[#ff7043] text-white font-semibold rounded-xl shadow-lg shadow-[#ff6b35]/30 hover:shadow-xl hover:shadow-[#ff6b35]/40 transition-all duration-300 group"
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <div className="flex items-center space-x-3">
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      <span>Memproses...</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center space-x-2">
+                      <span>Masuk ke Sistem</span>
+                      <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                    </div>
+                  )}
+                </Button>
+              </form>
+
+              {/* Divider */}
+              <div className="relative my-8">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-white/10"></div>
                 </div>
-              </CardContent>
-            </Card>
+                <div className="relative flex justify-center">
+                  <span className="px-4 text-xs text-white/40 bg-transparent">Sistem Aman & Terenkripsi</span>
+                </div>
+              </div>
+
+              {/* Security Badge */}
+              <div className="flex items-center justify-center space-x-6 text-white/40 text-xs">
+                <div className="flex items-center space-x-2">
+                  <Shield className="w-4 h-4" />
+                  <span>256-bit SSL</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <CheckCircle className="w-4 h-4" />
+                  <span>ISO 27001</span>
+                </div>
+              </div>
+            </div>
 
             {/* Footer */}
-            <div className="mt-8 text-center text-sm text-blue-500">
-              <p>© 2024 POS Indonesia. All rights reserved.</p>
-              <p className="mt-1">Sistem Manajemen Dokumen GCG</p>
+            <div className="mt-8 text-center">
+              <p className="text-white/40 text-sm">
+                &copy; 2024 PT POS INDONESIA (PERSERO). All rights reserved.
+              </p>
+              <p className="text-white/30 text-xs mt-1">
+                Good Corporate Governance Documents Management System
+              </p>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Bottom Wave Decoration */}
+      <div className="absolute bottom-0 left-0 right-0 h-32 overflow-hidden">
+        <svg
+          viewBox="0 0 1200 120"
+          preserveAspectRatio="none"
+          className="absolute bottom-0 w-full h-full"
+        >
+          <path
+            d="M0,60 C150,120 350,0 600,60 C850,120 1050,0 1200,60 L1200,120 L0,120 Z"
+            className="fill-white/5"
+          />
+        </svg>
+      </div>
+
+      {/* CSS for shake animation and hide browser password reveal */}
+      <style>{`
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+          20%, 40%, 60%, 80% { transform: translateX(5px); }
+        }
+        .animate-shake {
+          animation: shake 0.5s ease-in-out;
+        }
+        /* Hide browser's built-in password reveal button */
+        input::-ms-reveal,
+        input::-ms-clear {
+          display: none;
+        }
+        input::-webkit-credentials-auto-fill-button,
+        input::-webkit-password-toggle-button {
+          display: none !important;
+        }
+      `}</style>
     </div>
   );
 };
 
-export default Login; 
+export default Login;
