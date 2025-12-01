@@ -737,3 +737,131 @@ def export_all_data():
         as_attachment=True,
         download_name=filename
     )
+
+
+# ============================================
+# PERFORMA GCG ENDPOINTS
+# ============================================
+
+@api_bp.route('/performa-gcg', methods=['GET'])
+def get_performa_gcg():
+    """Get PerformaGCG data, optionally filtered by year"""
+    year = request.args.get('year', type=int)
+    level = request.args.get('level', type=int)
+
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+
+        # Build query based on filters
+        query = "SELECT * FROM performa_gcg WHERE 1=1"
+        params = []
+
+        if year:
+            query += " AND tahun = ?"
+            params.append(year)
+
+        if level:
+            query += " AND level = ?"
+            params.append(level)
+
+        query += " ORDER BY tahun, level, section"
+
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        data = [dict(row) for row in rows]
+
+    return jsonify(data)
+
+
+@api_bp.route('/performa-gcg/years', methods=['GET'])
+def get_performa_gcg_years():
+    """Get available years in PerformaGCG data"""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT DISTINCT tahun
+            FROM performa_gcg
+            ORDER BY tahun DESC
+        """)
+        rows = cursor.fetchall()
+        years = [row['tahun'] for row in rows]
+
+    return jsonify(years)
+
+
+@api_bp.route('/performa-gcg/summary/<int:year>', methods=['GET'])
+def get_performa_gcg_summary(year):
+    """Get summary statistics for a specific year"""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+
+        # Get overall statistics
+        cursor.execute("""
+            SELECT
+                COUNT(*) as total_items,
+                SUM(bobot) as total_bobot,
+                SUM(skor) as total_skor,
+                AVG(capaian) as avg_capaian,
+                MIN(capaian) as min_capaian,
+                MAX(capaian) as max_capaian
+            FROM performa_gcg
+            WHERE tahun = ? AND level = 1
+        """, (year,))
+
+        overall = dict(cursor.fetchone())
+
+        # Get by section
+        cursor.execute("""
+            SELECT
+                section,
+                deskripsi,
+                bobot,
+                skor,
+                capaian,
+                penjelasan
+            FROM performa_gcg
+            WHERE tahun = ? AND level = 1 AND type = 'header'
+            ORDER BY section
+        """, (year,))
+
+        sections = [dict(row) for row in cursor.fetchall()]
+
+    return jsonify({
+        'year': year,
+        'overall': overall,
+        'sections': sections
+    })
+
+
+@api_bp.route('/performa-gcg/export', methods=['GET'])
+def export_performa_gcg():
+    """Export PerformaGCG data to Excel"""
+    import pandas as pd
+    from io import BytesIO
+    from flask import send_file
+
+    year = request.args.get('year', type=int)
+
+    with get_db_connection() as conn:
+        if year:
+            query = "SELECT * FROM performa_gcg WHERE tahun = ? ORDER BY level, section"
+            df = pd.read_sql_query(query, conn, params=(year,))
+            filename = f'performa_gcg_{year}.xlsx'
+        else:
+            query = "SELECT * FROM performa_gcg ORDER BY tahun, level, section"
+            df = pd.read_sql_query(query, conn)
+            filename = 'performa_gcg_all_years.xlsx'
+
+    # Create Excel file in memory
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Performa GCG')
+
+    output.seek(0)
+
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=filename
+    )
