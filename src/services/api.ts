@@ -1,5 +1,5 @@
 // API Configuration - Change port here if needed
-export const API_PORT = 5001;
+export const API_PORT = 5000;
 export const API_HOST = `http://localhost:${API_PORT}`;
 const API_BASE_URL = `${API_HOST}/api`;
 
