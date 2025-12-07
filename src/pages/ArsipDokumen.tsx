@@ -50,6 +50,7 @@ const ArsipDokumen = () => {
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [randomDocuments, setRandomDocuments] = useState<any[]>([]);
 
   // State for search and filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -341,6 +342,26 @@ const ArsipDokumen = () => {
     }
   }, [selectedYear, checklist, availableYears]);
 
+  // Fetch random documents (Dokumen Lainnya) for selected year
+  useEffect(() => {
+    const fetchRandomDocuments = async () => {
+      if (!selectedYear) return;
+
+      try {
+        const response = await fetch(`http://localhost:5000/api/random-documents/${selectedYear}`);
+        if (response.ok) {
+          const data = await response.json();
+          setRandomDocuments(data.documents || []);
+        }
+      } catch (error) {
+        console.error('Error fetching random documents:', error);
+        setRandomDocuments([]);
+      }
+    };
+
+    fetchRandomDocuments();
+  }, [selectedYear]);
+
   // Listen for file changes from other components (Monitoring, FileUploadContext)
   useEffect(() => {
     const handleFilesChanged = (event: CustomEvent) => {
@@ -393,22 +414,46 @@ const ArsipDokumen = () => {
   // Get all uploaded documents for the selected year
   const allUploadedDocuments = useMemo(() => {
     if (!selectedYear) return [];
-    
+
+    // 1. Get checklist-based documents
     const yearChecklist = checklist.filter(item => item.tahun === selectedYear);
-    
-    return yearChecklist
+    const checklistDocs = yearChecklist
       .map(item => {
         const uploadedDocument = getUploadedDocument(item.id);
         if (!uploadedDocument) return null;
-        
+
         return {
           ...item,
           uploadedDocument,
-          status: 'uploaded' as const
+          status: 'uploaded' as const,
+          isRandomDoc: false // Flag to identify checklist docs
         };
       })
       .filter(Boolean);
-  }, [selectedYear, checklist, getUploadedDocument, storageFileStatus, storageFileInfo]);
+
+    // 2. Convert random documents to same format as checklist docs
+    const randomDocs = randomDocuments.map((doc, index) => ({
+      id: `random_${doc.id || index}`, // Unique ID for random docs
+      aspek: 'DOKUMEN_LAINNYA',
+      deskripsi: doc.fileName || 'Dokumen Lainnya',
+      tahun: selectedYear,
+      pic: 'Dokumen_Lainnya',
+      uploadedDocument: {
+        id: doc.id,
+        fileName: doc.fileName,
+        fileSize: doc.fileSize,
+        uploadDate: new Date(doc.uploadDate),
+        uploadedBy: doc.uploadedBy || 'Unknown',
+        subdirektorat: 'Dokumen_Lainnya',
+        catatan: doc.catatan || ''
+      },
+      status: 'uploaded' as const,
+      isRandomDoc: true // Flag to identify random docs
+    }));
+
+    // 3. Merge both types
+    return [...checklistDocs, ...randomDocs];
+  }, [selectedYear, checklist, getUploadedDocument, storageFileStatus, storageFileInfo, randomDocuments]);
 
   // Get unique values for filters
   const uniqueAspects = useMemo(() => {
@@ -1261,9 +1306,16 @@ const ArsipDokumen = () => {
                                 </TableCell>
                                 <TableCell className="py-2">
                                   <div>
-                                    <p className="text-xs text-gray-900 line-clamp-2" title={doc.deskripsi}>
-                                      {doc.deskripsi}
-                                    </p>
+                                    <div className="flex items-center gap-1.5">
+                                      <p className="text-xs text-gray-900 line-clamp-2" title={doc.deskripsi}>
+                                        {doc.deskripsi}
+                                      </p>
+                                      {doc.isRandomDoc && (
+                                        <Badge variant="outline" className="text-[9px] px-1 py-0 bg-purple-50 text-purple-700 border-purple-200">
+                                          Lainnya
+                                        </Badge>
+                                      )}
+                                    </div>
                                     <span className="text-[10px] text-gray-500">
                                       {doc.aspek.replace('ASPEK ', '').substring(0, 20)}
                                     </span>
