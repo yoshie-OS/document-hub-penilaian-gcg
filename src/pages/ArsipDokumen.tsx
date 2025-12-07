@@ -50,6 +50,7 @@ const ArsipDokumen = () => {
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [randomDocuments, setRandomDocuments] = useState<any[]>([]);
 
   // State for search and filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -87,23 +88,23 @@ const ArsipDokumen = () => {
   // State for delete operation
   const [deletingDocuments, setDeletingDocuments] = useState<Set<number>>(new Set());
 
-  // State to track actual file existence from Supabase
-  const [supabaseFileStatus, setSupabaseFileStatus] = useState<{[key: string]: boolean}>({});
-  const [supabaseFileInfo, setSupabaseFileInfo] = useState<{[key: string]: any}>({});
+  // State to track actual file existence from storage
+  const [storageFileStatus, setstorageFileStatus] = useState<{[key: string]: boolean}>({});
+  const [storageFileInfo, setstorageFileInfo] = useState<{[key: string]: any}>({});
   const [fileStatusLoading, setFileStatusLoading] = useState<boolean>(false);
 
   // State for random document upload
   const [isUploadingRandom, setIsUploadingRandom] = useState(false);
   const [randomUploadYear, setRandomUploadYear] = useState<number | null>(null);
 
-  // Check if dokumen GCG item is uploaded - now uses Supabase file status
+  // Check storage file status
   const isChecklistUploaded = useCallback((checklistId: number) => {
     if (!selectedYear) return false;
     
-    // Check Supabase file status first (authoritative)
-    const supabaseExists = supabaseFileStatus[checklistId.toString()] || false;
+    // Check storage file status first (authoritative)
+    const storageExists = storageFileStatus[checklistId.toString()] || false;
     
-    if (supabaseExists) {
+    if (storageExists) {
       return true;
     }
     
@@ -113,16 +114,16 @@ const ArsipDokumen = () => {
     const localFileExists = yearFiles.some(file => file.checklistId === checklistIdInt);
     
     return localFileExists;
-  }, [supabaseFileStatus, getFilesByYear, selectedYear]);
+  }, [storageFileStatus, getFilesByYear, selectedYear]);
 
-  // Get uploaded document for dokumen GCG - now uses Supabase file status with localStorage fallback
+  // Get uploaded document for dokumen GCG - now uses storage file status with localStorage fallback
   const getUploadedDocument = useCallback((checklistId: number) => {
     if (!selectedYear) return null;
     
-    // First check if file exists in Supabase
-    const supabaseExists = supabaseFileStatus[checklistId.toString()];
-    if (supabaseExists && supabaseFileInfo[checklistId.toString()]) {
-      return supabaseFileInfo[checklistId.toString()];
+    // First check if file exists in storage
+    const storageExists = storageFileStatus[checklistId.toString()];
+    if (storageExists && storageFileInfo[checklistId.toString()]) {
+      return storageFileInfo[checklistId.toString()];
     }
     
     // Fallback to localStorage for backward compatibility
@@ -131,7 +132,7 @@ const ArsipDokumen = () => {
     const foundFile = yearFiles.find(file => file.checklistId === checklistIdInt);
     
     return foundFile;
-  }, [supabaseFileStatus, supabaseFileInfo, getFilesByYear, selectedYear]);
+  }, [storageFileStatus, storageFileInfo, getFilesByYear, selectedYear]);
 
   // Load file status from backend when year changes
   useEffect(() => {
@@ -184,7 +185,7 @@ const ArsipDokumen = () => {
 
         for (const [subdirektorat, checklistIds] of Object.entries(subdirektoratGroups)) {
           try {
-            const response = await fetch('http://localhost:5001/api/check-gcg-files', {
+            const response = await fetch('http://localhost:5000/api/check-gcg-files', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -207,7 +208,7 @@ const ArsipDokumen = () => {
                 
                 if (fileExists && fileStatus) {
                   newFileInfo[checklistId] = {
-                    id: fileStatus.id || `supabase_${checklistId}`,
+                    id: fileStatus.id || `storage_${checklistId}`,
                     fileName: fileStatus.fileName,
                     fileSize: fileStatus.size,
                     uploadDate: new Date(fileStatus.lastModified),
@@ -227,8 +228,8 @@ const ArsipDokumen = () => {
         }
 
         // Update state with all collected data
-        setSupabaseFileStatus(newFileStatus);
-        setSupabaseFileInfo(newFileInfo);
+        setstorageFileStatus(newFileStatus);
+        setstorageFileInfo(newFileInfo);
         
       } catch (error) {
         console.error('Error loading file statuses:', error);
@@ -288,7 +289,7 @@ const ArsipDokumen = () => {
 
       for (const [subdirektorat, checklistIds] of Object.entries(subdirektoratGroups)) {
         try {
-          const response = await fetch('http://localhost:5001/api/check-gcg-files', {
+          const response = await fetch('http://localhost:5000/api/check-gcg-files', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -310,7 +311,7 @@ const ArsipDokumen = () => {
 
                 if (fileStatus.exists && fileStatus.fileName) {
                   newFileInfo[checklistId] = {
-                    id: fileStatus.id || `supabase_${checklistId}`,
+                    id: fileStatus.id || `storage_${checklistId}`,
                     fileName: fileStatus.fileName,
                     fileSize: fileStatus.size,
                     uploadDate: new Date(fileStatus.lastModified),
@@ -330,8 +331,8 @@ const ArsipDokumen = () => {
         }
       }
 
-      setSupabaseFileStatus(newFileStatus);
-      setSupabaseFileInfo(newFileInfo);
+      setstorageFileStatus(newFileStatus);
+      setstorageFileInfo(newFileInfo);
       console.log('✅ ArsipDokumen: File statuses reloaded successfully');
 
     } catch (error) {
@@ -340,6 +341,26 @@ const ArsipDokumen = () => {
       setFileStatusLoading(false);
     }
   }, [selectedYear, checklist, availableYears]);
+
+  // Fetch random documents (Dokumen Lainnya) for selected year
+  useEffect(() => {
+    const fetchRandomDocuments = async () => {
+      if (!selectedYear) return;
+
+      try {
+        const response = await fetch(`http://localhost:5000/api/random-documents/${selectedYear}`);
+        if (response.ok) {
+          const data = await response.json();
+          setRandomDocuments(data.documents || []);
+        }
+      } catch (error) {
+        console.error('Error fetching random documents:', error);
+        setRandomDocuments([]);
+      }
+    };
+
+    fetchRandomDocuments();
+  }, [selectedYear]);
 
   // Listen for file changes from other components (Monitoring, FileUploadContext)
   useEffect(() => {
@@ -351,11 +372,11 @@ const ArsipDokumen = () => {
       if (event.detail?.type === 'fileDeleted' && event.detail?.checklistId) {
         const checklistId = event.detail.checklistId;
         console.log('🧹 ArsipDokumen: Marking deleted checklistId as false:', checklistId);
-        setSupabaseFileStatus(prev => ({
+        setstorageFileStatus(prev => ({
           ...prev,
           [checklistId.toString()]: false  // Explicitly mark as not existing
         }));
-        setSupabaseFileInfo(prev => {
+        setstorageFileInfo(prev => {
           const newInfo = { ...prev };
           delete newInfo[checklistId.toString()];  // Remove file info
           return newInfo;
@@ -393,22 +414,46 @@ const ArsipDokumen = () => {
   // Get all uploaded documents for the selected year
   const allUploadedDocuments = useMemo(() => {
     if (!selectedYear) return [];
-    
+
+    // 1. Get checklist-based documents
     const yearChecklist = checklist.filter(item => item.tahun === selectedYear);
-    
-    return yearChecklist
+    const checklistDocs = yearChecklist
       .map(item => {
         const uploadedDocument = getUploadedDocument(item.id);
         if (!uploadedDocument) return null;
-        
+
         return {
           ...item,
           uploadedDocument,
-          status: 'uploaded' as const
+          status: 'uploaded' as const,
+          isRandomDoc: false // Flag to identify checklist docs
         };
       })
       .filter(Boolean);
-  }, [selectedYear, checklist, getUploadedDocument, supabaseFileStatus, supabaseFileInfo]);
+
+    // 2. Convert random documents to same format as checklist docs
+    const randomDocs = randomDocuments.map((doc, index) => ({
+      id: `random_${doc.id || index}`, // Unique ID for random docs
+      aspek: 'DOKUMEN_LAINNYA',
+      deskripsi: doc.fileName || 'Dokumen Lainnya',
+      tahun: selectedYear,
+      pic: 'Dokumen_Lainnya',
+      uploadedDocument: {
+        id: doc.id,
+        fileName: doc.fileName,
+        fileSize: doc.fileSize,
+        uploadDate: new Date(doc.uploadDate),
+        uploadedBy: doc.uploadedBy || 'Unknown',
+        subdirektorat: 'Dokumen_Lainnya',
+        catatan: doc.catatan || ''
+      },
+      status: 'uploaded' as const,
+      isRandomDoc: true // Flag to identify random docs
+    }));
+
+    // 3. Merge both types
+    return [...checklistDocs, ...randomDocs];
+  }, [selectedYear, checklist, getUploadedDocument, storageFileStatus, storageFileInfo, randomDocuments]);
 
   // Get unique values for filters
   const uniqueAspects = useMemo(() => {
@@ -478,7 +523,7 @@ const ArsipDokumen = () => {
     if (uploadedFile) {
       try {
         // Get file URL from backend API
-        const response = await fetch(`http://localhost:5001/api/files/${uploadedFile.id}/view`, {
+        const response = await fetch(`http://localhost:5000/api/files/${uploadedFile.id}/view`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('authToken') || 'demo-token'}`,
@@ -511,7 +556,7 @@ const ArsipDokumen = () => {
     if (uploadedFile) {
       try {
         // Download file through backend API
-        const response = await fetch(`http://localhost:5001/api/files/${uploadedFile.id}/download`, {
+        const response = await fetch(`http://localhost:5000/api/files/${uploadedFile.id}/download`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('authToken') || 'demo-token'}`,
@@ -626,7 +671,7 @@ const ArsipDokumen = () => {
     try {
       console.log('🗑️ ArsipDokumen: Starting delete process', { checklistId, documentId: uploadedDocument.id });
 
-      const response = await fetch(`http://localhost:5001/api/delete-file/${uploadedDocument.id}`, {
+      const response = await fetch(`http://localhost:5000/api/delete-file/${uploadedDocument.id}`, {
         method: 'DELETE',
       });
 
@@ -642,11 +687,11 @@ const ArsipDokumen = () => {
         // IMMEDIATELY mark as NOT existing (false) instead of deleting key
         // This ensures UI knows file was explicitly deleted
         console.log('🧹 ArsipDokumen: Marking file as deleted for checklistId:', checklistId);
-        setSupabaseFileStatus(prev => ({
+        setstorageFileStatus(prev => ({
           ...prev,
           [checklistId.toString()]: false  // Explicitly mark as not existing
         }));
-        setSupabaseFileInfo(prev => {
+        setstorageFileInfo(prev => {
           const newInfo = { ...prev };
           delete newInfo[checklistId.toString()];  // Remove file info
           return newInfo;
@@ -714,7 +759,7 @@ const ArsipDokumen = () => {
     setDownloadProgress(0);
 
     try {
-      const response = await fetch('http://localhost:5001/api/bulk-download-all-documents', {
+      const response = await fetch('http://localhost:5000/api/bulk-download-all-documents', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -785,7 +830,7 @@ const ArsipDokumen = () => {
 
     setIsRefreshing(true);
     try {
-      const response = await fetch('http://localhost:5001/api/refresh-tracking-tables', {
+      const response = await fetch('http://localhost:5000/api/refresh-tracking-tables', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -808,8 +853,8 @@ const ArsipDokumen = () => {
       });
 
       // Refresh the file status after cleaning
-      setSupabaseFileStatus({});
-      setSupabaseFileInfo({});
+      setstorageFileStatus({});
+      setstorageFileInfo({});
 
     } catch (error) {
       console.error('Refresh error:', error);
@@ -848,7 +893,7 @@ const ArsipDokumen = () => {
         formData.append('category', 'dokumen_lainnya'); // Special category for unstructured docs
         formData.append('uploadedBy', JSON.parse(localStorage.getItem('user') || '{}').name || 'Unknown');
 
-        const response = await fetch('http://localhost:5001/api/upload-random-document', {
+        const response = await fetch('http://localhost:5000/api/upload-random-document', {
           method: 'POST',
           body: formData,
         });
@@ -865,8 +910,8 @@ const ArsipDokumen = () => {
       });
 
       // Refresh file list
-      setSupabaseFileStatus({});
-      setSupabaseFileInfo({});
+      setstorageFileStatus({});
+      setstorageFileInfo({});
 
     } catch (error) {
       console.error('Random upload error:', error);
@@ -1261,22 +1306,29 @@ const ArsipDokumen = () => {
                                 </TableCell>
                                 <TableCell className="py-2">
                                   <div>
-                                    <p className="text-xs text-gray-900 line-clamp-2" title={doc.deskripsi}>
-                                      {doc.deskripsi}
-                                    </p>
+                                    <div className="flex items-center gap-1.5">
+                                      <p className="text-xs text-gray-900 line-clamp-2" title={doc.deskripsi}>
+                                        {doc.deskripsi}
+                                      </p>
+                                      {doc.isRandomDoc && (
+                                        <Badge variant="outline" className="text-[9px] px-1 py-0 bg-purple-50 text-purple-700 border-purple-200">
+                                          Lainnya
+                                        </Badge>
+                                      )}
+                                    </div>
                                     <span className="text-[10px] text-gray-500">
                                       {doc.aspek.replace('ASPEK ', '').substring(0, 20)}
                                     </span>
                                   </div>
                                 </TableCell>
                                 <TableCell className="py-2">
-                                  {uploadedDocument?.subdirektorat ? (
+                                  {doc.pic ? (
                                     <div className="flex items-center space-x-1.5">
                                       <div className="p-1 rounded bg-green-100">
                                         <Building className="w-2.5 h-2.5 text-green-600" />
                                       </div>
-                                      <span className="text-xs font-medium text-green-700 truncate max-w-[140px]" title={uploadedDocument.subdirektorat}>
-                                        {uploadedDocument.subdirektorat}
+                                      <span className="text-xs font-medium text-green-700 truncate max-w-[140px]" title={doc.pic}>
+                                        {doc.pic}
                                       </span>
                                     </div>
                                   ) : (
