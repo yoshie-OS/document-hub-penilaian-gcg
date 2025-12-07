@@ -82,6 +82,7 @@ const MonitoringUploadGCG = () => {
     id: number;
     aspek: string;
     deskripsi: string;
+    tahun?: number;
     rowNumber?: number;
     pic?: string;
   } | null>(null);
@@ -89,10 +90,10 @@ const MonitoringUploadGCG = () => {
   const [forceUpdate, setForceUpdate] = useState(0);
   
   
-  // State to track actual file existence from Supabase
-  const [supabaseFileStatus, setSupabaseFileStatus] = useState<{[key: string]: boolean}>({});
-  // State to store file information from Supabase
-  const [supabaseFileInfo, setSupabaseFileInfo] = useState<{[key: string]: any}>({});
+  // State to track actual file existence from storage
+  const [storageFileStatus, setstorageFileStatus] = useState<{[key: string]: boolean}>({});
+  // State to store file information from storage
+  const [storageFileInfo, setstorageFileInfo] = useState<{[key: string]: any}>({});
   // State to track which files are being checked for loading spinners
   const [fileStatusLoading, setFileStatusLoading] = useState<boolean>(false);
   // State to track individual items being checked
@@ -157,11 +158,11 @@ const MonitoringUploadGCG = () => {
       if (uploadDetails?.checklistId && uploadDetails?.rowNumber) {
         setTimeout(() => {
           rescanSingleRow(uploadDetails.checklistId, uploadDetails.rowNumber);
-        }, 1000); // Wait a bit for Supabase to sync
+        }, 1000); // Wait a bit for storage to sync
       } else {
         // Fallback: full rescan if no specific details
         setTimeout(() => {
-          checkSupabaseFileStatus();
+          checkstorageFileStatus();
         }, 1000);
       }
       
@@ -185,7 +186,7 @@ const MonitoringUploadGCG = () => {
       // Refresh files and checklist status
       try {
         await refreshFiles();
-        // Only check supabase status if not a delete event (delete already handled by uploadedFilesChanged)
+        // Only check storage status if not a delete event (delete already handled by uploadedFilesChanged)
         console.log('✅ MonitoringUploadGCG: Data refreshed after documentsUpdated');
       } catch (error) {
         console.error('❌ MonitoringUploadGCG: Error refreshing after documentsUpdated:', error);
@@ -196,15 +197,15 @@ const MonitoringUploadGCG = () => {
       console.log('MonitoringUploadGCG: Received uploadedFilesChanged event', event.detail);
 
       // If file was deleted, immediately mark as NOT existing
-      // and DO NOT call checkSupabaseFileStatus to avoid race condition
+      // and DO NOT call checkstorageFileStatus to avoid race condition
       if (event.detail?.type === 'fileDeleted' && event.detail?.checklistId) {
         const checklistId = event.detail.checklistId;
         console.log('🧹 MonitoringUploadGCG: Marking deleted checklistId as false:', checklistId);
-        setSupabaseFileStatus(prev => ({
+        setstorageFileStatus(prev => ({
           ...prev,
           [checklistId.toString()]: false  // Explicitly mark as not existing
         }));
-        setSupabaseFileInfo(prev => {
+        setstorageFileInfo(prev => {
           const newInfo = { ...prev };
           delete newInfo[checklistId.toString()];  // Remove file info
           return newInfo;
@@ -385,16 +386,16 @@ const MonitoringUploadGCG = () => {
     );
   }, [picFilterOptions, picSearchTerm]);
 
-  // Check if dokumen GCG item is uploaded - now uses Supabase file status
+  // Check storage file status
   const isChecklistUploaded = useCallback((checklistId: number) => {
     if (!selectedYear) return false;
     
-    // Check Supabase file status first (authoritative)
-    const supabaseExists = supabaseFileStatus[checklistId.toString()] || false;
+    // Check storage file status first (authoritative)
+    const storageExists = storageFileStatus[checklistId.toString()] || false;
     // Uncomment for detailed debugging:
-    // console.log('MonitoringUploadGCG: isChecklistUploaded called for checklistId:', checklistId, 'supabaseExists:', supabaseExists);
+    // console.log('MonitoringUploadGCG: isChecklistUploaded called for checklistId:', checklistId, 'storageExists:', storageExists);
     
-    if (supabaseExists) {
+    if (storageExists) {
       return true;
     }
     
@@ -406,28 +407,28 @@ const MonitoringUploadGCG = () => {
     // console.log('MonitoringUploadGCG: localStorage fallback for checklistId:', checklistId, 'localFileExists:', localFileExists);
     
     return localFileExists;
-  }, [supabaseFileStatus, getFilesByYear, selectedYear]);
+  }, [storageFileStatus, getFilesByYear, selectedYear]);
 
-  // Get uploaded document for dokumen GCG - now uses Supabase file status with localStorage fallback
+  // Get uploaded document for dokumen GCG - now uses storage file status with localStorage fallback
   const getUploadedDocument = useCallback((checklistId: number) => {
     if (!selectedYear) return null;
 
     const checklistIdStr = checklistId.toString();
 
-    // Check if explicitly marked as NOT existing in Supabase (deleted or never uploaded)
-    if (checklistIdStr in supabaseFileStatus && !supabaseFileStatus[checklistIdStr]) {
+    // Check if explicitly marked as NOT existing in storage (deleted or never uploaded)
+    if (checklistIdStr in storageFileStatus && !storageFileStatus[checklistIdStr]) {
       // Explicitly marked as not existing - return null (no fallback)
       return null;
     }
 
-    // Check if file exists in Supabase with info
-    if (supabaseFileStatus[checklistIdStr] && supabaseFileInfo[checklistIdStr]) {
-      return supabaseFileInfo[checklistIdStr];
+    // Check if file exists in storage with info
+    if (storageFileStatus[checklistIdStr] && storageFileInfo[checklistIdStr]) {
+      return storageFileInfo[checklistIdStr];
     }
 
     // Only fallback to context if we haven't explicitly checked this checklist yet
-    // (supabaseFileStatus doesn't have this key at all)
-    if (!(checklistIdStr in supabaseFileStatus)) {
+    // (storageFileStatus doesn't have this key at all)
+    if (!(checklistIdStr in storageFileStatus)) {
       const yearFiles = getFilesByYear(selectedYear);
       const checklistIdInt = Math.floor(checklistId);
       const foundFile = yearFiles.find(file => file.checklistId === checklistIdInt);
@@ -436,7 +437,7 @@ const MonitoringUploadGCG = () => {
 
     // Default: no document found
     return null;
-  }, [supabaseFileStatus, supabaseFileInfo, getFilesByYear, selectedYear]);
+  }, [storageFileStatus, storageFileInfo, getFilesByYear, selectedYear]);
 
   // Get assignment data for checklist item
   const getAssignmentData = useCallback((checklistId: number) => {
@@ -459,8 +460,9 @@ const MonitoringUploadGCG = () => {
     };
   }, [selectedYear, checklist]);
 
-  // Function to check file existence from Supabase
-  const checkSupabaseFileStatus = useCallback(async () => {
+  // Function to check file existence from storage
+  // verifyFiles: when true, checks filesystem to detect orphaned records (slower but accurate)
+  const checkstorageFileStatus = useCallback(async (verifyFiles: boolean = false) => {
     if (!selectedYear || !checklist.length) return;
 
     // Set loading state
@@ -527,10 +529,11 @@ const MonitoringUploadGCG = () => {
             const requestBody = {
               picName,
               year: selectedYear,
-              checklistIds: batch.map(item => item.id)  // Use checklist IDs instead of row numbers
+              checklistIds: batch.map(item => item.id),  // Use checklist IDs instead of row numbers
+              verifyFiles  // Pass verification mode to backend
             };
-            
-            const response = await fetch('http://localhost:5001/api/check-gcg-files', {
+
+            const response = await fetch('http://localhost:5000/api/check-gcg-files', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -555,7 +558,7 @@ const MonitoringUploadGCG = () => {
                 if (fileExists && fileStatus) {
                   // Create file info object compatible with localStorage format
                   const fileInfoObj = {
-                    id: fileStatus.id || `supabase_${item.id}`,  // Use real UUID from backend
+                    id: fileStatus.id || `storage_${item.id}`,  // Use real UUID from backend
                     fileName: fileStatus.fileName,
                     fileSize: fileStatus.size,
                     uploadDate: new Date(fileStatus.lastModified),
@@ -572,8 +575,8 @@ const MonitoringUploadGCG = () => {
               });
               
               // Update state immediately after each batch for progressive loading
-              setSupabaseFileStatus(prev => ({...prev, ...batchFileStatus}));
-              setSupabaseFileInfo(prev => ({...prev, ...batchFileInfo}));
+              setstorageFileStatus(prev => ({...prev, ...batchFileStatus}));
+              setstorageFileInfo(prev => ({...prev, ...batchFileInfo}));
               
               // Remove processed items from being checked
               setItemsBeingChecked(prev => {
@@ -598,7 +601,7 @@ const MonitoringUploadGCG = () => {
             });
             
             // Update state immediately for this batch
-            setSupabaseFileStatus(prev => ({...prev, ...batchErrorStatus}));
+            setstorageFileStatus(prev => ({...prev, ...batchErrorStatus}));
             
             // Remove processed items from being checked even on error
             setItemsBeingChecked(prev => {
@@ -617,10 +620,10 @@ const MonitoringUploadGCG = () => {
 
       // Final update (already done progressively above)
       console.log('MonitoringUploadGCG: Batch processing complete - Total items:', Object.keys(newFileStatus).length, 'True values:', Object.values(newFileStatus).filter(Boolean).length);
-      console.log('MonitoringUploadGCG: Updated Supabase file info - Files with info:', Object.keys(newFileInfo).length);
+      console.log('MonitoringUploadGCG: Updated storage file info - Files with info:', Object.keys(newFileInfo).length);
       
     } catch (error) {
-      console.error('Error checking Supabase file status:', error);
+      console.error('Error checking storage file status:', error);
     } finally {
       // Clear loading and progress states
       setFileStatusLoading(false);
@@ -629,10 +632,10 @@ const MonitoringUploadGCG = () => {
     }
   }, [selectedYear, checklist, getAssignmentData, user]);
 
-  // Check Supabase file status when year or checklist changes
+  // Check storage file status when year or checklist changes
   useEffect(() => {
-    checkSupabaseFileStatus();
-  }, [checkSupabaseFileStatus]);
+    checkstorageFileStatus();
+  }, [checkstorageFileStatus]);
 
   // Filter dokumen GCG berdasarkan aspek, status, dan PIC - menggunakan data yang sama dengan DashboardStats
   const filteredChecklist = useMemo(() => {
@@ -666,7 +669,7 @@ const MonitoringUploadGCG = () => {
     }
 
     return filtered;
-  }, [checklist, selectedAspek, selectedStatus, selectedPIC, selectedYear, debouncedSearchTerm, isChecklistUploaded, getAssignmentData, forceUpdate, supabaseFileStatus, supabaseFileInfo]);
+  }, [checklist, selectedAspek, selectedStatus, selectedPIC, selectedYear, debouncedSearchTerm, isChecklistUploaded, getAssignmentData, forceUpdate, storageFileStatus, storageFileInfo]);
 
   // Navigate to dashboard with document highlight
   const handleViewDocument = useCallback((checklistId: number) => {
@@ -699,7 +702,7 @@ const MonitoringUploadGCG = () => {
       const picName = checklistItem?.pic || user?.subdirektorat || 'UNKNOWN_PIC';
       
       // Use fetch to download the file as a blob
-      const response = await fetch('http://localhost:5001/api/download-gcg-file', {
+      const response = await fetch('http://localhost:5000/api/download-gcg-file', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -788,12 +791,12 @@ const MonitoringUploadGCG = () => {
       // 2. Refresh uploaded files data (reload from backend)
       await refreshFiles();
       
-      // 3. Rescan Supabase storage for file changes
-      await checkSupabaseFileStatus();
-      
+      // 3. Rescan storage storage for file changes (with filesystem verification)
+      await checkstorageFileStatus(true);  // verifyFiles=true to detect orphaned records
+
       toast({
         title: "Data berhasil diperbarui",
-        description: "Daftar dokumen dan storage telah dipindai ulang",
+        description: "Daftar dokumen dan storage telah dipindai ulang (dengan verifikasi)",
       });
       
     } catch (error) {
@@ -806,7 +809,7 @@ const MonitoringUploadGCG = () => {
     } finally {
       setIsRefreshing(false);
     }
-  }, [isRefreshing, ensureAllYearsHaveData, refreshFiles, checkSupabaseFileStatus, toast]);
+  }, [isRefreshing, ensureAllYearsHaveData, refreshFiles, checkstorageFileStatus, toast]);
 
   // Function to rescan a single row after upload
   const rescanSingleRow = useCallback(async (checklistId: number, rowNumber: number) => {
@@ -830,7 +833,7 @@ const MonitoringUploadGCG = () => {
         checklistIds: [checklistId]  // Use checklist ID instead of row number
       };
       
-      const response = await fetch('http://localhost:5001/api/check-gcg-files', {
+      const response = await fetch('http://localhost:5000/api/check-gcg-files', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -844,11 +847,11 @@ const MonitoringUploadGCG = () => {
         const fileExists = fileStatus?.exists || false;
         
         // Update states for this single item
-        setSupabaseFileStatus(prev => ({...prev, [checklistId.toString()]: fileExists}));
+        setstorageFileStatus(prev => ({...prev, [checklistId.toString()]: fileExists}));
         
         if (fileExists && fileStatus) {
           const fileInfoObj = {
-            id: `supabase_${checklistId}`,
+            id: `storage_${checklistId}`,
             fileName: fileStatus.fileName,
             fileSize: fileStatus.size,
             uploadDate: new Date(fileStatus.lastModified),
@@ -857,7 +860,7 @@ const MonitoringUploadGCG = () => {
             status: 'uploaded',
             catatan: fileStatus.catatan || ''
           };
-          setSupabaseFileInfo(prev => ({...prev, [checklistId.toString()]: fileInfoObj}));
+          setstorageFileInfo(prev => ({...prev, [checklistId.toString()]: fileInfoObj}));
         }
         
         console.log('MonitoringUploadGCG: Single row rescan complete - ID:', checklistId, 'Exists:', fileExists);
@@ -865,7 +868,7 @@ const MonitoringUploadGCG = () => {
     } catch (error) {
       console.error('Error rescanning single row:', error);
       // Set as not uploaded on error
-      setSupabaseFileStatus(prev => ({...prev, [checklistId.toString()]: false}));
+      setstorageFileStatus(prev => ({...prev, [checklistId.toString()]: false}));
     } finally {
       // Remove from being checked
       setItemsBeingChecked(prev => {
@@ -927,7 +930,7 @@ const MonitoringUploadGCG = () => {
       pendingCount: totalItems - uploadedCount,
       progress
     };
-  }, [selectedYear, checklist, isChecklistUploaded, supabaseFileStatus]);
+  }, [selectedYear, checklist, isChecklistUploaded, storageFileStatus]);
 
   // Get color based on progress - sama dengan Dashboard
   const getProgressColor = useCallback((progress: number) => {
@@ -960,7 +963,7 @@ const MonitoringUploadGCG = () => {
         progress
       };
     }).sort((a, b) => b.progress - a.progress); // Sort by progress descending
-  }, [selectedYear, checklist, isChecklistUploaded, supabaseFileStatus]);
+  }, [selectedYear, checklist, isChecklistUploaded, storageFileStatus]);
 
   // Handle upload button click
   const handleUploadClick = useCallback((item: { id: number; aspek: string; deskripsi: string; rowNumber?: number; pic?: string }, rowNumber: number) => {
@@ -974,7 +977,7 @@ const MonitoringUploadGCG = () => {
 
     try {
       console.log(`🌐 MonitoringUploadGCG: Sending DELETE request to /api/delete-file/${documentId}`);
-      const response = await fetch(`http://localhost:5001/api/delete-file/${documentId}`, {
+      const response = await fetch(`http://localhost:5000/api/delete-file/${documentId}`, {
         method: 'DELETE',
       });
 
@@ -992,11 +995,11 @@ const MonitoringUploadGCG = () => {
         // IMMEDIATELY mark as NOT existing (false) instead of deleting key
         // This ensures getUploadedDocument knows file was explicitly deleted
         console.log('🧹 MonitoringUploadGCG: Marking file as deleted for checklistId:', checklistId);
-        setSupabaseFileStatus(prev => ({
+        setstorageFileStatus(prev => ({
           ...prev,
           [checklistId.toString()]: false  // Explicitly mark as not existing
         }));
-        setSupabaseFileInfo(prev => {
+        setstorageFileInfo(prev => {
           const newInfo = { ...prev };
           delete newInfo[checklistId.toString()];  // Remove file info
           return newInfo;

@@ -33,6 +33,7 @@ load_dotenv(dotenv_path=env_path)
 
 # Import storage service
 from storage_service import storage_service
+from file_scanner import FileScanner
 
 # Helper function to safely serialize pandas data to JSON
 def safe_serialize_dict(data_dict):
@@ -133,6 +134,45 @@ def health_check():
         'version': '2.0.0',
         'timestamp': datetime.now().isoformat()
     })
+
+@app.route('/api/scan-and-sync-files', methods=['POST'])
+def scan_and_sync_files():
+    """
+    Scan file storage and synchronize with database
+
+    For Data Engineers: Drop files into storage, then hit this endpoint to sync
+
+    Expected file structure:
+    data/gcg-documents/{year}/{subdirektorat}/{checklist_id}/{filename}
+
+    Returns:
+        JSON with scan statistics
+    """
+    try:
+        # Get optional parameters
+        data = request.get_json() or {}
+        uploaded_by = data.get('uploaded_by', 'File Scanner - API')
+
+        # Initialize scanner
+        scanner = FileScanner()
+
+        # Perform scan and sync
+        results = scanner.scan_and_sync(uploaded_by=uploaded_by)
+
+        return jsonify({
+            'success': True,
+            'message': 'File storage scanned and synchronized successfully',
+            'results': results
+        }), 200
+
+    except Exception as e:
+        safe_print(f"Error scanning and syncing files: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': f'Failed to scan and sync files: {str(e)}'
+        }), 500
 
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
@@ -1427,7 +1467,7 @@ def cleanup_orphaned_data():
 
 @app.route('/api/uploaded-files', methods=['GET'])
 def get_uploaded_files():
-    """Get all uploaded files from Supabase storage."""
+    """Get all uploaded files from storage."""
     try:
         # Get year filter from query parameters
         year = request.args.get('year')
@@ -1459,7 +1499,7 @@ def get_uploaded_files():
 
 @app.route('/api/uploaded-files', methods=['POST'])
 def create_uploaded_file():
-    """Add a new uploaded file record to Supabase storage."""
+    """Add a new uploaded file record to storage."""
     try:
         data = request.get_json()
         
@@ -1493,7 +1533,7 @@ def create_uploaded_file():
             'aspect': data.get('aspect', 'Tidak Diberikan Aspek'),
             'subdirektorat': data.get('subdirektorat'),
             'status': 'uploaded',
-            'supabaseFilePath': data.get('supabaseFilePath'),
+            'filePath': data.get('filePath'),
             'uploadedBy': data.get('uploadedBy', 'Unknown User'),
             'userDirektorat': data.get('userDirektorat', 'Unknown'),
             'userSubdirektorat': data.get('userSubdirektorat', 'Unknown'),
@@ -1594,10 +1634,10 @@ def delete_uploaded_file(file_id):
         # Find the file record to get the file path
         file_record = files_data[files_data['id'] == file_id]
 
-        # If not found by UUID, check if it's a fallback ID format: supabase_{checklistId}
-        if file_record.empty and file_id.startswith('supabase_'):
+        # If not found by UUID, check if it's a fallback ID format: file_{checklistId}
+        if file_record.empty and file_id.startswith('file_'):
             try:
-                checklist_id = int(file_id.replace('supabase_', ''))
+                checklist_id = int(file_id.replace('file_', ''))
                 safe_print(f"🔍 Fallback ID detected, searching by checklistId: {checklist_id}")
 
                 # Try to find by checklistId
@@ -1623,8 +1663,8 @@ def delete_uploaded_file(file_id):
 
         safe_print(f"✅ File record found: {file_record.iloc[0]['fileName']}")
         
-        # Get the file path (check both localFilePath and supabaseFilePath for compatibility)
-        file_path = file_record.iloc[0].get('localFilePath') or file_record.iloc[0].get('supabaseFilePath')
+        # Get the file path (check both localFilePath and filePath for compatibility)
+        file_path = file_record.iloc[0].get('localFilePath') or file_record.iloc[0].get('filePath')
 
         # Delete the actual file from local storage if path exists
         if file_path:
@@ -1652,24 +1692,59 @@ def delete_uploaded_file(file_id):
                 safe_print(f"⚠️ Warning: Failed to delete file from storage: {file_delete_error}")
                 # Continue with database record deletion even if file deletion fails
         
-        # Remove the file record from database
-        initial_count = len(files_data)
-        files_data = files_data[files_data['id'] != file_id]
-        
-        if len(files_data) == initial_count:
-            return jsonify({'error': 'File record not found'}), 404
-        
-        # Save updated data
-        success = storage_service.write_excel(files_data, 'uploaded-files.xlsx')
-        
-        if success:
-            return jsonify({
-                'success': True,
-                'message': f'File deleted from both database and storage',
-                'deletedFilePath': file_path
-            }), 200
-        else:
-            return jsonify({'error': 'Failed to save changes to storage'}), 500
+        # Remove the file record from SQLite database (primary storage)
+        from database import get_db_connection
+        try:
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+
+                # Delete by UUID first
+                cursor.execute("DELETE FROM uploaded_files WHERE id = ?", (file_id,))
+                deleted_count = cursor.rowcount
+
+                # If not found by UUID and it's a fallback ID, try by checklist_id
+                if deleted_count == 0 and file_id.startswith('file_'):
+                    try:
+                        checklist_id = int(file_id.replace('file_', ''))
+                        cursor.execute("DELETE FROM uploaded_files WHERE checklist_id = ?", (checklist_id,))
+                        deleted_count = cursor.rowcount
+                    except ValueError:
+                        pass
+
+                if deleted_count == 0:
+                    return jsonify({'error': 'File record not found in database'}), 404
+
+                conn.commit()
+                safe_print(f"🔧 DEBUG: Deleted {deleted_count} record(s) from database")
+
+        except Exception as db_error:
+            safe_print(f"🔧 ERROR: Database deletion failed: {db_error}")
+            return jsonify({'error': f'Failed to delete from database: {str(db_error)}'}), 500
+
+        # Also remove from Excel file for backward compatibility
+        try:
+            initial_count = len(files_data)
+            files_data = files_data[files_data['id'] != file_id]
+
+            # If not removed and it's a fallback ID, try by checklistId
+            if len(files_data) == initial_count and file_id.startswith('file_'):
+                try:
+                    checklist_id = int(file_id.replace('file_', ''))
+                    files_data = files_data[files_data['checklistId'] != checklist_id]
+                except ValueError:
+                    pass
+
+            storage_service.write_excel(files_data, 'uploaded-files.xlsx')
+            safe_print(f"🔧 DEBUG: Also removed from Excel for backward compatibility")
+        except Exception as excel_error:
+            # Non-critical - Excel is just backup
+            safe_print(f"🔧 WARNING: Could not remove from Excel (non-critical): {excel_error}")
+
+        return jsonify({
+            'success': True,
+            'message': f'File deleted from both database and storage',
+            'deletedFilePath': file_path
+        }), 200
             
     except Exception as e:
         safe_print(f"Error deleting uploaded file: {e}")
@@ -1677,9 +1752,9 @@ def delete_uploaded_file(file_id):
 
 @app.route('/api/download-file/<file_id>', methods=['GET'], endpoint='download_uploaded_file')
 def download_uploaded_file(file_id):
-    """Download a file from Supabase storage using its file ID."""
+    """Download a file from storage using its file ID."""
     try:
-        # Read file metadata to get the Supabase path
+        # Read file metadata to get the storage path
         files_data = storage_service.read_excel('uploaded-files.xlsx')
         
         if files_data is None:
@@ -1692,7 +1767,7 @@ def download_uploaded_file(file_id):
             return jsonify({'error': 'File not found'}), 404
         
         file_info = file_record.iloc[0]
-        supabase_file_path = file_info.get('supabaseFilePath')
+        file_path = file_info.get('filePath')
         filename = file_info.get('fileName', 'download')
         
         # Try multiple path options
@@ -1702,9 +1777,9 @@ def download_uploaded_file(file_id):
         if file_info.get('localFilePath'):
             file_paths_to_try.append(file_info.get('localFilePath'))
         
-        # Option 2: supabaseFilePath
-        if file_info.get('supabaseFilePath'):
-            file_paths_to_try.append(file_info.get('supabaseFilePath'))
+        # Option 2: filePath
+        if file_info.get('filePath'):
+            file_paths_to_try.append(file_info.get('filePath'))
         
         # Option 3: Construct path from file info (with secure_filename)
         if file_info.get('year') and file_info.get('subdirektorat') and file_info.get('checklistId'):
@@ -2378,7 +2453,7 @@ def delete_aoi_document(document_id):
 @app.route('/api/upload-aoi-file', methods=['POST'])
 def upload_aoi_file():
     """
-    Upload an AOI document file directly to Supabase storage.
+    Upload an AOI document file directly to storage.
     This endpoint handles file uploads for Area of Improvement documents.
     """
     try:
@@ -2428,48 +2503,31 @@ def upload_aoi_file():
         
         safe_print(f"🔧 DEBUG: Uploading to path: {file_path}")
         
-        # Clear existing files in the recommendation directory first
+        # Clear existing files in the recommendation directory first (local filesystem)
         try:
             directory_path = f"aoi-documents/{year_int}/{pic_name_clean}/{recommendation_id_int}"
             safe_print(f"🔧 DEBUG: Clearing directory: {directory_path}")
-            
-            list_response = supabase.storage.from_(bucket_name).list(directory_path)
-            if list_response and len(list_response) > 0:
-                safe_print(f"🔧 DEBUG: Files found in directory: {len(list_response)}")
-                files_to_delete = []
-                for file_item in list_response:
-                    if file_item['name'] != '.emptyFolderPlaceholder':
-                        files_to_delete.append(f"{directory_path}/{file_item['name']}")
-                
-                if files_to_delete:
-                    safe_print(f"🔧 DEBUG: Deleting {len(files_to_delete)} existing files: {files_to_delete}")
-                    delete_response = supabase.storage.from_(bucket_name).remove(files_to_delete)
-                    safe_print(f"🔧 DEBUG: Delete existing files response: {delete_response}")
+
+            # Use local filesystem
+            local_dir = Path(__file__).parent.parent / 'data' / directory_path
+            if local_dir.exists() and local_dir.is_dir():
+                import shutil
+                safe_print(f"🔧 DEBUG: Removing existing directory: {local_dir}")
+                shutil.rmtree(local_dir)
         except Exception as e:
             safe_print(f"Error clearing directory: {e}")
-        
-        # Initialize Supabase client
-        from supabase import create_client
-        supabase_url = os.getenv('SUPABASE_URL')
-        supabase_key = os.getenv('SUPABASE_KEY')
-        bucket_name = os.getenv('SUPABASE_BUCKET')
-        
-        if not all([supabase_url, supabase_key, bucket_name]):
-            return jsonify({'error': 'Supabase configuration missing'}), 500
-        
-        supabase = create_client(supabase_url, supabase_key)
-        
-        # Upload file to Supabase storage
+
+        # Upload file to local storage
         file_content = file.read()
-        upload_response = supabase.storage.from_(bucket_name).upload(
-            file_path, 
-            file_content
-        )
-        
-        if hasattr(upload_response, 'error') and upload_response.error:
-            safe_print(f"🔧 DEBUG: Upload error: {upload_response.error}")
-            return jsonify({'error': f'Failed to upload file: {upload_response.error}'}), 500
-        
+        local_file_path = Path(__file__).parent.parent / 'data' / file_path
+
+        # Create directory structure
+        local_file_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Save file
+        with open(local_file_path, 'wb') as f:
+            f.write(file_content)
+
         safe_print(f"🔧 DEBUG: File uploaded successfully to: {file_path}")
         
         # Create AOI document record
@@ -2619,151 +2677,178 @@ def get_user_by_id(user_id):
 
 @app.route('/api/users', methods=['POST'])
 def create_user():
-    """Create a new user and save to Supabase"""
+    """Create a new user and save to SQLite database"""
+    from database import get_db_connection
     try:
         data = request.get_json()
-        
-        # Generate unique ID
-        user_id = generate_unique_id()
-        
-        # Create user object
-        user_data = {
-            'id': user_id,
-            'name': data.get('name'),
-            'email': data.get('email'),
-            'password': data.get('password', ''),
-            'role': data.get('role'),
-            'adminLevel': data.get('adminLevel', ''),
-            'direktorat': data.get('direktorat', ''),
-            'subdirektorat': data.get('subdirektorat', ''),
-            'divisi': data.get('divisi', ''),
-            'status': 'active',
-            'tahun': '',
-            'created_at': datetime.now().isoformat(),
-            'is_active': True,
-            'whatsapp': str(data.get('whatsapp', '')) if data.get('whatsapp') else '',
-            'phone': str(data.get('phone', '')) if data.get('phone') else '',
-            'adminEmail': str(data.get('adminEmail', '')) if data.get('adminEmail') else '',
-            'adminPhone': str(data.get('adminPhone', '')) if data.get('adminPhone') else ''
-        }
-        
-        # Read existing users
-        csv_data = storage_service.read_csv('config/users.csv')
-        if csv_data is not None:
-            users_df = csv_data
-        else:
-            users_df = pd.DataFrame()
-        
-        # Add new user
-        new_user_df = pd.DataFrame([user_data])
-        updated_df = pd.concat([users_df, new_user_df], ignore_index=True)
-        
-        # Save to storage
-        success = storage_service.write_csv(updated_df, 'config/users.csv')
-        
-        if success:
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            # Hash password using bcrypt
+            import bcrypt
+            password = data.get('password', '')
+            password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+            # Insert new user into database
+            cursor.execute("""
+                INSERT INTO users (email, password_hash, role, name, direktorat, subdirektorat, divisi, is_active)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                data.get('email'),
+                password_hash,
+                data.get('role', 'user'),
+                data.get('name'),
+                data.get('direktorat', ''),
+                data.get('subdirektorat', ''),
+                data.get('divisi', ''),
+                True
+            ))
+
+            # Get the newly created user's ID
+            user_id = cursor.lastrowid
+
+            # Prepare response data (without password hash)
+            user_data = {
+                'id': user_id,
+                'name': data.get('name'),
+                'email': data.get('email'),
+                'role': data.get('role', 'user'),
+                'direktorat': data.get('direktorat', ''),
+                'subdirektorat': data.get('subdirektorat', ''),
+                'divisi': data.get('divisi', ''),
+                'is_active': True,
+                'whatsapp': data.get('whatsapp', ''),
+                'created_at': datetime.now().isoformat()
+            }
+
+            safe_print(f"✅ Created user in SQLite: {user_data['email']} (ID: {user_id})")
             return jsonify(user_data), 201
-        else:
-            return jsonify({'error': 'Failed to save user to Supabase'}), 500
-            
+
     except Exception as e:
         safe_print(f"Error creating user: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': f'Failed to create user: {str(e)}'}), 500
 
 @app.route('/api/users/<int:user_id>', methods=['DELETE'])
 def delete_user(user_id):
-    """Delete a user from storage"""
+    """Delete a user from SQLite database (soft delete)"""
+    from database import get_db_connection
     try:
-        # Read existing users
-        csv_data = storage_service.read_csv('config/users.csv')
-        if csv_data is None:
-            return jsonify({'error': 'No users found'}), 404
-        
-        # Filter out the user to delete (handle both string and int IDs)
-        updated_df = csv_data[csv_data['id'].astype(str) != str(user_id)]
-        
-        if len(updated_df) == len(csv_data):
-            return jsonify({'error': 'User not found'}), 404
-        
-        # Save to storage
-        success = storage_service.write_csv(updated_df, 'config/users.csv')
-        
-        if success:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            # Check if user exists
+            cursor.execute("SELECT id, email FROM users WHERE id = ?", (user_id,))
+            user = cursor.fetchone()
+
+            if not user:
+                return jsonify({'error': 'User not found'}), 404
+
+            # Soft delete: set is_active to 0
+            cursor.execute("UPDATE users SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (user_id,))
+
+            safe_print(f"✅ Deleted user from SQLite: {user[1]} (ID: {user_id})")
             return jsonify({'message': 'User deleted successfully'}), 200
-        else:
-            return jsonify({'error': 'Failed to delete user from storage'}), 500
-            
+
     except Exception as e:
         safe_print(f"Error deleting user: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': f'Failed to delete user: {str(e)}'}), 500
 
 @app.route('/api/users/<int:user_id>', methods=['PUT'])
 def update_user(user_id):
-    """Update user credentials in storage"""
+    """Update user credentials in SQLite database"""
+    from database import get_db_connection
     try:
         data = request.get_json()
-        
-        # Read existing users
-        csv_data = storage_service.read_csv('config/users.csv')
-        if csv_data is None:
-            return jsonify({'error': 'No users found'}), 404
-        
-        # Find and update the user (handle both string and int IDs)
-        user_found = False
-        for index, row in csv_data.iterrows():
-            if str(row['id']) == str(user_id):
-                # Update user data
-                if 'name' in data:
-                    csv_data.at[index, 'name'] = data['name']
-                if 'email' in data:
-                    csv_data.at[index, 'email'] = data['email']
-                if 'password' in data:
-                    csv_data.at[index, 'password'] = data['password']
-                if 'role' in data:
-                    csv_data.at[index, 'role'] = data['role']
-                if 'direktorat' in data:
-                    csv_data.at[index, 'direktorat'] = data['direktorat']
-                if 'subdirektorat' in data:
-                    csv_data.at[index, 'subdirektorat'] = data['subdirektorat']
-                if 'divisi' in data:
-                    csv_data.at[index, 'divisi'] = data['divisi']
-                if 'whatsapp' in data:
-                    csv_data.at[index, 'whatsapp'] = str(data['whatsapp']) if data['whatsapp'] else ''
-                if 'phone' in data:
-                    csv_data.at[index, 'phone'] = str(data['phone']) if data['phone'] else ''
-                if 'adminEmail' in data:
-                    csv_data.at[index, 'adminEmail'] = str(data['adminEmail']) if data['adminEmail'] else ''
-                if 'adminPhone' in data:
-                    csv_data.at[index, 'adminPhone'] = str(data['adminPhone']) if data['adminPhone'] else ''
-                if 'adminLevel' in data:
-                    csv_data.at[index, 'adminLevel'] = data['adminLevel'] if data['adminLevel'] else ''
-                if 'tahun' in data:
-                    csv_data.at[index, 'tahun'] = data['tahun'] if data['tahun'] else ''
 
-                user_found = True
-                break
-        
-        if not user_found:
-            return jsonify({'error': 'User not found'}), 404
-        
-        # Save to storage
-        success = storage_service.write_csv(csv_data, 'config/users.csv')
-        
-        if success:
-            # Return updated user data
-            updated_user = safe_serialize_dict(csv_data[csv_data['id'].astype(str) == str(user_id)].iloc[0].to_dict())
-            return jsonify(updated_user), 200
-        else:
-            return jsonify({'error': 'Failed to update user in storage'}), 500
-            
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            # Check if user exists
+            cursor.execute("SELECT id FROM users WHERE id = ?", (user_id,))
+            if not cursor.fetchone():
+                return jsonify({'error': 'User not found'}), 404
+
+            # Build dynamic UPDATE query based on provided fields
+            update_fields = []
+            update_values = []
+
+            if 'name' in data:
+                update_fields.append('name = ?')
+                update_values.append(data['name'])
+            if 'email' in data:
+                update_fields.append('email = ?')
+                update_values.append(data['email'])
+            if 'password' in data:
+                # Hash password if provided
+                import bcrypt
+                password_hash = bcrypt.hashpw(data['password'].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                update_fields.append('password_hash = ?')
+                update_values.append(password_hash)
+            if 'role' in data:
+                update_fields.append('role = ?')
+                update_values.append(data['role'])
+            if 'direktorat' in data:
+                update_fields.append('direktorat = ?')
+                update_values.append(data['direktorat'])
+            if 'subdirektorat' in data:
+                update_fields.append('subdirektorat = ?')
+                update_values.append(data['subdirektorat'])
+            if 'divisi' in data:
+                update_fields.append('divisi = ?')
+                update_values.append(data['divisi'])
+
+            # Add updated_at timestamp
+            update_fields.append('updated_at = CURRENT_TIMESTAMP')
+
+            if not update_fields:
+                return jsonify({'error': 'No fields to update'}), 400
+
+            # Execute update
+            update_query = f"UPDATE users SET {', '.join(update_fields)} WHERE id = ?"
+            update_values.append(user_id)
+            cursor.execute(update_query, update_values)
+
+            # Fetch updated user data
+            cursor.execute("""
+                SELECT id, email, role, name, direktorat, subdirektorat, divisi, created_at, updated_at, is_active
+                FROM users WHERE id = ?
+            """, (user_id,))
+            row = cursor.fetchone()
+
+            if row:
+                # Return updated user data
+                updated_user = {
+                    'id': row[0],
+                    'email': row[1],
+                    'role': row[2],
+                    'name': row[3],
+                    'direktorat': row[4] or '',
+                    'subdirektorat': row[5] or '',
+                    'divisi': row[6] or '',
+                    'created_at': row[7],
+                    'updated_at': row[8],
+                    'is_active': row[9]
+                }
+                safe_print(f"✅ Updated user in SQLite: {updated_user['email']} (ID: {user_id})")
+                return jsonify(updated_user), 200
+            else:
+                return jsonify({'error': 'Failed to fetch updated user'}), 500
+
     except Exception as e:
         safe_print(f"Error updating user: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': f'Failed to update user: {str(e)}'}), 500
 
 @app.route('/api/upload-gcg-file', methods=['POST'])
 def upload_gcg_file():
     """
-    Upload a GCG document file directly to Supabase storage.
+    Upload a GCG document file directly to storage.
     This endpoint is specifically for the monitoring upload feature.
     """
     try:
@@ -2811,9 +2896,9 @@ def upload_gcg_file():
         pic_name = secure_filename(subdirektorat) if subdirektorat else 'UNKNOWN_PIC'
         
         # Fixed file structure: gcg-documents/{year}/{PIC}/{checklist_id}/{filename}
-        supabase_file_path = f"gcg-documents/{year_int}/{pic_name}/{checklist_id_int}/{secure_filename(file.filename)}"
+        file_path = f"gcg-documents/{year_int}/{pic_name}/{checklist_id_int}/{secure_filename(file.filename)}"
         
-        # Upload file to Supabase storage
+        # Upload file to storage
         file_data = file.read()
         
         # Determine content type
@@ -2831,10 +2916,10 @@ def upload_gcg_file():
         
         # Upload to local storage using organized directory structure
         try:
-            safe_print(f"🔧 DEBUG: Uploading to local storage path: {supabase_file_path}")
+            safe_print(f"🔧 DEBUG: Uploading to local storage path: {file_path}")
 
             # Create local file path
-            local_file_path = Path(__file__).parent.parent / 'data' / supabase_file_path
+            local_file_path = Path(__file__).parent.parent / 'data' / file_path
             safe_print(f"🔧 DEBUG: Full local path: {local_file_path}")
 
             # First, delete ALL existing files in the directory to ensure clean overwrite
@@ -2889,7 +2974,7 @@ def upload_gcg_file():
             'aspect': aspect,
             'subdirektorat': subdirektorat,
             'status': 'uploaded',
-            'localFilePath': supabase_file_path,  # Keep same path structure for compatibility
+            'localFilePath': file_path,  # Keep same path structure for compatibility
             'uploadedBy': uploaded_by,
             'userRole': user_role,
             'userDirektorat': user_direktorat,
@@ -2900,46 +2985,72 @@ def upload_gcg_file():
             'catatan': catatan
         }
         
-        # Add to uploaded files database
+        # Save to SQLite database (primary storage)
+        from database import get_db_connection
+        try:
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+
+                # Remove existing record for this checklistId and year (for re-upload scenario)
+                cursor.execute("""
+                    DELETE FROM uploaded_files
+                    WHERE checklist_id = ? AND year = ?
+                """, (checklist_id_int, year_int))
+                deleted_count = cursor.rowcount
+                if deleted_count > 0:
+                    safe_print(f"🔧 DEBUG: Deleted {deleted_count} existing record(s) for re-upload")
+
+                # Insert new record
+                cursor.execute("""
+                    INSERT INTO uploaded_files (
+                        id, file_name, file_size, upload_date, year,
+                        checklist_id, checklist_description, aspect, status, file_path
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    file_id,
+                    file.filename,
+                    len(file_data),
+                    datetime.now().isoformat(),
+                    year_int,
+                    checklist_id_int,
+                    checklist_description,
+                    aspect,
+                    'uploaded',
+                    file_path
+                ))
+
+                conn.commit()
+                safe_print(f"🔧 DEBUG: File record saved to database successfully")
+
+        except Exception as db_error:
+            safe_print(f"🔧 DEBUG: Error saving to database: {db_error}")
+            import traceback
+            safe_print(f"🔧 DEBUG: Database error traceback: {traceback.format_exc()}")
+            return jsonify({'error': f'File uploaded but failed to save database record: {str(db_error)}'}), 500
+
+        # Also save to Excel file for backward compatibility (legacy support)
         try:
             files_data = storage_service.read_excel('uploaded-files.xlsx')
             if files_data is None:
                 files_data = pd.DataFrame()
-        except Exception as db_error:
-            safe_print(f"🔧 DEBUG: Error reading uploaded-files.xlsx: {db_error}")
-            files_data = pd.DataFrame()
 
-        # Remove existing record for this checklistId and year (for re-upload scenario)
-        if not files_data.empty:
-            safe_print(f"🔧 DEBUG: Checking for existing records with checklistId={checklist_id_int} and year={year_int}")
-            initial_count = len(files_data)
-            files_data = files_data[~((files_data['checklistId'] == checklist_id_int) & (files_data['year'] == year_int))]
-            removed_count = initial_count - len(files_data)
-            if removed_count > 0:
-                safe_print(f"🔧 DEBUG: Removed {removed_count} existing record(s) for re-upload")
+            # Remove existing record
+            if not files_data.empty:
+                files_data = files_data[~((files_data['checklistId'] == checklist_id_int) & (files_data['year'] == year_int))]
 
-        new_row = pd.DataFrame([file_record])
-        files_data = pd.concat([files_data, new_row], ignore_index=True)
-        
-        # Save to storage
-        try:
-            success = storage_service.write_excel(files_data, 'uploaded-files.xlsx')
-            
-            if success:
-                safe_print(f"🔧 DEBUG: File record saved successfully")
-                return jsonify({
-                    'success': True, 
-                    'file': file_record,
-                    'message': 'File uploaded successfully to local storage'
-                }), 201
-            else:
-                safe_print(f"🔧 DEBUG: storage_service.write_excel returned False")
-                return jsonify({'error': 'File uploaded but failed to save record'}), 500
-        except Exception as save_error:
-            safe_print(f"🔧 DEBUG: Exception saving to storage: {save_error}")
-            import traceback
-            safe_print(f"🔧 DEBUG: Full save traceback: {traceback.format_exc()}")
-            return jsonify({'error': f'File uploaded but failed to save record: {str(save_error)}'}), 500
+            new_row = pd.DataFrame([file_record])
+            files_data = pd.concat([files_data, new_row], ignore_index=True)
+            storage_service.write_excel(files_data, 'uploaded-files.xlsx')
+            safe_print(f"🔧 DEBUG: Also saved to Excel for backward compatibility")
+        except Exception as excel_error:
+            # Non-critical - Excel is just backup
+            safe_print(f"🔧 WARNING: Could not save to Excel (non-critical): {excel_error}")
+
+        return jsonify({
+            'success': True,
+            'file': file_record,
+            'message': 'File uploaded successfully to local storage'
+        }), 201
         
     except Exception as e:
         safe_print(f"🔧 DEBUG: Exception in upload_gcg_file: {e}")
@@ -2993,9 +3104,9 @@ def upload_random_document():
                 # Keep subdirectory structure
                 folder_structure = '/'.join(path_parts[:-1])  # Remove filename
                 safe_folder = secure_filename(folder_structure.replace('/', '_'))
-                supabase_file_path = f"gcg-documents/{year_int}/Dokumen_Lainnya/{safe_folder}/{safe_filename_str}"
+                file_path = f"gcg-documents/{year_int}/Dokumen_Lainnya/{safe_folder}/{safe_filename_str}"
             else:
-                supabase_file_path = f"gcg-documents/{year_int}/Dokumen_Lainnya/{safe_filename_str}"
+                file_path = f"gcg-documents/{year_int}/Dokumen_Lainnya/{safe_filename_str}"
         else:
             # Single file upload - add timestamp to prevent conflicts
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -3004,13 +3115,13 @@ def upload_random_document():
                 unique_filename = f"{filename_parts[0]}_{timestamp}.{filename_parts[1]}"
             else:
                 unique_filename = f"{safe_filename_str}_{timestamp}"
-            supabase_file_path = f"gcg-documents/{year_int}/Dokumen_Lainnya/{unique_filename}"
+            file_path = f"gcg-documents/{year_int}/Dokumen_Lainnya/{unique_filename}"
 
         # Upload file to local storage
         file_data = file.read()
 
         try:
-            local_file_path = Path(__file__).parent.parent / 'data' / supabase_file_path
+            local_file_path = Path(__file__).parent.parent / 'data' / file_path
             safe_print(f"📤 DEBUG: Saving to: {local_file_path}")
 
             # Create directory structure
@@ -3038,7 +3149,7 @@ def upload_random_document():
             'aspect': 'DOKUMEN_LAINNYA',
             'subdirektorat': 'Dokumen_Lainnya',
             'status': 'uploaded',
-            'localFilePath': supabase_file_path,
+            'localFilePath': file_path,
             'uploadedBy': uploaded_by,
             'userRole': 'admin',
             'catatan': f'Uploaded to Dokumen Lainnya folder on {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
@@ -3127,7 +3238,7 @@ def get_random_documents(year):
 
 @app.route('/api/check-gcg-files', methods=['POST'])
 def check_gcg_files():
-    """Check if GCG files exist in Supabase for given year, PIC and checklist IDs"""
+    """Check if GCG files exist by querying uploaded_files table (fast database lookup)"""
     try:
         data = request.get_json()
         safe_print(f"🔍 DEBUG: check_gcg_files received data: {data}")
@@ -3135,9 +3246,10 @@ def check_gcg_files():
         pic_name = data.get('picName')
         checklist_ids = data.get('checklistIds', [])  # List of checklist IDs to check
         year = data.get('year')  # Year is required for new structure
+        verify_files = data.get('verifyFiles', False)  # Optional: verify filesystem (slower but accurate)
 
-        safe_print(f"🔍 DEBUG: pic_name={pic_name}, year={year}, checklist_ids={checklist_ids}")
-        
+        safe_print(f"🔍 DEBUG: pic_name={pic_name}, year={year}, checklist_ids={checklist_ids}, verify_files={verify_files}")
+
         # Support legacy row_numbers parameter for backward compatibility
         if not checklist_ids and data.get('rowNumbers'):
             safe_print(f"🔍 DEBUG: Using legacy rowNumbers: {data.get('rowNumbers')}")
@@ -3154,126 +3266,108 @@ def check_gcg_files():
                 except ValueError as ve:
                     safe_print(f"❌ ERROR: Cannot convert row_number {row_number} to int: {ve}")
                     return jsonify({'error': f'Invalid row number: {row_number}'}), 400
-        
-        if not pic_name or not checklist_ids or not year:
-            return jsonify({'error': 'PIC name, year, and checklist IDs are required'}), 400
-        
-        # Clean PIC name
-        pic_name_clean = secure_filename(pic_name)
-        
-        # Initialize Supabase client
-        supabase_url = os.getenv('SUPABASE_URL')
-        supabase_key = os.getenv('SUPABASE_KEY') 
-        bucket_name = os.getenv('SUPABASE_BUCKET')
-        
-        if not all([supabase_url, supabase_key, bucket_name]):
-            return jsonify({'error': 'Supabase configuration missing'}), 500
-        
-        from supabase import create_client
-        supabase = create_client(supabase_url, supabase_key)
-        
-        # Load uploaded files metadata
-        try:
-            files_data = storage_service.read_excel('uploaded-files.xlsx')
-            if files_data is None:
-                files_data = pd.DataFrame()
-        except Exception as e:
-            safe_print(f"Warning: Could not load uploaded-files.xlsx: {e}")
-            files_data = pd.DataFrame()
-        
-        # Check each checklist ID for existing files
+
+        if not checklist_ids or not year:
+            return jsonify({'error': 'Year and checklist IDs are required'}), 400
+
+        # Query database for uploaded files - MUCH faster than filesystem scanning
+        from database import get_db_connection
         file_statuses = {}
-        
-        for checklist_id in checklist_ids:
-            try:
-                # New structure: gcg-documents/{year}/{PIC}/{checklist_id}/
-                folder_path = f"gcg-documents/{year}/{pic_name_clean}/{checklist_id}"
-                
-                # Check local storage for files in the directory
-                file_found = None
-                try:
-                    # Check local directory for files
-                    local_folder_path = Path(__file__).parent.parent / 'data' / folder_path
 
-                    if local_folder_path.exists() and local_folder_path.is_dir():
-                        # Get all files in the directory (excluding hidden files)
-                        real_files = [f for f in local_folder_path.iterdir() if f.is_file() and not f.name.startswith('.')]
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
 
-                        if real_files:
-                            # Get the first real file in the directory
-                            file_info = real_files[0]
-                            file_stat = file_info.stat()
-                            file_found = {
-                                'exists': True,
-                                'fileName': file_info.name,
-                                'path': f"{folder_path}/{file_info.name}",
-                                'size': file_stat.st_size,
-                                'lastModified': datetime.fromtimestamp(file_stat.st_mtime).isoformat()
+            # Build IN clause for checklist_ids
+            placeholders = ','.join('?' * len(checklist_ids))
+            query = f"""
+                SELECT
+                    uf.id,
+                    uf.checklist_id,
+                    uf.file_name,
+                    uf.file_size,
+                    uf.upload_date,
+                    uf.aspect,
+                    uf.checklist_description,
+                    uf.status,
+                    u.name as uploaded_by,
+                    u.subdirektorat,
+                    uf.file_path
+                FROM uploaded_files uf
+                LEFT JOIN users u ON uf.id LIKE '%' || u.email || '%'
+                WHERE uf.year = ?
+                AND uf.checklist_id IN ({placeholders})
+                AND uf.status = 'uploaded'
+            """
+
+            # Execute query with year + checklist_ids
+            cursor.execute(query, [year] + checklist_ids)
+            rows = cursor.fetchall()
+
+            # Convert rows to dict for easy lookup
+            uploaded_files_map = {}
+            for row in rows:
+                checklist_id = row[1]
+                uploaded_files_map[checklist_id] = {
+                    'id': row[0],
+                    'checklistId': row[1],
+                    'fileName': row[2],
+                    'size': row[3],
+                    'uploadDate': row[4],
+                    'aspect': row[5] or '',
+                    'checklistDescription': row[6] or '',
+                    'status': row[7],
+                    'uploadedBy': row[8] or 'Unknown',
+                    'subdirektorat': row[9] or '',
+                    'filePath': row[10] or '',  # Actual stored file path
+                }
+
+            # Build response for each checklist_id
+            for checklist_id in checklist_ids:
+                if checklist_id in uploaded_files_map:
+                    file_info = uploaded_files_map[checklist_id]
+                    # Use stored file path from database (handles PIC changes correctly)
+                    stored_file_path = file_info.get('filePath')
+
+                    if not stored_file_path:
+                        # Fallback: construct path for old records without file_path
+                        from werkzeug.utils import secure_filename
+                        pic_name_clean = secure_filename(pic_name.replace(' ', '_'))
+                        stored_file_path = f"gcg-documents/{year}/{pic_name_clean}/{checklist_id}/{file_info['fileName']}"
+
+                    # OPTIONAL: Verify file actually exists on filesystem (only if verifyFiles=true)
+                    # This is slower but detects orphaned database records
+                    if verify_files:
+                        local_file_path = Path(__file__).parent.parent / 'data' / stored_file_path
+                        file_actually_exists = local_file_path.exists() and local_file_path.is_file()
+
+                        if not file_actually_exists:
+                            # Database record exists but file is missing - orphaned record!
+                            safe_print(f"⚠️ WARNING: Orphaned database record for checklist_id {checklist_id} - file missing: {local_file_path}")
+                            file_statuses[str(checklist_id)] = {
+                                'exists': False,
+                                'orphanedRecord': True,  # Flag for cleanup
+                                'databaseId': file_info['id']
                             }
-                        else:
-                            # Directory exists but no files
-                            file_found = {'exists': False}
-                    else:
-                        # Directory doesn't exist
-                        file_found = {'exists': False}
-                except Exception as e:
-                    # Error accessing directory
-                    file_found = {'exists': False}
-                    safe_print(f"Error checking local directory {folder_path}: {e}")
-                
-                if not file_found:
-                    file_found = {'exists': False}
-                
-                # If file exists, try to get additional metadata from uploaded-files.xlsx
-                if file_found.get('exists') and not files_data.empty:
-                    try:
-                        # Find matching record in uploaded files data
-                        matching_file = files_data[
-                            (files_data['checklistId'] == checklist_id) &
-                            (files_data['year'] == year)
-                        ]
+                            continue
 
-                        safe_print(f"🔍 Looking for metadata - checklistId: {checklist_id}, year: {year}")
-                        safe_print(f"📊 Matching records found: {len(matching_file)}")
-
-                        if not matching_file.empty:
-                            # Add metadata from uploaded-files.xlsx
-                            file_record = matching_file.iloc[0]
-
-                            # Convert pandas NaN values to proper defaults for JSON serialization
-                            def safe_get(record, key, default=''):
-                                value = record.get(key, default)
-                                return default if pd.isna(value) else str(value)
-
-                            # Get the ID with special handling
-                            record_id = file_record.get('id')
-                            if pd.isna(record_id) or not record_id:
-                                actual_id = f"supabase_{checklist_id}"
-                                safe_print(f"⚠️ WARNING: No valid ID found for checklistId {checklist_id}, using fallback: {actual_id}")
-                            else:
-                                actual_id = str(record_id)
-                                safe_print(f"✅ Found ID for checklistId {checklist_id}: {actual_id}")
-
-                            file_found.update({
-                                'uploadedBy': safe_get(file_record, 'uploadedBy', 'Unknown'),
-                                'subdirektorat': safe_get(file_record, 'subdirektorat', ''),
-                                'aspect': safe_get(file_record, 'aspect', ''),
-                                'checklistDescription': safe_get(file_record, 'checklistDescription', ''),
-                                'checklistId': checklist_id,
-                                'catatan': safe_get(file_record, 'catatan', ''),
-                                'id': actual_id  # Use real UUID or fallback
-                            })
-                        else:
-                            # No metadata found - file exists but no database record
-                            safe_print(f"⚠️ WARNING: File exists in storage but no metadata found for checklistId {checklist_id}, year {year}")
-                            safe_print(f"⚠️ File will not have a valid ID for delete operations")
-                    except Exception as e:
-                        safe_print(f"❌ ERROR: Could not get metadata for checklist_id {checklist_id}: {e}")
-                
-                file_statuses[str(checklist_id)] = file_found
-                
-            except Exception as e:
-                file_statuses[str(checklist_id)] = {'exists': False, 'error': str(e)}
+                    # File exists in database (and filesystem if verified) - return metadata
+                    file_statuses[str(checklist_id)] = {
+                        'exists': True,
+                        'fileName': file_info['fileName'],
+                        'path': stored_file_path,
+                        'size': file_info['size'],
+                        'lastModified': file_info['uploadDate'],
+                        'uploadedBy': file_info['uploadedBy'],
+                        'subdirektorat': file_info['subdirektorat'],
+                        'aspect': file_info['aspect'],
+                        'checklistDescription': file_info['checklistDescription'],
+                        'checklistId': checklist_id,
+                        'catatan': '',  # TODO: Add catatan field to uploaded_files table
+                        'id': file_info['id'],
+                        'verified': verify_files  # Flag to show if filesystem was checked
+                    }
+                else:
+                    file_statuses[str(checklist_id)] = {'exists': False}
         
         return jsonify({
             'year': year,
@@ -3287,7 +3381,7 @@ def check_gcg_files():
 
 @app.route('/api/download-gcg-file', methods=['POST'])
 def download_gcg_file():
-    """Download GCG file from Supabase storage"""
+    """Download GCG file from storage"""
     try:
         # Handle both JSON and form data
         if request.is_json:
@@ -3320,7 +3414,7 @@ def download_gcg_file():
         # Clean PIC name
         pic_name_clean = secure_filename(pic_name)
         
-        # Use local storage instead of Supabase
+        # Use local storage with local storage
         folder_path = f"gcg-documents/{year}/{pic_name_clean}/{folder_id}"
 
         try:
@@ -3377,7 +3471,7 @@ def download_gcg_file():
 # ========================
 # OLD CONFIGURATION MANAGEMENT ENDPOINTS - DISABLED
 # ========================
-# These old routes use CSV/storage_service (Supabase) and are now DISABLED.
+# These old routes use CSV/storage_service and are now DISABLED.
 # The new SQLite-based routes are in api_config_routes.py (registered as blueprints).
 # To re-enable these old routes, change @app_OLD.route back to @app.route
 # ========================
@@ -3524,7 +3618,7 @@ def delete_aspect(aspect_id):
 # CHECKLIST ENDPOINTS
 @app.route('/api/config/checklist', methods=['GET'])
 def get_checklist():
-    """Get all checklist items, optionally filtered by year"""
+    """Get all checklist items with PIC assignments, optionally filtered by year"""
     from database import get_db_connection
     try:
         with get_db_connection() as conn:
@@ -3536,10 +3630,18 @@ def get_checklist():
                 try:
                     year_int = int(year)
                     cursor.execute("""
-                        SELECT id, aspek, deskripsi, tahun, created_at, is_active
-                        FROM checklist_gcg
-                        WHERE tahun = ? AND is_active = 1
-                        ORDER BY id
+                        SELECT
+                            c.id,
+                            c.aspek,
+                            c.deskripsi,
+                            c.tahun,
+                            c.created_at,
+                            c.is_active,
+                            a.subdirektorat
+                        FROM checklist_gcg c
+                        LEFT JOIN checklist_assignments a ON c.id = a.checklist_id AND c.tahun = a.tahun
+                        WHERE c.tahun = ? AND c.is_active = 1
+                        ORDER BY c.id
                     """, (year_int,))
                     safe_print(f"DEBUG: Fetching checklist for year {year_int}")
                 except ValueError:
@@ -3548,10 +3650,18 @@ def get_checklist():
             else:
                 # Return all checklist items if no year specified
                 cursor.execute("""
-                    SELECT id, aspek, deskripsi, tahun, created_at, is_active
-                    FROM checklist_gcg
-                    WHERE is_active = 1
-                    ORDER BY tahun DESC, id
+                    SELECT
+                        c.id,
+                        c.aspek,
+                        c.deskripsi,
+                        c.tahun,
+                        c.created_at,
+                        c.is_active,
+                        a.subdirektorat
+                    FROM checklist_gcg c
+                    LEFT JOIN checklist_assignments a ON c.id = a.checklist_id AND c.tahun = a.tahun
+                    WHERE c.is_active = 1
+                    ORDER BY c.tahun DESC, c.id
                 """)
 
             rows = cursor.fetchall()
@@ -3565,10 +3675,10 @@ def get_checklist():
                     'created_at': row[4],
                     'is_active': row[5],
                     'rowNumber': idx,
-                    'pic': ''  # PIC is managed in checklist_assignments table
+                    'pic': row[6] or ''  # PIC from checklist_assignments table
                 })
 
-            safe_print(f"DEBUG: Returning {len(checklist_items)} checklist items")
+            safe_print(f"DEBUG: Returning {len(checklist_items)} checklist items with PIC assignments")
             return jsonify({'checklist': checklist_items}), 200
 
     except Exception as e:
@@ -3579,95 +3689,91 @@ def get_checklist():
 
 @app.route('/api/config/checklist', methods=['POST'])
 def add_checklist():
-    """Add a new checklist item"""
+    """Add a new checklist item to SQLite database"""
+    from database import get_db_connection
     try:
         data = request.get_json()
         year = data.get('tahun')
-        
-        # Read existing checklist to determine next ID and row number
-        existing_data = storage_service.read_csv('config/checklist.csv')
-        if existing_data is not None:
-            checklist_df = existing_data
-            
-            # Get next row number for this year (current position in table)
-            year_items = checklist_df[checklist_df['tahun'] == year] if 'tahun' in checklist_df.columns else pd.DataFrame()
-            next_row_number = len(year_items) + 1
-            
-            # Get highest ID ever used for this year to ensure uniqueness
-            year_prefix = year % 100  # Last two digits of year
-            if not year_items.empty and 'id' in year_items.columns:
-                # Find all IDs that start with this year's prefix
-                year_ids = year_items['id'].astype(str).apply(lambda x: x.startswith(str(year_prefix))).sum()
-                if year_ids > 0:
-                    # Get the highest row number component from existing IDs
-                    max_existing_row = 0
-                    for existing_id in year_items['id']:
-                        id_str = str(existing_id)
-                        if id_str.startswith(str(year_prefix)) and len(id_str) > 2:
-                            row_part = int(id_str[2:])  # Remove year prefix
-                            max_existing_row = max(max_existing_row, row_part)
-                    next_id_sequence = max_existing_row + 1
-                else:
-                    next_id_sequence = 1
-            else:
-                next_id_sequence = 1
-        else:
-            checklist_df = pd.DataFrame()
-            next_row_number = 1
-            next_id_sequence = 1
-        
-        # Generate checklist ID using year + ID sequence (not row position)
-        checklist_id = generate_checklist_id(year, next_id_sequence)
-        
-        # Create checklist object - ensure all string fields are properly converted
-        checklist_data = {
-            'id': checklist_id,
-            'aspek': str(data.get('aspek', '')),
-            'deskripsi': str(data.get('deskripsi', '')),
-            'pic': str(data.get('pic', '')),
-            'tahun': year,
-            'rowNumber': next_row_number,
-            'created_at': datetime.now().isoformat()
-        }
-        
-        # Add new checklist item
-        new_checklist_df = pd.DataFrame([checklist_data])
-        updated_df = pd.concat([checklist_df, new_checklist_df], ignore_index=True)
-        
-        # Save to storage
-        success = storage_service.write_csv(updated_df, 'config/checklist.csv')
-        
-        if success:
+        aspek = data.get('aspek', '')
+        deskripsi = data.get('deskripsi', '')
+        pic = data.get('pic', '')
+
+        if not year or not deskripsi:
+            return jsonify({'error': 'Year and description are required'}), 400
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            # Insert new checklist item
+            cursor.execute("""
+                INSERT INTO checklist_gcg (aspek, deskripsi, tahun, is_active)
+                VALUES (?, ?, ?, ?)
+            """, (aspek, deskripsi, year, True))
+
+            checklist_id = cursor.lastrowid
+
+            # If PIC is provided, create assignment
+            if pic:
+                cursor.execute("""
+                    INSERT INTO checklist_assignments (checklist_id, subdirektorat, aspek, tahun)
+                    VALUES (?, ?, ?, ?)
+                """, (checklist_id, pic, aspek, year))
+
+            # Prepare response
+            checklist_data = {
+                'id': checklist_id,
+                'aspek': aspek,
+                'deskripsi': deskripsi,
+                'pic': pic,
+                'tahun': year,
+                'created_at': datetime.now().isoformat(),
+                'is_active': True
+            }
+
+            safe_print(f"✅ Created checklist in SQLite: ID {checklist_id}, Year {year}")
             return jsonify(checklist_data), 201
-        else:
-            return jsonify({'error': 'Failed to save checklist to Supabase'}), 500
-            
+
     except Exception as e:
         safe_print(f"Error adding checklist: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': f'Failed to add checklist: {str(e)}'}), 500
 
 @app.route('/api/config/checklist/<int:checklist_id>', methods=['PUT'])
 def update_checklist(checklist_id):
-    """Update an existing checklist item and transfer files if PIC changes"""
+    """Update an existing checklist item in SQLite and transfer files if PIC changes"""
+    from database import get_db_connection
     try:
         data = request.get_json()
-        
-        # Read existing checklist
-        checklist_data = storage_service.read_csv('config/checklist.csv')
-        if checklist_data is None:
-            return jsonify({'error': 'No checklist found'}), 404
-        
-        # Find the existing item
-        existing_item = checklist_data[checklist_data['id'] == checklist_id]
-        if existing_item.empty:
-            return jsonify({'error': 'Checklist item not found'}), 404
-        
-        # Get old values for comparison
-        old_pic = existing_item.iloc[0].get('pic', '')
-        old_tahun = existing_item.iloc[0].get('tahun', '')
+
+        # First, get existing data from database
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            # Get existing checklist item
+            cursor.execute("""
+                SELECT id, aspek, deskripsi, tahun FROM checklist_gcg WHERE id = ?
+            """, (checklist_id,))
+            existing = cursor.fetchone()
+
+            if not existing:
+                return jsonify({'error': 'Checklist item not found'}), 404
+
+            # Get old PIC from assignments table
+            cursor.execute("""
+                SELECT subdirektorat FROM checklist_assignments
+                WHERE checklist_id = ? AND tahun = ?
+            """, (checklist_id, existing[3]))
+            old_pic_row = cursor.fetchone()
+            old_pic = old_pic_row[0] if old_pic_row else ''
+
+        # Get new values from request (outside DB context to avoid closing issues)
         new_pic = data.get('pic', '')
+        new_aspek = data.get('aspek', existing[1])
+        new_deskripsi = data.get('deskripsi', existing[2])
+        old_tahun = existing[3]
         new_tahun = data.get('tahun', old_tahun)
-        
+
         # Debug logging
         safe_print(f"DEBUG: Checklist {checklist_id} PIC change check:")
         safe_print(f"  Old PIC: '{old_pic}'")
@@ -3699,120 +3805,133 @@ def update_checklist(checklist_id):
                 safe_print(f"Transferring files from: {old_dir}")
                 safe_print(f"                    to: {new_dir}")
 
-                # Transfer files between directories
-                if storage_service.storage_mode == 'supabase':
-                    # For Supabase, list files in old directory, copy to new, then delete old
+                # Transfer files between directories (local storage)
+                import os
+                import shutil
+
+                # Use Path to get correct absolute path (backend is working directory)
+                base_dir = Path(__file__).parent.parent / 'data'
+                old_local_dir = base_dir / old_dir.replace('/', os.sep)
+                new_local_dir = base_dir / new_dir.replace('/', os.sep)
+
+                if old_local_dir.exists():
                     try:
-                        response = storage_service.supabase.storage.from_(storage_service.bucket_name).list(old_dir)
-                        if response:
-                            files_to_transfer = [f for f in response if f.get('name') and not f.get('name').endswith('/') and not f.get('name').startswith('.')]
+                        # Create new directory structure
+                        new_local_dir.parent.mkdir(parents=True, exist_ok=True)
+                        # Move directory
+                        shutil.move(str(old_local_dir), str(new_local_dir))
+                        safe_print(f"✅ Successfully moved local directory from {old_local_dir} to {new_local_dir}")
+                        files_transferred = True
 
-                            if files_to_transfer:
-                                transferred_files = []
-                                failed_transfers = []
+                        # Update uploaded-files.xlsx tracking file with new paths
+                        try:
+                            files_data = storage_service.read_excel('uploaded-files.xlsx')
+                            if files_data is not None and not files_data.empty:
+                                # Find records for this checklist ID and year
+                                mask = (files_data['checklistId'] == checklist_id) & (files_data['year'] == old_tahun)
+                                if mask.any():
+                                    # Update the PIC name and file paths for matching records
+                                    for idx in files_data[mask].index:
+                                        old_path = files_data.loc[idx, 'localFilePath']
+                                        # Replace old PIC with new PIC in the path
+                                        new_path = old_path.replace(f"/{old_pic_clean}/", f"/{new_pic_clean}/")
+                                        # Also update year if it changed
+                                        if year_changed:
+                                            new_path = new_path.replace(f"gcg-documents/{old_tahun}/", f"gcg-documents/{new_tahun}/")
 
-                                # Step 1: Copy each file to new location
-                                for file_obj in files_to_transfer:
-                                    old_file_path = f"{old_dir}/{file_obj['name']}"
-                                    new_file_path = f"{new_dir}/{file_obj['name']}"
+                                        files_data.loc[idx, 'localFilePath'] = new_path
+                                        files_data.loc[idx, 'subdirektorat'] = new_pic
+                                        if year_changed:
+                                            files_data.loc[idx, 'year'] = new_tahun
 
-                                    try:
-                                        # Download file from old location
-                                        download_response = storage_service.supabase.storage.from_(storage_service.bucket_name).download(old_file_path)
-                                        if download_response:
-                                            # Upload file to new location
-                                            # First try upload, if it fails due to existing file, use update instead
-                                            try:
-                                                upload_response = storage_service.supabase.storage.from_(storage_service.bucket_name).upload(
-                                                    path=new_file_path,
-                                                    file=download_response
-                                                )
-                                            except Exception as upload_error:
-                                                if "Duplicate" in str(upload_error) or "already exists" in str(upload_error):
-                                                    # File exists, use update instead
-                                                    upload_response = storage_service.supabase.storage.from_(storage_service.bucket_name).update(
-                                                        path=new_file_path,
-                                                        file=download_response
-                                                    )
-                                                else:
-                                                    raise upload_error
+                                        safe_print(f"📝 Updated file path: {old_path} → {new_path}")
 
-                                            if not (hasattr(upload_response, 'error') and upload_response.error):
-                                                transferred_files.append((old_file_path, new_file_path))
-                                                safe_print(f"✅ Transferred: {file_obj['name']}")
-                                            else:
-                                                failed_transfers.append(f"Upload failed for {file_obj['name']}: {upload_response.error}")
-                                        else:
-                                            failed_transfers.append(f"Download failed for {file_obj['name']}")
+                                    # Save updated tracking file
+                                    storage_service.write_excel(files_data, 'uploaded-files.xlsx')
+                                    safe_print(f"✅ Updated uploaded-files.xlsx with new paths")
+                        except Exception as tracking_error:
+                            safe_print(f"⚠️ Warning: Failed to update uploaded-files.xlsx: {tracking_error}")
+                            # Don't fail the whole operation if tracking update fails
 
-                                    except Exception as transfer_error:
-                                        failed_transfers.append(f"Transfer error for {file_obj['name']}: {str(transfer_error)}")
+                        # CRITICAL: Also update file_path in SQLite database
+                        try:
+                            from database import get_db_connection
+                            with get_db_connection() as conn:
+                                cursor = conn.cursor()
+                                # Get the new file path (same pattern as constructed path)
+                                new_file_path = f"gcg-documents/{new_tahun}/{new_pic_clean}/{checklist_id}"
+                                # Update the file_path for this checklist_id
+                                cursor.execute("""
+                                    UPDATE uploaded_files
+                                    SET file_path = file_path || ''
+                                    WHERE file_path LIKE ?
+                                """, (f"%/{checklist_id}/%",))
+                                # More precise update: replace old directory with new in file_path
+                                cursor.execute("""
+                                    UPDATE uploaded_files
+                                    SET file_path = REPLACE(file_path, ?, ?)
+                                    WHERE checklist_id = ? AND year = ?
+                                """, (old_dir, new_dir, checklist_id, old_tahun if not year_changed else new_tahun))
+                                conn.commit()
+                                safe_print(f"✅ Updated database file_path for checklist_id {checklist_id}")
+                        except Exception as db_error:
+                            safe_print(f"⚠️ Warning: Failed to update database file_path: {db_error}")
+                            # Don't fail the whole operation if database update fails
 
-                                # Step 2: If all transfers successful, delete old files
-                                if len(transferred_files) == len(files_to_transfer) and not failed_transfers:
-                                    try:
-                                        old_files_to_remove = [old_path for old_path, new_path in transferred_files]
-                                        delete_response = storage_service.supabase.storage.from_(storage_service.bucket_name).remove(old_files_to_remove)
-                                        safe_print(f"✅ Successfully transferred {len(transferred_files)} files from {old_pic} to {new_pic}")
-                                        files_transferred = True
-                                    except Exception as delete_error:
-                                        error_msg = f"Files copied but failed to delete originals: {str(delete_error)}"
-                                        safe_print(f"⚠️ {error_msg}")
-                                        transfer_errors.append(error_msg)
-                                        files_transferred = True  # Still consider successful since files are in new location
-                                else:
-                                    # Some transfers failed
-                                    error_msg = f"Failed to transfer {len(failed_transfers)} files: {'; '.join(failed_transfers)}"
-                                    safe_print(f"❌ {error_msg}")
-                                    transfer_errors.append(error_msg)
-                            else:
-                                safe_print(f"ℹ️ No files to transfer in directory: {old_dir}")
-                                files_transferred = True  # No files to transfer is considered success
-
-                    except Exception as list_error:
-                        error_msg = f"Error listing files in old directory: {str(list_error)}"
+                    except Exception as move_error:
+                        error_msg = f"Failed to move local directory: {str(move_error)}"
                         safe_print(f"❌ {error_msg}")
                         transfer_errors.append(error_msg)
-
                 else:
-                    # For local storage, move the directory
-                    import os
-                    import shutil
-
-                    old_local_dir = os.path.join('data', old_dir.replace('/', os.sep))
-                    new_local_dir = os.path.join('data', new_dir.replace('/', os.sep))
-
-                    if os.path.exists(old_local_dir):
-                        try:
-                            # Create new directory structure
-                            os.makedirs(os.path.dirname(new_local_dir), exist_ok=True)
-                            # Move directory
-                            shutil.move(old_local_dir, new_local_dir)
-                            safe_print(f"✅ Successfully moved local directory from {old_local_dir} to {new_local_dir}")
-                            files_transferred = True
-                        except Exception as move_error:
-                            error_msg = f"Failed to move local directory: {str(move_error)}"
-                            safe_print(f"❌ {error_msg}")
-                            transfer_errors.append(error_msg)
-                    else:
-                        safe_print(f"ℹ️ No local directory to transfer: {old_local_dir}")
-                        files_transferred = True  # No directory to transfer is considered success
+                    safe_print(f"ℹ️ No local directory to transfer: {old_local_dir}")
+                    files_transferred = True  # No directory to transfer is considered success
 
             except Exception as transfer_error:
                 error_msg = f"General error during file transfer: {str(transfer_error)}"
                 safe_print(f"❌ {error_msg}")
                 transfer_errors.append(error_msg)
-        
-        # Update the checklist item - ensure all string fields are properly converted
-        checklist_data.loc[checklist_data['id'] == checklist_id, 'aspek'] = str(data.get('aspek', ''))
-        checklist_data.loc[checklist_data['id'] == checklist_id, 'deskripsi'] = str(data.get('deskripsi', ''))
-        checklist_data.loc[checklist_data['id'] == checklist_id, 'pic'] = str(new_pic)
-        checklist_data.loc[checklist_data['id'] == checklist_id, 'tahun'] = new_tahun
-        
-        # Save to storage
-        success = storage_service.write_csv(checklist_data, 'config/checklist.csv')
-        
-        if success:
+
+        # Now update the database in a new context
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            # Update the checklist item in database
+            cursor.execute("""
+                UPDATE checklist_gcg
+                SET aspek = ?, deskripsi = ?, tahun = ?
+                WHERE id = ?
+            """, (new_aspek, new_deskripsi, new_tahun, checklist_id))
+
+            # Update or create PIC assignment
+            if new_pic:
+                # Check if assignment exists
+                cursor.execute("""
+                    SELECT id FROM checklist_assignments
+                    WHERE checklist_id = ? AND tahun = ?
+                """, (checklist_id, new_tahun))
+                assignment_exists = cursor.fetchone()
+
+                if assignment_exists:
+                    # Update existing assignment
+                    cursor.execute("""
+                        UPDATE checklist_assignments
+                        SET subdirektorat = ?, aspek = ?
+                        WHERE checklist_id = ? AND tahun = ?
+                    """, (new_pic, new_aspek, checklist_id, new_tahun))
+                else:
+                    # Create new assignment
+                    cursor.execute("""
+                        INSERT INTO checklist_assignments (checklist_id, subdirektorat, aspek, tahun)
+                        VALUES (?, ?, ?, ?)
+                    """, (checklist_id, new_pic, new_aspek, new_tahun))
+            elif old_pic:
+                # PIC removed - delete assignment
+                cursor.execute("""
+                    DELETE FROM checklist_assignments
+                    WHERE checklist_id = ? AND tahun = ?
+                """, (checklist_id, new_tahun))
+
+            # Prepare response
             response_data = {'success': True}
             if files_transferred:
                 response_data['files_transferred'] = True
@@ -3820,13 +3939,14 @@ def update_checklist(checklist_id):
             if transfer_errors:
                 response_data['transfer_errors'] = transfer_errors
                 response_data['warning'] = f"Checklist updated but some files failed to transfer: {len(transfer_errors)} errors"
-            
+
+            safe_print(f"✅ Updated checklist {checklist_id} in SQLite (PIC: {old_pic} → {new_pic})")
             return jsonify(response_data), 200
-        else:
-            return jsonify({'error': 'Failed to update checklist'}), 500
-            
+
     except Exception as e:
         safe_print(f"Error updating checklist: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': f'Failed to update checklist: {str(e)}'}), 500
 
 @app.route('/api/config/checklist/<int:checklist_id>', methods=['DELETE'])
@@ -3873,55 +3993,27 @@ def check_files_exist(checklist_id):
         if not current_pic:
             return jsonify({'hasFiles': False}), 200
         
-        # Check if files exist in Supabase
-        if storage_service.storage_mode == 'supabase':
-            from werkzeug.utils import secure_filename
-            pic_clean = secure_filename(current_pic.replace(' ', '_'))
-            directory_path = f"gcg-documents/{year}/{pic_clean}/{checklist_id}/"
-            
-            try:
-                response = storage_service.supabase.storage.from_(storage_service.bucket_name).list(directory_path)
-                if not response:
-                    return jsonify({'hasFiles': False}), 200
-                
-                # Filter out placeholder files and directories
-                real_files = [
-                    f for f in response 
-                    if f.get('name') and 
-                    not f.get('name').endswith('/') and  # Not a directory
-                    not f.get('name').startswith('.') and  # Not a hidden file
-                    not f.get('name').lower().startswith('placeholder') and  # Not a placeholder
-                    f.get('metadata', {}).get('size', 0) > 0  # Has actual content
-                ]
-                
-                has_files = len(real_files) > 0
-                safe_print(f"🔍 DEBUG: Checking files for {directory_path}: found {len(response)} items, {len(real_files)} real files")
-                return jsonify({'hasFiles': has_files}), 200
-            except Exception as e:
-                safe_print(f"Error checking Supabase files: {e}")
-                return jsonify({'hasFiles': False}), 200
+        # Check if files exist in local storage
+        import os
+        from pathlib import Path
+        from werkzeug.utils import secure_filename
+        pic_clean = secure_filename(current_pic.replace(' ', '_'))
+        directory_path = Path(__file__).parent.parent / 'data' / f"gcg-documents/{year}/{pic_clean}/{checklist_id}/"
+
+        if directory_path.exists():
+            # Filter out placeholder files and hidden files
+            real_files = [
+                f for f in directory_path.iterdir()
+                if f.is_file() and
+                not f.name.startswith('.') and
+                not f.name.lower().startswith('placeholder') and
+                f.stat().st_size > 0
+            ]
+            has_files = len(real_files) > 0
+            safe_print(f"🔍 DEBUG: Checking local files for {directory_path}: found {len(list(directory_path.iterdir()))} items, {len(real_files)} real files")
+            return jsonify({'hasFiles': has_files}), 200
         else:
-            # For local storage, check if directory exists and has files
-            import os
-            from pathlib import Path
-            from werkzeug.utils import secure_filename
-            pic_clean = secure_filename(current_pic.replace(' ', '_'))
-            directory_path = Path(__file__).parent.parent / f"gcg-documents/{year}/{pic_clean}/{checklist_id}/"
-            
-            if directory_path.exists():
-                # Filter out placeholder files and hidden files
-                real_files = [
-                    f for f in directory_path.iterdir() 
-                    if f.is_file() and 
-                    not f.name.startswith('.') and 
-                    not f.name.lower().startswith('placeholder') and
-                    f.stat().st_size > 0
-                ]
-                has_files = len(real_files) > 0
-                safe_print(f"🔍 DEBUG: Checking local files for {directory_path}: found {len(list(directory_path.iterdir()))} items, {len(real_files)} real files")
-                return jsonify({'hasFiles': has_files}), 200
-            else:
-                return jsonify({'hasFiles': False}), 200
+            return jsonify({'hasFiles': False}), 200
     
     except Exception as e:
         safe_print(f"Error checking files existence: {e}")
@@ -4594,92 +4686,103 @@ def add_struktur_organisasi():
 @app.route('/api/config/struktur-organisasi/batch', methods=['POST'])
 def add_struktur_organisasi_batch():
     """Add multiple struktur organisasi items in a single transaction with proper ID mapping"""
+    from database import get_db_connection
     try:
         data = request.get_json()
         items = data.get('items', [])
-        
+
         safe_print(f"🔥 BATCH API CALLED: Received {len(items)} items")
         if items:
             safe_print(f"🔥 Sample item: {items[0]}")
-        
+
         if not items:
             safe_print("❌ No items provided in batch request")
             return jsonify({'error': 'No items provided'}), 400
-        
-        # Read existing struktur organisasi
-        try:
-            struktur_data = storage_service.read_csv('config/struktur-organisasi.csv')
-            if struktur_data is None:
-                struktur_data = pd.DataFrame()
-        except:
-            struktur_data = pd.DataFrame()
-        
+
         # Sort items by dependency order: direktorat first, then subdirektorat, then divisi
         type_order = {'direktorat': 0, 'subdirektorat': 1, 'divisi': 2, 'anak_perusahaan': 3}
         items.sort(key=lambda x: type_order.get(x.get('type', ''), 999))
-        
+
         # Track original ID to new ID mappings for hierarchical relationships
         id_mappings = {}
-        new_items = []
         created_items = []  # For response
-        
-        for item in items:
-            # Generate unique ID
-            new_id = int(time.time() * 1000000 + len(new_items))  # More unique ID
-            
-            # Map parent_id if this item has a parent
-            mapped_parent_id = None
-            if item.get('parent_original_id'):
-                mapped_parent_id = id_mappings.get(item['parent_original_id'])
-                if not mapped_parent_id:
-                    safe_print(f"Warning: Could not find mapping for parent_original_id {item['parent_original_id']}")
-            elif item.get('parent_id'):
-                # Direct parent_id (for backward compatibility)
-                mapped_parent_id = item['parent_id']
-            
-            new_struktur = {
-                'id': new_id,
-                'nama': item.get('nama'),
-                'kode': item.get('kode', ''),
-                'deskripsi': item.get('deskripsi', ''),
-                'tahun': item.get('tahun', datetime.now().year),
-                'type': item.get('type'),
-                'parent_id': mapped_parent_id,
-                'created_at': datetime.now().isoformat(),
-                'is_active': True
-            }
-            
-            # Store mapping from original_id to new_id
-            if item.get('original_id'):
-                id_mappings[item['original_id']] = new_id
-            
-            new_items.append(new_struktur)
-            created_items.append(new_struktur.copy())  # For response
-            
-            safe_print(f"✓ Created {item.get('type')}: {item.get('nama')} (ID: {new_id}, Parent: {mapped_parent_id})")
-        
-        # Add all items to DataFrame in one operation
-        if new_items:
-            new_df = pd.DataFrame(new_items)
-            struktur_data = pd.concat([struktur_data, new_df], ignore_index=True)
-        
-        # Save to storage once
-        safe_print(f"🔥 Saving {len(struktur_data)} total rows to CSV...")
-        success = storage_service.write_csv(struktur_data, 'config/struktur-organisasi.csv')
-        
-        if success:
-            safe_print(f"✅ Batch saved {len(new_items)} struktur organisasi items successfully!")
-            safe_print(f"✅ Total rows in CSV: {len(struktur_data)}")
-            return jsonify({
-                'success': True, 
-                'added_count': len(new_items), 
-                'created': created_items,
-                'id_mappings': id_mappings
-            }), 201
-        else:
-            safe_print(f"❌ Failed to save struktur organisasi to CSV")
-            return jsonify({'error': 'Failed to save struktur organisasi'}), 500
-            
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            for item in items:
+                item_type = item.get('type')
+                nama = item.get('nama')
+                deskripsi = item.get('deskripsi', '')
+                tahun = item.get('tahun', datetime.now().year)
+
+                # Map parent_id if this item has a parent
+                mapped_parent_id = None
+                if item.get('parent_original_id'):
+                    mapped_parent_id = id_mappings.get(item['parent_original_id'])
+                    if not mapped_parent_id:
+                        safe_print(f"Warning: Could not find mapping for parent_original_id {item['parent_original_id']}")
+                elif item.get('parent_id'):
+                    # Direct parent_id (for backward compatibility)
+                    mapped_parent_id = item['parent_id']
+
+                # Insert into appropriate table
+                if item_type == 'direktorat':
+                    cursor.execute("""
+                        INSERT INTO direktorat (nama, deskripsi, tahun, created_at, is_active)
+                        VALUES (?, ?, ?, ?, 1)
+                    """, (nama, deskripsi, tahun, datetime.now().isoformat()))
+                    new_id = cursor.lastrowid
+
+                elif item_type == 'subdirektorat':
+                    cursor.execute("""
+                        INSERT INTO subdirektorat (nama, direktorat_id, deskripsi, tahun, created_at, is_active)
+                        VALUES (?, ?, ?, ?, ?, 1)
+                    """, (nama, mapped_parent_id, deskripsi, tahun, datetime.now().isoformat()))
+                    new_id = cursor.lastrowid
+
+                elif item_type == 'divisi':
+                    cursor.execute("""
+                        INSERT INTO divisi (nama, subdirektorat_id, deskripsi, tahun, created_at, is_active)
+                        VALUES (?, ?, ?, ?, ?, 1)
+                    """, (nama, mapped_parent_id, deskripsi, tahun, datetime.now().isoformat()))
+                    new_id = cursor.lastrowid
+
+                elif item_type == 'anak_perusahaan':
+                    cursor.execute("""
+                        INSERT INTO anak_perusahaan (nama, deskripsi, tahun, created_at, is_active)
+                        VALUES (?, ?, ?, ?, 1)
+                    """, (nama, deskripsi, tahun, datetime.now().isoformat()))
+                    new_id = cursor.lastrowid
+                else:
+                    continue
+
+                # Store mapping from original_id to new_id
+                if item.get('original_id'):
+                    id_mappings[item['original_id']] = new_id
+
+                created_items.append({
+                    'id': new_id,
+                    'nama': nama,
+                    'deskripsi': deskripsi,
+                    'tahun': tahun,
+                    'type': item_type,
+                    'parent_id': mapped_parent_id,
+                    'created_at': datetime.now().isoformat()
+                })
+
+                safe_print(f"✓ Created {item_type}: {nama} (ID: {new_id}, Parent: {mapped_parent_id}, Year: {tahun})")
+
+            conn.commit()
+
+        safe_print(f"✅ Batch saved {len(created_items)} struktur organisasi items to SQLite!")
+        return jsonify({
+            'success': True,
+            'added_count': len(created_items),
+            'created': created_items,
+            'id_mappings': id_mappings
+        }), 201
+
     except Exception as e:
         safe_print(f"❌ Error adding batch struktur organisasi: {e}")
         import traceback
@@ -5325,8 +5428,8 @@ def bulk_download_all_documents():
 @app.route('/api/refresh-tracking-tables', methods=['POST'])
 def refresh_tracking_tables():
     """
-    Validate tracking files against actual Supabase storage and clean up orphaned records.
-    Checks both uploaded-files.xlsx (GCG) and aoi-documents.csv (AOI) against actual files in Supabase.
+    Validate tracking files against actual storage and clean up orphaned records.
+    Checks both uploaded-files.xlsx (GCG) and aoi-documents.csv (AOI) against actual files in storage.
     """
     try:
         data = request.get_json()
@@ -5371,19 +5474,18 @@ def refresh_tracking_tables():
                             from werkzeug.utils import secure_filename
                             pic_clean = secure_filename(pic_name.replace(' ', '_'))
 
-                            # Check if directory exists in Supabase
+                            # Check if directory exists in local storage
                             directory_path = f"gcg-documents/{year_val}/{pic_clean}/{checklist_id}"
+                            local_dir = Path(__file__).parent.parent / 'data' / directory_path
 
                             try:
-                                list_response = storage_service.supabase.storage.from_(storage_service.bucket_name).list(directory_path)
-
                                 # Check if directory has actual files (not just placeholders)
                                 has_real_files = False
-                                if list_response:
-                                    for file_item in list_response:
-                                        if (file_item.get('name') and
-                                            file_item.get('name') != '.emptyFolderPlaceholder' and
-                                            not file_item.get('name').startswith('.')):
+                                if local_dir.exists() and local_dir.is_dir():
+                                    for file_item in local_dir.iterdir():
+                                        if (file_item.is_file() and
+                                            file_item.name != '.emptyFolderPlaceholder' and
+                                            not file_item.name.startswith('.')):
                                             has_real_files = True
                                             break
 
@@ -5451,19 +5553,18 @@ def refresh_tracking_tables():
                             from werkzeug.utils import secure_filename
                             subdirektorat_clean = secure_filename(subdirektorat.replace(' ', '_'))
 
-                            # Check if directory exists in Supabase
+                            # Check if directory exists in local storage
                             directory_path = f"aoi-documents/{year_val}/{subdirektorat_clean}/{recommendation_id}"
+                            local_dir = Path(__file__).parent.parent / 'data' / directory_path
 
                             try:
-                                list_response = storage_service.supabase.storage.from_(storage_service.bucket_name).list(directory_path)
-
                                 # Check if directory has actual files (not just placeholders)
                                 has_real_files = False
-                                if list_response:
-                                    for file_item in list_response:
-                                        if (file_item.get('name') and
-                                            file_item.get('name') != '.emptyFolderPlaceholder' and
-                                            not file_item.get('name').startswith('.')):
+                                if local_dir.exists() and local_dir.is_dir():
+                                    for file_item in local_dir.iterdir():
+                                        if (file_item.is_file() and
+                                            file_item.name != '.emptyFolderPlaceholder' and
+                                            not file_item.name.startswith('.')):
                                             has_real_files = True
                                             break
 
