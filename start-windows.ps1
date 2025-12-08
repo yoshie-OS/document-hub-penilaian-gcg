@@ -75,12 +75,12 @@ if (-not (Test-Path "node_modules")) {
 # Check .env file
 if (-not (Test-Path ".env")) {
     Write-Host "[WARNING] No .env file found!" -ForegroundColor Yellow
-    Write-Host "Please create a .env file with your Supabase configuration" -ForegroundColor Yellow
+    Write-Host "Please create a .env file with your backend configuration" -ForegroundColor Yellow
     Write-Host "Example:" -ForegroundColor Gray
-    Write-Host "SUPABASE_URL=your_supabase_url" -ForegroundColor Gray
-    Write-Host "SUPABASE_KEY=your_supabase_key" -ForegroundColor Gray
+    Write-Host "SUPABASE_URL=your_storage_url" -ForegroundColor Gray
+    Write-Host "SUPABASE_KEY=your_storage_key" -ForegroundColor Gray
     Write-Host "SUPABASE_BUCKET=your_bucket_name" -ForegroundColor Gray
-    Write-Host "STORAGE_MODE=supabase" -ForegroundColor Gray
+    Write-Host "STORAGE_MODE=storage" -ForegroundColor Gray
     Write-Host ""
     Read-Host "Press Enter to continue anyway"
 }

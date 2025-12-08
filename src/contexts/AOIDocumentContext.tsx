@@ -48,7 +48,7 @@ export const AOIDocumentProvider: React.FC<AOIDocumentProviderProps> = ({ childr
   React.useEffect(() => {
     const loadDocuments = async () => {
       try {
-        const response = await fetch('http://localhost:5001/api/aoiDocuments');
+        const response = await fetch('http://localhost:5000/api/aoiDocuments');
         if (response.ok) {
           const backendDocuments = await response.json();
           
@@ -78,34 +78,14 @@ export const AOIDocumentProvider: React.FC<AOIDocumentProviderProps> = ({ childr
         }
       } catch (error) {
         console.error('Error loading AOI documents from backend:', error);
-        // Fallback to localStorage for backward compatibility
-        const savedDocuments = localStorage.getItem('aoiDocuments');
-        if (savedDocuments) {
-          try {
-            const parsed = JSON.parse(savedDocuments);
-            const documentsWithDates = parsed.map((doc: any) => ({
-              ...doc,
-              uploadDate: new Date(doc.uploadDate)
-            }));
-            setDocuments(documentsWithDates);
-            console.log('Fallback: Loaded AOI documents from localStorage');
-          } catch (localError) {
-            console.error('Error loading AOI documents from localStorage:', localError);
-            setDocuments([]);
-          }
-        } else {
-          setDocuments([]);
-        }
+        setDocuments([]);
       }
     };
 
     loadDocuments();
   }, []);
 
-  // Save documents to localStorage whenever documents change
-  React.useEffect(() => {
-    localStorage.setItem('aoiDocuments', JSON.stringify(documents));
-  }, [documents]);
+  // localStorage sync removed - data only comes from API
 
   const uploadDocument = useCallback(async (
     file: File, 
@@ -132,7 +112,7 @@ export const AOIDocumentProvider: React.FC<AOIDocumentProviderProps> = ({ childr
       formData.append('userId', userId);
 
       // Upload to backend API
-      const response = await fetch('http://localhost:5001/api/upload-aoi-file', {
+      const response = await fetch('http://localhost:5000/api/upload-aoi-file', {
         method: 'POST',
         body: formData
       });
@@ -170,7 +150,7 @@ export const AOIDocumentProvider: React.FC<AOIDocumentProviderProps> = ({ childr
         return [...filteredDocs, newDocument];
       });
       
-      console.log('✅ AOI document uploaded successfully to Supabase:', result.filePath);
+      console.log('✅ AOI document uploaded successfully to backend:', result.filePath);
       return newDocument;
       
     } catch (error) {

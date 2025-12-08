@@ -88,12 +88,12 @@ if not exist "node_modules" (
 REM Check if .env file exists
 if not exist ".env" (
     echo [WARNING] No .env file found!
-    echo Please create a .env file with your Supabase configuration
+    echo Please create a .env file with your backend configuration
     echo Example:
-    echo SUPABASE_URL=your_supabase_url
-    echo SUPABASE_KEY=your_supabase_key
+    echo SUPABASE_URL=your_storage_url
+    echo SUPABASE_KEY=your_storage_key
     echo SUPABASE_BUCKET=your_bucket_name
-    echo STORAGE_MODE=supabase
+    echo STORAGE_MODE=storage
     echo.
     echo Press any key to continue anyway...
     pause >nul

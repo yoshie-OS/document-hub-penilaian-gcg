@@ -75,35 +75,8 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
         setUser(userData);
         return true;
       } catch (apiError) {
-        console.warn('API login failed, falling back to local data:', apiError);
-
-        // Check local users first (from PengaturanBaru or EditSuperAdmin)
-        const localUsers = localStorage.getItem('users');
-        if (localUsers) {
-          try {
-            const users = JSON.parse(localUsers);
-            const localUser = users.find((u: any) => u.email === email && u.password === password);
-            if (localUser) {
-              const { password: _, ...userWithoutPassword } = localUser;
-              // Convert id to string to match interface
-              const userData = {
-                ...userWithoutPassword,
-                id: String(userWithoutPassword.id),
-                createdAt: userWithoutPassword.createdAt || new Date().toISOString(),
-                status: 'active' as const
-              };
-              setUser(userData);
-              localStorage.setItem('user', JSON.stringify(userData));
-              localStorage.setItem('authToken', `local-${userData.id}`);
-              return true;
-            }
-          } catch (parseError) {
-            console.warn('Failed to parse local users:', parseError);
-          }
-        }
-
-        // No hardcoded fallback - credentials must be valid in API or localStorage
-        // This ensures that changed passwords are always respected
+        console.warn('API login failed:', apiError);
+        // No localStorage fallback - credentials must be valid in API
         throw new Error('Invalid credentials');
       }
     } catch (err) {

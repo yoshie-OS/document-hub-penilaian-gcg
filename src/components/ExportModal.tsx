@@ -25,38 +25,38 @@ interface ExportOption {
 const exportOptions: ExportOption[] = [
   {
     type: 'users',
-    label: 'Users',
-    description: 'Export all users with roles and departments',
+    label: 'Pengguna',
+    description: 'Ekspor semua pengguna dengan peran dan departemen',
     icon: '👥'
   },
   {
     type: 'checklist',
     label: 'Checklist GCG',
-    description: 'Export GCG checklist with completion status',
+    description: 'Ekspor checklist GCG dengan status penyelesaian',
     icon: '✅'
   },
   {
     type: 'documents',
-    label: 'Documents',
-    description: 'Export all document metadata',
+    label: 'Dokumen',
+    description: 'Ekspor semua metadata dokumen',
     icon: '📄'
   },
   {
     type: 'org-structure',
-    label: 'Organizational Structure',
-    description: 'Export Direktorat, Subdirektorat, Divisi, Anak Perusahaan',
+    label: 'Struktur Organisasi',
+    description: 'Ekspor Direktorat, Subdirektorat, Divisi, Anak Perusahaan',
     icon: '🏢'
   },
   {
     type: 'gcg-assessment',
-    label: 'GCG Assessment',
-    description: 'Export GCG performance assessment results',
+    label: 'Penilaian GCG',
+    description: 'Ekspor hasil penilaian performa GCG',
     icon: '📊'
   },
   {
     type: 'all',
-    label: 'Complete Export',
-    description: 'Export ALL data in one comprehensive Excel file',
+    label: 'Ekspor Lengkap',
+    description: 'Ekspor SEMUA data dalam satu file Excel komprehensif',
     icon: '📁'
   }
 ];
@@ -88,7 +88,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ open, onOpenChange }) 
 
       if (!response.ok) {
         // Try to get error message from response body
-        let errorMessage = 'Export failed';
+        let errorMessage = 'Ekspor gagal';
         try {
           const errorData = await response.json();
           errorMessage = errorData.error || response.statusText;
@@ -123,15 +123,15 @@ export const ExportModal: React.FC<ExportModalProps> = ({ open, onOpenChange }) 
       document.body.removeChild(a);
 
       toast({
-        title: 'Export Successful',
-        description: `${filename} has been downloaded`,
+        title: 'Ekspor Berhasil',
+        description: `${filename} telah diunduh`,
         variant: 'default'
       });
     } catch (error) {
       console.error('Export error:', error);
       toast({
-        title: 'Export Failed',
-        description: error instanceof Error ? error.message : 'Failed to download Excel file',
+        title: 'Ekspor Gagal',
+        description: error instanceof Error ? error.message : 'Gagal mengunduh file Excel',
         variant: 'destructive'
       });
     } finally {
@@ -145,17 +145,17 @@ export const ExportModal: React.FC<ExportModalProps> = ({ open, onOpenChange }) 
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileSpreadsheet className="h-5 w-5" />
-            Excel Export Center
+            Pusat Ekspor Excel
           </DialogTitle>
           <DialogDescription>
-            Download data as Excel files for reports and analysis
+            Unduh data dalam format Excel untuk laporan dan analisis
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
           {/* Year Selector */}
           <div className="flex items-center gap-4">
-            <label className="text-sm font-medium">Export Year:</label>
+            <label className="text-sm font-medium">Tahun Ekspor:</label>
             <Select
               value={exportYear.toString()}
               onValueChange={(value) => setExportYear(parseInt(value))}
@@ -196,12 +196,12 @@ export const ExportModal: React.FC<ExportModalProps> = ({ open, onOpenChange }) 
                     {isDownloading === option.type ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Downloading...
+                        Mengunduh...
                       </>
                     ) : (
                       <>
                         <Download className="mr-2 h-4 w-4" />
-                        Download
+                        Unduh
                       </>
                     )}
                   </Button>
@@ -212,7 +212,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ open, onOpenChange }) 
 
           {/* Quick Actions */}
           <div className="border-t pt-4">
-            <h4 className="text-sm font-medium mb-3">Quick Actions</h4>
+            <h4 className="text-sm font-medium mb-3">Aksi Cepat</h4>
             <div className="flex flex-wrap gap-2">
               <Button
                 onClick={() => downloadExcel('gcg-assessment')}
@@ -220,7 +220,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ open, onOpenChange }) 
                 size="sm"
               >
                 <Download className="mr-2 h-4 w-4" />
-                GCG Assessment {exportYear}
+                Penilaian GCG {exportYear}
               </Button>
               <Button
                 onClick={() => downloadExcel('all')}
@@ -229,17 +229,17 @@ export const ExportModal: React.FC<ExportModalProps> = ({ open, onOpenChange }) 
                 size="sm"
               >
                 <Download className="mr-2 h-4 w-4" />
-                Complete Backup {exportYear}
+                Cadangan Lengkap {exportYear}
               </Button>
             </div>
           </div>
 
           {/* Info Box */}
           <div className="bg-muted p-4 rounded-lg text-sm">
-            <p className="font-medium mb-1">💡 Tip:</p>
+            <p className="font-medium mb-1">💡 Tips:</p>
             <p className="text-muted-foreground">
-              All exports are formatted Excel files (.xlsx) with headers, auto-sized columns,
-              and multiple sheets where applicable. Files are downloaded directly to your Downloads folder.
+              Semua ekspor berformat file Excel (.xlsx) dengan header, kolom yang disesuaikan otomatis,
+              dan beberapa sheet jika diperlukan. File akan diunduh langsung ke folder Downloads Anda.
             </p>
           </div>
         </div>

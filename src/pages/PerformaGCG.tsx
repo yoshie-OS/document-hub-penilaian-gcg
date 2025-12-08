@@ -1029,7 +1029,7 @@ const PerformaGCG = () => {
       // If bobot is 0, assume perfect score (best classification)
       return 100;
     }
-    
+
     if (bobot < 0) {
       // Negative bobot = assessment of bad things (harassment, violations)
       // Special range: -100% < capaian < 0%
@@ -1042,11 +1042,11 @@ const PerformaGCG = () => {
       const absBobot = Math.abs(bobot);
       const absSkor = Math.abs(skor);
       const ratio = Math.min(absSkor, absBobot) / absBobot; // Cap at 100%
-      return -Math.round(ratio * 100); // Negative percentage
+      return parseFloat((-(ratio * 100)).toFixed(2)); // Negative percentage rounded to 2 decimals
     }
-    
-    // Normal positive bobot calculation
-    return Math.round((skor / bobot) * 100);
+
+    // Normal positive bobot calculation - round to 2 decimal places
+    return parseFloat(((skor / bobot) * 100).toFixed(2));
   };
 
   const getPenjelasan = (skor: number, bobot: number = 1): string => {
@@ -1871,9 +1871,9 @@ const PerformaGCG = () => {
                       <TableRow key={row.id} className="hover:bg-gray-50">
                         <TableCell className="font-medium text-center">{row.aspek}</TableCell>
                         <TableCell className="text-sm">{row.deskripsi}</TableCell>
-                        <TableCell className="text-center">{row.bobot}</TableCell>
-                        <TableCell className="text-center">{row.skor}</TableCell>
-                        <TableCell className="text-center">{row.capaian}%</TableCell>
+                        <TableCell className="text-center">{typeof row.bobot === 'number' ? row.bobot.toFixed(2) : row.bobot}</TableCell>
+                        <TableCell className="text-center">{typeof row.skor === 'number' ? row.skor.toFixed(2) : row.skor}</TableCell>
+                        <TableCell className="text-center">{typeof row.capaian === 'number' ? row.capaian.toFixed(2) : row.capaian}%</TableCell>
                         <TableCell>
                           <div className="text-center">
                             <span className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -1921,9 +1921,9 @@ const PerformaGCG = () => {
                     <TableRow key={row.id} className="hover:bg-gray-50">
                       <TableCell className="font-medium text-center">{row.aspek}</TableCell>
                       <TableCell className="text-sm">{row.deskripsi}</TableCell>
-                      <TableCell className="text-center">{row.bobot}</TableCell>
-                      <TableCell className="text-center">{row.skor}</TableCell>
-                      <TableCell className="text-center">{row.capaian}%</TableCell>
+                      <TableCell className="text-center">{typeof row.bobot === 'number' ? row.bobot.toFixed(2) : row.bobot}</TableCell>
+                      <TableCell className="text-center">{typeof row.skor === 'number' ? row.skor.toFixed(2) : row.skor}</TableCell>
+                      <TableCell className="text-center">{typeof row.capaian === 'number' ? row.capaian.toFixed(2) : row.capaian}%</TableCell>
                       <TableCell>
                         <div className="text-center">
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -2216,10 +2216,15 @@ const PerformaGCG = () => {
                               delete newState[fieldKey];
                               return newState;
                             });
-                            
-                            // Auto-set to 0 when user leaves empty field
+
+                            // Auto-set to 0 when user leaves empty field, otherwise round to 2 decimals
                             if (e.target.value === '' || e.target.value === null) {
                               updateAspectSummaryCell(row.id, 'bobot', 0);
+                            } else {
+                              const numValue = parseFloat(e.target.value);
+                              if (!isNaN(numValue)) {
+                                updateAspectSummaryCell(row.id, 'bobot', parseFloat(numValue.toFixed(2)));
+                              }
                             }
                           }}
                           onFocus={() => {
@@ -2274,10 +2279,15 @@ const PerformaGCG = () => {
                               delete newState[fieldKey];
                               return newState;
                             });
-                            
-                            // Auto-set to 0 when user leaves empty field
+
+                            // Auto-set to 0 when user leaves empty field, otherwise round to 2 decimals
                             if (e.target.value === '' || e.target.value === null) {
                               updateAspectSummaryCell(row.id, 'skor', 0);
+                            } else {
+                              const numValue = parseFloat(e.target.value);
+                              if (!isNaN(numValue)) {
+                                updateAspectSummaryCell(row.id, 'skor', parseFloat(numValue.toFixed(2)));
+                              }
                             }
                           }}
                           onFocus={() => {
@@ -2304,7 +2314,7 @@ const PerformaGCG = () => {
                             row.capaian >= 50 ? 'bg-orange-100 text-orange-800' :
                             'bg-red-100 text-red-800'
                           }`}>
-                            {row.capaian}%
+                            {typeof row.capaian === 'number' ? row.capaian.toFixed(2) : row.capaian}%
                           </span>
                         </div>
                       </TableCell>
@@ -2589,10 +2599,15 @@ const PerformaGCG = () => {
                             delete newState[fieldKey];
                             return newState;
                           });
-                          
-                          // Auto-set to 0 when user leaves empty field
+
+                          // Auto-set to 0 when user leaves empty field, otherwise round to 2 decimals
                           if (e.target.value === '' || e.target.value === null) {
                             updateCell(row.id, 'bobot', 0);
+                          } else {
+                            const numValue = parseFloat(e.target.value);
+                            if (!isNaN(numValue)) {
+                              updateCell(row.id, 'bobot', parseFloat(numValue.toFixed(2)));
+                            }
                           }
                         }}
                         onFocus={() => {
@@ -2650,10 +2665,15 @@ const PerformaGCG = () => {
                             delete newState[fieldKey];
                             return newState;
                           });
-                          
-                          // Auto-set to 0 when user leaves empty field
+
+                          // Auto-set to 0 when user leaves empty field, otherwise round to 2 decimals
                           if (e.target.value === '' || e.target.value === null) {
                             updateCell(row.id, 'skor', 0);
+                          } else {
+                            const numValue = parseFloat(e.target.value);
+                            if (!isNaN(numValue)) {
+                              updateCell(row.id, 'skor', parseFloat(numValue.toFixed(2)));
+                            }
                           }
                         }}
                         onFocus={() => {
@@ -2693,7 +2713,7 @@ const PerformaGCG = () => {
                             'bg-red-100 text-red-800'
                           )
                         }`}>
-                          {row.capaian}%
+                          {typeof row.capaian === 'number' ? row.capaian.toFixed(2) : row.capaian}%
                         </span>
                       </div>
                     </TableCell>
@@ -2785,7 +2805,7 @@ const PerformaGCG = () => {
                           const value = parseFloat(e.target.value) || 0;
                           setTotalRowData(prev => ({
                             ...prev,
-                            bobot: value,
+                            bobot: parseFloat(value.toFixed(2)),
                             capaian: calculateCapaian(prev.skor, value)
                           }));
                         }}
@@ -2804,7 +2824,7 @@ const PerformaGCG = () => {
                           const value = parseFloat(e.target.value) || 0;
                           setTotalRowData(prev => ({
                             ...prev,
-                            skor: value,
+                            skor: parseFloat(value.toFixed(2)),
                             capaian: calculateCapaian(value, prev.bobot)
                           }));
                         }}
@@ -2816,7 +2836,7 @@ const PerformaGCG = () => {
                     {/* Capaian (Auto-calculated) */}
                     <TableCell>
                       <div className="text-center font-bold text-yellow-800">
-                        {totalRowData.capaian}%
+                        {typeof totalRowData.capaian === 'number' ? totalRowData.capaian.toFixed(2) : totalRowData.capaian}%
                       </div>
                     </TableCell>
                     

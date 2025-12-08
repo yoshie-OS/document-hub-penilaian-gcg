@@ -88,17 +88,17 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
   const [anakPerusahaan, setAnakPerusahaan] = useState<AnakPerusahaan[]>([]);
   const [divisi, setDivisi] = useState<Divisi[]>([]);
 
-  // Load data from Supabase first, fallback to localStorage
+  // Load data from backend first, fallback to localStorage
   useEffect(() => {
-    const loadDataFromSupabase = async () => {
+    const loadDataFrombackend = async () => {
       try {
         setIsLoading(true);
-        const response = await fetch('http://localhost:5001/api/config/struktur-organisasi');
+        const response = await fetch('http://localhost:5000/api/config/struktur-organisasi');
         if (response.ok) {
           const data = await response.json();
           
-          // Map the Supabase data to our local format
-          const mapSupabaseData = (items: any[], type: string) => {
+          // Map the backend data to our local format
+          const mapbackendData = (items: any[], type: string) => {
             return items.map((item: any) => ({
               id: item.id || Date.now() + Math.random(),
               nama: item.nama,
@@ -112,63 +112,31 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
             }));
           };
 
-          setDirektorat(mapSupabaseData(data.direktorat || [], 'direktorat'));
-          setSubdirektorat(mapSupabaseData(data.subdirektorat || [], 'subdirektorat'));
-          setAnakPerusahaan(mapSupabaseData(data.anak_perusahaan || [], 'anak_perusahaan'));
-          setDivisi(mapSupabaseData(data.divisi || [], 'divisi'));
-          
-          // Also update localStorage for consistency
-          localStorage.setItem('direktorat', JSON.stringify(mapSupabaseData(data.direktorat || [], 'direktorat')));
-          localStorage.setItem('subdirektorat', JSON.stringify(mapSupabaseData(data.subdirektorat || [], 'subdirektorat')));
-          localStorage.setItem('anakPerusahaan', JSON.stringify(mapSupabaseData(data.anak_perusahaan || [], 'anak_perusahaan')));
-          localStorage.setItem('divisi', JSON.stringify(mapSupabaseData(data.divisi || [], 'divisi')));
+          setDirektorat(mapbackendData(data.direktorat || [], 'direktorat'));
+          setSubdirektorat(mapbackendData(data.subdirektorat || [], 'subdirektorat'));
+          setAnakPerusahaan(mapbackendData(data.anak_perusahaan || [], 'anak_perusahaan'));
+          setDivisi(mapbackendData(data.divisi || [], 'divisi'));
 
-          console.log('StrukturPerusahaanContext: Loaded data from Supabase');
+          console.log('StrukturPerusahaanContext: Loaded data from backend');
         } else {
-          console.error('StrukturPerusahaanContext: Failed to load from Supabase');
-          loadFromLocalStorage();
+          console.error('StrukturPerusahaanContext: Failed to load from backend');
+          setDirektorat([]);
+          setSubdirektorat([]);
+          setAnakPerusahaan([]);
+          setDivisi([]);
         }
       } catch (error) {
-        console.error('StrukturPerusahaanContext: Error loading from Supabase', error);
-        loadFromLocalStorage();
+        console.error('StrukturPerusahaanContext: Error loading from backend', error);
+        setDirektorat([]);
+        setSubdirektorat([]);
+        setAnakPerusahaan([]);
+        setDivisi([]);
       } finally {
         setIsLoading(false);
       }
     };
 
-    const loadFromLocalStorage = () => {
-      try {
-        // Load Direktorat
-        const direktoratData = localStorage.getItem('direktorat');
-        if (direktoratData) {
-          setDirektorat(JSON.parse(direktoratData));
-        }
-
-        // Load Subdirektorat
-        const subdirektoratData = localStorage.getItem('subdirektorat');
-        if (subdirektoratData) {
-          setSubdirektorat(JSON.parse(subdirektoratData));
-        }
-
-        // Load Anak Perusahaan
-        const anakPerusahaanData = localStorage.getItem('anakPerusahaan');
-        if (anakPerusahaanData) {
-          setAnakPerusahaan(JSON.parse(anakPerusahaanData));
-        }
-
-        // Load Divisi
-        const divisiData = localStorage.getItem('divisi');
-        if (divisiData) {
-          setDivisi(JSON.parse(divisiData));
-        }
-        
-        console.log('StrukturPerusahaanContext: Loaded data from localStorage fallback');
-      } catch (error) {
-        console.error('StrukturPerusahaanContext: Error loading data:', error);
-      }
-    };
-
-    loadDataFromSupabase();
+    loadDataFrombackend();
   }, [refreshTrigger]);
 
   // Filter data berdasarkan tahun yang dipilih
@@ -180,8 +148,8 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
   // CRUD Functions
   const addDirektorat = async (data: Omit<Direktorat, 'id' | 'createdAt' | 'isActive'>) => {
     try {
-      // Save to Supabase API
-      const response = await fetch('http://localhost:5001/api/config/struktur-organisasi', {
+      // Save to backend API
+      const response = await fetch('http://localhost:5000/api/config/struktur-organisasi', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -198,9 +166,9 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      console.log('StrukturPerusahaanContext: Successfully saved direktorat to Supabase');
+      console.log('StrukturPerusahaanContext: Successfully saved direktorat to backend');
     } catch (error) {
-      console.error('StrukturPerusahaanContext: Failed to save direktorat to Supabase:', error);
+      console.error('StrukturPerusahaanContext: Failed to save direktorat to backend:', error);
     }
 
     const newDirektorat: Direktorat = {
@@ -212,14 +180,13 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
 
     const updatedDirektorat = [...direktorat, newDirektorat];
     setDirektorat(updatedDirektorat);
-    localStorage.setItem('direktorat', JSON.stringify(updatedDirektorat));
     triggerUpdate();
   };
 
   const addSubdirektorat = async (data: Omit<Subdirektorat, 'id' | 'createdAt' | 'isActive'>) => {
     try {
-      // Save to Supabase API
-      const response = await fetch('http://localhost:5001/api/config/struktur-organisasi', {
+      // Save to backend API
+      const response = await fetch('http://localhost:5000/api/config/struktur-organisasi', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -236,9 +203,9 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      console.log('StrukturPerusahaanContext: Successfully saved subdirektorat to Supabase');
+      console.log('StrukturPerusahaanContext: Successfully saved subdirektorat to backend');
     } catch (error) {
-      console.error('StrukturPerusahaanContext: Failed to save subdirektorat to Supabase:', error);
+      console.error('StrukturPerusahaanContext: Failed to save subdirektorat to backend:', error);
     }
 
     const newSubdirektorat: Subdirektorat = {
@@ -250,14 +217,13 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
 
     const updatedSubdirektorat = [...subdirektorat, newSubdirektorat];
     setSubdirektorat(updatedSubdirektorat);
-    localStorage.setItem('subdirektorat', JSON.stringify(updatedSubdirektorat));
     triggerUpdate();
   };
 
   const addAnakPerusahaan = async (data: Omit<AnakPerusahaan, 'id' | 'createdAt' | 'isActive'>) => {
     try {
-      // Save to Supabase API
-      const response = await fetch('http://localhost:5001/api/config/struktur-organisasi', {
+      // Save to backend API
+      const response = await fetch('http://localhost:5000/api/config/struktur-organisasi', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -274,9 +240,9 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      console.log('StrukturPerusahaanContext: Successfully saved anak perusahaan to Supabase');
+      console.log('StrukturPerusahaanContext: Successfully saved anak perusahaan to backend');
     } catch (error) {
-      console.error('StrukturPerusahaanContext: Failed to save anak perusahaan to Supabase:', error);
+      console.error('StrukturPerusahaanContext: Failed to save anak perusahaan to backend:', error);
     }
 
     const newAnakPerusahaan: AnakPerusahaan = {
@@ -288,14 +254,13 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
 
     const updatedAnakPerusahaan = [...anakPerusahaan, newAnakPerusahaan];
     setAnakPerusahaan(updatedAnakPerusahaan);
-    localStorage.setItem('anakPerusahaan', JSON.stringify(updatedAnakPerusahaan));
     triggerUpdate();
   };
 
   const addDivisi = async (data: Omit<Divisi, 'id' | 'createdAt' | 'isActive'>) => {
     try {
-      // Save to Supabase API
-      const response = await fetch('http://localhost:5001/api/config/struktur-organisasi', {
+      // Save to backend API
+      const response = await fetch('http://localhost:5000/api/config/struktur-organisasi', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -312,9 +277,9 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      console.log('StrukturPerusahaanContext: Successfully saved divisi to Supabase');
+      console.log('StrukturPerusahaanContext: Successfully saved divisi to backend');
     } catch (error) {
-      console.error('StrukturPerusahaanContext: Failed to save divisi to Supabase:', error);
+      console.error('StrukturPerusahaanContext: Failed to save divisi to backend:', error);
     }
 
     const newDivisi: Divisi = {
@@ -326,14 +291,13 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
 
     const updatedDivisi = [...divisi, newDivisi];
     setDivisi(updatedDivisi);
-    localStorage.setItem('divisi', JSON.stringify(updatedDivisi));
     triggerUpdate();
   };
 
   const deleteDirektorat = async (id: number) => {
     try {
-      // Delete from Supabase API
-      const response = await fetch(`http://localhost:5001/api/config/struktur-organisasi/${id}`, {
+      // Delete from backend API
+      const response = await fetch(`http://localhost:5000/api/config/struktur-organisasi/${id}`, {
         method: 'DELETE',
       });
       
@@ -341,21 +305,20 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      console.log('StrukturPerusahaanContext: Successfully deleted direktorat from Supabase');
+      console.log('StrukturPerusahaanContext: Successfully deleted direktorat from backend');
     } catch (error) {
-      console.error('StrukturPerusahaanContext: Failed to delete direktorat from Supabase:', error);
+      console.error('StrukturPerusahaanContext: Failed to delete direktorat from backend:', error);
     }
 
     const updatedDirektorat = direktorat.filter(d => d.id !== id);
     setDirektorat(updatedDirektorat);
-    localStorage.setItem('direktorat', JSON.stringify(updatedDirektorat));
     triggerUpdate();
   };
 
   const deleteSubdirektorat = async (id: number) => {
     try {
-      // Delete from Supabase API
-      const response = await fetch(`http://localhost:5001/api/config/struktur-organisasi/${id}`, {
+      // Delete from backend API
+      const response = await fetch(`http://localhost:5000/api/config/struktur-organisasi/${id}`, {
         method: 'DELETE',
       });
       
@@ -363,21 +326,20 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      console.log('StrukturPerusahaanContext: Successfully deleted subdirektorat from Supabase');
+      console.log('StrukturPerusahaanContext: Successfully deleted subdirektorat from backend');
     } catch (error) {
-      console.error('StrukturPerusahaanContext: Failed to delete subdirektorat from Supabase:', error);
+      console.error('StrukturPerusahaanContext: Failed to delete subdirektorat from backend:', error);
     }
 
     const updatedSubdirektorat = subdirektorat.filter(s => s.id !== id);
     setSubdirektorat(updatedSubdirektorat);
-    localStorage.setItem('subdirektorat', JSON.stringify(updatedSubdirektorat));
     triggerUpdate();
   };
 
   const deleteAnakPerusahaan = async (id: number) => {
     try {
-      // Delete from Supabase API
-      const response = await fetch(`http://localhost:5001/api/config/struktur-organisasi/${id}`, {
+      // Delete from backend API
+      const response = await fetch(`http://localhost:5000/api/config/struktur-organisasi/${id}`, {
         method: 'DELETE',
       });
       
@@ -385,21 +347,20 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      console.log('StrukturPerusahaanContext: Successfully deleted anak perusahaan from Supabase');
+      console.log('StrukturPerusahaanContext: Successfully deleted anak perusahaan from backend');
     } catch (error) {
-      console.error('StrukturPerusahaanContext: Failed to delete anak perusahaan from Supabase:', error);
+      console.error('StrukturPerusahaanContext: Failed to delete anak perusahaan from backend:', error);
     }
 
     const updatedAnakPerusahaan = anakPerusahaan.filter(a => a.id !== id);
     setAnakPerusahaan(updatedAnakPerusahaan);
-    localStorage.setItem('anakPerusahaan', JSON.stringify(updatedAnakPerusahaan));
     triggerUpdate();
   };
 
   const deleteDivisi = async (id: number) => {
     try {
-      // Delete from Supabase API
-      const response = await fetch(`http://localhost:5001/api/config/struktur-organisasi/${id}`, {
+      // Delete from backend API
+      const response = await fetch(`http://localhost:5000/api/config/struktur-organisasi/${id}`, {
         method: 'DELETE',
       });
 
@@ -407,21 +368,20 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      console.log('StrukturPerusahaanContext: Successfully deleted divisi from Supabase');
+      console.log('StrukturPerusahaanContext: Successfully deleted divisi from backend');
     } catch (error) {
-      console.error('StrukturPerusahaanContext: Failed to delete divisi from Supabase:', error);
+      console.error('StrukturPerusahaanContext: Failed to delete divisi from backend:', error);
     }
 
     const updatedDivisi = divisi.filter(d => d.id !== id);
     setDivisi(updatedDivisi);
-    localStorage.setItem('divisi', JSON.stringify(updatedDivisi));
     triggerUpdate();
   };
 
   // Update functions
   const updateDirektorat = async (id: number, data: Partial<Direktorat>) => {
     try {
-      const response = await fetch(`http://localhost:5001/api/config/struktur-organisasi/${id}`, {
+      const response = await fetch(`http://localhost:5000/api/config/struktur-organisasi/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -441,13 +401,12 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
 
     const updatedDirektorat = direktorat.map(d => d.id === id ? { ...d, ...data } : d);
     setDirektorat(updatedDirektorat);
-    localStorage.setItem('direktorat', JSON.stringify(updatedDirektorat));
     triggerUpdate();
   };
 
   const updateSubdirektorat = async (id: number, data: Partial<Subdirektorat>) => {
     try {
-      const response = await fetch(`http://localhost:5001/api/config/struktur-organisasi/${id}`, {
+      const response = await fetch(`http://localhost:5000/api/config/struktur-organisasi/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -468,13 +427,12 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
 
     const updatedSubdirektorat = subdirektorat.map(s => s.id === id ? { ...s, ...data } : s);
     setSubdirektorat(updatedSubdirektorat);
-    localStorage.setItem('subdirektorat', JSON.stringify(updatedSubdirektorat));
     triggerUpdate();
   };
 
   const updateAnakPerusahaan = async (id: number, data: Partial<AnakPerusahaan>) => {
     try {
-      const response = await fetch(`http://localhost:5001/api/config/struktur-organisasi/${id}`, {
+      const response = await fetch(`http://localhost:5000/api/config/struktur-organisasi/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -494,13 +452,12 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
 
     const updatedAnakPerusahaan = anakPerusahaan.map(a => a.id === id ? { ...a, ...data } : a);
     setAnakPerusahaan(updatedAnakPerusahaan);
-    localStorage.setItem('anakPerusahaan', JSON.stringify(updatedAnakPerusahaan));
     triggerUpdate();
   };
 
   const updateDivisi = async (id: number, data: Partial<Divisi>) => {
     try {
-      const response = await fetch(`http://localhost:5001/api/config/struktur-organisasi/${id}`, {
+      const response = await fetch(`http://localhost:5000/api/config/struktur-organisasi/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -521,7 +478,6 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
 
     const updatedDivisi = divisi.map(d => d.id === id ? { ...d, ...data } : d);
     setDivisi(updatedDivisi);
-    localStorage.setItem('divisi', JSON.stringify(updatedDivisi));
     triggerUpdate();
   };
 
@@ -584,7 +540,7 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
       console.log(`StrukturPerusahaanContext: Sending ${batchItems.length} items in batch API call`);
       
       // Single batch API call to avoid race conditions
-      const response = await fetch('http://localhost:5001/api/config/struktur-organisasi/batch', {
+      const response = await fetch('http://localhost:5000/api/config/struktur-organisasi/batch', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -648,7 +604,7 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
       
       console.log(`StrukturPerusahaanContext: Successfully created default data for year ${year}`);
       
-      // Force refresh from Supabase to update localStorage with the latest data
+      // Force refresh from backend to update localStorage with the latest data
       setTimeout(() => {
         triggerUpdate();
       }, 1000); // Reduced timeout since we're using batch API
@@ -674,17 +630,7 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
     setRefreshTrigger(prev => prev + 1);
   };
 
-  // Listen for localStorage changes (cross-tab)
-  useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'direktorat' || e.key === 'subdirektorat' || e.key === 'anakPerusahaan' || e.key === 'divisi') {
-        refreshData();
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
+  // localStorage sync removed - data only comes from API
 
   // Listen for custom events (same-tab updates)
   useEffect(() => {
