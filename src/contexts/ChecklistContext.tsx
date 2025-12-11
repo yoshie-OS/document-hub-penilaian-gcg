@@ -41,17 +41,17 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
   const [aspects, setAspects] = useState<Aspek[]>([]);
   const [deletingAspectIds, setDeletingAspectIds] = useState<Set<number>>(new Set());
 
-  // Load data from Supabase first, fallback to localStorage
+  // Load data from backend first, fallback to localStorage
   useEffect(() => {
     console.log('ChecklistContext: useEffect triggered - starting data load');
     
-    // Load fresh data from Supabase while preserving user authentication
+    // Load fresh data from backend while preserving user authentication
     
-    const loadDataFromSupabase = async () => {
+    const loadDataFrombackend = async () => {
       try {
-        console.log('ChecklistContext: loadDataFromSupabase function called');
-        // Load aspects from Supabase
-        const aspectsResponse = await fetch('http://localhost:5001/api/config/aspects');
+        console.log('Check storage function called');
+        // Load aspects from backend
+        const aspectsResponse = await fetch('http://localhost:5000/api/config/aspects');
         if (aspectsResponse.ok) {
           const aspectsData = await aspectsResponse.json();
           if (aspectsData.aspects && Array.isArray(aspectsData.aspects)) {
@@ -61,18 +61,16 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
               tahun: item.tahun
             }));
             setAspects(mappedAspects);
-            // REMOVED localStorage.setItem for multi-user support
-            console.log('ChecklistContext: Loaded aspects from Supabase', mappedAspects.length);
+            console.log('Check storage', mappedAspects.length);
           }
         } else {
-          console.error('ChecklistContext: Failed to load aspects from Supabase');
-          // DISABLED: loadAspectsFromLocalStorage(); // Force fresh start
+          console.error('Check storage');
           setAspects([]);
         }
 
-        // Load checklist from Supabase API
+        // Load checklist from backend API
         console.log('ChecklistContext: Fetching checklist from API...');
-        const checklistResponse = await fetch('http://localhost:5001/api/config/checklist', {
+        const checklistResponse = await fetch('http://localhost:5000/api/config/checklist', {
           method: 'GET',
           headers: {
             'Accept': 'application/json',
@@ -140,9 +138,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
               });
 
               setChecklist(mappedChecklist);
-              // Save fresh data to localStorage for next load
-              localStorage.setItem("checklistGCG", JSON.stringify(mappedChecklist));
-              console.log('ChecklistContext: Loaded checklist from Supabase', mappedChecklist.length);
+              console.log('Check storage', mappedChecklist.length);
             }
           } catch (parseError) {
             console.error('ChecklistContext: JSON parse error:', parseError);
@@ -155,7 +151,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
             setChecklist([]);
           }
         } else {
-          console.error('ChecklistContext: Failed to load checklist from Supabase', {
+          console.error('Check storage', {
             status: checklistResponse.status,
             statusText: checklistResponse.statusText,
             url: checklistResponse.url
@@ -164,100 +160,15 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
         }
 
       } catch (error) {
-        console.error('ChecklistContext: Error loading from Supabase', error);
+        console.error('Check storage', error);
         // Set empty data instead of localStorage fallback for multi-user support
         setChecklist([]);
         setAspects([]);
       }
     };
 
-    const loadFromLocalStorage = () => {
-      const data = localStorage.getItem("checklistGCG");
-      const aspectsData = localStorage.getItem("aspects");
-      
-      if (data && aspectsData) {
-        try {
-          const parsedData = JSON.parse(data);
-          const parsedAspects = JSON.parse(aspectsData);
-          
-          // Pastikan data valid
-          if (Array.isArray(parsedData) && Array.isArray(parsedAspects)) {
-            // Check for old timestamp-based IDs and clear if found
-            const hasOldTimestampIds = parsedData.some(item => 
-              item.id && item.id > 1000000000 // Timestamp IDs are much larger than year+row format
-            );
-            
-            if (hasOldTimestampIds) {
-              console.warn('ChecklistContext: Found old timestamp-based IDs in localStorage, clearing cache');
-              localStorage.removeItem("checklistGCG");
-              localStorage.removeItem("aspects");
-              // Fallback to Supabase load
-              loadDataFromSupabase();
-              return;
-            }
-            
-            setChecklist(parsedData);
-            setAspects(parsedAspects);
-            console.log('ChecklistContext: Initialized from localStorage', { checklist: parsedData.length, aspects: parsedAspects.length });
-            
-            // Clean up any duplicate aspects
-            setTimeout(() => cleanupDuplicateAspects(), 100);
-          }
-        } catch (error) {
-          console.error('ChecklistContext: Error parsing localStorage data', error);
-          // Fallback to default data
-          initializeDefaultData();
-        }
-      } else {
-        // Initialize with default data
-        initializeDefaultData();
-      }
-    };
 
-    const loadAspectsFromLocalStorage = () => {
-      const aspectsData = localStorage.getItem("aspects");
-      if (aspectsData) {
-        try {
-          const parsedAspects = JSON.parse(aspectsData);
-          if (Array.isArray(parsedAspects)) {
-            setAspects(parsedAspects);
-            console.log('ChecklistContext: Loaded aspects from localStorage fallback');
-          }
-        } catch (error) {
-          console.error('ChecklistContext: Error parsing aspects from localStorage', error);
-        }
-      }
-    };
-
-    const loadChecklistFromLocalStorage = () => {
-      const data = localStorage.getItem("checklistGCG");
-      if (data) {
-        try {
-          const parsedData = JSON.parse(data);
-          if (Array.isArray(parsedData)) {
-            // Check for old timestamp-based IDs and clear if found
-            const hasOldTimestampIds = parsedData.some(item => 
-              item.id && item.id > 1000000000 // Timestamp IDs are much larger than year+row format
-            );
-            
-            if (hasOldTimestampIds) {
-              console.warn('ChecklistContext: Found old timestamp-based IDs, clearing cache and reloading from backend');
-              localStorage.removeItem("checklistGCG");
-              localStorage.removeItem("aspects");
-              loadDataFromSupabase();
-              return;
-            }
-            
-            setChecklist(parsedData);
-            console.log('ChecklistContext: Loaded checklist from localStorage');
-          }
-        } catch (error) {
-          console.error('ChecklistContext: Error parsing checklist from localStorage', error);
-        }
-      }
-    };
-
-    loadDataFromSupabase();
+    loadDataFrombackend();
   }, []);
 
     // Helper function untuk initialize default data - FRESH START
@@ -266,7 +177,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
     const defaultData: ChecklistGCG[] = [];
     const defaultAspects: Aspek[] = [];
     
-    // Initialize with empty data - will be loaded from Supabase
+    // Initialize with empty data - will be loaded from backend
     setChecklist(defaultData);
     setAspects(defaultAspects);
     console.log('ChecklistContext: Initialized with FRESH START - no default data');
@@ -282,7 +193,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
         // Pastikan data valid sebelum update
         if (Array.isArray(updatedData) && updatedData.length > 0) {
           setChecklist(updatedData);
-          // Data updated from Supabase
+          // Data updated from backend
           console.log('ChecklistContext: Data updated from PengaturanBaru', updatedData);
         }
       }
@@ -307,28 +218,9 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
     const handleYearDataCleaned = (event: CustomEvent) => {
       if (event.detail?.type === 'yearRemoved') {
         const removedYear = event.detail.year;
-        console.log(`ChecklistContext: Year ${removedYear} data cleaned up, refreshing local state`);
-        
-        // Refresh data from localStorage to ensure consistency
-        const storedChecklist = localStorage.getItem('checklistGCG');
-        if (storedChecklist) {
-          try {
-            const parsed = JSON.parse(storedChecklist);
-            setChecklist(parsed);
-          } catch (error) {
-            console.error('ChecklistContext: Error refreshing checklist after year cleanup', error);
-          }
-        }
-        
-        const storedAspects = localStorage.getItem('aspects');
-        if (storedAspects) {
-          try {
-            const parsed = JSON.parse(storedAspects);
-            setAspects(parsed);
-          } catch (error) {
-            console.error('ChecklistContext: Error refreshing aspects after year cleanup', error);
-          }
-        }
+        console.log(`ChecklistContext: Year ${removedYear} data cleaned up, refreshing from API`);
+        // Refresh data from API after year removal
+        loadDataFrombackend();
       }
     };
 
@@ -343,40 +235,10 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
     };
   }, []);
 
-  // Effect untuk memantau perubahan di localStorage dan sync dengan state
-  useEffect(() => {
-    const handleStorageChange = () => {
-      const storedData = localStorage.getItem("checklistGCG");
-      if (storedData) {
-        try {
-          const parsedData = JSON.parse(storedData);
-          if (Array.isArray(parsedData) && JSON.stringify(parsedData) !== JSON.stringify(checklist)) {
-            console.log('ChecklistContext: localStorage changed, updating state', {
-              stored: parsedData.length,
-              current: checklist.length
-            });
-            setChecklist(parsedData);
-          }
-        } catch (error) {
-          console.error('ChecklistContext: Error parsing localStorage change', error);
-        }
-      }
-    };
-
-    // Listen for storage events (from other tabs/windows)
-    window.addEventListener('storage', handleStorageChange);
-
-    // REMOVED: Periodic localStorage polling that was causing PIC assignment conflicts
-    // const interval = setInterval(handleStorageChange, 1000);
-    
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      // clearInterval(interval); // No longer needed
-    };
-  }, [checklist]);
+  // Storage sync removed - data only comes from API
 
   const getChecklistByYear = (year: number): ChecklistGCG[] => {
-    // Use data from state (loaded from Supabase) instead of localStorage
+    // Use data from state (loaded from backend) instead of localStorage
     console.log('ChecklistContext: getChecklistByYear called', {
       year,
       totalItems: checklist.length,
@@ -393,8 +255,8 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
     }
     
     try {
-      // Fetch aspects from Supabase API
-      const response = await fetch(`http://localhost:5001/api/config/aspects?year=${year}`);
+      // Fetch aspects from backend API
+      const response = await fetch(`http://localhost:5000/api/config/aspects?year=${year}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -402,18 +264,6 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
       return data.aspects || [];
     } catch (error) {
       console.error('Error fetching aspects from API:', error);
-      // Fallback to localStorage for offline functionality
-      const storedData = localStorage.getItem("aspects");
-      if (storedData) {
-        try {
-          const parsedData = JSON.parse(storedData);
-          if (Array.isArray(parsedData)) {
-            return parsedData.filter(aspek => aspek.tahun === year);
-          }
-        } catch (parseError) {
-          console.error('Error parsing stored data:', parseError);
-        }
-      }
       return [];
     }
   }, []); // Fixed: Empty dependency array prevents infinite re-creation
@@ -437,8 +287,8 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
 
   const addChecklist = async (aspek: string, deskripsi: string, pic: string, year: number) => {
     try {
-      // Save to Supabase API
-      const response = await fetch('http://localhost:5001/api/config/checklist', {
+      // Save to backend API
+      const response = await fetch('http://localhost:5000/api/config/checklist', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -455,9 +305,9 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      console.log('ChecklistContext: Successfully saved checklist to Supabase');
+      console.log('Check storage');
     } catch (error) {
-      console.error('ChecklistContext: Failed to save checklist to Supabase:', error);
+      console.error('Check storage:', error);
     }
 
     // Calculate next stable row number for this year
@@ -485,8 +335,8 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
 
   const editChecklist = async (id: number, aspek: string, deskripsi: string, pic: string, year: number) => {
     try {
-      // Update in Supabase API
-      const response = await fetch(`http://localhost:5001/api/config/checklist/${id}`, {
+      // Update in storage API
+      const response = await fetch(`http://localhost:5000/api/config/checklist/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -530,9 +380,9 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
         }));
       }
 
-      console.log('ChecklistContext: Successfully updated checklist in Supabase');
+      console.log('ChecklistContext: Successfully updated checklist in storage');
     } catch (error) {
-      console.error('ChecklistContext: Failed to update checklist in Supabase:', error);
+      console.error('ChecklistContext: Failed to update checklist in storage:', error);
 
       // Dispatch general error event
       window.dispatchEvent(new CustomEvent('fileTransferError', {
@@ -557,8 +407,8 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
 
   const deleteChecklist = async (id: number, year: number) => {
     try {
-      // Delete from Supabase API
-      const response = await fetch(`http://localhost:5001/api/config/checklist/${id}`, {
+      // Delete from backend API
+      const response = await fetch(`http://localhost:5000/api/config/checklist/${id}`, {
         method: 'DELETE',
       });
       
@@ -566,9 +416,9 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      console.log('ChecklistContext: Successfully deleted checklist from Supabase');
+      console.log('Check storage');
     } catch (error) {
-      console.error('ChecklistContext: Failed to delete checklist from Supabase:', error);
+      console.error('Check storage:', error);
     }
 
     const updated = checklist.filter((c) => c.id !== id);
@@ -589,7 +439,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
     
     try {
       // Add aspect via API
-      const response = await fetch('http://localhost:5001/api/config/aspects', {
+      const response = await fetch('http://localhost:5000/api/config/aspects', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -636,21 +486,19 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const editAspek = (id: number, newNama: string, year: number) => {
-    const updated = aspects.map((a) => 
+    const updated = aspects.map((a) =>
       a.id === id ? { ...a, nama: newNama } : a
     );
     setAspects(updated);
-    // REMOVED localStorage.setItem for multi-user support
-    
+
     // Update checklist items that use this aspect
-    const updatedChecklist = checklist.map(item => 
+    const updatedChecklist = checklist.map(item =>
       item.aspek === aspects.find(a => a.id === id)?.nama && item.tahun === year
         ? { ...item, aspek: newNama }
         : item
     );
     setChecklist(updatedChecklist);
-    // REMOVED localStorage.setItem for multi-user support
-    
+
     // Trigger update events
     window.dispatchEvent(new CustomEvent('aspectsUpdated', {
       detail: { type: 'aspectsUpdated', data: updated }
@@ -689,8 +537,8 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
     });
 
     try {
-      // Delete from Supabase API - try this regardless of local cache state
-      const response = await fetch(`http://localhost:5001/api/config/aspects/${id}`, {
+      // Delete from backend API - try this regardless of local cache state
+      const response = await fetch(`http://localhost:5000/api/config/aspects/${id}`, {
         method: 'DELETE',
       });
 
@@ -702,7 +550,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
       } else {
-        console.log('ChecklistContext: Successfully deleted aspect from Supabase');
+        console.log('Check storage');
       }
 
       // Only update local state if the aspect was found in local cache
@@ -716,7 +564,6 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
 
         const updatedAspects = aspects.filter(a => a.id !== id);
         setAspects(updatedAspects);
-        localStorage.setItem("aspects", JSON.stringify(updatedAspects));
 
         // IMPORTANT: Don't delete checklist items, just remove the aspect reference
         // This ensures checklist items remain but without the deleted aspect
@@ -726,7 +573,6 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
             : item
         );
         setChecklist(updatedChecklist);
-        // REMOVED localStorage.setItem for multi-user support
 
         // Trigger update events
         window.dispatchEvent(new CustomEvent('aspectsUpdated', {
@@ -771,30 +617,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
     return;
   }, [aspects]);
 
-  // Cleanup function to remove duplicate aspects
-  const cleanupDuplicateAspects = useCallback(() => {
-    const allAspects = JSON.parse(localStorage.getItem('aspects') || '[]');
-    if (allAspects.length === 0) return;
-
-    // Remove duplicates based on nama (aspect name)
-    const uniqueAspects: Aspek[] = [];
-    const seenNames = new Set<string>();
-
-    allAspects.forEach((aspect: Aspek) => {
-      if (!seenNames.has(aspect.nama)) {
-        seenNames.add(aspect.nama);
-        uniqueAspects.push(aspect);
-      }
-    });
-
-    if (uniqueAspects.length !== allAspects.length) {
-      console.log(`ChecklistContext: Removing ${allAspects.length - uniqueAspects.length} duplicate aspects`);
-      console.log(`ChecklistContext: Cleaned up from ${allAspects.length} to ${uniqueAspects.length} aspects`);
-      
-      setAspects(uniqueAspects);
-      // REMOVED localStorage.setItem for multi-user support
-    }
-  }, []);
+  // Cleanup function removed - no longer needed without localStorage
 
   // Function to load default checklist data (same pattern as StrukturPerusahaanContext)
   const useDefaultChecklistData = async (year: number) => {
@@ -1108,7 +931,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
       setChecklist(updatedChecklist);
 
       // Save to backend via batch API
-      const response = await fetch('http://localhost:5001/api/config/checklist/batch', {
+      const response = await fetch('http://localhost:5000/api/config/checklist/batch', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1129,10 +952,10 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
 
       console.log(`ChecklistContext: Successfully loaded ${newItems.length} default checklist items for year ${year}`);
       
-      // Reload the data from Supabase to refresh the context
+      // Reload the data from backend to refresh the context
       setTimeout(async () => {
         try {
-          const checklistResponse = await fetch('http://localhost:5001/api/config/checklist');
+          const checklistResponse = await fetch('http://localhost:5000/api/config/checklist');
           if (checklistResponse.ok) {
             const checklistData = await checklistResponse.json();
             if (checklistData.checklist && Array.isArray(checklistData.checklist)) {
@@ -1153,7 +976,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
         } catch (refreshError) {
           console.error('ChecklistContext: Error refreshing data after default load', refreshError);
         }
-      }, 1000); // Wait 1 second for Supabase sync
+      }, 1000); // Wait 1 second for backend sync
       
     } catch (error) {
       console.error('ChecklistContext: Error loading default checklist data', error);

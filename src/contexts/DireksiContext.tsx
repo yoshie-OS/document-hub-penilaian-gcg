@@ -29,62 +29,41 @@ export const DirektoratProvider = ({ children }: { children: ReactNode }) => {
   const [subdirektorat, setSubdirektorat] = useState<Subdirektorat[]>([]);
 
   useEffect(() => {
-    const direktoratData = JSON.parse(localStorage.getItem("direktorat") || "null");
-    const subdirektoratData = JSON.parse(localStorage.getItem("subdirektorat") || "null");
-    
-    if (!direktoratData) {
-      localStorage.setItem("direktorat", JSON.stringify([]));
-      setDirektorat([]);
-    } else {
-      setDirektorat(direktoratData);
-    }
-    
-    if (!subdirektoratData) {
-      localStorage.setItem("subdirektorat", JSON.stringify([]));
-      setSubdirektorat([]);
-    } else {
-      setSubdirektorat(subdirektoratData);
-    }
+    // Initialize with empty state - data comes from backend API
+    setDirektorat([]);
+    setSubdirektorat([]);
   }, []);
 
   const addDirektorat = (nama: string) => {
     const newDirektorat = { id: Date.now(), nama };
     const updated = [...direktorat, newDirektorat];
     setDirektorat(updated);
-    localStorage.setItem("direktorat", JSON.stringify(updated));
   };
 
   const editDirektorat = (id: number, nama: string) => {
     const updated = direktorat.map((d) => (d.id === id ? { ...d, nama } : d));
     setDirektorat(updated);
-    localStorage.setItem("direktorat", JSON.stringify(updated));
   };
 
   const deleteDirektorat = (id: number) => {
     const updated = direktorat.filter((d) => d.id !== id);
     setDirektorat(updated);
-    localStorage.setItem("direktorat", JSON.stringify(updated));
-    
-
   };
 
   const addSubdirektorat = (nama: string) => {
     const newSubdirektorat = { id: Date.now(), nama };
     const updated = [...subdirektorat, newSubdirektorat];
     setSubdirektorat(updated);
-    localStorage.setItem("subdirektorat", JSON.stringify(updated));
   };
 
   const editSubdirektorat = (id: number, nama: string) => {
     const updated = subdirektorat.map((s) => (s.id === id ? { ...s, nama } : s));
     setSubdirektorat(updated);
-    localStorage.setItem("subdirektorat", JSON.stringify(updated));
   };
 
   const deleteSubdirektorat = (id: number) => {
     const updated = subdirektorat.filter((s) => s.id !== id);
     setSubdirektorat(updated);
-    localStorage.setItem("subdirektorat", JSON.stringify(updated));
   };
 
   const getAllSubdirektorat = () => {

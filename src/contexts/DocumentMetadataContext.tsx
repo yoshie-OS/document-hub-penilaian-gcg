@@ -60,27 +60,10 @@ const DocumentMetadataContext = createContext<DocumentMetadataContextType | unde
 export const DocumentMetadataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [documents, setDocuments] = useState<DocumentMetadata[]>([]);
 
-  // Load data from localStorage on mount
+  // Initialize with empty state - data comes from backend API
   useEffect(() => {
-    const savedDocuments = localStorage.getItem('documentMetadata');
-    if (savedDocuments) {
-      try {
-        const parsedDocuments = JSON.parse(savedDocuments);
-        setDocuments(parsedDocuments);
-      } catch (error) {
-        console.error('Error parsing document metadata:', error);
-        setDocuments([]);
-      }
-    } else {
-      // Initialize with empty data - FRESH START
-      setDocuments([]);
-    }
+    setDocuments([]);
   }, []);
-
-  // Save to localStorage whenever data changes
-  useEffect(() => {
-    localStorage.setItem('documentMetadata', JSON.stringify(documents));
-  }, [documents]);
 
   // Listen for year data cleanup events
   useEffect(() => {
@@ -154,16 +137,8 @@ export const DocumentMetadataProvider: React.FC<{ children: ReactNode }> = ({ ch
   };
 
   const refreshDocuments = () => {
-    const savedDocuments = localStorage.getItem('documentMetadata');
-    if (savedDocuments) {
-      try {
-        const parsedDocuments = JSON.parse(savedDocuments);
-        setDocuments(parsedDocuments);
-      } catch (error) {
-        console.error('Error parsing document metadata:', error);
-        setDocuments([]);
-      }
-    }
+    // No action needed - data should be fetched from backend API
+    console.log('DocumentMetadataContext: refreshDocuments called - data managed by backend');
   };
 
   return (

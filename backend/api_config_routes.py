@@ -1,5 +1,5 @@
 """
-Config API Routes - Supabase-style URL Compatibility
+Config API Routes - backend-style URL Compatibility
 Provides /api/config/* endpoints for compatibility with frontend
 """
 

@@ -1,4 +1,6 @@
 // Utility functions untuk mengakses data struktur perusahaan berdasarkan tahun
+// NOTE: These utilities now accept data as parameters instead of reading from localStorage
+// Consumers should use StrukturPerusahaanContext to get data
 
 export interface StrukturPerusahaanData {
   id: number;
@@ -10,119 +12,105 @@ export interface StrukturPerusahaanData {
 }
 
 /**
- * Mendapatkan data direktorat berdasarkan tahun
- * @param year - Tahun yang ingin diambil datanya
- * @returns Array of direktorat data
+ * Filter direktorat data by year
+ * @param data - Array of direktorat data from Context
+ * @param year - Year to filter by
+ * @returns Filtered and sorted array of direktorat names
  */
-export const getDirektoratByYear = (year: number): string[] => {
+export const getDirektoratByYear = (data: StrukturPerusahaanData[], year: number): string[] => {
   try {
-    const data = localStorage.getItem('direktorat');
-    if (!data) return [];
-    
-    const list = JSON.parse(data) as StrukturPerusahaanData[];
+    if (!data || !Array.isArray(data)) return [];
+
     return Array.from(
       new Set(
-        list
+        data
           .filter((d) => d.tahun === year && d.isActive)
           .map((d) => String(d.nama))
       )
     ).sort();
   } catch (error) {
-    console.error('Error getting direktorat data:', error);
+    console.error('Error filtering direktorat data:', error);
     return [];
   }
 };
 
 /**
- * Mendapatkan data subdirektorat berdasarkan tahun
- * @param year - Tahun yang ingin diambil datanya
- * @returns Array of subdirektorat data
+ * Filter subdirektorat data by year
+ * @param data - Array of subdirektorat data from Context
+ * @param year - Year to filter by
+ * @returns Filtered and sorted array of subdirektorat names
  */
-export const getSubDirektoratByYear = (year: number): string[] => {
+export const getSubDirektoratByYear = (data: StrukturPerusahaanData[], year: number): string[] => {
   try {
-    const data = localStorage.getItem('subdirektorat');
-    if (!data) return [];
-    
-    const list = JSON.parse(data) as StrukturPerusahaanData[];
+    if (!data || !Array.isArray(data)) return [];
+
     return Array.from(
       new Set(
-        list
+        data
           .filter((d) => d.tahun === year && d.isActive)
           .map((d) => String(d.nama))
       )
     ).sort();
   } catch (error) {
-    console.error('Error getting subdirektorat data:', error);
+    console.error('Error filtering subdirektorat data:', error);
     return [];
   }
 };
 
 /**
- * Mendapatkan data divisi berdasarkan tahun
- * @param year - Tahun yang ingin diambil datanya
- * @returns Array of divisi data
+ * Filter divisi data by year
+ * @param data - Array of divisi data from Context
+ * @param year - Year to filter by
+ * @returns Filtered and sorted array of divisi names
  */
-export const getDivisiByYear = (year: number): string[] => {
+export const getDivisiByYear = (data: StrukturPerusahaanData[], year: number): string[] => {
   try {
-    const data = localStorage.getItem('divisi');
-    if (!data) return [];
-    
-    const list = JSON.parse(data) as StrukturPerusahaanData[];
+    if (!data || !Array.isArray(data)) return [];
+
     return Array.from(
       new Set(
-        list
+        data
           .filter((d) => d.tahun === year && d.isActive)
           .map((d) => String(d.nama))
       )
     ).sort();
   } catch (error) {
-    console.error('Error getting divisi data:', error);
+    console.error('Error filtering divisi data:', error);
     return [];
   }
 };
 
 /**
- * Mendapatkan semua data struktur perusahaan berdasarkan tahun
- * @param year - Tahun yang ingin diambil datanya
- * @returns Object containing direktorat, subdirektorat, and divisi data
+ * Get all struktur perusahaan data filtered by year
+ * @param direktorat - Direktorat data from Context
+ * @param subdirektorat - Subdirektorat data from Context
+ * @param divisi - Divisi data from Context
+ * @param year - Year to filter by
+ * @returns Object containing filtered direktorat, subdirektorat, and divisi data
  */
-export const getStrukturPerusahaanByYear = (year: number) => {
+export const getStrukturPerusahaanByYear = (
+  direktorat: StrukturPerusahaanData[],
+  subdirektorat: StrukturPerusahaanData[],
+  divisi: StrukturPerusahaanData[],
+  year: number
+) => {
   return {
-    direktorat: getDirektoratByYear(year),
-    subdirektorat: getSubDirektoratByYear(year),
-    divisi: getDivisiByYear(year)
+    direktorat: getDirektoratByYear(direktorat, year),
+    subdirektorat: getSubDirektoratByYear(subdirektorat, year),
+    divisi: getDivisiByYear(divisi, year)
   };
 };
 
 /**
- * Mendapatkan tahun terbaru dari data yang tersedia
- * @returns Tahun terbaru atau null jika tidak ada data
+ * Get latest year from provided data
+ * @param data - Array of struktur perusahaan data
+ * @returns Latest year or null if no data
  */
-export const getLatestYear = (): number | null => {
+export const getLatestYearFromData = (data: StrukturPerusahaanData[]): number | null => {
   try {
-    const direktoratData = localStorage.getItem('direktorat');
-    const subdirektoratData = localStorage.getItem('subdirektorat');
-    const divisiData = localStorage.getItem('divisi');
-    
-    const allYears: number[] = [];
-    
-    if (direktoratData) {
-      const list = JSON.parse(direktoratData) as StrukturPerusahaanData[];
-      list.forEach(item => allYears.push(item.tahun));
-    }
-    
-    if (subdirektoratData) {
-      const list = JSON.parse(subdirektoratData) as StrukturPerusahaanData[];
-      list.forEach(item => allYears.push(item.tahun));
-    }
-    
-    if (divisiData) {
-      const list = JSON.parse(divisiData) as StrukturPerusahaanData[];
-      list.forEach(item => allYears.push(item.tahun));
-    }
-    
-    if (allYears.length === 0) return null;
-    
+    if (!data || !Array.isArray(data) || data.length === 0) return null;
+
+    const allYears = data.map(item => item.tahun);
     return Math.max(...allYears);
   } catch (error) {
     console.error('Error getting latest year:', error);
@@ -131,33 +119,16 @@ export const getLatestYear = (): number | null => {
 };
 
 /**
- * Mendapatkan semua tahun yang tersedia dalam data struktur perusahaan
- * @returns Array of years
+ * Get all available years from provided data
+ * @param data - Array of struktur perusahaan data
+ * @returns Sorted array of years (descending)
  */
-export const getAvailableYears = (): number[] => {
+export const getAvailableYearsFromData = (data: StrukturPerusahaanData[]): number[] => {
   try {
-    const direktoratData = localStorage.getItem('direktorat');
-    const subdirektoratData = localStorage.getItem('subdirektorat');
-    const divisiData = localStorage.getItem('divisi');
-    
-    const allYears: number[] = [];
-    
-    if (direktoratData) {
-      const list = JSON.parse(direktoratData) as StrukturPerusahaanData[];
-      list.forEach(item => allYears.push(item.tahun));
-    }
-    
-    if (subdirektoratData) {
-      const list = JSON.parse(subdirektoratData) as StrukturPerusahaanData[];
-      list.forEach(item => allYears.push(item.tahun));
-    }
-    
-    if (divisiData) {
-      const list = JSON.parse(divisiData) as StrukturPerusahaanData[];
-      list.forEach(item => allYears.push(item.tahun));
-    }
-    
-    return Array.from(new Set(allYears)).sort((a, b) => b - a); // Sort descending
+    if (!data || !Array.isArray(data)) return [];
+
+    const allYears = data.map(item => item.tahun);
+    return Array.from(new Set(allYears)).sort((a, b) => b - a);
   } catch (error) {
     console.error('Error getting available years:', error);
     return [];
@@ -165,35 +136,11 @@ export const getAvailableYears = (): number[] => {
 };
 
 /**
- * Hook untuk mendapatkan data struktur perusahaan berdasarkan tahun
- * @param year - Tahun yang ingin diambil datanya
- * @returns Object containing direktorat, subdirektorat, and divisi data
- */
-export const useStrukturPerusahaan = (year: number) => {
-  return {
-    direktorat: getDirektoratByYear(year),
-    subdirektorat: getSubDirektoratByYear(year),
-    divisi: getDivisiByYear(year),
-    latestYear: getLatestYear(),
-    availableYears: getAvailableYears()
-  };
-};
-
-/**
- * Memicu update di semua komponen yang menggunakan data struktur perusahaan
- * Fungsi ini akan dipanggil setiap kali ada perubahan data di menu Struktur Perusahaan
+ * Trigger update event for struktur perusahaan changes
+ * This will notify all components listening for struktur perusahaan updates
  */
 export const triggerStrukturPerusahaanUpdate = () => {
-  // Dispatch custom event untuk update dalam tab yang sama
   window.dispatchEvent(new CustomEvent('strukturPerusahaanUpdate', {
-    detail: { type: 'strukturPerusahaanUpdate' }
-  }));
-  
-  // Trigger storage event untuk update cross-tab (opsional)
-  window.dispatchEvent(new StorageEvent('storage', {
-    key: 'strukturPerusahaanUpdate',
-    newValue: Date.now().toString(),
-    oldValue: null,
-    storageArea: localStorage
+    detail: { type: 'strukturPerusahaanUpdate', timestamp: Date.now() }
   }));
 };

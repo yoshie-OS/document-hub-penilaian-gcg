@@ -7,13 +7,18 @@ werkzeug>=3.0.0
 pandas>=2.0.0
 openpyxl>=3.1.0
 
-# Database and cloud storage
-supabase>=2.0.0
+# Configuration
 python-dotenv>=1.0.0
+
+# Security - Password hashing
+bcrypt>=4.0.0
 
 # HTTP requests
 requests>=2.30.0
 urllib3>=2.0.0
+
+# Async support (if using async endpoints)
+aiohttp>=3.9.0
 
 # Optional: Enhanced OCR support (if needed)
 # pytesseract>=0.3.10

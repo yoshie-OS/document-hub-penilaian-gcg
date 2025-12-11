@@ -28,61 +28,36 @@ export const YearProvider: React.FC<YearProviderProps> = ({ children }) => {
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [availableYears, setAvailableYears] = useState<number[]>([]);
 
-  // Load available years from Supabase on startup
+  // Load available years from backend API on startup
   useEffect(() => {
-    const loadYearsFromSupabase = async () => {
+    const loadYearsFromAPI = async () => {
       try {
-        const response = await fetch('http://localhost:5001/api/config/tahun-buku');
+        const response = await fetch('http://localhost:5000/api/config/tahun-buku');
         if (response.ok) {
           const data = await response.json();
-          if (data.tahun_buku && Array.isArray(data.tahun_buku)) {
-            const years = data.tahun_buku.map((item: any) => item.tahun).sort((a: number, b: number) => b - a);
+          // API returns array directly: [{year: 2025, is_active: 1, created_at: ...}, ...]
+          if (Array.isArray(data)) {
+            const years = data
+              .filter((item: any) => item.is_active)
+              .map((item: any) => item.year)
+              .sort((a: number, b: number) => b - a);
             setAvailableYears(years);
-            // Also update localStorage for consistency
-            localStorage.setItem('availableYears', JSON.stringify(years));
-            console.log('YearContext: Loaded years from Supabase', years);
+            console.log('YearContext: Loaded years from API', years);
           }
         } else {
-          console.error('YearContext: Failed to load years from Supabase');
-          // Fallback to localStorage
-          loadFromLocalStorage();
-        }
-      } catch (error) {
-        console.error('YearContext: Error loading years from Supabase', error);
-        // Fallback to localStorage
-        loadFromLocalStorage();
-      }
-    };
-
-    const loadFromLocalStorage = () => {
-      const storedYears = localStorage.getItem('availableYears');
-      if (storedYears) {
-        try {
-          const parsedYears = JSON.parse(storedYears);
-          if (Array.isArray(parsedYears)) {
-            setAvailableYears(parsedYears);
-            console.log('YearContext: Loaded years from localStorage fallback', parsedYears);
-          }
-        } catch (error) {
-          console.error('YearContext: Error parsing years from localStorage', error);
-          localStorage.removeItem('availableYears');
+          console.error('YearContext: Failed to load years from API');
           setAvailableYears([]);
         }
-      } else {
+      } catch (error) {
+        console.error('YearContext: Error loading years from API', error);
         setAvailableYears([]);
-        console.log('YearContext: Started fresh - no default years');
       }
     };
 
-    loadYearsFromSupabase();
+    loadYearsFromAPI();
   }, []);
 
-  // Save available years to localStorage whenever it changes
-  useEffect(() => {
-    if (availableYears.length > 0) {
-      localStorage.setItem('availableYears', JSON.stringify(availableYears));
-    }
-  }, [availableYears]);
+  // localStorage sync removed - data only comes from API
 
   // Auto-select the most recent year when years are loaded and no year is selected
   useEffect(() => {
@@ -100,9 +75,9 @@ export const YearProvider: React.FC<YearProviderProps> = ({ children }) => {
       // Ensure no leftover data exists for this year before adding
       cleanupYearData(year);
       
-      // Call backend API to save to Supabase
+      // Call backend API to save to backend
       try {
-        const response = await fetch('http://localhost:5001/api/config/tahun-buku', {
+        const response = await fetch('http://localhost:5000/api/config/tahun-buku', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -117,9 +92,9 @@ export const YearProvider: React.FC<YearProviderProps> = ({ children }) => {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         
-        console.log(`YearContext: Successfully saved year ${year} to Supabase`);
+        console.log(`YearContext: Successfully saved year ${year} to backend`);
       } catch (error) {
-        console.error(`YearContext: Failed to save year ${year} to Supabase:`, error);
+        console.error(`YearContext: Failed to save year ${year} to backend:`, error);
         // Continue with local update even if API fails
       }
       
@@ -133,7 +108,7 @@ export const YearProvider: React.FC<YearProviderProps> = ({ children }) => {
   const removeYear = async (year: number) => {
     try {
       // Find the year ID from availableYears state - we need to get this from backend
-      const response = await fetch('http://localhost:5001/api/config/tahun-buku');
+      const response = await fetch('http://localhost:5000/api/config/tahun-buku');
       if (!response.ok) {
         throw new Error('Failed to fetch tahun buku data');
       }
@@ -147,7 +122,7 @@ export const YearProvider: React.FC<YearProviderProps> = ({ children }) => {
       }
       
       // Call backend DELETE API
-      const deleteResponse = await fetch(`http://localhost:5001/api/config/tahun-buku/${yearToDelete.id}`, {
+      const deleteResponse = await fetch(`http://localhost:5000/api/config/tahun-buku/${yearToDelete.id}`, {
         method: 'DELETE',
       });
       
@@ -202,107 +177,20 @@ export const YearProvider: React.FC<YearProviderProps> = ({ children }) => {
     }
   };
 
-  // Comprehensive cleanup function to remove all data related to a specific year
+  // Frontend cleanup function - backend handles database cleanup
   const cleanupYearData = (year: number) => {
     try {
-      console.log(`YearContext: Cleaning up all data for year ${year}`);
-      
-      // Clean up checklist data
-      const checklistData = localStorage.getItem('checklistGCG');
-      if (checklistData) {
-        const parsed = JSON.parse(checklistData);
-        const filtered = parsed.filter((item: any) => item.tahun !== year);
-        localStorage.setItem('checklistGCG', JSON.stringify(filtered));
-        console.log(`YearContext: Cleaned up checklist data for year ${year}`);
-      }
-
-      // Clean up aspects data
-      const aspectsData = localStorage.getItem('aspects');
-      if (aspectsData) {
-        const parsed = JSON.parse(aspectsData);
-        const filtered = parsed.filter((item: any) => item.tahun !== year);
-        localStorage.setItem('aspects', JSON.stringify(filtered));
-        console.log(`YearContext: Cleaned up aspects data for year ${year}`);
-      }
-
-      // Clean up document metadata
-      const documentData = localStorage.getItem('documentMetadata');
-      if (documentData) {
-        const parsed = JSON.parse(documentData);
-        const filtered = parsed.filter((item: any) => item.year !== year);
-        localStorage.setItem('documentMetadata', JSON.stringify(filtered));
-        console.log(`YearContext: Cleaned up document metadata for year ${year}`);
-      }
-
-      // Clean up uploaded files
-      const filesData = localStorage.getItem('uploadedFiles');
-      if (filesData) {
-        const parsed = JSON.parse(filesData);
-        const filtered = parsed.filter((item: any) => item.year !== year);
-        localStorage.setItem('uploadedFiles', JSON.stringify(filtered));
-        console.log(`YearContext: Cleaned up uploaded files for year ${year}`);
-      }
-
-      // Clean up checklist assignments
-      const assignmentsData = localStorage.getItem('checklistAssignments');
-      if (assignmentsData) {
-        const parsed = JSON.parse(assignmentsData);
-        const filtered = parsed.filter((item: any) => item.tahun !== year);
-        localStorage.setItem('checklistAssignments', JSON.stringify(filtered));
-        console.log(`YearContext: Cleaned up checklist assignments for year ${year}`);
-      }
-
-      // Clean up struktur perusahaan data
-      const direktoratData = localStorage.getItem('direktorat');
-      if (direktoratData) {
-        const parsed = JSON.parse(direktoratData);
-        const filtered = parsed.filter((item: any) => item.tahun !== year);
-        localStorage.setItem('direktorat', JSON.stringify(filtered));
-        console.log(`YearContext: Cleaned up direktorat data for year ${year}`);
-      }
-
-      const subdirektoratData = localStorage.getItem('subdirektorat');
-      if (subdirektoratData) {
-        const parsed = JSON.parse(subdirektoratData);
-        const filtered = parsed.filter((item: any) => item.tahun !== year);
-        localStorage.setItem('subdirektorat', JSON.stringify(filtered));
-        console.log(`YearContext: Cleaned up subdirektorat data for year ${year}`);
-      }
-
-      const divisiData = localStorage.getItem('divisi');
-      if (divisiData) {
-        const parsed = JSON.parse(divisiData);
-        const filtered = parsed.filter((item: any) => item.tahun !== year);
-        localStorage.setItem('divisi', JSON.stringify(filtered));
-        console.log(`YearContext: Cleaned up divisi data for year ${year}`);
-      }
-
-      // Clean up user data (remove users that were created for this year)
-      const usersData = localStorage.getItem('users');
-      if (usersData) {
-        const parsed = JSON.parse(usersData);
-        const filtered = parsed.filter((user: any) => user.createdYear !== year && user.tahun !== year);
-        localStorage.setItem('users', JSON.stringify(filtered));
-        console.log(`YearContext: Cleaned up user data for year ${year}`);
-      }
-
-      // Clean up anak perusahaan data
-      const anakPerusahaanData = localStorage.getItem('anakPerusahaan');
-      if (anakPerusahaanData) {
-        const parsed = JSON.parse(anakPerusahaanData);
-        const filtered = parsed.filter((item: any) => item.tahun !== year);
-        localStorage.setItem('anakPerusahaan', JSON.stringify(filtered));
-        console.log(`YearContext: Cleaned up anak perusahaan data for year ${year}`);
-      }
+      console.log(`YearContext: Notifying components about year ${year} removal`);
 
       // Dispatch custom event to notify other components about the cleanup
-      window.dispatchEvent(new CustomEvent('yearDataCleaned', { 
-        detail: { year, type: 'yearRemoved' } 
+      // Backend has already cleaned up the database, this is just for frontend state refresh
+      window.dispatchEvent(new CustomEvent('yearDataCleaned', {
+        detail: { year, type: 'yearRemoved' }
       }));
 
-      console.log(`YearContext: Successfully cleaned up all data for year ${year}`);
+      console.log(`YearContext: Dispatched yearDataCleaned event for year ${year}`);
     } catch (error) {
-      console.error(`YearContext: Error cleaning up data for year ${year}:`, error);
+      console.error(`YearContext: Error dispatching cleanup event for year ${year}:`, error);
     }
   };
 
