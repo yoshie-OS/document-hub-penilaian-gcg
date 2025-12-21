@@ -1,5 +1,4 @@
 "id","name","email","password","role","direktorat","subdirektorat","divisi","status","tahun","created_at","is_active","whatsapp"
-1,"Super Admin","admin1","admin123","superadmin","","","","active","","","",6281234567890
-2,"Admin 1","admin1@posindo.id","admin123","admin","Corporate Secretary and ESG","Corporate Secretary and ESG","Divisi Regulation","active","","","",6281234567891
-1794769002,"a","a@a.c","a","admin","","","","active","","2025-09-18T23:33:48.560966",1.0,6212
-1245980569,"azkha mardiyan muttaqien","amardiyan257@gmail.com","fght2397","admin","Test Direktorat","tes subdit","tes div","active","","2025-11-24T00:58:11.306262",1.0,85157559852
+1,"Super Admin","admin1","admin123","superadmin","","","","active","","","",6281234567890.0
+1765811845081,"Test User 2025","test2025@example.com","test123","user","","","","active",2025.0,"2025-12-15T22:17:25.081931",1.0,""
+1765902825917,"azkha","amardiyan257@gmail.com","fght2397","admin","Direktorat Bisnis Jasa Keuangan","Sub Direktorat Consumer Business","Divisi Digital Giro and Payment Solution","active",2028.0,"2025-12-16T23:33:45.917815",1.0,"8557559852"

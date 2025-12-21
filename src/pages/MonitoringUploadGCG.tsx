@@ -533,7 +533,7 @@ const MonitoringUploadGCG = () => {
               verifyFiles  // Pass verification mode to backend
             };
 
-            const response = await fetch('http://localhost:5000/api/check-gcg-files', {
+            const response = await fetch('http://localhost:5001/api/check-gcg-files', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -702,7 +702,7 @@ const MonitoringUploadGCG = () => {
       const picName = checklistItem?.pic || user?.subdirektorat || 'UNKNOWN_PIC';
       
       // Use fetch to download the file as a blob
-      const response = await fetch('http://localhost:5000/api/download-gcg-file', {
+      const response = await fetch('http://localhost:5001/api/download-gcg-file', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -833,7 +833,7 @@ const MonitoringUploadGCG = () => {
         checklistIds: [checklistId]  // Use checklist ID instead of row number
       };
       
-      const response = await fetch('http://localhost:5000/api/check-gcg-files', {
+      const response = await fetch('http://localhost:5001/api/check-gcg-files', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -977,7 +977,7 @@ const MonitoringUploadGCG = () => {
 
     try {
       console.log(`🌐 MonitoringUploadGCG: Sending DELETE request to /api/delete-file/${documentId}`);
-      const response = await fetch(`http://localhost:5000/api/delete-file/${documentId}`, {
+      const response = await fetch(`http://localhost:5001/api/delete-file/${documentId}`, {
         method: 'DELETE',
       });
 

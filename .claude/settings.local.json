@@ -10,7 +10,14 @@
       "Bash(netstat:*)",
       "Bash(findstr:*)",
       "Bash(npm run build:*)",
-      "Bash(unzip:*)"
+      "Bash(unzip:*)",
+      "Bash(tasklist:*)",
+      "Bash(sqlite3:*)",
+      "Bash(set FLASK_PORT=5001)",
+      "Bash(timeout:*)",
+      "Bash(ping:*)",
+      "Bash(dir:*)",
+      "Bash(del app.cpython-313.pyc)"
     ],
     "deny": [],
     "ask": []

@@ -48,7 +48,7 @@ export const AOIDocumentProvider: React.FC<AOIDocumentProviderProps> = ({ childr
   React.useEffect(() => {
     const loadDocuments = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/aoiDocuments');
+        const response = await fetch('http://localhost:5001/api/aoiDocuments');
         if (response.ok) {
           const backendDocuments = await response.json();
           
@@ -112,7 +112,7 @@ export const AOIDocumentProvider: React.FC<AOIDocumentProviderProps> = ({ childr
       formData.append('userId', userId);
 
       // Upload to backend API
-      const response = await fetch('http://localhost:5000/api/upload-aoi-file', {
+      const response = await fetch('http://localhost:5001/api/upload-aoi-file', {
         method: 'POST',
         body: formData
       });

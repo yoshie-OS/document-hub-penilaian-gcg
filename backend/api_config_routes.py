@@ -181,6 +181,7 @@ def config_tahun_buku():
             cursor.execute("""
                 SELECT year, is_active, created_at
                 FROM years
+                WHERE is_active = 1
                 ORDER BY year DESC
             """)
             rows = cursor.fetchall()
@@ -194,11 +195,29 @@ def config_tahun_buku():
         with get_db_connection() as conn:
             cursor = conn.cursor()
             try:
-                cursor.execute("""
-                    INSERT INTO years (year, is_active)
-                    VALUES (?, ?)
-                """, (data['year'], data.get('is_active', 1)))
-                return jsonify({'message': 'Year created'}), 201
+                # Check if year already exists
+                cursor.execute("SELECT is_active FROM years WHERE year = ?", (data['year'],))
+                existing = cursor.fetchone()
+
+                if existing:
+                    # Year exists - check if it's inactive
+                    if existing['is_active'] == 0:
+                        # Reactivate the year
+                        cursor.execute("""
+                            UPDATE years SET is_active = 1, created_at = CURRENT_TIMESTAMP
+                            WHERE year = ?
+                        """, (data['year'],))
+                        return jsonify({'message': 'Year reactivated'}), 200
+                    else:
+                        # Year is already active
+                        return jsonify({'error': 'Year already exists'}), 400
+                else:
+                    # Year doesn't exist - insert new
+                    cursor.execute("""
+                        INSERT INTO years (year, is_active)
+                        VALUES (?, ?)
+                    """, (data['year'], data.get('is_active', 1)))
+                    return jsonify({'message': 'Year created'}), 201
             except Exception as e:
                 return jsonify({'error': str(e)}), 400
 
@@ -207,10 +226,157 @@ def config_tahun_buku():
         if not year:
             return jsonify({'error': 'Missing year parameter'}), 400
 
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("UPDATE years SET is_active = 0 WHERE year = ?", (year,))
-        return jsonify({'message': 'Year deleted'})
+        cleanup_stats = {}
+
+        try:
+            # 1. Soft-delete year from database
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("UPDATE years SET is_active = 0 WHERE year = ?", (year,))
+
+            # 2. Delete GCG documents from Supabase storage
+            try:
+                from app import supabase
+                bucket_name = 'gcg-documents'
+                year_prefix = f"gcg-documents/{year}/"
+
+                # List all files in the year directory
+                files_response = supabase.storage.from_(bucket_name).list(f"gcg-documents/{year}")
+                if files_response:
+                    files_to_delete = []
+                    for item in files_response:
+                        # Recursively get all files in subdirectories
+                        if item.get('id'):  # It's a directory
+                            subdir_path = f"gcg-documents/{year}/{item['name']}"
+                            subfiles = supabase.storage.from_(bucket_name).list(subdir_path)
+                            if subfiles:
+                                for subitem in subfiles:
+                                    files_to_delete.append(f"{subdir_path}/{subitem['name']}")
+                        else:  # It's a file
+                            files_to_delete.append(f"gcg-documents/{year}/{item['name']}")
+
+                    if files_to_delete:
+                        supabase.storage.from_(bucket_name).remove(files_to_delete)
+                        cleanup_stats['gcg_files_deleted'] = len(files_to_delete)
+            except Exception as e:
+                print(f"Warning: Could not delete GCG files: {e}")
+                cleanup_stats['gcg_files_deleted'] = 0
+
+            # 3. Delete AOI documents from Supabase storage
+            try:
+                from app import supabase
+                bucket_name = 'gcg-documents'
+                aoi_prefix = f"aoi-documents/{year}/"
+
+                files_response = supabase.storage.from_(bucket_name).list(f"aoi-documents/{year}")
+                if files_response:
+                    files_to_delete = []
+                    for item in files_response:
+                        if item.get('id'):
+                            subdir_path = f"aoi-documents/{year}/{item['name']}"
+                            subfiles = supabase.storage.from_(bucket_name).list(subdir_path)
+                            if subfiles:
+                                for subitem in subfiles:
+                                    files_to_delete.append(f"{subdir_path}/{subitem['name']}")
+                        else:
+                            files_to_delete.append(f"aoi-documents/{year}/{item['name']}")
+
+                    if files_to_delete:
+                        supabase.storage.from_(bucket_name).remove(files_to_delete)
+                        cleanup_stats['aoi_files_deleted'] = len(files_to_delete)
+            except Exception as e:
+                print(f"Warning: Could not delete AOI files: {e}")
+                cleanup_stats['aoi_files_deleted'] = 0
+
+            # 4. Clean tracking files (uploaded-files.xlsx)
+            try:
+                from app import storage_service
+                import pandas as pd
+
+                uploaded_files = storage_service.read_excel('uploaded-files.xlsx')
+                if uploaded_files is not None and not uploaded_files.empty:
+                    original_count = len(uploaded_files)
+                    uploaded_files = uploaded_files[uploaded_files['year'] != year]
+                    deleted_count = original_count - len(uploaded_files)
+                    if deleted_count > 0:
+                        storage_service.write_excel(uploaded_files, 'uploaded-files.xlsx')
+                        cleanup_stats['uploaded_files_records'] = deleted_count
+            except Exception as e:
+                print(f"Warning: Could not clean uploaded-files.xlsx: {e}")
+                cleanup_stats['uploaded_files_records'] = 0
+
+            # 5. Clean AOI tracking file (aoi-documents.csv)
+            try:
+                from app import storage_service
+                import pandas as pd
+
+                aoi_files = storage_service.read_csv('aoi-documents.csv')
+                if aoi_files is not None and not aoi_files.empty:
+                    original_count = len(aoi_files)
+                    aoi_files = aoi_files[aoi_files['year'] != year]
+                    deleted_count = original_count - len(aoi_files)
+                    if deleted_count > 0:
+                        storage_service.write_csv(aoi_files, 'aoi-documents.csv')
+                        cleanup_stats['aoi_tracking_records'] = deleted_count
+            except Exception as e:
+                print(f"Warning: Could not clean aoi-documents.csv: {e}")
+                cleanup_stats['aoi_tracking_records'] = 0
+
+            # 6. Delete assessment data (output.xlsx)
+            try:
+                from app import storage_service
+                import pandas as pd
+
+                output_data = storage_service.read_excel('web-output/output.xlsx')
+                if output_data is not None and not output_data.empty:
+                    original_count = len(output_data)
+                    output_data = output_data[output_data['Tahun'] != year]
+                    deleted_count = original_count - len(output_data)
+                    if deleted_count > 0:
+                        storage_service.write_excel(output_data, 'web-output/output.xlsx')
+                        cleanup_stats['assessment_records'] = deleted_count
+            except Exception as e:
+                print(f"Warning: Could not clean output.xlsx: {e}")
+                cleanup_stats['assessment_records'] = 0
+
+            # 7. Clean database tables
+            try:
+                with get_db_connection() as conn:
+                    cursor = conn.cursor()
+
+                    # Clean checklist_gcg table
+                    cursor.execute("DELETE FROM checklist_gcg WHERE tahun = ?", (year,))
+                    checklist_deleted = cursor.rowcount
+                    cleanup_stats['checklist_deleted'] = checklist_deleted
+
+                    # Clean gcg_assessments table
+                    cursor.execute("DELETE FROM gcg_assessments WHERE year = ?", (year,))
+                    assessments_deleted = cursor.rowcount
+                    cleanup_stats['db_assessments_deleted'] = assessments_deleted
+
+                    # Clean uploaded_files table
+                    cursor.execute("DELETE FROM uploaded_files WHERE year = ?", (year,))
+                    uploads_deleted = cursor.rowcount
+                    cleanup_stats['db_uploads_deleted'] = uploads_deleted
+
+                    # Clean document_metadata table
+                    cursor.execute("DELETE FROM document_metadata WHERE year = ?", (year,))
+                    metadata_deleted = cursor.rowcount
+                    cleanup_stats['db_metadata_deleted'] = metadata_deleted
+
+                    conn.commit()
+                    print(f"✅ Database cleanup: {checklist_deleted} checklist + {assessments_deleted} assessments + {uploads_deleted} uploads + {metadata_deleted} metadata")
+            except Exception as e:
+                print(f"Warning: Could not clean database tables: {e}")
+                cleanup_stats['db_cleanup_error'] = str(e)
+
+            return jsonify({
+                'message': 'Year deleted',
+                'cleanup_stats': cleanup_stats
+            })
+
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
 
 
 # ============================================
@@ -366,6 +532,46 @@ def config_struktur_organisasi():
             cursor.execute(f"UPDATE {table_name} SET is_active = 0 WHERE id = ?", (item_id,))
 
         return jsonify({'message': f'{struct_type.capitalize()} deleted'})
+
+# Add route for path parameter style (for frontend compatibility)
+@config_bp.route('/config/struktur-organisasi/<int:struktur_id>', methods=['PUT', 'DELETE'])
+def config_struktur_organisasi_by_id(struktur_id):
+    """Handle struktur organisasi by ID (path parameter style)"""
+    if request.method == 'PUT':
+        data = request.json
+        struct_type = data.get('type', 'direktorat')
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            table_name = struct_type  # 'direktorat', 'subdirektorat', or 'divisi'
+            update_fields = []
+            params = []
+
+            for field in ['nama', 'deskripsi', 'direktorat_id', 'subdirektorat_id']:
+                if field in data:
+                    update_fields.append(f'{field} = ?')
+                    params.append(data[field])
+
+            if not update_fields:
+                return jsonify({'error': 'No fields to update'}), 400
+
+            params.append(struktur_id)
+            query = f"UPDATE {table_name} SET {', '.join(update_fields)} WHERE id = ?"
+            cursor.execute(query, params)
+
+        return jsonify({'message': f'{struct_type.capitalize()} updated successfully'}), 200
+
+    elif request.method == 'DELETE':
+        # Get type from query parameter
+        struct_type = request.args.get('type', 'direktorat')
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            table_name = struct_type  # 'direktorat', 'subdirektorat', or 'divisi'
+            cursor.execute(f"UPDATE {table_name} SET is_active = 0 WHERE id = ?", (struktur_id,))
+
+        return jsonify({'message': f'{struct_type.capitalize()} deleted successfully'}), 200
 
 
 # ============================================

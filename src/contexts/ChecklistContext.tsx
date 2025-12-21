@@ -41,17 +41,12 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
   const [aspects, setAspects] = useState<Aspek[]>([]);
   const [deletingAspectIds, setDeletingAspectIds] = useState<Set<number>>(new Set());
 
-  // Load data from backend first, fallback to localStorage
-  useEffect(() => {
-    console.log('ChecklistContext: useEffect triggered - starting data load');
-    
-    // Load fresh data from backend while preserving user authentication
-    
-    const loadDataFrombackend = async () => {
+  // Define loadDataFrombackend outside useEffect so it can be called from event listeners
+  const loadDataFrombackend = async () => {
       try {
         console.log('Check storage function called');
         // Load aspects from backend
-        const aspectsResponse = await fetch('http://localhost:5000/api/config/aspects');
+        const aspectsResponse = await fetch('http://localhost:5001/api/config/aspects');
         if (aspectsResponse.ok) {
           const aspectsData = await aspectsResponse.json();
           if (aspectsData.aspects && Array.isArray(aspectsData.aspects)) {
@@ -70,7 +65,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
 
         // Load checklist from backend API
         console.log('ChecklistContext: Fetching checklist from API...');
-        const checklistResponse = await fetch('http://localhost:5000/api/config/checklist', {
+        const checklistResponse = await fetch('http://localhost:5001/api/config/checklist', {
           method: 'GET',
           headers: {
             'Accept': 'application/json',
@@ -165,9 +160,11 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
         setChecklist([]);
         setAspects([]);
       }
-    };
+  };
 
-
+  // Load data from backend on mount
+  useEffect(() => {
+    console.log('ChecklistContext: useEffect triggered - starting data load');
     loadDataFrombackend();
   }, []);
 
@@ -256,7 +253,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
     
     try {
       // Fetch aspects from backend API
-      const response = await fetch(`http://localhost:5000/api/config/aspects?year=${year}`);
+      const response = await fetch(`http://localhost:5001/api/config/aspects?year=${year}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -288,7 +285,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
   const addChecklist = async (aspek: string, deskripsi: string, pic: string, year: number) => {
     try {
       // Save to backend API
-      const response = await fetch('http://localhost:5000/api/config/checklist', {
+      const response = await fetch('http://localhost:5001/api/config/checklist', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -336,7 +333,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
   const editChecklist = async (id: number, aspek: string, deskripsi: string, pic: string, year: number) => {
     try {
       // Update in storage API
-      const response = await fetch(`http://localhost:5000/api/config/checklist/${id}`, {
+      const response = await fetch(`http://localhost:5001/api/config/checklist/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -408,7 +405,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
   const deleteChecklist = async (id: number, year: number) => {
     try {
       // Delete from backend API
-      const response = await fetch(`http://localhost:5000/api/config/checklist/${id}`, {
+      const response = await fetch(`http://localhost:5001/api/config/checklist/${id}`, {
         method: 'DELETE',
       });
       
@@ -439,7 +436,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
     
     try {
       // Add aspect via API
-      const response = await fetch('http://localhost:5000/api/config/aspects', {
+      const response = await fetch('http://localhost:5001/api/config/aspects', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -538,7 +535,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
 
     try {
       // Delete from backend API - try this regardless of local cache state
-      const response = await fetch(`http://localhost:5000/api/config/aspects/${id}`, {
+      const response = await fetch(`http://localhost:5001/api/config/aspects/${id}`, {
         method: 'DELETE',
       });
 
@@ -931,7 +928,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
       setChecklist(updatedChecklist);
 
       // Save to backend via batch API
-      const response = await fetch('http://localhost:5000/api/config/checklist/batch', {
+      const response = await fetch('http://localhost:5001/api/config/checklist/batch', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -955,7 +952,7 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
       // Reload the data from backend to refresh the context
       setTimeout(async () => {
         try {
-          const checklistResponse = await fetch('http://localhost:5000/api/config/checklist');
+          const checklistResponse = await fetch('http://localhost:5001/api/config/checklist');
           if (checklistResponse.ok) {
             const checklistData = await checklistResponse.json();
             if (checklistData.checklist && Array.isArray(checklistData.checklist)) {
