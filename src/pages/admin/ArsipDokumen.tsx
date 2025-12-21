@@ -151,7 +151,7 @@ const ArsipDokumen = () => {
     const loadRandomDocuments = async () => {
       try {
         console.log(`📂 Loading random documents for year ${selectedYear}...`);
-        const response = await fetch(`http://localhost:5000/api/random-documents/${selectedYear}`, {
+        const response = await fetch(`http://localhost:5001/api/random-documents/${selectedYear}`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('authToken') || 'demo-token'}`,
@@ -226,7 +226,7 @@ const ArsipDokumen = () => {
 
         for (const [subdirektorat, checklistIds] of Object.entries(subdirektoratGroups)) {
           try {
-            const response = await fetch('http://localhost:5000/api/check-gcg-files', {
+            const response = await fetch('http://localhost:5001/api/check-gcg-files', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -330,7 +330,7 @@ const ArsipDokumen = () => {
 
       for (const [subdirektorat, checklistIds] of Object.entries(subdirektoratGroups)) {
         try {
-          const response = await fetch('http://localhost:5000/api/check-gcg-files', {
+          const response = await fetch('http://localhost:5001/api/check-gcg-files', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -574,7 +574,7 @@ const ArsipDokumen = () => {
     if (uploadedFile) {
       try {
         // Get file URL from backend API
-        const response = await fetch(`http://localhost:5000/api/files/${uploadedFile.id}/view`, {
+        const response = await fetch(`http://localhost:5001/api/files/${uploadedFile.id}/view`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('authToken') || 'demo-token'}`,
@@ -631,7 +631,7 @@ const ArsipDokumen = () => {
       console.log(`🌐 Downloading file: ${fileToDownload.fileName} (ID: ${fileToDownload.id})`);
 
       // Download file through backend API
-      const response = await fetch(`http://localhost:5000/api/files/${fileToDownload.id}/download`, {
+      const response = await fetch(`http://localhost:5001/api/files/${fileToDownload.id}/download`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken') || 'demo-token'}`,
@@ -761,7 +761,7 @@ const ArsipDokumen = () => {
     try {
       console.log('🗑️ ArsipDokumen: Starting delete process', { checklistId, documentId: uploadedDocument.id });
 
-      const response = await fetch(`http://localhost:5000/api/delete-file/${uploadedDocument.id}`, {
+      const response = await fetch(`http://localhost:5001/api/delete-file/${uploadedDocument.id}`, {
         method: 'DELETE',
       });
 
@@ -863,7 +863,7 @@ const ArsipDokumen = () => {
 
     try {
       console.log('🌐 Sending request to backend...');
-      const response = await fetch('http://localhost:5000/api/bulk-download-all-documents', {
+      const response = await fetch('http://localhost:5001/api/bulk-download-all-documents', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -952,7 +952,7 @@ const ArsipDokumen = () => {
 
     setIsRefreshing(true);
     try {
-      const response = await fetch('http://localhost:5000/api/refresh-tracking-tables', {
+      const response = await fetch('http://localhost:5001/api/refresh-tracking-tables', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1035,7 +1035,7 @@ const ArsipDokumen = () => {
         }
 
         try {
-          const response = await fetch('http://localhost:5000/api/upload-random-document', {
+          const response = await fetch('http://localhost:5001/api/upload-random-document', {
             method: 'POST',
             body: formData,
           });
@@ -1069,7 +1069,7 @@ const ArsipDokumen = () => {
 
         // Reload random documents
         try {
-          const response = await fetch(`http://localhost:5000/api/random-documents/${uploadYear}`, {
+          const response = await fetch(`http://localhost:5001/api/random-documents/${uploadYear}`, {
             method: 'GET',
             headers: {
               'Authorization': `Bearer ${localStorage.getItem('authToken') || 'demo-token'}`,

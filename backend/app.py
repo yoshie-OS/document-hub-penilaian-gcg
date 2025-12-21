@@ -33,7 +33,7 @@ load_dotenv(dotenv_path=env_path)
 
 # Import storage service
 from storage_service import storage_service
-from file_scanner import FileScanner
+# from file_scanner import FileScanner  # COMMENTED OUT: Module doesn't exist, endpoint not used by frontend
 
 # Helper function to safely serialize pandas data to JSON
 def safe_serialize_dict(data_dict):
@@ -108,7 +108,7 @@ OUTPUT_FOLDER.mkdir(exist_ok=True)
 
 app.config['UPLOAD_FOLDER'] = str(UPLOAD_FOLDER)
 app.config['OUTPUT_FOLDER'] = str(OUTPUT_FOLDER)
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max file size
 
 def allowed_file(filename: str) -> bool:
     """Check if file extension is allowed."""
@@ -125,6 +125,25 @@ def get_file_type(filename: str) -> str:
         return 'image'
     return 'unknown'
 
+# Global error handlers
+@app.errorhandler(413)
+def request_entity_too_large(error):
+    """Handle file too large errors"""
+    safe_print(f"❌ ERROR 413: Request Entity Too Large")
+    return jsonify({
+        'error': 'File terlalu besar. Maksimal 50MB per file.'
+    }), 413
+
+@app.errorhandler(Exception)
+def handle_exception(error):
+    """Handle all unhandled exceptions"""
+    safe_print(f"❌ UNHANDLED EXCEPTION: {type(error).__name__}: {error}")
+    import traceback
+    safe_print(f"❌ TRACEBACK: {traceback.format_exc()}")
+    return jsonify({
+        'error': f'Internal server error: {str(error)}'
+    }), 500
+
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint."""
@@ -135,44 +154,45 @@ def health_check():
         'timestamp': datetime.now().isoformat()
     })
 
-@app.route('/api/scan-and-sync-files', methods=['POST'])
-def scan_and_sync_files():
-    """
-    Scan file storage and synchronize with database
-
-    For Data Engineers: Drop files into storage, then hit this endpoint to sync
-
-    Expected file structure:
-    data/gcg-documents/{year}/{subdirektorat}/{checklist_id}/{filename}
-
-    Returns:
-        JSON with scan statistics
-    """
-    try:
-        # Get optional parameters
-        data = request.get_json() or {}
-        uploaded_by = data.get('uploaded_by', 'File Scanner - API')
-
-        # Initialize scanner
-        scanner = FileScanner()
-
-        # Perform scan and sync
-        results = scanner.scan_and_sync(uploaded_by=uploaded_by)
-
-        return jsonify({
-            'success': True,
-            'message': 'File storage scanned and synchronized successfully',
-            'results': results
-        }), 200
-
-    except Exception as e:
-        safe_print(f"Error scanning and syncing files: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({
-            'success': False,
-            'error': f'Failed to scan and sync files: {str(e)}'
-        }), 500
+# COMMENTED OUT: FileScanner module doesn't exist, endpoint not used by frontend
+# @app.route('/api/scan-and-sync-files', methods=['POST'])
+# def scan_and_sync_files():
+#     """
+#     Scan file storage and synchronize with database
+#
+#     For Data Engineers: Drop files into storage, then hit this endpoint to sync
+#
+#     Expected file structure:
+#     data/gcg-documents/{year}/{subdirektorat}/{checklist_id}/{filename}
+#
+#     Returns:
+#         JSON with scan statistics
+#     """
+#     try:
+#         # Get optional parameters
+#         data = request.get_json() or {}
+#         uploaded_by = data.get('uploaded_by', 'File Scanner - API')
+#
+#         # Initialize scanner
+#         scanner = FileScanner()
+#
+#         # Perform scan and sync
+#         results = scanner.scan_and_sync(uploaded_by=uploaded_by)
+#
+#         return jsonify({
+#             'success': True,
+#             'message': 'File storage scanned and synchronized successfully',
+#             'results': results
+#         }), 200
+#
+#     except Exception as e:
+#         safe_print(f"Error scanning and syncing files: {e}")
+#         import traceback
+#         traceback.print_exc()
+#         return jsonify({
+#             'success': False,
+#             'error': f'Failed to scan and sync files: {str(e)}'
+#         }), 500
 
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
@@ -2585,12 +2605,26 @@ def upload_aoi_file():
 
 @app.route('/api/users', methods=['GET'])
 def get_users():
-    """Get all users from storage"""
+    """Get all users from storage, optionally filtered by year"""
     try:
+        # Get year parameter from query string
+        year = request.args.get('year', type=int)
+
         csv_data = storage_service.read_csv('config/users.csv')
         if csv_data is not None:
             # Replace NaN values with a safe placeholder to prevent empty password login
             csv_data = csv_data.fillna({'password': '[NO_PASSWORD_SET]'}).fillna('')
+
+            # Filter by year if provided
+            if year is not None and 'tahun' in csv_data.columns:
+                # Filter users that belong to the specified year
+                # Also include users without year (tahun == '' or NaN) for backwards compatibility
+                csv_data = csv_data[
+                    (csv_data['tahun'] == year) |
+                    (csv_data['tahun'] == '') |
+                    (csv_data['tahun'].isna())
+                ]
+                safe_print(f"📋 GET /api/users?year={year} - Filtered to {len(csv_data)} users")
 
             # Ensure WhatsApp field is treated as string, not float
             if 'whatsapp' in csv_data.columns:
@@ -2653,6 +2687,118 @@ def login_user():
         safe_print(f"Error during login: {e}")
         return jsonify({'error': f'Login failed: {str(e)}'}), 500
 
+@app.route('/api/login-db', methods=['POST'])
+def login_user_db():
+    """Authenticate user with email and password from CSV file (primary) or SQLite database"""
+    from database import get_db_connection
+    import bcrypt
+    try:
+        data = request.get_json()
+        email = data.get('email', '').strip()
+        password = data.get('password', '').strip()
+
+        safe_print(f"🔐 DEBUG: Login attempt - email: '{email}', password length: {len(password)}")
+
+        if not email or not password:
+            safe_print(f"❌ DEBUG: Missing credentials - email: {bool(email)}, password: {bool(password)}")
+            return jsonify({'error': 'Email and password are required'}), 400
+
+        # 1. Try CSV file first (primary storage)
+        csv_data = storage_service.read_csv('config/users.csv')
+        safe_print(f"📋 DEBUG: CSV loaded - rows: {len(csv_data) if csv_data is not None else 'None'}")
+        if csv_data is not None and not csv_data.empty:
+            # Find user by email in CSV
+            user_row = csv_data[csv_data['email'] == email]
+            safe_print(f"🔍 DEBUG: User search result - found: {not user_row.empty}")
+
+            if not user_row.empty:
+                user = user_row.iloc[0]
+                stored_password = str(user.get('password', ''))
+                safe_print(f"🔑 DEBUG: Stored password type: {'bcrypt' if stored_password.startswith('$2') else 'plain'}, length: {len(stored_password)}")
+
+                # Check if password is bcrypt hashed or plain text
+                password_valid = False
+                if stored_password.startswith('$2b$') or stored_password.startswith('$2a$'):
+                    # Bcrypt hashed password
+                    try:
+                        password_valid = bcrypt.checkpw(password.encode('utf-8'), stored_password.encode('utf-8'))
+                        safe_print(f"✓ DEBUG: Bcrypt validation result: {password_valid}")
+                    except Exception as bcrypt_err:
+                        password_valid = False
+                        safe_print(f"❌ DEBUG: Bcrypt error: {bcrypt_err}")
+                else:
+                    # Plain text password (for backward compatibility)
+                    password_valid = (password == stored_password)
+                    safe_print(f"✓ DEBUG: Plain text validation result: {password_valid}")
+
+                if password_valid:
+                    # Prepare user data response (handle NaN values)
+                    import math
+                    def safe_str(val):
+                        if pd.isna(val) or (isinstance(val, float) and math.isnan(val)):
+                            return ''
+                        return str(val)
+
+                    user_data = {
+                        'id': safe_str(user.get('id', '')),
+                        'email': safe_str(user.get('email', '')),
+                        'role': safe_str(user.get('role', 'user')),
+                        'name': safe_str(user.get('name', '')),
+                        'direktorat': safe_str(user.get('direktorat', '')),
+                        'subdirektorat': safe_str(user.get('subdirektorat', '')),
+                        'divisi': safe_str(user.get('divisi', '')),
+                        'is_active': True,
+                        'createdAt': safe_str(user.get('created_at', ''))
+                    }
+                    safe_print(f"✅ User logged in from CSV: {email} (Role: {user_data['role']})")
+                    return jsonify(user_data), 200
+
+        # 2. If not found in CSV, try SQLite database (fallback)
+        try:
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+
+                # Find user by email
+                cursor.execute("""
+                    SELECT id, email, password_hash, role, name, direktorat, subdirektorat, divisi, is_active
+                    FROM users
+                    WHERE email = ? AND is_active = 1
+                """, (email,))
+
+                user = cursor.fetchone()
+
+                if user:
+                    user_id, user_email, password_hash, role, name, direktorat, subdirektorat, divisi, is_active = user
+
+                    # Verify password with bcrypt
+                    if bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8')):
+                        # Prepare user data response
+                        user_data = {
+                            'id': str(user_id),
+                            'email': user_email,
+                            'role': role,
+                            'name': name or '',
+                            'direktorat': direktorat or '',
+                            'subdirektorat': subdirektorat or '',
+                            'divisi': divisi or '',
+                            'is_active': bool(is_active),
+                            'createdAt': ''
+                        }
+                        safe_print(f"✅ User logged in from SQLite: {user_email} (Role: {role})")
+                        return jsonify(user_data), 200
+        except Exception as db_error:
+            safe_print(f"⚠️ SQLite login failed: {db_error}")
+
+        # 3. User not found or password invalid
+        safe_print(f"❌ Login failed for: {email}")
+        return jsonify({'error': 'Invalid email or password'}), 401
+
+    except Exception as e:
+        safe_print(f"❌ Error during login: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Login failed: {str(e)}'}), 500
+
 @app.route('/api/users/<string:user_id>', methods=['GET'])
 def get_user_by_id(user_id):
     """Get a specific user by ID from storage"""
@@ -2677,53 +2823,71 @@ def get_user_by_id(user_id):
 
 @app.route('/api/users', methods=['POST'])
 def create_user():
-    """Create a new user and save to SQLite database"""
-    from database import get_db_connection
+    """Create a new user and save to CSV file (primary storage)"""
     try:
         data = request.get_json()
+        year = data.get('tahun') or data.get('year')  # Support both field names
 
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
+        # Validate required fields
+        if not data.get('email'):
+            return jsonify({'error': 'Email is required'}), 400
+        if not data.get('password'):
+            return jsonify({'error': 'Password is required'}), 400
 
-            # Hash password using bcrypt
-            import bcrypt
-            password = data.get('password', '')
-            password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        # Read existing users from CSV
+        csv_data = storage_service.read_csv('config/users.csv')
+        if csv_data is None:
+            csv_data = pd.DataFrame()
 
-            # Insert new user into database
-            cursor.execute("""
-                INSERT INTO users (email, password_hash, role, name, direktorat, subdirektorat, divisi, is_active)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                data.get('email'),
-                password_hash,
-                data.get('role', 'user'),
-                data.get('name'),
-                data.get('direktorat', ''),
-                data.get('subdirektorat', ''),
-                data.get('divisi', ''),
-                True
-            ))
+        # Check if email already exists for this year
+        if not csv_data.empty and 'email' in csv_data.columns:
+            existing = csv_data[csv_data['email'].str.lower() == data.get('email', '').lower()]
+            if not existing.empty:
+                # If year is specified, check if user exists in this year
+                if year and 'tahun' in csv_data.columns:
+                    existing_in_year = existing[existing['tahun'] == year]
+                    if not existing_in_year.empty:
+                        return jsonify({'error': 'User with this email already exists for this year'}), 400
+                else:
+                    return jsonify({'error': 'User with this email already exists'}), 400
 
-            # Get the newly created user's ID
-            user_id = cursor.lastrowid
+        # Generate user ID
+        import time
+        user_id = int(time.time() * 1000)
 
-            # Prepare response data (without password hash)
-            user_data = {
-                'id': user_id,
-                'name': data.get('name'),
-                'email': data.get('email'),
-                'role': data.get('role', 'user'),
-                'direktorat': data.get('direktorat', ''),
-                'subdirektorat': data.get('subdirektorat', ''),
-                'divisi': data.get('divisi', ''),
-                'is_active': True,
-                'whatsapp': data.get('whatsapp', ''),
-                'created_at': datetime.now().isoformat()
-            }
+        # Create new user record
+        new_user = {
+            'id': user_id,
+            'name': data.get('name', ''),
+            'email': data.get('email'),
+            'password': data.get('password'),  # Store plain password in CSV
+            'role': data.get('role', 'user'),
+            'direktorat': data.get('direktorat', ''),
+            'subdirektorat': data.get('subdirektorat', ''),
+            'divisi': data.get('divisi', ''),
+            'status': 'active',
+            'tahun': year if year else '',  # Save year!
+            'created_at': datetime.now().isoformat(),
+            'is_active': 1,
+            'whatsapp': data.get('whatsapp', '')
+        }
 
-            safe_print(f"✅ Created user in SQLite: {user_data['email']} (ID: {user_id})")
-            return jsonify(user_data), 201
+        # Add to DataFrame
+        new_row = pd.DataFrame([new_user])
+        csv_data = pd.concat([csv_data, new_row], ignore_index=True)
+
+        # Save to CSV
+        success = storage_service.write_csv(csv_data, 'config/users.csv')
+
+        if success:
+            safe_print(f"✅ Created user in CSV: {new_user['email']} (ID: {user_id}, Year: {year or 'N/A'})")
+
+            # Return user data without password
+            response_data = new_user.copy()
+            response_data.pop('password', None)
+            return jsonify(response_data), 201
+        else:
+            return jsonify({'error': 'Failed to save user'}), 500
 
     except Exception as e:
         safe_print(f"Error creating user: {e}")
@@ -2733,24 +2897,38 @@ def create_user():
 
 @app.route('/api/users/<int:user_id>', methods=['DELETE'])
 def delete_user(user_id):
-    """Delete a user from SQLite database (soft delete)"""
+    """Delete a user from CSV file and SQLite database"""
     from database import get_db_connection
     try:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
+        # 1. Delete from CSV file (primary storage)
+        csv_data = storage_service.read_csv('config/users.csv')
+        if csv_data is None or csv_data.empty:
+            return jsonify({'error': 'No users data found'}), 404
 
-            # Check if user exists
-            cursor.execute("SELECT id, email FROM users WHERE id = ?", (user_id,))
-            user = cursor.fetchone()
+        # Find user in CSV
+        user_exists = csv_data[csv_data['id'] == user_id]
+        if user_exists.empty:
+            return jsonify({'error': 'User not found'}), 404
 
-            if not user:
-                return jsonify({'error': 'User not found'}), 404
+        user_email = user_exists.iloc[0]['email']
 
-            # Soft delete: set is_active to 0
-            cursor.execute("UPDATE users SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (user_id,))
+        # Remove user from CSV
+        csv_data = csv_data[csv_data['id'] != user_id]
+        storage_service.write_csv(csv_data, 'config/users.csv')
+        safe_print(f"✅ Deleted user from CSV: {user_email} (ID: {user_id})")
 
-            safe_print(f"✅ Deleted user from SQLite: {user[1]} (ID: {user_id})")
-            return jsonify({'message': 'User deleted successfully'}), 200
+        # 2. Also delete from SQLite database if exists
+        try:
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT id FROM users WHERE id = ?", (user_id,))
+                if cursor.fetchone():
+                    cursor.execute("UPDATE users SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (user_id,))
+                    safe_print(f"✅ Soft-deleted user from SQLite: {user_email} (ID: {user_id})")
+        except Exception as db_error:
+            safe_print(f"Warning: Could not delete from SQLite: {db_error}")
+
+        return jsonify({'message': 'User deleted successfully'}), 200
 
     except Exception as e:
         safe_print(f"Error deleting user: {e}")
@@ -2760,87 +2938,117 @@ def delete_user(user_id):
 
 @app.route('/api/users/<int:user_id>', methods=['PUT'])
 def update_user(user_id):
-    """Update user credentials in SQLite database"""
+    """Update user in CSV file and SQLite database"""
     from database import get_db_connection
     try:
         data = request.get_json()
 
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
+        # 1. Update CSV file (primary storage)
+        csv_data = storage_service.read_csv('config/users.csv')
+        if csv_data is None or csv_data.empty:
+            return jsonify({'error': 'No users data found'}), 404
 
-            # Check if user exists
-            cursor.execute("SELECT id FROM users WHERE id = ?", (user_id,))
-            if not cursor.fetchone():
-                return jsonify({'error': 'User not found'}), 404
+        # Find user in CSV
+        user_mask = csv_data['id'] == user_id
+        if not user_mask.any():
+            return jsonify({'error': 'User not found'}), 404
 
-            # Build dynamic UPDATE query based on provided fields
-            update_fields = []
-            update_values = []
+        user_index = csv_data[user_mask].index[0]
 
-            if 'name' in data:
-                update_fields.append('name = ?')
-                update_values.append(data['name'])
-            if 'email' in data:
-                update_fields.append('email = ?')
-                update_values.append(data['email'])
-            if 'password' in data:
-                # Hash password if provided
+        # Update fields in CSV
+        if 'name' in data:
+            csv_data.at[user_index, 'name'] = data['name']
+        if 'email' in data:
+            csv_data.at[user_index, 'email'] = data['email']
+        if 'password' in data:
+            # Hash password for CSV storage
+            try:
                 import bcrypt
                 password_hash = bcrypt.hashpw(data['password'].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-                update_fields.append('password_hash = ?')
-                update_values.append(password_hash)
-            if 'role' in data:
-                update_fields.append('role = ?')
-                update_values.append(data['role'])
-            if 'direktorat' in data:
-                update_fields.append('direktorat = ?')
-                update_values.append(data['direktorat'])
-            if 'subdirektorat' in data:
-                update_fields.append('subdirektorat = ?')
-                update_values.append(data['subdirektorat'])
-            if 'divisi' in data:
-                update_fields.append('divisi = ?')
-                update_values.append(data['divisi'])
+                csv_data.at[user_index, 'password'] = password_hash
+            except:
+                csv_data.at[user_index, 'password'] = data['password']
+        if 'role' in data:
+            csv_data.at[user_index, 'role'] = data['role']
+        if 'direktorat' in data:
+            csv_data.at[user_index, 'direktorat'] = data['direktorat']
+        if 'subdirektorat' in data:
+            csv_data.at[user_index, 'subdirektorat'] = data['subdirektorat']
+        if 'divisi' in data:
+            csv_data.at[user_index, 'divisi'] = data['divisi']
+        if 'tahun' in data or 'year' in data:
+            csv_data.at[user_index, 'tahun'] = data.get('tahun') or data.get('year', '')
 
-            # Add updated_at timestamp
-            update_fields.append('updated_at = CURRENT_TIMESTAMP')
+        # Save updated CSV
+        storage_service.write_csv(csv_data, 'config/users.csv')
 
-            if not update_fields:
-                return jsonify({'error': 'No fields to update'}), 400
+        # Get updated user data from CSV
+        updated_user_row = csv_data.iloc[user_index]
+        updated_user = {
+            'id': int(updated_user_row['id']),
+            'name': updated_user_row.get('name', ''),
+            'email': updated_user_row.get('email', ''),
+            'role': updated_user_row.get('role', 'user'),
+            'direktorat': updated_user_row.get('direktorat', ''),
+            'subdirektorat': updated_user_row.get('subdirektorat', ''),
+            'divisi': updated_user_row.get('divisi', ''),
+            'tahun': updated_user_row.get('tahun', '')
+        }
 
-            # Execute update
-            update_query = f"UPDATE users SET {', '.join(update_fields)} WHERE id = ?"
-            update_values.append(user_id)
-            cursor.execute(update_query, update_values)
+        safe_print(f"✅ Updated user in CSV: {updated_user['email']} (ID: {user_id})")
 
-            # Fetch updated user data
-            cursor.execute("""
-                SELECT id, email, role, name, direktorat, subdirektorat, divisi, created_at, updated_at, is_active
-                FROM users WHERE id = ?
-            """, (user_id,))
-            row = cursor.fetchone()
+        # 2. Also update SQLite database if user exists there
+        try:
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
 
-            if row:
-                # Return updated user data
-                updated_user = {
-                    'id': row[0],
-                    'email': row[1],
-                    'role': row[2],
-                    'name': row[3],
-                    'direktorat': row[4] or '',
-                    'subdirektorat': row[5] or '',
-                    'divisi': row[6] or '',
-                    'created_at': row[7],
-                    'updated_at': row[8],
-                    'is_active': row[9]
-                }
-                safe_print(f"✅ Updated user in SQLite: {updated_user['email']} (ID: {user_id})")
-                return jsonify(updated_user), 200
-            else:
-                return jsonify({'error': 'Failed to fetch updated user'}), 500
+                # Check if user exists in SQLite
+                cursor.execute("SELECT id FROM users WHERE id = ?", (user_id,))
+                if cursor.fetchone():
+                    # Build dynamic UPDATE query
+                    update_fields = []
+                    update_values = []
+
+                    if 'name' in data:
+                        update_fields.append('name = ?')
+                        update_values.append(data['name'])
+                    if 'email' in data:
+                        update_fields.append('email = ?')
+                        update_values.append(data['email'])
+                    if 'password' in data:
+                        # Hash password for SQLite
+                        import bcrypt
+                        password_hash = bcrypt.hashpw(data['password'].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                        update_fields.append('password_hash = ?')
+                        update_values.append(password_hash)
+                    if 'role' in data:
+                        update_fields.append('role = ?')
+                        update_values.append(data['role'])
+                    if 'direktorat' in data:
+                        update_fields.append('direktorat = ?')
+                        update_values.append(data['direktorat'])
+                    if 'subdirektorat' in data:
+                        update_fields.append('subdirektorat = ?')
+                        update_values.append(data['subdirektorat'])
+                    if 'divisi' in data:
+                        update_fields.append('divisi = ?')
+                        update_values.append(data['divisi'])
+
+                    # Add updated_at timestamp
+                    update_fields.append('updated_at = CURRENT_TIMESTAMP')
+
+                    if update_fields:
+                        update_query = f"UPDATE users SET {', '.join(update_fields)} WHERE id = ?"
+                        update_values.append(user_id)
+                        cursor.execute(update_query, update_values)
+                        safe_print(f"✅ Updated user in SQLite: {updated_user['email']} (ID: {user_id})")
+        except Exception as db_error:
+            safe_print(f"⚠️ Warning: Could not update in SQLite (user may not exist in DB): {db_error}")
+
+        return jsonify(updated_user), 200
 
     except Exception as e:
-        safe_print(f"Error updating user: {e}")
+        safe_print(f"❌ Error updating user: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({'error': f'Failed to update user: {str(e)}'}), 500
@@ -3064,16 +3272,48 @@ def upload_random_document():
     Upload random/unstructured document to Dokumen Lainnya folder.
     These documents don't have checklist assignments or organizational structure.
     """
+    safe_print(f"📤 DEBUG: Random document upload request received")
+    safe_print(f"📋 DEBUG: Content-Length: {request.content_length}")
+    safe_print(f"📋 DEBUG: Content-Type: {request.content_type}")
+
     try:
-        safe_print(f"📤 DEBUG: Random document upload request received")
+        # Check content length before parsing
+        if request.content_length and request.content_length > 50 * 1024 * 1024:
+            size_mb = request.content_length / (1024 * 1024)
+            safe_print(f"❌ DEBUG: Request too large: {size_mb:.1f}MB")
+            return jsonify({
+                'error': f'Request terlalu besar ({size_mb:.1f}MB). Maksimal 50MB.'
+            }), 413
 
         # Check if file is present
         if 'file' not in request.files:
+            safe_print("❌ DEBUG: No file in request.files")
             return jsonify({'error': 'No file provided'}), 400
 
         file = request.files['file']
+        safe_print(f"📦 DEBUG: File received: {file.filename}")
+
         if file.filename == '':
+            safe_print("❌ DEBUG: Empty filename")
             return jsonify({'error': 'No file selected'}), 400
+
+        # Check file size after receiving
+        try:
+            file.seek(0, 2)  # Seek to end
+            file_size = file.tell()
+            file.seek(0)  # Reset to beginning
+            safe_print(f"📦 DEBUG: File size: {file_size / (1024 * 1024):.2f}MB")
+
+            MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
+            if file_size > MAX_FILE_SIZE:
+                size_mb = file_size / (1024 * 1024)
+                safe_print(f"❌ DEBUG: File too large: {size_mb:.1f}MB")
+                return jsonify({
+                    'error': f'File terlalu besar ({size_mb:.1f}MB). Maksimal 50MB.'
+                }), 413
+        except Exception as seek_error:
+            safe_print(f"⚠️ DEBUG: Could not check file size: {seek_error}")
+            # Continue anyway
 
         # Get metadata from form
         year = request.form.get('year')
@@ -4345,7 +4585,7 @@ def add_tahun_buku():
     """Add a new tahun buku"""
     try:
         data = request.get_json()
-        
+
         if not data.get('tahun'):
             return jsonify({'error': 'Tahun is required'}), 400
             
@@ -4817,56 +5057,12 @@ def delete_struktur_organisasi(struktur_id):
         safe_print(f"❌ Error deleting struktur organisasi: {e}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/config/struktur-organisasi/<int:struktur_id>', methods=['PUT'])
-def update_struktur_organisasi(struktur_id):
-    """Update a struktur organisasi item"""
-    try:
-        data = request.get_json()
-        
-        # Read existing struktur organisasi
-        struktur_data = storage_service.read_csv('config/struktur-organisasi.csv')
-        if struktur_data is None:
-            return jsonify({'error': 'No struktur organisasi found'}), 404
-        
-        # Find the item to update
-        item_index = struktur_data[struktur_data['id'] == struktur_id].index
-        if item_index.empty:
-            return jsonify({'error': 'Struktur organisasi not found'}), 404
-        
-        item_idx = item_index[0]
-        
-        # Update fields if provided
-        if 'type' in data:
-            valid_types = ['direktorat', 'subdirektorat', 'divisi', 'anak_perusahaan']
-            if data['type'] not in valid_types:
-                return jsonify({'error': f'type must be one of: {", ".join(valid_types)}'}), 400
-            struktur_data.at[item_idx, 'type'] = data['type']
-        
-        if 'nama' in data:
-            struktur_data.at[item_idx, 'nama'] = data['nama']
-        
-        if 'deskripsi' in data:
-            struktur_data.at[item_idx, 'deskripsi'] = data['deskripsi']
-        
-        if 'parent_id' in data:
-            struktur_data.at[item_idx, 'parent_id'] = data['parent_id']
-        
-        # Update timestamp
-        struktur_data.at[item_idx, 'updated_at'] = datetime.now().isoformat()
-        
-        # Save to storage
-        success = storage_service.write_csv(struktur_data, 'config/struktur-organisasi.csv')
-        
-        if success:
-            # Return updated item
-            updated_item = safe_serialize_dict(struktur_data.iloc[item_idx].to_dict())
-            return jsonify({'success': True, 'struktur': updated_item}), 200
-        else:
-            return jsonify({'error': 'Failed to update struktur organisasi'}), 500
-            
-    except Exception as e:
-        safe_print(f"❌ Error updating struktur organisasi: {e}")
-        return jsonify({'error': str(e)}), 500
+# DISABLED: This route conflicts with blueprint route and uses CSV instead of SQLite
+# Blueprint route at api_config_routes.py:537 handles this correctly with SQLite
+# @app.route('/api/config/struktur-organisasi/<int:struktur_id>', methods=['PUT'])
+# def update_struktur_organisasi(struktur_id):
+#     """Update a struktur organisasi item"""
+#     ... (disabled to prevent conflict)
 
 # CHECKLIST ASSIGNMENTS ENDPOINTS
 @app.route('/api/config/assignments', methods=['GET'])

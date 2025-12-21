@@ -93,7 +93,7 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
     const loadDataFrombackend = async () => {
       try {
         setIsLoading(true);
-        const response = await fetch('http://localhost:5000/api/config/struktur-organisasi');
+        const response = await fetch('http://localhost:5001/api/config/struktur-organisasi');
         if (response.ok) {
           const data = await response.json();
           
@@ -149,7 +149,7 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
   const addDirektorat = async (data: Omit<Direktorat, 'id' | 'createdAt' | 'isActive'>) => {
     try {
       // Save to backend API
-      const response = await fetch('http://localhost:5000/api/config/struktur-organisasi', {
+      const response = await fetch('http://localhost:5001/api/config/struktur-organisasi', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -186,7 +186,7 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
   const addSubdirektorat = async (data: Omit<Subdirektorat, 'id' | 'createdAt' | 'isActive'>) => {
     try {
       // Save to backend API
-      const response = await fetch('http://localhost:5000/api/config/struktur-organisasi', {
+      const response = await fetch('http://localhost:5001/api/config/struktur-organisasi', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -223,7 +223,7 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
   const addAnakPerusahaan = async (data: Omit<AnakPerusahaan, 'id' | 'createdAt' | 'isActive'>) => {
     try {
       // Save to backend API
-      const response = await fetch('http://localhost:5000/api/config/struktur-organisasi', {
+      const response = await fetch('http://localhost:5001/api/config/struktur-organisasi', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -260,7 +260,7 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
   const addDivisi = async (data: Omit<Divisi, 'id' | 'createdAt' | 'isActive'>) => {
     try {
       // Save to backend API
-      const response = await fetch('http://localhost:5000/api/config/struktur-organisasi', {
+      const response = await fetch('http://localhost:5001/api/config/struktur-organisasi', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -297,7 +297,7 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
   const deleteDirektorat = async (id: number) => {
     try {
       // Delete from backend API
-      const response = await fetch(`http://localhost:5000/api/config/struktur-organisasi/${id}`, {
+      const response = await fetch(`http://localhost:5001/api/config/struktur-organisasi/${id}`, {
         method: 'DELETE',
       });
       
@@ -318,7 +318,7 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
   const deleteSubdirektorat = async (id: number) => {
     try {
       // Delete from backend API
-      const response = await fetch(`http://localhost:5000/api/config/struktur-organisasi/${id}`, {
+      const response = await fetch(`http://localhost:5001/api/config/struktur-organisasi/${id}`, {
         method: 'DELETE',
       });
       
@@ -339,7 +339,7 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
   const deleteAnakPerusahaan = async (id: number) => {
     try {
       // Delete from backend API
-      const response = await fetch(`http://localhost:5000/api/config/struktur-organisasi/${id}`, {
+      const response = await fetch(`http://localhost:5001/api/config/struktur-organisasi/${id}`, {
         method: 'DELETE',
       });
       
@@ -360,7 +360,7 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
   const deleteDivisi = async (id: number) => {
     try {
       // Delete from backend API
-      const response = await fetch(`http://localhost:5000/api/config/struktur-organisasi/${id}`, {
+      const response = await fetch(`http://localhost:5001/api/config/struktur-organisasi/${id}`, {
         method: 'DELETE',
       });
 
@@ -381,7 +381,7 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
   // Update functions
   const updateDirektorat = async (id: number, data: Partial<Direktorat>) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/config/struktur-organisasi/${id}`, {
+      const response = await fetch(`http://localhost:5001/api/config/struktur-organisasi/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -406,7 +406,7 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
 
   const updateSubdirektorat = async (id: number, data: Partial<Subdirektorat>) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/config/struktur-organisasi/${id}`, {
+      const response = await fetch(`http://localhost:5001/api/config/struktur-organisasi/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -432,7 +432,7 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
 
   const updateAnakPerusahaan = async (id: number, data: Partial<AnakPerusahaan>) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/config/struktur-organisasi/${id}`, {
+      const response = await fetch(`http://localhost:5001/api/config/struktur-organisasi/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -457,7 +457,7 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
 
   const updateDivisi = async (id: number, data: Partial<Divisi>) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/config/struktur-organisasi/${id}`, {
+      const response = await fetch(`http://localhost:5001/api/config/struktur-organisasi/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -540,7 +540,7 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
       console.log(`StrukturPerusahaanContext: Sending ${batchItems.length} items in batch API call`);
       
       // Single batch API call to avoid race conditions
-      const response = await fetch('http://localhost:5000/api/config/struktur-organisasi/batch', {
+      const response = await fetch('http://localhost:5001/api/config/struktur-organisasi/batch', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

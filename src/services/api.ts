@@ -1,5 +1,5 @@
 // API Configuration - Change port here if needed
-export const API_PORT = 5000;
+export const API_PORT = 5001;
 export const API_HOST = `http://localhost:${API_PORT}`;
 const API_BASE_URL = `${API_HOST}/api`;
 
@@ -106,9 +106,9 @@ export const userAPI = {
     method: 'DELETE',
   }),
   
-  // Login (custom endpoint)
+  // Login (custom endpoint) - Uses SQLite database with bcrypt
   login: (email: string, password: string) => {
-    return apiCall('/login', {
+    return apiCall('/login-db', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     }).then(user => {

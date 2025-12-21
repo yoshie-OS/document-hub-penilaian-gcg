@@ -185,7 +185,7 @@ const ArsipDokumen = () => {
 
         for (const [subdirektorat, checklistIds] of Object.entries(subdirektoratGroups)) {
           try {
-            const response = await fetch('http://localhost:5000/api/check-gcg-files', {
+            const response = await fetch('http://localhost:5001/api/check-gcg-files', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -289,7 +289,7 @@ const ArsipDokumen = () => {
 
       for (const [subdirektorat, checklistIds] of Object.entries(subdirektoratGroups)) {
         try {
-          const response = await fetch('http://localhost:5000/api/check-gcg-files', {
+          const response = await fetch('http://localhost:5001/api/check-gcg-files', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -348,7 +348,7 @@ const ArsipDokumen = () => {
       if (!selectedYear) return;
 
       try {
-        const response = await fetch(`http://localhost:5000/api/random-documents/${selectedYear}`);
+        const response = await fetch(`http://localhost:5001/api/random-documents/${selectedYear}`);
         if (response.ok) {
           const data = await response.json();
           setRandomDocuments(data.documents || []);
@@ -523,7 +523,7 @@ const ArsipDokumen = () => {
     if (uploadedFile) {
       try {
         // Get file URL from backend API
-        const response = await fetch(`http://localhost:5000/api/files/${uploadedFile.id}/view`, {
+        const response = await fetch(`http://localhost:5001/api/files/${uploadedFile.id}/view`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('authToken') || 'demo-token'}`,
@@ -556,7 +556,7 @@ const ArsipDokumen = () => {
     if (uploadedFile) {
       try {
         // Download file through backend API
-        const response = await fetch(`http://localhost:5000/api/files/${uploadedFile.id}/download`, {
+        const response = await fetch(`http://localhost:5001/api/files/${uploadedFile.id}/download`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('authToken') || 'demo-token'}`,
@@ -671,7 +671,7 @@ const ArsipDokumen = () => {
     try {
       console.log('🗑️ ArsipDokumen: Starting delete process', { checklistId, documentId: uploadedDocument.id });
 
-      const response = await fetch(`http://localhost:5000/api/delete-file/${uploadedDocument.id}`, {
+      const response = await fetch(`http://localhost:5001/api/delete-file/${uploadedDocument.id}`, {
         method: 'DELETE',
       });
 
@@ -759,7 +759,7 @@ const ArsipDokumen = () => {
     setDownloadProgress(0);
 
     try {
-      const response = await fetch('http://localhost:5000/api/bulk-download-all-documents', {
+      const response = await fetch('http://localhost:5001/api/bulk-download-all-documents', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -830,7 +830,7 @@ const ArsipDokumen = () => {
 
     setIsRefreshing(true);
     try {
-      const response = await fetch('http://localhost:5000/api/refresh-tracking-tables', {
+      const response = await fetch('http://localhost:5001/api/refresh-tracking-tables', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -883,35 +883,83 @@ const ArsipDokumen = () => {
       return;
     }
 
+    // Validate file sizes (50MB limit)
+    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+    const oversizedFiles = Array.from(files).filter(file => file.size > MAX_FILE_SIZE);
+
+    if (oversizedFiles.length > 0) {
+      const fileList = oversizedFiles.map(f =>
+        `${f.name} (${(f.size / (1024 * 1024)).toFixed(1)}MB)`
+      ).join(', ');
+
+      toast({
+        title: "❌ File Terlalu Besar",
+        description: `File berikut melebihi limit 50MB: ${fileList}`,
+        variant: "destructive",
+        duration: 7000
+      });
+      event.target.value = ''; // Reset input
+      return;
+    }
+
     setIsUploadingRandom(true);
+    let successCount = 0;
+    let failedFiles: string[] = [];
 
     try {
       for (const file of Array.from(files)) {
+        console.log(`📤 Uploading file ${successCount + 1}/${files.length}: ${file.name}`);
+        console.log(`📦 File size: ${(file.size / (1024 * 1024)).toFixed(2)}MB`);
+
         const formData = new FormData();
         formData.append('file', file);
         formData.append('year', uploadYear.toString());
-        formData.append('category', 'dokumen_lainnya'); // Special category for unstructured docs
+        formData.append('category', 'dokumen_lainnya');
         formData.append('uploadedBy', JSON.parse(localStorage.getItem('user') || '{}').name || 'Unknown');
 
-        const response = await fetch('http://localhost:5000/api/upload-random-document', {
-          method: 'POST',
-          body: formData,
-        });
+        try {
+          const response = await fetch('http://localhost:5001/api/upload-random-document', {
+            method: 'POST',
+            body: formData,
+          });
 
-        if (!response.ok) {
-          throw new Error(`Upload failed for ${file.name}: ${response.status}`);
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+            console.error(`❌ Upload failed for ${file.name}: ${response.status}`, errorData);
+            failedFiles.push(`${file.name}: ${errorData.error || response.statusText}`);
+          } else {
+            successCount++;
+            console.log(`✅ Successfully uploaded: ${file.name}`);
+          }
+        } catch (networkError) {
+          console.error(`❌ Network error uploading ${file.name}:`, networkError);
+          failedFiles.push(`${file.name}: Network error`);
         }
       }
 
-      toast({
-        title: "✅ Upload Berhasil",
-        description: `${files.length} dokumen berhasil diupload ke folder "Dokumen Lainnya"`,
-        duration: 5000
-      });
-
-      // Refresh file list
-      setstorageFileStatus({});
-      setstorageFileInfo({});
+      // Show result
+      if (successCount === files.length) {
+        toast({
+          title: "✅ Upload Berhasil",
+          description: `${files.length} dokumen berhasil diupload`,
+          duration: 5000
+        });
+        // Refresh file list
+        setstorageFileStatus({});
+        setstorageFileInfo({});
+      } else if (successCount > 0) {
+        toast({
+          title: "⚠️ Upload Sebagian Berhasil",
+          description: `${successCount}/${files.length} dokumen berhasil. ${failedFiles.length} gagal.`,
+          variant: "destructive",
+          duration: 7000
+        });
+        // Partial refresh
+        setstorageFileStatus({});
+        setstorageFileInfo({});
+      } else {
+        throw new Error(`Semua file gagal diupload`);
+      }
 
     } catch (error) {
       console.error('Random upload error:', error);

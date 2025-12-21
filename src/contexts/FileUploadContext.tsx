@@ -126,7 +126,7 @@ export const FileUploadProvider: React.FC<{ children: ReactNode }> = ({ children
   // Fetch files from backend API
   const fetchFiles = async (): Promise<UploadedFile[]> => {
     try {
-      const response = await fetch('http://localhost:5000/api/uploaded-files');
+      const response = await fetch('http://localhost:5001/api/uploaded-files');
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -192,7 +192,7 @@ export const FileUploadProvider: React.FC<{ children: ReactNode }> = ({ children
       formData.append('userWhatsApp', currentUser.whatsapp || '');
       formData.append('userEmail', currentUser.email || '');
 
-      const response = await fetch('http://localhost:5000/api/upload-gcg-file', {
+      const response = await fetch('http://localhost:5001/api/upload-gcg-file', {
         method: 'POST',
         body: formData,
         signal: AbortSignal.timeout(60000), // 60 second timeout
@@ -285,7 +285,7 @@ export const FileUploadProvider: React.FC<{ children: ReactNode }> = ({ children
 
   const deleteFile = async (fileId: string) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/uploaded-files/${fileId}`, {
+      const response = await fetch(`http://localhost:5001/api/uploaded-files/${fileId}`, {
         method: 'DELETE',
       });
 

@@ -32,7 +32,7 @@ export const YearProvider: React.FC<YearProviderProps> = ({ children }) => {
   useEffect(() => {
     const loadYearsFromAPI = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/config/tahun-buku');
+        const response = await fetch('http://localhost:5001/api/config/tahun-buku');
         if (response.ok) {
           const data = await response.json();
           // API returns array directly: [{year: 2025, is_active: 1, created_at: ...}, ...]
@@ -77,70 +77,79 @@ export const YearProvider: React.FC<YearProviderProps> = ({ children }) => {
       
       // Call backend API to save to backend
       try {
-        const response = await fetch('http://localhost:5000/api/config/tahun-buku', {
+        const response = await fetch('http://localhost:5001/api/config/tahun-buku', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            tahun: year,
-            nama: `Tahun Buku ${year}`,
+            year: year,  // Backend expects 'year', not 'tahun'
+            is_active: 1
           }),
         });
-        
+
         if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+          // Parse error message from backend
+          const errorData = await response.json();
+          const errorMessage = errorData.error || `HTTP error! status: ${response.status}`;
+          throw new Error(errorMessage);
         }
-        
+
         console.log(`YearContext: Successfully saved year ${year} to backend`);
+
+        // Only update local state if backend save succeeded
+        const updatedYears = [...availableYears, year].sort((a, b) => b - a); // Sort descending
+        setAvailableYears(updatedYears);
+
+        console.log(`YearContext: Added year ${year} with clean slate`);
       } catch (error) {
         console.error(`YearContext: Failed to save year ${year} to backend:`, error);
-        // Continue with local update even if API fails
+        // Re-throw error so TahunBukuPage can handle it
+        throw error;
       }
-      
-      const updatedYears = [...availableYears, year].sort((a, b) => b - a); // Sort descending
-      setAvailableYears(updatedYears);
-      
-      console.log(`YearContext: Added year ${year} with clean slate`);
     }
   };
 
   const removeYear = async (year: number) => {
     try {
-      // Find the year ID from availableYears state - we need to get this from backend
-      const response = await fetch('http://localhost:5000/api/config/tahun-buku');
-      if (!response.ok) {
-        throw new Error('Failed to fetch tahun buku data');
-      }
-      
-      const data = await response.json();
-      const yearToDelete = data.tahun_buku.find((item: any) => item.tahun === year);
-      
-      if (!yearToDelete) {
-        console.error(`YearContext: Year ${year} not found in tahun buku data`);
-        return;
-      }
-      
-      // Call backend DELETE API
-      const deleteResponse = await fetch(`http://localhost:5000/api/config/tahun-buku/${yearToDelete.id}`, {
+      // Call backend DELETE API with query parameter
+      const deleteResponse = await fetch(`http://localhost:5001/api/config/tahun-buku?year=${year}`, {
         method: 'DELETE',
       });
-      
+
       if (!deleteResponse.ok) {
         throw new Error(`Failed to delete year ${year} from backend`);
       }
-      
+
       const deleteResult = await deleteResponse.json();
       console.log(`YearContext: Successfully deleted year ${year} from backend:`, deleteResult);
 
-      // Log cleanup stats if available
+      // Log comprehensive cleanup stats
       if (deleteResult.cleanup_stats) {
-        console.log(`YearContext: Backend cleanup stats:`, deleteResult.cleanup_stats);
         const stats = deleteResult.cleanup_stats;
-        const totalCleaned = Object.values(stats).reduce((sum: number, val: any) => {
-          return typeof val === 'number' ? sum + val : sum;
-        }, 0);
-        console.log(`YearContext: Total ${totalCleaned} records cleaned from backend`);
+        console.log(`YearContext: ✅ COMPLETE DATA CLEANUP for year ${year}:`);
+        console.log(`📦 Supabase Storage:`);
+        console.log(`  - GCG Documents: ${stats.gcg_files_deleted || 0} files deleted`);
+        console.log(`  - AOI Documents: ${stats.aoi_files_deleted || 0} files deleted`);
+        console.log(`📋 Tracking Files:`);
+        console.log(`  - Upload Tracking: ${stats.uploaded_files_records || 0} records`);
+        console.log(`  - AOI Tracking: ${stats.aoi_tracking_records || 0} records`);
+        console.log(`  - Assessment Data: ${stats.assessment_records || 0} records`);
+        console.log(`💾 Database Tables:`);
+        console.log(`  - Checklist Items: ${stats.checklist_deleted || 0} deleted`);
+        console.log(`  - Assessments: ${stats.db_assessments_deleted || 0} deleted`);
+        console.log(`  - Upload Records: ${stats.db_uploads_deleted || 0} deleted`);
+        console.log(`  - Document Metadata: ${stats.db_metadata_deleted || 0} deleted`);
+
+        const totalFiles = (stats.gcg_files_deleted || 0) + (stats.aoi_files_deleted || 0);
+        const totalFileRecords = (stats.uploaded_files_records || 0) +
+                                (stats.aoi_tracking_records || 0) +
+                                (stats.assessment_records || 0);
+        const totalDbRecords = (stats.checklist_deleted || 0) +
+                              (stats.db_assessments_deleted || 0) +
+                              (stats.db_uploads_deleted || 0) +
+                              (stats.db_metadata_deleted || 0);
+        console.log(`📊 TOTAL CLEANED: ${totalFiles} files + ${totalFileRecords} file records + ${totalDbRecords} database records`);
       }
 
       // Clean up all frontend data related to the year

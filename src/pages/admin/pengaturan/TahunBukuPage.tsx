@@ -84,9 +84,10 @@ const TahunBukuPage = () => {
       setTahunForm({ tahun: new Date().getFullYear() });
       setShowTahunDialog(false);
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Gagal menambahkan tahun buku";
       toast({
         title: "Error",
-        description: "Gagal menambahkan tahun buku",
+        description: errorMessage,
         variant: "destructive"
       });
     }

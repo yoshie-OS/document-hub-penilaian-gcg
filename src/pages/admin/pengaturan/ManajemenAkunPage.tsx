@@ -128,25 +128,31 @@ const ManajemenAkunPage = () => {
     return divisi?.filter(d => d.subdirektoratId === selectedSubdirektorat.id) || [];
   }, [userForm.subdirektorat, subdirektorat, divisi]);
 
-  // Load users from API
+  // Load users from API - reload when year changes
   useEffect(() => {
-    loadUsers();
-  }, []);
+    if (selectedYear) {
+      loadUsers();
+    }
+  }, [selectedYear]);
 
   const loadUsers = async () => {
+    if (!selectedYear) return;
+
     setIsLoading(true);
     try {
-      const response = await fetch('http://localhost:5001/api/users');
+      // Filter users by year
+      const response = await fetch(`http://localhost:5001/api/users?year=${selectedYear}`);
       if (response.ok) {
         const data = await response.json();
         setUsers(data);
+        console.log(`ManajemenAkunPage: Loaded ${data.length} users for year ${selectedYear}`);
       } else {
         throw new Error(`HTTP error: ${response.status}`);
       }
     } catch (error) {
       console.error('Error loading users:', error);
       const errorMessage = error instanceof TypeError && error.message === 'Failed to fetch'
-        ? "Tidak dapat terhubung ke server. Pastikan backend sudah berjalan di port 5000."
+        ? "Tidak dapat terhubung ke server. Pastikan backend sudah berjalan di port 5001."
         : "Gagal memuat data pengguna";
       toast({ title: "Error", description: errorMessage, variant: "destructive" });
     } finally {
@@ -162,13 +168,19 @@ const ManajemenAkunPage = () => {
       return;
     }
 
+    if (!selectedYear) {
+      toast({ title: "Error", description: "Pilih tahun terlebih dahulu!", variant: "destructive" });
+      return;
+    }
+
     try {
       const response = await fetch('http://localhost:5001/api/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...userForm,
-          role: 'admin' // Always set role to admin (PIC)
+          role: 'admin', // Always set role to admin (PIC)
+          tahun: selectedYear // Include year!
         })
       });
 
