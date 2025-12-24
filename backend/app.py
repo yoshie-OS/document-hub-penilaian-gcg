@@ -34,6 +34,7 @@ load_dotenv(dotenv_path=env_path)
 # Import storage service
 from storage_service import storage_service
 # from file_scanner import FileScanner  # COMMENTED OUT: Module doesn't exist, endpoint not used by frontend
+from database import get_db_connection
 
 # Helper function to safely serialize pandas data to JSON
 def safe_serialize_dict(data_dict):
@@ -600,237 +601,77 @@ def system_info():
 @app.route('/api/save', methods=['POST'])
 def save_assessment():
     """
-    Save assessment data directly to output.xlsx (no JSON intermediate)
+    Save assessment data to SQLite database
     """
     try:
         data = request.json
         safe_print(f"🔧 DEBUG: Received save request with data keys: {data.keys()}")
-        
+
         # Create assessment record
         assessment_id = f"{data.get('year', 'unknown')}_{data.get('auditor', 'unknown')}_{str(uuid.uuid4())[:8]}"
         saved_at = datetime.now().isoformat()
-        
-        # Load existing XLSX data and COMPLETELY REPLACE year's data (including deletions)
-        all_rows = []
-        existing_df = storage_service.read_excel('web-output/output.xlsx')
-        
-        if existing_df is not None:
-            try:
-                current_year = data.get('year')
-                
-                safe_print(f"🔧 DEBUG: Loading existing XLSX with {len(existing_df)} rows")
-                safe_print(f"🔧 DEBUG: Current year to save: {current_year}")
-                safe_print(f"🔧 DEBUG: Existing years in file: {existing_df['Tahun'].unique().tolist()}")
-                
-                # COMPLETELY REMOVE all existing data for this year (this handles deletions)
-                if current_year:
-                    original_count = len(existing_df)
-                    existing_df = existing_df[existing_df['Tahun'] != current_year]
-                    removed_count = original_count - len(existing_df)
-                    safe_print(f"🔧 DEBUG: COMPLETELY REMOVED {removed_count} rows for year {current_year} (including deletions)")
-                    safe_print(f"🔧 DEBUG: Preserved {len(existing_df)} rows from other years")
-                
-                # Convert remaining data back to list format
-                for _, row in existing_df.iterrows():
-                    all_rows.append(row.to_dict())
-                    
-                safe_print(f"🔧 DEBUG: Starting with {len(all_rows)} rows from other years")
-            except Exception as e:
-                safe_print(f"WARNING: Could not read existing XLSX: {e}")
-        
-        # Process new data and add to all_rows
-        year = data.get('year', 'unknown')
+
+        year = data.get('year')
         auditor = data.get('auditor', 'unknown')
         jenis_asesmen = data.get('jenis_asesmen', 'Internal')
-        
-        # Process main indicator data
-        for row in data.get('data', []):
-            # Map frontend data structure to XLSX format
-            row_id = row.get('id', row.get('no', ''))
-            section = row.get('aspek', row.get('section', ''))
-            is_total = row.get('isTotal', False)
-            
-            # Determine Level and Type based on data structure
-            if is_total:
-                level = "1"
-                row_type = "total"
-            elif str(row_id).isdigit():
-                level = "2"
-                row_type = "indicator"
-            else:
-                level = "1"
-                row_type = "header"
-            
-            xlsx_row = {
-                'Level': level,
-                'Type': row_type,
-                'Section': section,
-                'No': row_id,
-                'Deskripsi': row.get('deskripsi', ''),
-                'Bobot': row.get('bobot', ''),
-                'Skor': row.get('skor', ''),
-                'Capaian': row.get('capaian', ''),
-                'Penjelasan': row.get('penjelasan', ''),
-                'Tahun': year,
-                'Penilai': auditor,
-                'Jenis_Penilaian': jenis_asesmen,
-                'Export_Date': saved_at[:10]
-            }
-            all_rows.append(xlsx_row)
-        
-        # Process aspect summary data (if provided)
-        aspect_summary_data = data.get('aspectSummaryData', [])
-        if aspect_summary_data:
-            safe_print(f"🔧 DEBUG: Processing {len(aspect_summary_data)} aspect summary rows")
-            
-            for summary_row in aspect_summary_data:
-                section = summary_row.get('aspek', '')
-                deskripsi = summary_row.get('deskripsi', '')
-                bobot = summary_row.get('bobot', 0)
-                skor = summary_row.get('skor', 0)
-                
-                # Skip empty aspects or meaningless default data
-                if not section or not deskripsi or (bobot == 0 and skor == 0):
-                    continue
-                    
-                # Skip if this looks like an unedited default row (just roman numerals with no real data)
-                if section in ['I', 'II', 'III', 'IV', 'V', 'VI'] and not deskripsi.strip():
-                    continue
-                    
-                # Row 1: Header for this aspect
-                header_row = {
-                    'Level': "1",
-                    'Type': 'header',
-                    'Section': section,
-                    'No': '',
-                    'Deskripsi': summary_row.get('deskripsi', ''),
-                    'Bobot': '',
-                    'Skor': '',
-                    'Capaian': '',
-                    'Penjelasan': '',
-                    'Tahun': year,
-                    'Penilai': auditor,
-                    'Jenis_Penilaian': jenis_asesmen,
-                    'Export_Date': saved_at[:10]
-                }
-                all_rows.append(header_row)
-                
-                # Row 2: Subtotal for this aspect
-                subtotal_row = {
-                    'Level': "1", 
-                    'Type': 'subtotal',
-                    'Section': section,
-                    'No': '',
-                    'Deskripsi': f'JUMLAH {section}',
-                    'Bobot': summary_row.get('bobot', ''),
-                    'Skor': summary_row.get('skor', ''),
-                    'Capaian': summary_row.get('capaian', ''),
-                    'Penjelasan': summary_row.get('penjelasan', ''),
-                    'Tahun': year,
-                    'Penilai': auditor,
-                    'Jenis_Penilaian': jenis_asesmen,
-                    'Export_Date': saved_at[:10]
-                }
-                all_rows.append(subtotal_row)
-        
-        # Process separate totalData (total row sent separately from main data)
-        total_data = data.get('totalData', {})
-        if total_data and isinstance(total_data, dict):
-            # Check if total data has meaningful values (not all zeros)
-            has_meaningful_total = (
-                total_data.get('bobot', 0) != 0 or 
-                total_data.get('skor', 0) != 0 or 
-                total_data.get('capaian', 0) != 0 or 
-                total_data.get('penjelasan', '').strip() != ''
-            )
-            
-            if has_meaningful_total:
-                safe_print(f"🔧 DEBUG: Processing separate totalData: {total_data}")
-                
-                total_row = {
-                    'Level': "4",
-                    'Type': 'total',
-                    'Section': 'TOTAL',
-                    'No': '',
-                    'Deskripsi': 'TOTAL',
-                    'Bobot': total_data.get('bobot', ''),
-                    'Skor': total_data.get('skor', ''),
-                    'Capaian': total_data.get('capaian', ''),
-                    'Penjelasan': total_data.get('penjelasan', ''),
-                    'Tahun': year,
-                    'Penilai': auditor,
-                    'Jenis_Penilaian': jenis_asesmen,
-                    'Export_Date': saved_at[:10]
-                }
-                all_rows.append(total_row)
-                safe_print(f"🔧 DEBUG: Added totalData row to all_rows")
-            else:
-                safe_print(f"🔧 DEBUG: Skipping totalData - no meaningful values")
-        
-        # Convert to DataFrame and save XLSX
-        if all_rows:
-            df = pd.DataFrame(all_rows)
-            
-            # Remove any duplicate rows
-            df_unique = df.drop_duplicates(subset=['Tahun', 'Section', 'No', 'Deskripsi'], keep='last')
-            safe_print(f"🔧 DEBUG: Removed {len(df) - len(df_unique)} duplicate rows")
-            
-            # Custom sorting: year → aspek → no, then organize headers and subtotals properly
-            def sort_key(row):
-                # Ensure all values are consistently typed for comparison
-                try:
-                    year = int(row['Tahun']) if pd.notna(row['Tahun']) else 0
-                except (ValueError, TypeError):
-                    year = 0
-                
-                section = str(row['Section']) if pd.notna(row['Section']) else ''
-                no = row['No']
-                row_type = str(row['Type']) if pd.notna(row['Type']) else 'indicator'
-                
-                # Convert 'no' to numeric for proper sorting, handle empty values
-                try:
-                    no_numeric = int(no) if str(no).isdigit() else 9999
-                except (ValueError, TypeError):
-                    no_numeric = 9999
-                
-                # Type priority: header=0, indicators=1, subtotal=2, total=3 (appears last)
-                type_priority = {'header': 0, 'indicator': 1, 'subtotal': 2, 'total': 3}.get(row_type, 1)
-                
-                # Special handling for total rows: they should appear at the very end of each year
-                if row_type == 'total':
-                    # Use 'ZZZZZ' as section to ensure total rows sort last within each year
-                    section = 'ZZZZZ'
-                
-                return (year, section, type_priority, no_numeric)
-            
-            # Apply custom sorting
-            df_sorted = df_unique.loc[df_unique.apply(sort_key, axis=1).sort_values().index]
-            
-            # Save XLSX using storage service
-            success = storage_service.write_excel(df_sorted, 'web-output/output.xlsx')
-            if success:
-                safe_print(f"SUCCESS: Saved to output.xlsx with {len(df_sorted)} rows (sorted: year->aspek->no->type)")
-            else:
-                safe_print(f"ERROR: Failed to save output.xlsx")
-            
-        return jsonify({
-            'success': True,
-            'message': 'Data berhasil disimpan',
-            'assessment_id': assessment_id,
-            'saved_at': saved_at
-        })
-        
+
+        if not year:
+            return jsonify({'success': False, 'error': 'Year is required'}), 400
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            # Delete existing assessments for this year
+            cursor.execute("DELETE FROM gcg_assessments WHERE year = ?", (year,))
+            cursor.execute("DELETE FROM gcg_assessment_summary WHERE year = ?", (year,))
+            safe_print(f"🗑️ Deleted existing assessments for year {year}")
+
+            # Process aspect summary data (primary data)
+            aspect_summary_data = data.get('aspectSummaryData', [])
+            if aspect_summary_data:
+                safe_print(f"💾 Saving {len(aspect_summary_data)} aspect summary rows")
+
+                for summary_row in aspect_summary_data:
+                    aspek = summary_row.get('deskripsi', '')  # aspect name
+                    bobot = summary_row.get('bobot', 0)
+                    skor = summary_row.get('skor', 0)
+                    capaian = summary_row.get('capaian', 0)
+
+                    # Skip empty/meaningless rows
+                    if not aspek or (bobot == 0 and skor == 0):
+                        continue
+
+                    # Determine category based on capaian
+                    if capaian >= 85:
+                        category = "Sangat Baik"
+                    elif capaian >= 70:
+                        category = "Baik"
+                    elif capaian >= 50:
+                        category = "Cukup"
+                    else:
+                        category = "Kurang"
+
+                    # Insert into summary table
+                    cursor.execute("""
+                        INSERT INTO gcg_assessment_summary
+                        (year, aspek, total_nilai, total_skor, percentage, category)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    """, (year, aspek, bobot, skor, capaian, category))
+
+            conn.commit()
+            safe_print(f"✅ Successfully saved assessment data for year {year}")
+
+            return jsonify({
+                'success': True,
+                'assessment_id': assessment_id,
+                'message': f'Assessment data saved to SQLite for year {year}'
+            })
+
     except Exception as e:
-        safe_print(f"ERROR: Error saving assessment: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-
-# generate_output_xlsx function removed - now saving directly to XLSX
-
-
+        safe_print(f"❌ Error saving assessment: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
 @app.route('/api/delete-year-data', methods=['DELETE'])
 def delete_year_data():
     """
@@ -1299,70 +1140,83 @@ def get_gcg_chart_data():
     """
     Get assessment data formatted for GCGChart component (graphics-2 format)
     Returns data with Level hierarchy as expected by processGCGData function
+    NOW USING SQLITE DATABASE
     """
     try:
-        # Read XLSX data
-        df = storage_service.read_excel('web-output/output.xlsx')
-        
-        if df is None:
-            safe_print(f"WARNING: output.xlsx not found or empty")
+        # Read from SQLite database using the assessment detail view
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            # Get detailed assessment data
+            cursor.execute("""
+                SELECT
+                    a.year as Tahun,
+                    c.level as Level,
+                    c.type as Type,
+                    c.section as Section,
+                    c.deskripsi as Deskripsi,
+                    c.bobot as Bobot,
+                    a.nilai,
+                    a.skor as Skor,
+                    a.keterangan as Penjelasan,
+                    u.name as Penilai
+                FROM gcg_assessments a
+                JOIN gcg_aspects_config c ON a.config_id = c.id
+                LEFT JOIN users u ON a.created_by = u.id
+                ORDER BY a.year, c.level, c.section
+            """)
+
+            rows = cursor.fetchall()
+
+            if not rows:
+                safe_print(f"WARNING: No GCG assessment data found in database")
+                return jsonify({
+                    'success': True,
+                    'data': [],
+                    'message': 'No chart data available. Please save some assessments first.'
+                })
+
+            safe_print(f"INFO: GCG Chart Data: Loading {len(rows)} rows from SQLite database")
+
+            # Convert to graphics-2 GCGData format
+            gcg_data = []
+            for row in rows:
+                # Calculate capaian (percentage)
+                bobot = row['Bobot'] if row['Bobot'] else 0
+                skor = row['Skor'] if row['Skor'] else 0
+                capaian = (skor / bobot * 100) if bobot > 0 else 0
+
+                gcg_item = {
+                    'Tahun': row['Tahun'],
+                    'Skor': float(skor) if skor else 0,
+                    'Level': row['Level'],
+                    'Section': row['Section'] or '',
+                    'Capaian': round(capaian, 2),
+                    'Bobot': float(bobot) if bobot else None,
+                    'Jumlah_Parameter': None,  # Not used in current schema
+                    'Penjelasan': row['Penjelasan'] or '',
+                    'Penilai': row['Penilai'] or 'Unknown',
+                    'No': '',  # Not used in current schema
+                    'Deskripsi': row['Deskripsi'] or '',
+                    'Jenis_Penilaian': row['Type'] or 'Data Kosong',
+                    'Type': row['Type'] or 'subtotal'
+                }
+                gcg_data.append(gcg_item)
+
+            available_years = list(set([item['Tahun'] for item in gcg_data]))
+
             return jsonify({
                 'success': True,
-                'data': [],
-                'message': 'No chart data available. Please save some assessments first.'
+                'data': gcg_data,
+                'total_rows': len(gcg_data),
+                'available_years': sorted(available_years),
+                'message': f'Loaded GCG chart data from SQLite: {len(gcg_data)} rows'
             })
-        
-        safe_print(f"INFO: GCG Chart Data: Loading {len(df)} rows from output.xlsx")
-        
-        # Convert to graphics-2 GCGData format
-        gcg_data = []
-        for _, row in df.iterrows():
-            # Determine level based on row type
-            level = 3  # Default to section level
-            row_type = str(row.get('Type', '')).lower()
-            
-            if row_type == 'total':
-                level = 4
-            elif row_type == 'header':
-                level = 1
-            elif row_type == 'indicator':
-                level = 2
-            elif row_type == 'subtotal':
-                level = 3
-            
-            # Handle NaN values
-            tahun = int(row.get('Tahun', 2022))
-            skor = float(row.get('Skor', 0)) if not pd.isna(row.get('Skor', 0)) else 0
-            capaian = float(row.get('Capaian', 0)) if not pd.isna(row.get('Capaian', 0)) else 0
-            bobot = float(row.get('Bobot', 0)) if not pd.isna(row.get('Bobot', 0)) else None
-            jumlah_param = float(row.get('Jumlah_Parameter', 0)) if not pd.isna(row.get('Jumlah_Parameter', 0)) else None
-            
-            gcg_item = {
-                'Tahun': tahun,
-                'Skor': skor,
-                'Level': level,
-                'Section': str(row.get('Section', '')),
-                'Capaian': capaian,
-                'Bobot': bobot,
-                'Jumlah_Parameter': jumlah_param,
-                'Penjelasan': str(row.get('Penjelasan', '')),
-                'Penilai': str(row.get('Penilai', 'Unknown')),
-                'No': str(row.get('No', '')),
-                'Deskripsi': str(row.get('Deskripsi', '')),
-                'Jenis_Penilaian': str(row.get('Jenis_Penilaian', 'Data Kosong'))
-            }
-            gcg_data.append(gcg_item)
-        
-        return jsonify({
-            'success': True,
-            'data': gcg_data,
-            'total_rows': len(gcg_data),
-            'available_years': list(set([item['Tahun'] for item in gcg_data])),
-            'message': f'Loaded GCG chart data: {len(gcg_data)} rows'
-        })
-        
+
     except Exception as e:
-        safe_print(f"ERROR: Error loading GCG chart data: {str(e)}")
+        safe_print(f"ERROR: Error loading GCG chart data from SQLite: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({
             'success': False,
             'error': str(e),
@@ -5818,5 +5672,5 @@ def refresh_tracking_tables():
 
 if __name__ == '__main__':
     import os
-    port = int(os.environ.get('FLASK_PORT', 5000))
+    port = int(os.environ.get('FLASK_PORT', 5001))
     app.run(debug=True, host='0.0.0.0', port=port, use_reloader=False)
