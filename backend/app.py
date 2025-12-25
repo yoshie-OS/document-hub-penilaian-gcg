@@ -1143,65 +1143,96 @@ def get_gcg_chart_data():
     NOW USING SQLITE DATABASE
     """
     try:
-        # Read from SQLite database using the assessment detail view
+        # Read from SQLite database using the assessment summary table
         with get_db_connection() as conn:
             cursor = conn.cursor()
 
-            # Get detailed assessment data
+            # Get summary data for visualizations (from migrated Excel data)
             cursor.execute("""
                 SELECT
-                    a.year as Tahun,
-                    c.level as Level,
-                    c.type as Type,
-                    c.section as Section,
-                    c.deskripsi as Deskripsi,
-                    c.bobot as Bobot,
-                    a.nilai,
-                    a.skor as Skor,
-                    a.keterangan as Penjelasan,
-                    u.name as Penilai
-                FROM gcg_assessments a
-                JOIN gcg_aspects_config c ON a.config_id = c.id
-                LEFT JOIN users u ON a.created_by = u.id
-                ORDER BY a.year, c.level, c.section
+                    year as Tahun,
+                    aspek as Deskripsi,
+                    total_nilai as Bobot,
+                    total_skor as Skor,
+                    percentage as Capaian,
+                    category
+                FROM gcg_assessment_summary
+                ORDER BY year DESC, aspek
             """)
 
             rows = cursor.fetchall()
 
             if not rows:
-                safe_print(f"WARNING: No GCG assessment data found in database")
+                safe_print(f"WARNING: No GCG assessment summary data found in database")
                 return jsonify({
                     'success': True,
                     'data': [],
                     'message': 'No chart data available. Please save some assessments first.'
                 })
 
-            safe_print(f"INFO: GCG Chart Data: Loading {len(rows)} rows from SQLite database")
+            safe_print(f"INFO: GCG Chart Data: Loading {len(rows)} summary rows from SQLite database")
 
-            # Convert to graphics-2 GCGData format
+            # Convert to graphics-2 GCGData format for visualization
+            # Format: header rows (Level 1) represent the main aspects, total row (Level 4) for aggregation
             gcg_data = []
-            for row in rows:
-                # Calculate capaian (percentage)
-                bobot = row['Bobot'] if row['Bobot'] else 0
-                skor = row['Skor'] if row['Skor'] else 0
-                capaian = (skor / bobot * 100) if bobot > 0 else 0
+            year_totals = {}  # Track totals per year
+            year_aspect_counters = {}  # Track aspect count per year for Roman numerals
 
+            # Roman numeral mapping
+            roman_numerals = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X']
+
+            for row in rows:
+                year = row['Tahun']
+
+                # Track year totals
+                if year not in year_totals:
+                    year_totals[year] = {'total_skor': 0, 'total_bobot': 0}
+                    year_aspect_counters[year] = 0
+
+                year_totals[year]['total_skor'] += float(row['Skor']) if row['Skor'] else 0
+                year_totals[year]['total_bobot'] += float(row['Bobot']) if row['Bobot'] else 0
+
+                # Assign Roman numeral section for this aspect
+                section_roman = roman_numerals[year_aspect_counters[year]] if year_aspect_counters[year] < len(roman_numerals) else str(year_aspect_counters[year] + 1)
+                year_aspect_counters[year] += 1
+
+                # Add aspect header (Level 1)
                 gcg_item = {
-                    'Tahun': row['Tahun'],
-                    'Skor': float(skor) if skor else 0,
-                    'Level': row['Level'],
-                    'Section': row['Section'] or '',
-                    'Capaian': round(capaian, 2),
-                    'Bobot': float(bobot) if bobot else None,
-                    'Jumlah_Parameter': None,  # Not used in current schema
-                    'Penjelasan': row['Penjelasan'] or '',
-                    'Penilai': row['Penilai'] or 'Unknown',
-                    'No': '',  # Not used in current schema
+                    'Tahun': year,
+                    'Skor': round(float(row['Skor']), 2) if row['Skor'] else 0,
+                    'Level': 1,  # Summary data is level 1 (header/aspect level)
+                    'Section': section_roman,  # Roman numeral for aspect identification
+                    'Capaian': round(float(row['Capaian']), 2) if row['Capaian'] else 0,
+                    'Bobot': round(float(row['Bobot']), 2) if row['Bobot'] else 0,
+                    'Jumlah_Parameter': None,
+                    'Penjelasan': f"Category: {row['category']}" if row['category'] else '',
+                    'Penilai': 'Historical Data',
+                    'No': '',
                     'Deskripsi': row['Deskripsi'] or '',
-                    'Jenis_Penilaian': row['Type'] or 'Data Kosong',
-                    'Type': row['Type'] or 'subtotal'
+                    'Jenis_Penilaian': 'Assessment',
+                    'Type': 'header'
                 }
                 gcg_data.append(gcg_item)
+
+            # Add total row (Level 4) for each year
+            for year, totals in year_totals.items():
+                total_capaian = (totals['total_skor'] / totals['total_bobot'] * 100) if totals['total_bobot'] > 0 else 0
+
+                gcg_data.append({
+                    'Tahun': year,
+                    'Skor': round(totals['total_skor'], 2),
+                    'Level': 4,  # Total level
+                    'Section': 'TOTAL',
+                    'Capaian': round(total_capaian, 2),
+                    'Bobot': round(totals['total_bobot'], 2),
+                    'Jumlah_Parameter': None,
+                    'Penjelasan': 'Total GCG Score',
+                    'Penilai': 'Historical Data',
+                    'No': '',
+                    'Deskripsi': 'TOTAL',
+                    'Jenis_Penilaian': 'Assessment',
+                    'Type': 'total'
+                })
 
             available_years = list(set([item['Tahun'] for item in gcg_data]))
 
@@ -1210,7 +1241,7 @@ def get_gcg_chart_data():
                 'data': gcg_data,
                 'total_rows': len(gcg_data),
                 'available_years': sorted(available_years),
-                'message': f'Loaded GCG chart data from SQLite: {len(gcg_data)} rows'
+                'message': f'Loaded GCG chart data from SQLite summary table: {len(gcg_data)} rows'
             })
 
     except Exception as e:
