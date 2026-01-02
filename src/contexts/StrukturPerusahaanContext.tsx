@@ -93,7 +93,11 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
     const loadDataFrombackend = async () => {
       try {
         setIsLoading(true);
-        const response = await fetch('http://localhost:5001/api/config/struktur-organisasi');
+        // Add year parameter to fetch only data for selected year
+        const url = selectedYear
+          ? `http://localhost:5001/api/config/struktur-organisasi?year=${selectedYear}`
+          : 'http://localhost:5001/api/config/struktur-organisasi';
+        const response = await fetch(url);
         if (response.ok) {
           const data = await response.json();
           
@@ -136,8 +140,10 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
       }
     };
 
-    loadDataFrombackend();
-  }, [refreshTrigger]);
+    if (selectedYear) {
+      loadDataFrombackend();
+    }
+  }, [refreshTrigger, selectedYear]);
 
   // Filter data berdasarkan tahun yang dipilih
   const filteredDirektorat = selectedYear ? direktorat.filter(d => d.tahun === selectedYear) : [];
@@ -148,6 +154,10 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
   // CRUD Functions
   const addDirektorat = async (data: Omit<Direktorat, 'id' | 'createdAt' | 'isActive'>) => {
     try {
+      if (!selectedYear) {
+        throw new Error('No year selected');
+      }
+
       // Save to backend API
       const response = await fetch('http://localhost:5001/api/config/struktur-organisasi', {
         method: 'POST',
@@ -158,33 +168,31 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
           type: 'direktorat',
           nama: data.nama,
           deskripsi: data.deskripsi || '',
+          tahun: selectedYear,
           parent_id: null,
         }),
       });
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       console.log('StrukturPerusahaanContext: Successfully saved direktorat to backend');
+
+      // Refresh data from backend to get the new item with correct ID
+      triggerUpdate();
     } catch (error) {
       console.error('StrukturPerusahaanContext: Failed to save direktorat to backend:', error);
+      throw error; // Re-throw so calling code knows it failed
     }
-
-    const newDirektorat: Direktorat = {
-      ...data,
-      id: Date.now(),
-      createdAt: new Date(),
-      isActive: true
-    };
-
-    const updatedDirektorat = [...direktorat, newDirektorat];
-    setDirektorat(updatedDirektorat);
-    triggerUpdate();
   };
 
   const addSubdirektorat = async (data: Omit<Subdirektorat, 'id' | 'createdAt' | 'isActive'>) => {
     try {
+      if (!selectedYear) {
+        throw new Error('No year selected');
+      }
+
       // Save to backend API
       const response = await fetch('http://localhost:5001/api/config/struktur-organisasi', {
         method: 'POST',
@@ -195,33 +203,31 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
           type: 'subdirektorat',
           nama: data.nama,
           deskripsi: data.deskripsi || '',
+          tahun: selectedYear,
           parent_id: data.direktoratId || null,
         }),
       });
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       console.log('StrukturPerusahaanContext: Successfully saved subdirektorat to backend');
+
+      // Refresh data from backend to get the new item with correct ID
+      triggerUpdate();
     } catch (error) {
       console.error('StrukturPerusahaanContext: Failed to save subdirektorat to backend:', error);
+      throw error;
     }
-
-    const newSubdirektorat: Subdirektorat = {
-      ...data,
-      id: Date.now(),
-      createdAt: new Date(),
-      isActive: true
-    };
-
-    const updatedSubdirektorat = [...subdirektorat, newSubdirektorat];
-    setSubdirektorat(updatedSubdirektorat);
-    triggerUpdate();
   };
 
   const addAnakPerusahaan = async (data: Omit<AnakPerusahaan, 'id' | 'createdAt' | 'isActive'>) => {
     try {
+      if (!selectedYear) {
+        throw new Error('No year selected');
+      }
+
       // Save to backend API
       const response = await fetch('http://localhost:5001/api/config/struktur-organisasi', {
         method: 'POST',
@@ -232,33 +238,31 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
           type: 'anak_perusahaan',
           nama: data.nama,
           deskripsi: data.deskripsi || '',
+          tahun: selectedYear,
           parent_id: null,
         }),
       });
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       console.log('StrukturPerusahaanContext: Successfully saved anak perusahaan to backend');
+
+      // Refresh data from backend to get the new item with correct ID
+      triggerUpdate();
     } catch (error) {
       console.error('StrukturPerusahaanContext: Failed to save anak perusahaan to backend:', error);
+      throw error;
     }
-
-    const newAnakPerusahaan: AnakPerusahaan = {
-      ...data,
-      id: Date.now(),
-      createdAt: new Date(),
-      isActive: true
-    };
-
-    const updatedAnakPerusahaan = [...anakPerusahaan, newAnakPerusahaan];
-    setAnakPerusahaan(updatedAnakPerusahaan);
-    triggerUpdate();
   };
 
   const addDivisi = async (data: Omit<Divisi, 'id' | 'createdAt' | 'isActive'>) => {
     try {
+      if (!selectedYear) {
+        throw new Error('No year selected');
+      }
+
       // Save to backend API
       const response = await fetch('http://localhost:5001/api/config/struktur-organisasi', {
         method: 'POST',
@@ -269,29 +273,23 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
           type: 'divisi',
           nama: data.nama,
           deskripsi: data.deskripsi || '',
+          tahun: selectedYear,
           parent_id: data.subdirektoratId || null,
         }),
       });
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       console.log('StrukturPerusahaanContext: Successfully saved divisi to backend');
+
+      // Refresh data from backend to get the new item with correct ID
+      triggerUpdate();
     } catch (error) {
       console.error('StrukturPerusahaanContext: Failed to save divisi to backend:', error);
+      throw error;
     }
-
-    const newDivisi: Divisi = {
-      ...data,
-      id: Date.now(),
-      createdAt: new Date(),
-      isActive: true
-    };
-
-    const updatedDivisi = [...divisi, newDivisi];
-    setDivisi(updatedDivisi);
-    triggerUpdate();
   };
 
   const deleteDirektorat = async (id: number) => {
@@ -649,12 +647,23 @@ export const StrukturPerusahaanProvider: React.FC<StrukturPerusahaanProviderProp
       }
     };
 
+    // Listen for year added events (including reactivated years)
+    const handleYearAdded = (e: CustomEvent) => {
+      if (e.detail?.type === 'yearAdded') {
+        const addedYear = e.detail.year;
+        console.log(`StrukturPerusahaanContext: Year ${addedYear} added/reactivated, refreshing data`);
+        refreshData();
+      }
+    };
+
     window.addEventListener('strukturPerusahaanUpdate', handleCustomEvent as EventListener);
     window.addEventListener('yearDataCleaned', handleYearDataCleaned as EventListener);
-    
+    window.addEventListener('yearAdded', handleYearAdded as EventListener);
+
     return () => {
       window.removeEventListener('strukturPerusahaanUpdate', handleCustomEvent as EventListener);
       window.removeEventListener('yearDataCleaned', handleYearDataCleaned as EventListener);
+      window.removeEventListener('yearAdded', handleYearAdded as EventListener);
     };
   }, []);
 

@@ -1,6 +1,7 @@
 import React from 'react';
 import { useUser } from '@/contexts/UserContext';
 import { useSidebar } from '@/contexts/SidebarContext';
+import { useTour } from '@/contexts/TourContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -17,14 +18,16 @@ import {
   X,
   ChevronRight,
   Home,
-  BookOpen,
+  HelpCircle,
   ChevronDown,
   UserCog
 } from 'lucide-react';
+import ContactSuperAdminDialog from '@/components/ContactSuperAdminDialog';
 
 const Topbar = () => {
   const { user } = useUser();
   const { isSidebarOpen, toggleSidebar } = useSidebar();
+  const { startTour } = useTour();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -38,14 +41,43 @@ const Topbar = () => {
     }, 300);
   };
 
-  // Function to open manual book based on user role
-  const handleOpenManualBook = () => {
-    const manualBookPath = user?.role === 'superadmin'
-      ? '/manualbook/manual_superadmin.pdf'
-      : '/manualbook/manual_admin.pdf';
+  // Function to start user guide tour based on current page
+  const handleStartUserGuide = () => {
+    // Determine page name from current path
+    const path = location.pathname;
+    let pageName = 'dashboard';
 
-    // Open PDF in new tab
-    window.open(manualBookPath, '_blank');
+    // Check most specific paths first
+    if (path.includes('/list-gcg') || path.includes('/monitoring')) {
+      pageName = 'monitoring';
+    } else if (path.includes('/pengaturan')) {
+      // Check for sub-routes first (more specific)
+      if (path.includes('/pengaturan/tahun-buku')) {
+        pageName = 'pengaturan-tahun-buku';
+      } else if (path.includes('/pengaturan/struktur-organisasi')) {
+        pageName = 'pengaturan-struktur';
+      } else if (path.includes('/pengaturan/manajemen-akun')) {
+        pageName = 'pengaturan-akun';
+      } else if (path.includes('/pengaturan/kelola-dokumen')) {
+        pageName = 'pengaturan-dokumen';
+      } else if (path.includes('/pengaturan-baru')) {
+        pageName = 'pengaturan-baru';
+      } else {
+        // Main pengaturan hub page
+        pageName = 'pengaturan';
+      }
+    } else if (path.includes('/arsip-dokumen') || path.includes('/arsip')) {
+      pageName = 'arsip';
+    } else if (path.includes('/aoi')) {
+      pageName = 'aoi';
+    } else if (path.includes('/admin/settings')) {
+      pageName = 'pengaturan';
+    } else if (path === '/dashboard' || path === '/') {
+      pageName = 'dashboard';
+    }
+
+    console.log('🔍 Tour Debug - Path:', path, '→ PageName:', pageName, '| User role:', user?.role);
+    startTour(pageName);
   };
 
   // Navigate to Edit Super Admin page
@@ -149,17 +181,20 @@ const Topbar = () => {
       </div>
 
       {/* Right side */}
-      <div className="flex items-center space-x-4 ml-auto">
-        {/* Manual Book Button */}
+      <div className="flex items-center space-x-3 ml-auto">
+        {/* Contact Super Admin Button - Hidden for superadmin */}
+        {user?.role !== 'superadmin' && <ContactSuperAdminDialog />}
+
+        {/* User Guide Button */}
         <Button
           variant="outline"
           size="sm"
-          onClick={handleOpenManualBook}
+          onClick={handleStartUserGuide}
           className="flex items-center space-x-2 text-gray-600 hover:text-blue-600 hover:border-blue-300"
-          title={`Buka Manual Book ${user?.role === 'superadmin' ? 'Super Admin' : 'Admin'}`}
+          title="Mulai tutorial panduan halaman ini"
         >
-          <BookOpen className="w-4 h-4" />
-          <span className="hidden sm:inline">Manual Book</span>
+          <HelpCircle className="w-4 h-4" />
+          <span className="hidden sm:inline">User Guide</span>
         </Button>
 
         {/* User Avatar with Dropdown - Hidden for Admin */}

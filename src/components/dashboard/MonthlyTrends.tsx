@@ -412,7 +412,7 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
   // removed auto-scroll helper and slider
 
   return (
-    <Card className={`border-0 shadow-xl bg-white/80 backdrop-blur-sm ${className}`}>
+    <Card data-tour="progress-chart" className={`border-0 shadow-xl bg-white/80 backdrop-blur-sm ${className}`}>
       <CardHeader>
         <CardTitle className="flex items-center space-x-2">
           <TrendingUp className="w-6 h-6 text-blue-600" />
@@ -425,7 +425,7 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
       <CardContent>
         <div className="space-y-6">
           {/* Controls & Indicator */}
-          <div className="flex items-center justify-between mb-2">
+          <div data-tour="progress-controls" className="flex items-center justify-between mb-2">
             <div className="px-3 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-sm font-semibold">
               {showAll ? 'Semua Subdirektorat' : (chartData[activeIndex]?.subdirektorat || '—')}
             </div>
@@ -582,7 +582,7 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
           </div>
 
           {/* Legend mapping abbr -> full name (tanpa scroll) */}
-          <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+          <div data-tour="progress-legend" className="mt-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
             {chartData.map((d, i) => (
               <div key={i} className={`flex items-center space-x-2 text-xs ${!showAll && i === activeIndex ? 'text-blue-700' : 'text-gray-600'}`}>
                 <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full border ${i === activeIndex ? 'border-blue-300 bg-blue-50' : 'border-gray-200 bg-white'}`}>
@@ -596,7 +596,7 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
           {/* Removed Progres Subdirektorat section as requested */}
 
           {/* Breakdown Penugasan Subdirektorat - REAL-TIME */}
-          <div className="space-y-4">
+          <div data-tour="progress-breakdown" className="space-y-4">
             <h4 className="text-lg font-semibold text-gray-900 flex items-center space-x-2">
               <Building2 className="w-5 h-5 text-blue-600" />
               <span>Breakdown Penugasan Subdirektorat</span>
@@ -666,11 +666,12 @@ const MonthlyTrends: React.FC<MonthlyTrendsProps> = ({ className }) => {
                           size="sm"
                           onClick={() => toggleExpanded(data.subdirektorat)}
                           className="h-6 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                          data-tour={index === 0 ? "progress-expand-divisi" : undefined}
                         >
                           <Eye className="w-3 h-3 mr-1" />
                           {expandedSubdirs.has(data.subdirektorat) ? 'Sembunyikan' : 'Lihat Detail'}
-                          {expandedSubdirs.has(data.subdirektorat) ? 
-                            <ChevronUp className="w-3 h-3 ml-1" /> : 
+                          {expandedSubdirs.has(data.subdirektorat) ?
+                            <ChevronUp className="w-3 h-3 ml-1" /> :
                             <ChevronDown className="w-3 h-3 ml-1" />
                           }
                         </Button>

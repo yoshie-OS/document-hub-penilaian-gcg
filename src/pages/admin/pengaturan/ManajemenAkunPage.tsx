@@ -346,12 +346,13 @@ const ManajemenAkunPage = () => {
               variant="ghost"
               onClick={() => navigate('/admin/pengaturan')}
               className="mb-4 text-gray-600 hover:text-gray-900"
+              data-tour="akun-back"
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
               Kembali ke Pengaturan
             </Button>
 
-            <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center justify-between flex-wrap gap-4" data-tour="akun-header">
               <div className="flex items-center space-x-3">
                 <div className="p-3 bg-blue-100 rounded-xl">
                   <Users className="w-8 h-8 text-blue-600" />
@@ -365,7 +366,7 @@ const ManajemenAkunPage = () => {
               <div className="flex items-center space-x-3">
                 {/* Year Selector */}
                 <Select value={selectedYear?.toString() || ''} onValueChange={(value) => setSelectedYear(parseInt(value))}>
-                  <SelectTrigger className="w-[140px]">
+                  <SelectTrigger className="w-[140px]" data-tour="akun-year-selector">
                     <Calendar className="w-4 h-4 mr-2" />
                     <SelectValue placeholder="Pilih Tahun" />
                   </SelectTrigger>
@@ -384,7 +385,7 @@ const ManajemenAkunPage = () => {
                 }
               }}>
                 <DialogTrigger asChild>
-                  <Button className="bg-blue-600 hover:bg-blue-700">
+                  <Button className="bg-blue-600 hover:bg-blue-700" data-tour="tambah-user-btn">
                     <Plus className="w-4 h-4 mr-2" />
                     Tambah Pengguna
                   </Button>
@@ -577,7 +578,7 @@ const ManajemenAkunPage = () => {
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6" data-tour="akun-stats">
             <Card>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
@@ -603,7 +604,7 @@ const ManajemenAkunPage = () => {
           </div>
 
           {/* Users Table */}
-          <Card>
+          <Card data-tour="akun-table">
             <CardHeader>
               <CardTitle>Daftar PIC (Person In Charge)</CardTitle>
             </CardHeader>
@@ -675,6 +676,7 @@ const ManajemenAkunPage = () => {
                                 size="sm"
                                 onClick={() => openEditDialog(user)}
                                 title="Edit pengguna"
+                                data-tour={index === 0 ? "edit-user-btn" : undefined}
                               >
                                 <Edit className="w-4 h-4" />
                               </Button>
@@ -685,6 +687,7 @@ const ManajemenAkunPage = () => {
                                 onClick={() => handleDeleteUser(user.id)}
                                 disabled={deletingUsers.has(user.id)}
                                 title="Hapus pengguna"
+                                data-tour={index === 0 ? "delete-user-btn" : undefined}
                               >
                                 <Trash2 className="w-4 h-4" />
                               </Button>

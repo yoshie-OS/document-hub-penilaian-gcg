@@ -136,7 +136,7 @@ const DashboardMain = () => {
           />
 
           {/* Year Selector */}
-          <div id="year-selector" className="mb-6">
+          <div id="year-selector" data-tour="year-selector" className="mb-6">
             <YearSelector initialYear={filterYear ? parseInt(filterYear) : undefined} />
           </div>
 
@@ -144,7 +144,7 @@ const DashboardMain = () => {
           {selectedYear && stats ? (
             <>
               {/* Progress Keseluruhan - Smaller version */}
-              <Card className="mb-6 border-0 shadow-lg bg-gradient-to-br from-purple-600 to-indigo-700 text-white">
+              <Card data-tour="stats-cards" className="mb-6 border-0 shadow-lg bg-gradient-to-br from-purple-600 to-indigo-700 text-white">
                 <CardContent className="p-4">
                   <div className="flex flex-col md:flex-row items-center gap-4">
                     {/* Circular Progress - Smaller */}
@@ -206,7 +206,7 @@ const DashboardMain = () => {
               </Card>
 
               {/* Progress Per Aspek - Circular Progress Cards */}
-              <Card className="mb-6 border-0 shadow-xl bg-white/80 backdrop-blur-sm">
+              <Card data-tour="performance-chart" className="mb-6 border-0 shadow-xl bg-white/80 backdrop-blur-sm">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <BarChart3 className="w-6 h-6 text-blue-600" />

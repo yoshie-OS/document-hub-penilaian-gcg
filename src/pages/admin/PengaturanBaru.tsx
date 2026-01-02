@@ -891,49 +891,49 @@ const PengaturanBaru = () => {
   }, [direktorat, subdirektorat, anakPerusahaan, divisi]);
 
   // Effect untuk load users dari backend API
-  useEffect(() => {
-    const loadUsersFromAPI = async () => {
-      try {
-        const response = await fetch('http://localhost:5001/api/users');
-        if (response.ok) {
-          const apiUsers = await response.json();
-          setUsers(apiUsers);
-          console.log('PengaturanBaru: Loaded users from API', apiUsers.length);
+  // Define loadUsersFromAPI as a standalone function so it can be called from event listeners
+  const loadUsersFromAPI = React.useCallback(async () => {
+    // Skip if no year selected
+    if (!selectedYear) {
+      setUsers([]);
+      return;
+    }
 
-          // Cek dan buat 2 akun admin default jika diperlukan
-          await ensureTwoDefaultAdmins(apiUsers);
-        } else {
-          console.error('PengaturanBaru: Failed to load users from API');
-          // Fallback to localStorage if API fails
-          const storedUsers = localStorage.getItem('users');
-          if (storedUsers) {
-            try {
-              const parsedUsers = JSON.parse(storedUsers);
-              setUsers(parsedUsers);
-            } catch (error) {
-              console.error('Error parsing users:', error);
-              setUsers([]);
-            }
-          }
-        }
-      } catch (error) {
-        console.error('PengaturanBaru: Error loading users from API:', error);
-        // Fallback to localStorage if API fails
-        const storedUsers = localStorage.getItem('users');
-        if (storedUsers) {
-          try {
-            const parsedUsers = JSON.parse(storedUsers);
-            setUsers(parsedUsers);
-          } catch (error) {
-            console.error('Error parsing users:', error);
-            setUsers([]);
-          }
-        }
+    try {
+      // FIXED: Add year parameter to filter users by year
+      const response = await fetch(`http://localhost:5001/api/users?year=${selectedYear}`);
+      if (response.ok) {
+        const apiUsers = await response.json();
+        setUsers(apiUsers);
+        console.log(`PengaturanBaru: Loaded ${apiUsers.length} users for year ${selectedYear}`);
+
+        // Cek dan buat 2 akun admin default jika diperlukan
+        await ensureTwoDefaultAdmins(apiUsers);
+      } else {
+        console.error('PengaturanBaru: Failed to load users from API');
+        // FIXED: No localStorage fallback - show error instead
+        setUsers([]);
+        toast({
+          title: "Error",
+          description: "Gagal memuat data users dari server",
+          variant: "destructive"
+        });
       }
-    };
+    } catch (error) {
+      console.error('PengaturanBaru: Error loading users from API:', error);
+      // FIXED: No localStorage fallback - show error instead
+      setUsers([]);
+      toast({
+        title: "Error",
+        description: "Terjadi kesalahan saat memuat users",
+        variant: "destructive"
+      });
+    }
+  }, [selectedYear, toast]);
 
+  useEffect(() => {
     loadUsersFromAPI();
-  }, []);
+  }, [loadUsersFromAPI]); // FIXED: Reload when loadUsersFromAPI changes (which happens when selectedYear changes)
 
   // Fungsi untuk memastikan ada 2 admin default
   const ensureTwoDefaultAdmins = async (currentUsers: User[]) => {
@@ -1291,29 +1291,42 @@ const PengaturanBaru = () => {
     const handleYearRemoved = (event: CustomEvent) => {
       const { year } = event.detail;
       console.log('PengaturanBaru: Handling year removal for year', year);
-      
+
       // Clear data jika tahun yang dihapus adalah tahun aktif
       if (selectedYear === year) {
         setChecklistItems([]);
         setOriginalChecklistItems([]);
         setItemChanges(new Set());
         setHasUnsavedChanges(false);
-        
+
         // Clear assignments untuk tahun yang dihapus
         setAssignments([]);
-        
+
         console.log('PengaturanBaru: Cleared all checklist data for removed year', year);
+      }
+    };
+
+    const handleYearAdded = (event: CustomEvent) => {
+      const { year } = event.detail;
+      console.log('PengaturanBaru: Handling year added/reactivated for year', year);
+
+      // Force reload users data from API
+      if (selectedYear === year) {
+        loadUsersFromAPI();
+        console.log('PengaturanBaru: Reloaded users data from API for year', year);
       }
     };
 
     window.addEventListener('yearCreatedFresh', handleYearCreatedFresh as EventListener);
     window.addEventListener('yearRemoved', handleYearRemoved as EventListener);
-    
+    window.addEventListener('yearAdded', handleYearAdded as EventListener);
+
     return () => {
       window.removeEventListener('yearCreatedFresh', handleYearCreatedFresh as EventListener);
       window.removeEventListener('yearRemoved', handleYearRemoved as EventListener);
+      window.removeEventListener('yearAdded', handleYearAdded as EventListener);
     };
-  }, [selectedYear]);
+  }, [selectedYear, loadUsersFromAPI]);
   
   // State untuk form tahun buku
   const [tahunForm, setTahunForm] = useState({
@@ -1654,7 +1667,7 @@ const PengaturanBaru = () => {
           divisi: 'Direksi'
         });
       }
-      localStorage.setItem('users', JSON.stringify(users));
+      // REMOVED localStorage.setItem - data managed by backend API only
 
       console.log(`Manajemen akun berhasil di-copy dari tahun ${fromYear} ke ${toYear}`);
     } catch (error) {
@@ -2022,7 +2035,7 @@ const PengaturanBaru = () => {
         phone: userForm.phone || '',
         adminEmail: userForm.adminEmail || '',
         adminPhone: userForm.adminPhone || '',
-        tahun: null
+        tahun: selectedYear  // IMPORTANT: Assign user to selected year for cleanup
       };
 
       if (editingUser) {
@@ -2043,11 +2056,9 @@ const PengaturanBaru = () => {
         
         // Update local state
         setUsers(prev => prev.map(u => u.id === editingUser.id ? updatedUser : u));
-        
-        // Update localStorage for consistency
-        const updatedUsers = users.map(u => u.id === editingUser.id ? updatedUser : u);
-        localStorage.setItem('users', JSON.stringify(updatedUsers));
-        
+
+        // REMOVED localStorage.setItem - data managed by backend API only
+
         toast({
           title: "Berhasil!",
           description: "User berhasil diupdate dan disync ke Supabase",
@@ -2072,10 +2083,8 @@ const PengaturanBaru = () => {
         
         // Update local state
         setUsers(prev => [...prev, newUser]);
-        
-        // Update localStorage for consistency
-        const updatedUsers = [...users, newUser];
-        localStorage.setItem('users', JSON.stringify(updatedUsers));
+
+        // REMOVED localStorage.setItem - data managed by backend API only
 
         toast({
           title: "Berhasil!",
@@ -2182,11 +2191,9 @@ const PengaturanBaru = () => {
 
       // Update local state
       setUsers(prev => prev.filter(u => u.id !== userId));
-      
-      // Update localStorage for consistency
-      const updatedUsers = users.filter(u => u.id !== userId);
-      localStorage.setItem('users', JSON.stringify(updatedUsers));
-      
+
+      // REMOVED localStorage.setItem - data managed by backend API only
+
       toast({
         title: "Berhasil!",
         description: "User berhasil dihapus dari Supabase",
@@ -2222,8 +2229,8 @@ const PengaturanBaru = () => {
       const defaultUsers: User[] = [];
 
       setUsers(prev => [...prev, ...defaultUsers]);
-      localStorage.setItem('users', JSON.stringify([...users, ...defaultUsers]));
-      
+      // REMOVED localStorage.setItem - data managed by backend API only
+
       setSetupProgress(prev => ({ ...prev, manajemenAkun: true }));
       
       toast({
@@ -3085,12 +3092,12 @@ const PengaturanBaru = () => {
           </Card>
 
           {/* Setup Tabs */}
-          <Tabs 
-            defaultValue="tahun-buku" 
+          <Tabs
+            defaultValue="tahun-buku"
             className="space-y-6"
             onValueChange={(value) => setActiveTab(value)}
           >
-            <TabsList className="grid w-full grid-cols-4 gap-2 p-1 bg-gradient-to-r from-gray-50 to-gray-100 border border-gray-200 rounded-xl shadow-sm">
+            <TabsList data-tour="tabs" className="grid w-full grid-cols-4 gap-2 p-1 bg-gradient-to-r from-gray-50 to-gray-100 border border-gray-200 rounded-xl shadow-sm">
               <TabsTrigger 
                 value="tahun-buku" 
                 className="flex items-center justify-center space-x-2 px-4 py-3 rounded-lg font-medium transition-all duration-300 
@@ -3177,8 +3184,9 @@ const PengaturanBaru = () => {
                         onClick={() => setShowBulkDeleteDialog(true)}
                         variant="destructive"
                         size="sm"
-                        className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 
-                                 text-white shadow-md hover:shadow-lg transition-all duration-200 
+                        data-tour="bulk-delete"
+                        className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700
+                                 text-white shadow-md hover:shadow-lg transition-all duration-200
                                  border-0 px-4 py-2 rounded-lg font-semibold text-xs flex items-center gap-2"
                       >
                         <AlertTriangle className="w-4 h-4" />
@@ -3213,7 +3221,7 @@ const PengaturanBaru = () => {
                       </div>
                       <div className="flex gap-3">
                         {availableYears && availableYears.length > 0 && (
-                          <Select value={selectedYear?.toString() || ''} onValueChange={(value) => setSelectedYear(parseInt(value))}>
+                          <Select value={selectedYear?.toString() || ''} onValueChange={(value) => setSelectedYear(parseInt(value))} data-tour="year-selector">
                             <SelectTrigger className="w-48">
                               <SelectValue placeholder="Pilih Tahun Aktif" />
                             </SelectTrigger>
@@ -3232,7 +3240,8 @@ const PengaturanBaru = () => {
                               variant="default"
                               icon={<Plus className="w-4 h-4" />}
                               onClick={() => setShowTahunDialog(true)}
-                              className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 
+                              data-tour="add-row"
+                              className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700
                                        text-white shadow-lg hover:shadow-xl transition-all duration-200 border-0
                                        px-6 py-2.5 rounded-lg font-semibold"
                             >
@@ -3284,7 +3293,7 @@ const PengaturanBaru = () => {
                       </TableHeader>
                       <TableBody>
                         {availableYears?.sort((a, b) => b - a).map((year, index) => (
-                          <TableRow key={year}>
+                          <TableRow key={year} data-tour={index === 0 ? "inline-edit" : undefined}>
                             <TableCell>{index + 1}</TableCell>
                             <TableCell className="font-medium">{year}</TableCell>
                             <TableCell>
@@ -3293,11 +3302,12 @@ const PengaturanBaru = () => {
                               </span>
                             </TableCell>
                             <TableCell>
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
+                              <Button
+                                variant="outline"
+                                size="sm"
                                 className="text-red-600 border-red-200 hover:bg-red-50"
                                 onClick={() => handleDeleteYear(year)}
+                                data-tour={index === 0 ? "delete-row" : undefined}
                               >
                                 <Trash2 className="w-4 h-4" />
                               </Button>
@@ -3353,8 +3363,9 @@ const PengaturanBaru = () => {
                          onClick={() => setShowBulkDeleteDialog(true)}
                          variant="destructive"
                          size="sm"
-                         className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 
-                                  text-white shadow-md hover:shadow-lg transition-all duration-200 
+                         data-tour="bulk-delete"
+                         className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700
+                                  text-white shadow-md hover:shadow-lg transition-all duration-200
                                   border-0 px-4 py-2 rounded-lg font-semibold text-xs flex items-center gap-2"
                        >
                          <AlertTriangle className="w-4 h-4" />
@@ -3374,38 +3385,43 @@ const PengaturanBaru = () => {
                  <CardContent className="space-y-6">
                    {/* Quick Actions */}
                    <div className="flex flex-wrap gap-3">
-                     <Button 
+                     <Button
                        onClick={() => setShowDirektoratDialog(true)}
                        className="bg-blue-600 hover:bg-blue-700"
+                       data-tour="add-direktorat"
                      >
                        <Plus className="w-4 h-4 mr-2" />
                        Tambah Direktorat
                      </Button>
-                     <Button 
+                     <Button
                        onClick={() => setShowSubdirektoratDialog(true)}
                        className="bg-blue-600 hover:bg-blue-700"
+                       data-tour="add-subdirektorat"
                      >
                        <Plus className="w-4 h-4 mr-2" />
                        Tambah Subdirektorat
                      </Button>
-                     <Button 
+                     <Button
                        onClick={() => setShowAnakPerusahaanDialog(true)}
                        className="bg-blue-600 hover:bg-blue-700"
+                       data-tour="add-anak-perusahaan"
                      >
                        <Plus className="w-4 h-4 mr-2" />
                        Tambah Anak Perusahaan
                      </Button>
-                     <Button 
+                     <Button
                        onClick={() => setShowDivisiDialog(true)}
                        className="bg-blue-600 hover:bg-blue-700"
+                       data-tour="add-divisi"
                      >
                        <Plus className="w-4 h-4 mr-2" />
                        Tambah Divisi
                      </Button>
-                     <Button 
+                     <Button
                        onClick={handleUseDefaultStruktur}
                        variant="outline"
                        className="border-blue-600 text-blue-600 hover:bg-blue-50"
+                       data-tour="default-data"
                      >
                        <Copy className="w-4 h-4 mr-2" />
                        Gunakan Data Default
@@ -3469,6 +3485,7 @@ const PengaturanBaru = () => {
                                      size="sm"
                                      onClick={() => openEditDirektorat(item.id, item.nama, item.deskripsi)}
                                      className="text-blue-600 hover:text-blue-700"
+                                     data-tour={index === 0 ? "edit-direktorat" : undefined}
                                    >
                                      <Edit className="w-4 h-4" />
                                    </Button>
@@ -3477,6 +3494,7 @@ const PengaturanBaru = () => {
                                      size="sm"
                                      onClick={() => deleteDirektorat(item.id)}
                                      className="text-red-600 hover:text-red-700"
+                                     data-tour={index === 0 ? "delete-direktorat" : undefined}
                                    >
                                      <Trash2 className="w-4 h-4" />
                                    </Button>
@@ -3719,8 +3737,9 @@ const PengaturanBaru = () => {
                          onClick={() => setShowBulkDeleteDialog(true)}
                          variant="destructive"
                          size="sm"
-                         className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 
-                                  text-white shadow-md hover:shadow-lg transition-all duration-200 
+                         data-tour="bulk-delete"
+                         className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700
+                                  text-white shadow-md hover:shadow-lg transition-all duration-200
                                   border-0 px-4 py-2 rounded-lg font-semibold text-xs flex items-center gap-2"
                        >
                          <AlertTriangle className="w-4 h-4" />
@@ -3740,17 +3759,18 @@ const PengaturanBaru = () => {
                  <CardContent className="space-y-6">
                    {/* Quick Actions */}
                    <div className="flex flex-wrap gap-3 items-center">
-                     <Button 
+                     <Button
                        onClick={() => setShowUserDialog(true)}
                        className="bg-blue-600 hover:bg-blue-700"
                        disabled={users.filter(u => u.role === 'superadmin').length >= 2 && userForm.role === 'superadmin'}
+                       data-tour="add-user"
                      >
                        <Plus className="w-4 h-4 mr-2" />
                        Tambah PIC Baru
                      </Button>
-                     
+
                      {/* Superadmin Count Indicator */}
-                     <div className="flex items-center space-x-2 px-3 py-2 bg-orange-50 border border-orange-200 rounded-lg">
+                     <div className="flex items-center space-x-2 px-3 py-2 bg-orange-50 border border-orange-200 rounded-lg" data-tour="superadmin-counter">
                        <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
                        <span className="text-sm text-orange-700">
                          Superadmin: {users.filter(u => u.role === 'superadmin').length}/2
@@ -3761,10 +3781,11 @@ const PengaturanBaru = () => {
                          </span>
                        )}
                      </div>
-                     <Button 
+                     <Button
                        onClick={handleUseDefaultUsers}
                        variant="outline"
                        className="border-blue-600 text-blue-600 hover:bg-blue-50"
+                       data-tour="default-data"
                      >
                        <Copy className="w-4 h-4 mr-2" />
                        Gunakan Data Default
@@ -3840,6 +3861,7 @@ const PengaturanBaru = () => {
                                    size="sm"
                                    onClick={() => handleEditUser(item)}
                                    className="text-blue-600 hover:text-blue-700"
+                                   data-tour={index === 0 ? "edit-user" : undefined}
                                  >
                                    <Edit className="w-4 h-4" />
                                  </Button>
@@ -3849,6 +3871,7 @@ const PengaturanBaru = () => {
                                    onClick={() => handleDeleteUser(item.id)}
                                    disabled={deletingUsers.has(item.id)}
                                    className="text-red-600 hover:text-red-700 disabled:opacity-50"
+                                   data-tour={index === 0 ? "delete-user" : undefined}
                                  >
                                    <Trash2 className="w-4 h-4" />
                                  </Button>
@@ -3901,8 +3924,9 @@ const PengaturanBaru = () => {
                          onClick={() => setShowBulkDeleteDialog(true)}
                          variant="destructive"
                          size="sm"
-                         className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 
-                                  text-white shadow-md hover:shadow-lg transition-all duration-200 
+                         data-tour="bulk-delete"
+                         className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700
+                                  text-white shadow-md hover:shadow-lg transition-all duration-200
                                   border-0 px-4 py-2 rounded-lg font-semibold text-xs flex items-center gap-2"
                        >
                          <AlertTriangle className="w-4 h-4" />

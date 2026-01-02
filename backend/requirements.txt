@@ -20,6 +20,9 @@ urllib3>=2.0.0
 # Async support (if using async endpoints)
 aiohttp>=3.9.0
 
+# Database
+# Note: sqlite3 is built-in to Python, no need to install
+
 # Optional: Enhanced OCR support (if needed)
 # pytesseract>=0.3.10
 # opencv-python>=4.8.0

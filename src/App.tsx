@@ -12,6 +12,7 @@ import { YearProvider } from './contexts/YearContext';
 import { StrukturPerusahaanProvider } from './contexts/StrukturPerusahaanContext';
 import { AOIProvider } from './contexts/AOIContext';
 import { AOIDocumentProvider } from './contexts/AOIDocumentContext';
+import { TourProvider } from './contexts/TourContext';
 import { Toaster } from './components/ui/toaster';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/auth/Login';
@@ -227,18 +228,20 @@ const App = () => {
           <ChecklistProvider>
             <FileUploadProvider>
               <DocumentMetadataProvider>
-                                  <YearProvider>
-                      <StrukturPerusahaanProvider>
-                        <AOIProvider>
-                          <AOIDocumentProvider>
-                            <SidebarProvider>
-                              <AppRoutes />
-                              <Toaster />
-                            </SidebarProvider>
-                          </AOIDocumentProvider>
-                        </AOIProvider>
-                      </StrukturPerusahaanProvider>
-                  </YearProvider>
+                <YearProvider>
+                  <StrukturPerusahaanProvider>
+                    <AOIProvider>
+                      <AOIDocumentProvider>
+                        <SidebarProvider>
+                          <TourProvider>
+                            <AppRoutes />
+                            <Toaster />
+                          </TourProvider>
+                        </SidebarProvider>
+                      </AOIDocumentProvider>
+                    </AOIProvider>
+                  </StrukturPerusahaanProvider>
+                </YearProvider>
               </DocumentMetadataProvider>
             </FileUploadProvider>
           </ChecklistProvider>

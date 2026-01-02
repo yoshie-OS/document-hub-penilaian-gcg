@@ -58,6 +58,33 @@ const AdminArchivePanel: React.FC<AdminArchivePanelProps> = ({
   // State for API data
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
   const [apiFiles, setApiFiles] = useState<any[]>([]);
+  const [usersData, setUsersData] = useState<any[]>([]);
+
+  // Fetch users from API when year changes
+  useEffect(() => {
+    const fetchUsersFromAPI = async () => {
+      if (!selectedYear) {
+        setUsersData([]);
+        return;
+      }
+
+      try {
+        // FIXED: Fetch users from API instead of localStorage
+        const response = await fetch(`http://localhost:5001/api/users?year=${selectedYear}`);
+        if (response.ok) {
+          const users = await response.json();
+          setUsersData(users);
+        } else {
+          setUsersData([]);
+        }
+      } catch (error) {
+        console.error('Error fetching users:', error);
+        setUsersData([]);
+      }
+    };
+
+    fetchUsersFromAPI();
+  }, [selectedYear]);
 
   // Fetch files from API when year changes
   useEffect(() => {
@@ -71,7 +98,7 @@ const AdminArchivePanel: React.FC<AdminArchivePanelProps> = ({
       try {
         const apiUrl = `http://localhost:5001/api/uploaded-files?year=${selectedYear}`;
         const response = await fetch(apiUrl);
-        
+
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -138,18 +165,18 @@ const AdminArchivePanel: React.FC<AdminArchivePanelProps> = ({
   // Get all documents with user information from API data
   const allDocuments = useMemo(() => {
     if (!selectedYear || isLoadingFiles) return [];
-    
+
     try {
-      // Get users data from localStorage
-      const usersData = JSON.parse(localStorage.getItem('users') || '[]');
-      
+      // FIXED: Use users data from API state instead of localStorage
+      // usersData is now fetched from API in useEffect above
+
       // Map API files to documents with user info
       const documentsWithUsers = apiFiles.map(file => {
         // Find user by uploadedBy name or email
-        const fileUser = usersData.find((u: any) => 
+        const fileUser = usersData.find((u: any) =>
           u.name === file.uploadedBy || u.email === file.uploadedBy
         );
-        
+
         return {
           id: file.id,
           fileName: file.fileName,
