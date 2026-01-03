@@ -21,7 +21,7 @@ import DashboardMain from './pages/dashboard/DashboardMain';
 import DocumentManagement from './pages/DocumentManagement';
 import PenilaianGCG from './pages/PenilaianGCG';
 import MonitoringUploadGCG from './pages/MonitoringUploadGCG';
-import ArsipDokumen from './pages/admin/ArsipDokumen';
+import ArsipDokumen from './pages/ArsipDokumen';
 import DashboardAdmin from './pages/admin/DashboardAdmin';
 import PengaturanBaru from './pages/admin/PengaturanBaru';
 import AOIManagement from './pages/admin/AOIManagement';
