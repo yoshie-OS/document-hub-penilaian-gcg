@@ -5910,5 +5910,30 @@ def refresh_tracking_tables():
 
 if __name__ == '__main__':
     import os
-    port = int(os.environ.get('FLASK_PORT', 5000))
+    import socket
+
+    # Try to find an available port starting from the default
+    default_port = int(os.environ.get('FLASK_PORT', 5001))
+    port = default_port
+    max_attempts = 10
+
+    for attempt in range(max_attempts):
+        try:
+            # Test if port is available
+            test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            test_socket.bind(('0.0.0.0', port))
+            test_socket.close()
+            break  # Port is available
+        except OSError:
+            if attempt < max_attempts - 1:
+                port += 1
+            else:
+                safe_print(f"❌ Could not find available port after {max_attempts} attempts starting from {default_port}")
+                sys.exit(1)
+
+    if port != default_port:
+        safe_print(f"⚠️  WARNING: Default port {default_port} was busy")
+        safe_print(f"⚠️  Backend running on port {port} instead")
+        safe_print(f"⚠️  Update vite.config.ts proxy target to: http://localhost:{port}")
+
     app.run(debug=True, host='0.0.0.0', port=port, use_reloader=False)
