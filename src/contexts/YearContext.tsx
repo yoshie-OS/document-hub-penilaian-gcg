@@ -35,7 +35,7 @@ export const YearProvider: React.FC<YearProviderProps> = ({ children }) => {
         const response = await fetch('http://localhost:5001/api/config/tahun-buku');
         if (response.ok) {
           const data = await response.json();
-          // API returns array directly: [{year: 2025, is_active: 1, created_at: ...}, ...]
+          // API (api_config_routes.py) returns array directly: [{year: 2025, is_active: 1, created_at: ...}, ...]
           if (Array.isArray(data)) {
             const years = data
               .filter((item: any) => item.is_active)
@@ -62,11 +62,10 @@ export const YearProvider: React.FC<YearProviderProps> = ({ children }) => {
   // Auto-select the most recent year when years are loaded and no year is selected
   useEffect(() => {
     if (availableYears.length > 0 && selectedYear === null) {
-      // TEMPORARY FIX: Force select 2024 since that's where the actual data exists
-      // TODO: Implement proper logic to find year with actual checklist data
-      const yearWithData = availableYears.includes(2024) ? 2024 : availableYears[0];
-      setSelectedYear(yearWithData);
-      console.log('YearContext: Auto-selected year with data:', yearWithData);
+      // Select the most recent year (first in sorted array, since sorted descending)
+      const mostRecentYear = availableYears[0];
+      setSelectedYear(mostRecentYear);
+      console.log('YearContext: Auto-selected most recent year:', mostRecentYear);
     }
   }, [availableYears, selectedYear]);
 
@@ -83,8 +82,8 @@ export const YearProvider: React.FC<YearProviderProps> = ({ children }) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            year: year,  // Backend expects 'year', not 'tahun'
-            is_active: 1
+            tahun: year,  // app.py expects 'tahun' field
+            nama: ''      // Optional name field
           }),
         });
 
@@ -102,6 +101,13 @@ export const YearProvider: React.FC<YearProviderProps> = ({ children }) => {
         setAvailableYears(updatedYears);
 
         console.log(`YearContext: Added year ${year} with clean slate`);
+
+        // Dispatch event to notify other contexts to reload data from backend
+        // This is critical for recreated years to ensure contexts fetch fresh (empty) data
+        window.dispatchEvent(new CustomEvent('yearAdded', {
+          detail: { year, type: 'yearAdded' }
+        }));
+        console.log(`YearContext: Dispatched yearAdded event for year ${year}`);
       } catch (error) {
         console.error(`YearContext: Failed to save year ${year} to backend:`, error);
         // Re-throw error so TahunBukuPage can handle it
@@ -112,7 +118,7 @@ export const YearProvider: React.FC<YearProviderProps> = ({ children }) => {
 
   const removeYear = async (year: number) => {
     try {
-      // Call backend DELETE API with query parameter
+      // Call backend DELETE API with year as query parameter (api_config_routes.py style)
       const deleteResponse = await fetch(`http://localhost:5001/api/config/tahun-buku?year=${year}`, {
         method: 'DELETE',
       });

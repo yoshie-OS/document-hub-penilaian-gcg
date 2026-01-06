@@ -505,12 +505,13 @@ const KelolaDokumenPage = () => {
               variant="ghost"
               onClick={() => navigate('/admin/pengaturan')}
               className="mb-4 text-gray-600 hover:text-gray-900"
+              data-tour="dokumen-back"
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
               Kembali ke Pengaturan
             </Button>
 
-            <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center justify-between flex-wrap gap-4" data-tour="dokumen-header">
               <div className="flex items-center space-x-3">
                 <div className="p-3 bg-purple-100 rounded-xl">
                   <FileText className="w-8 h-8 text-purple-600" />
@@ -527,7 +528,7 @@ const KelolaDokumenPage = () => {
                   value={selectedYear?.toString() || ''}
                   onValueChange={(value) => setSelectedYear(parseInt(value))}
                 >
-                  <SelectTrigger className="w-[140px]">
+                  <SelectTrigger className="w-[140px]" data-tour="dokumen-year-selector">
                     <Calendar className="w-4 h-4 mr-2" />
                     <SelectValue placeholder="Pilih Tahun" />
                   </SelectTrigger>
@@ -542,6 +543,7 @@ const KelolaDokumenPage = () => {
                   variant="outline"
                   onClick={handleUseDefaultData}
                   disabled={isLoading || !selectedYear}
+                  data-tour="dokumen-default-btn"
                 >
                   {isLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : 'Data Default'}
                 </Button>
@@ -549,7 +551,7 @@ const KelolaDokumenPage = () => {
                 {/* Manage Aspects Dialog */}
                 <Dialog open={showManageAspekDialog} onOpenChange={setShowManageAspekDialog}>
                   <DialogTrigger asChild>
-                    <Button variant="outline" disabled={!selectedYear}>
+                    <Button variant="outline" disabled={!selectedYear} data-tour="kelola-aspek-btn">
                       <Edit className="w-4 h-4 mr-2" />
                       Kelola Aspek
                     </Button>
@@ -649,6 +651,7 @@ const KelolaDokumenPage = () => {
                   className="bg-purple-600 hover:bg-purple-700"
                   disabled={!selectedYear}
                   onClick={scrollToInlineAddRow}
+                  data-tour="tambah-item-btn"
                 >
                   <Plus className="w-4 h-4 mr-2" />
                   Tambah Item
@@ -709,7 +712,7 @@ const KelolaDokumenPage = () => {
           </div>
 
           {/* Stats Row */}
-          <div className="flex items-center gap-4 mb-4">
+          <div className="flex items-center gap-4 mb-4" data-tour="dokumen-stats">
             {/* Total Item Badge */}
             <div className="flex items-center gap-2 px-4 py-2 bg-purple-50 rounded-lg border border-purple-200">
               <FileText className="w-5 h-5 text-purple-600" />
@@ -724,6 +727,7 @@ const KelolaDokumenPage = () => {
               className={`flex items-center gap-2 transition-colors ${
                 isPicPanelOpen ? 'bg-blue-50 border-blue-300 text-blue-700' : ''
               }`}
+              data-tour="distribusi-pic-toggle"
             >
               <BarChart3 className="w-4 h-4" />
               <span>Distribusi PIC</span>
@@ -740,7 +744,7 @@ const KelolaDokumenPage = () => {
 
           {/* Collapsible PIC Distribution Panel */}
           {isPicPanelOpen && (
-            <Card className="mb-4 border-blue-200 bg-blue-50/30">
+            <Card className="mb-4 border-blue-200 bg-blue-50/30" data-tour="distribusi-pic-panel">
               <CardContent className="p-4">
                 <div className="flex flex-col lg:flex-row gap-4">
                   {/* Summary Stats */}
@@ -790,7 +794,7 @@ const KelolaDokumenPage = () => {
           )}
 
           {/* Checklist Table */}
-          <Card>
+          <Card data-tour="dokumen-table">
             <CardHeader className="space-y-4">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <CardTitle>Daftar Checklist GCG {selectedYear && `- Tahun ${selectedYear}`}</CardTitle>
@@ -801,7 +805,7 @@ const KelolaDokumenPage = () => {
                 </div>
               </div>
               {/* Search */}
-              <div className="flex-1 relative max-w-md">
+              <div className="flex-1 relative max-w-md" data-tour="dokumen-search">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <Input
                   value={searchTerm}
@@ -964,6 +968,7 @@ const KelolaDokumenPage = () => {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => openEditDialog(item)}
+                                  data-tour={index === 0 ? "edit-checklist-btn" : undefined}
                                 >
                                   <Edit className="w-4 h-4" />
                                 </Button>
@@ -972,6 +977,7 @@ const KelolaDokumenPage = () => {
                                   size="sm"
                                   className="text-red-500 hover:text-red-700"
                                   onClick={() => handleDeleteChecklist(item.id)}
+                                  data-tour={index === 0 ? "delete-checklist-btn" : undefined}
                                 >
                                   <Trash2 className="w-4 h-4" />
                                 </Button>

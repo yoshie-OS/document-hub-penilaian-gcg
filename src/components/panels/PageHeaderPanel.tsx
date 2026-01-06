@@ -18,6 +18,7 @@ interface ActionButton {
   variant?: 'default' | 'outline' | 'secondary' | 'destructive' | 'ghost';
   size?: 'default' | 'sm' | 'lg';
   disabled?: boolean;
+  'data-tour'?: string;
 }
 
 interface PageHeaderPanelProps {
@@ -117,19 +118,41 @@ const PageHeaderPanel: React.FC<PageHeaderPanelProps> = ({
           )}
 
           {/* Action Buttons */}
-          {actions.map((action, index) => (
-            <Button
-              key={index}
-              variant={action.variant || 'default'}
-              size={action.size || 'default'}
-              onClick={action.onClick}
-              disabled={action.disabled}
-              className="flex items-center gap-2"
-            >
-              {action.icon || getDefaultIcon(action.label)}
-              {action.label}
-            </Button>
-          ))}
+          {actions && actions.length > 0 && actions.map((action, index) => {
+            // Wrap button with div to ensure data-tour attribute is in DOM
+            const dataTourAttr = (action as any)['data-tour'];
+
+            if (dataTourAttr) {
+              return (
+                <div key={index} data-tour={dataTourAttr} style={{ display: 'inline-block' }}>
+                  <Button
+                    variant={action.variant || 'default'}
+                    size={action.size || 'default'}
+                    onClick={action.onClick}
+                    disabled={action.disabled}
+                    className="flex items-center gap-2"
+                  >
+                    {action.icon || getDefaultIcon(action.label)}
+                    {action.label}
+                  </Button>
+                </div>
+              );
+            }
+
+            return (
+              <Button
+                key={index}
+                variant={action.variant || 'default'}
+                size={action.size || 'default'}
+                onClick={action.onClick}
+                disabled={action.disabled}
+                className="flex items-center gap-2"
+              >
+                {action.icon || getDefaultIcon(action.label)}
+                {action.label}
+              </Button>
+            );
+          })}
         </div>
       </div>
     </div>

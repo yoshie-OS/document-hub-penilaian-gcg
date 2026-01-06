@@ -188,26 +188,84 @@ def config_tahun_buku():
             return jsonify([dict(row) for row in rows])
 
     elif request.method == 'POST':
+        print("\n" + "="*70)
+        print("[api_config_routes.py] POST /api/config/tahun-buku CALLED")
+        print("="*70)
         data = request.json
-        if 'year' not in data:
-            return jsonify({'error': 'Missing year field'}), 400
+        # Accept both 'year' and 'tahun' field names for compatibility
+        year_value = data.get('year') or data.get('tahun')
+
+        if not year_value:
+            return jsonify({'error': 'Year field is required'}), 400
 
         with get_db_connection() as conn:
             cursor = conn.cursor()
             try:
                 # Check if year already exists
-                cursor.execute("SELECT is_active FROM years WHERE year = ?", (data['year'],))
+                cursor.execute("SELECT is_active FROM years WHERE year = ?", (year_value,))
                 existing = cursor.fetchone()
 
                 if existing:
                     # Year exists - check if it's inactive
                     if existing['is_active'] == 0:
-                        # Reactivate the year
+                        # IMPORTANT: Before reactivating, we must clean up ALL old data
+                        # Otherwise old data will reappear when year is reactivated
+                        print(f"[REACTIVATE] Year {year_value} exists but inactive - cleaning old data before reactivation")
+
+                        # Clean database tables for this year
+                        # Note: users table doesn't have year/tahun column - only clean from CSV
+                        try:
+                            cursor.execute("DELETE FROM checklist_gcg WHERE tahun = ?", (year_value,))
+                            cursor.execute("DELETE FROM direktorat WHERE tahun = ?", (year_value,))
+                            cursor.execute("DELETE FROM subdirektorat WHERE tahun = ?", (year_value,))
+                            cursor.execute("DELETE FROM divisi WHERE tahun = ?", (year_value,))
+                            cursor.execute("DELETE FROM anak_perusahaan WHERE tahun = ?", (year_value,))
+                            cursor.execute("DELETE FROM aspek_master WHERE tahun = ?", (year_value,))
+                            cursor.execute("DELETE FROM checklist_assignments WHERE tahun = ?", (year_value,))
+                            cursor.execute("DELETE FROM gcg_assessments WHERE year = ?", (year_value,))
+                            cursor.execute("DELETE FROM gcg_assessment_summary WHERE year = ?", (year_value,))
+                            cursor.execute("DELETE FROM uploaded_files WHERE year = ?", (year_value,))
+                            cursor.execute("DELETE FROM document_metadata WHERE year = ?", (year_value,))
+                            print(f"[OK] Cleaned database tables for year {year_value}")
+                        except Exception as db_err:
+                            print(f"[ERROR] Database cleanup error: {db_err}")
+                            raise
+
+                        # Clean CSV files
+                        try:
+                            from app import storage_service
+                            import pandas as pd
+                            import numpy as np
+
+                            # Clean users.csv
+                            users_csv = storage_service.read_csv('config/users.csv')
+                            if users_csv is not None and not users_csv.empty and 'tahun' in users_csv.columns:
+                                mask = (users_csv['tahun'].notna()) & (users_csv['tahun'] != '') & (users_csv['tahun'] == year_value)
+                                users_csv = users_csv[~mask]
+                                storage_service.write_csv(users_csv, 'config/users.csv')
+
+                            # Clean checklist.csv
+                            checklist_csv = storage_service.read_csv('config/checklist.csv')
+                            if checklist_csv is not None and not checklist_csv.empty and 'tahun' in checklist_csv.columns:
+                                mask = (checklist_csv['tahun'].notna()) & (checklist_csv['tahun'] != '') & (checklist_csv['tahun'] == year_value)
+                                checklist_csv = checklist_csv[~mask]
+                                storage_service.write_csv(checklist_csv, 'config/checklist.csv')
+
+                            # Clear struktur-organisasi.csv entirely
+                            struktur_csv = pd.DataFrame(columns=['id', 'type', 'nama', 'deskripsi', 'parent_id',
+                                                                  'created_at', 'updated_at', 'kode', 'tahun', 'is_active'])
+                            storage_service.write_csv(struktur_csv, 'config/struktur-organisasi.csv')
+                            print(f"[OK] Cleaned CSV files for year {year_value}")
+                        except Exception as e:
+                            print(f"[WARNING] Could not clean CSV files during reactivation: {e}")
+
+                        # Now reactivate the year with clean slate
                         cursor.execute("""
                             UPDATE years SET is_active = 1, created_at = CURRENT_TIMESTAMP
                             WHERE year = ?
-                        """, (data['year'],))
-                        return jsonify({'message': 'Year reactivated'}), 200
+                        """, (year_value,))
+                        print(f"[OK] Reactivated year {year_value} with clean slate")
+                        return jsonify({'message': 'Year reactivated with clean data', 'reactivated': True, 'source': 'api_config_routes.py'}), 200
                     else:
                         # Year is already active
                         return jsonify({'error': 'Year already exists'}), 400
@@ -216,7 +274,8 @@ def config_tahun_buku():
                     cursor.execute("""
                         INSERT INTO years (year, is_active)
                         VALUES (?, ?)
-                    """, (data['year'], data.get('is_active', 1)))
+                    """, (year_value, data.get('is_active', 1)))
+                    print(f"[OK] Created year {year_value} in database")
                     return jsonify({'message': 'Year created'}), 201
             except Exception as e:
                 return jsonify({'error': str(e)}), 400
@@ -226,6 +285,9 @@ def config_tahun_buku():
         if not year:
             return jsonify({'error': 'Missing year parameter'}), 400
 
+        print(f"\n{'='*60}")
+        print(f"[DELETE] DELETING YEAR {year} - Starting cleanup process")
+        print(f"{'='*60}")
         cleanup_stats = {}
 
         try:
@@ -233,6 +295,7 @@ def config_tahun_buku():
             with get_db_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute("UPDATE years SET is_active = 0 WHERE year = ?", (year,))
+                print(f"[OK] Step 1: Soft-deleted year {year} from years table")
 
             # 2. Delete GCG documents from Supabase storage
             try:
@@ -339,6 +402,113 @@ def config_tahun_buku():
                 print(f"Warning: Could not clean output.xlsx: {e}")
                 cleanup_stats['assessment_records'] = 0
 
+            # 6b. Clean users CSV file
+            # Note: users.csv may have empty tahun field for default users (Super Admin)
+            # We need to preserve default users and only delete users with tahun=year
+            try:
+                from app import storage_service
+                import pandas as pd
+
+                users_csv = storage_service.read_csv('config/users.csv')
+                if users_csv is not None and not users_csv.empty:
+                    original_count = len(users_csv)
+                    # Keep users where:
+                    # 1. tahun is empty/null (default users like Super Admin)
+                    # 2. tahun != year (users from other years)
+                    import numpy as np
+                    if 'tahun' in users_csv.columns:
+                        # Delete users where tahun == year (and tahun is not null/empty)
+                        mask = (users_csv['tahun'].notna()) & (users_csv['tahun'] != '') & (users_csv['tahun'] == year)
+                        users_csv = users_csv[~mask]
+                    deleted_count = original_count - len(users_csv)
+                    if deleted_count > 0:
+                        storage_service.write_csv(users_csv, 'config/users.csv')
+                        cleanup_stats['csv_users_deleted'] = deleted_count
+                        print(f"[OK] Step 6b: Deleted {deleted_count} users from users.csv")
+                    else:
+                        print(f"[INFO] Step 6b: No users to delete from users.csv")
+                else:
+                    print(f"[INFO] Step 6b: users.csv is empty or not found")
+            except Exception as e:
+                print(f"[ERROR] Step 6b ERROR: Could not clean users.csv: {e}")
+                cleanup_stats['csv_users_deleted'] = 0
+
+            # 6c. Clean checklist CSV file
+            try:
+                from app import storage_service
+                import pandas as pd
+
+                checklist_csv = storage_service.read_csv('config/checklist.csv')
+                if checklist_csv is not None and not checklist_csv.empty:
+                    original_count = len(checklist_csv)
+                    # Delete checklist items where tahun == year (and tahun is not null/empty)
+                    import numpy as np
+                    if 'tahun' in checklist_csv.columns:
+                        mask = (checklist_csv['tahun'].notna()) & (checklist_csv['tahun'] != '') & (checklist_csv['tahun'] == year)
+                        checklist_csv = checklist_csv[~mask]
+                    elif 'year' in checklist_csv.columns:
+                        mask = (checklist_csv['year'].notna()) & (checklist_csv['year'] != '') & (checklist_csv['year'] == year)
+                        checklist_csv = checklist_csv[~mask]
+                    deleted_count = original_count - len(checklist_csv)
+                    if deleted_count > 0:
+                        storage_service.write_csv(checklist_csv, 'config/checklist.csv')
+                        cleanup_stats['csv_checklist_deleted'] = deleted_count
+                        print(f"[OK] Step 6c: Deleted {deleted_count} checklist items from checklist.csv")
+                    else:
+                        print(f"[INFO] Step 6c: No checklist items to delete from checklist.csv")
+                else:
+                    print(f"[INFO] Step 6c: checklist.csv is empty or not found")
+            except Exception as e:
+                print(f"[ERROR] Step 6c ERROR: Could not clean checklist.csv: {e}")
+                cleanup_stats['csv_checklist_deleted'] = 0
+
+            # 6d. Clean aspects CSV file
+            try:
+                from app import storage_service
+                import pandas as pd
+
+                aspects_csv = storage_service.read_csv('config/aspects.csv')
+                if aspects_csv is not None and not aspects_csv.empty:
+                    original_count = len(aspects_csv)
+                    # Delete aspects where tahun == year (and tahun is not null/empty)
+                    import numpy as np
+                    if 'tahun' in aspects_csv.columns:
+                        mask = (aspects_csv['tahun'].notna()) & (aspects_csv['tahun'] != '') & (aspects_csv['tahun'] == year)
+                        aspects_csv = aspects_csv[~mask]
+                    elif 'year' in aspects_csv.columns:
+                        mask = (aspects_csv['year'].notna()) & (aspects_csv['year'] != '') & (aspects_csv['year'] == year)
+                        aspects_csv = aspects_csv[~mask]
+                    deleted_count = original_count - len(aspects_csv)
+                    if deleted_count > 0:
+                        storage_service.write_csv(aspects_csv, 'config/aspects.csv')
+                        cleanup_stats['csv_aspects_deleted'] = deleted_count
+                        print(f"[OK] Step 6d: Deleted {deleted_count} aspects from aspects.csv")
+                    else:
+                        print(f"[INFO] Step 6d: No aspects to delete from aspects.csv")
+                else:
+                    print(f"[INFO] Step 6d: aspects.csv is empty or not found")
+            except Exception as e:
+                print(f"[ERROR] Step 6d ERROR: Could not clean aspects.csv: {e}")
+                cleanup_stats['csv_aspects_deleted'] = 0
+
+            # 6e. Clean struktur-organisasi CSV file
+            # IMPORTANT: Data in CSV may have empty tahun field, so we delete ALL items from CSV
+            # and rely on database as source of truth. Frontend reads from database, not CSV.
+            try:
+                from app import storage_service
+                import pandas as pd
+
+                # Delete the entire CSV file to ensure clean slate
+                # Frontend reads from database (/api/config/struktur-organisasi endpoint), not from CSV
+                struktur_csv = pd.DataFrame(columns=['id', 'type', 'nama', 'deskripsi', 'parent_id',
+                                                      'created_at', 'updated_at', 'kode', 'tahun', 'is_active'])
+                storage_service.write_csv(struktur_csv, 'config/struktur-organisasi.csv')
+                cleanup_stats['csv_struktur_deleted'] = 'all_cleared'
+                print(f"[OK] Step 6e: Cleared struktur-organisasi.csv (frontend reads from database)")
+            except Exception as e:
+                print(f"[ERROR] Step 6e ERROR: Could not clean struktur-organisasi.csv: {e}")
+                cleanup_stats['csv_struktur_deleted'] = 0
+
             # 7. Clean database tables
             try:
                 with get_db_connection() as conn:
@@ -364,11 +534,48 @@ def config_tahun_buku():
                     metadata_deleted = cursor.rowcount
                     cleanup_stats['db_metadata_deleted'] = metadata_deleted
 
+                    # Clean struktur organisasi tables
+                    cursor.execute("DELETE FROM divisi WHERE tahun = ?", (year,))
+                    divisi_deleted = cursor.rowcount
+                    cleanup_stats['divisi_deleted'] = divisi_deleted
+
+                    cursor.execute("DELETE FROM subdirektorat WHERE tahun = ?", (year,))
+                    subdirektorat_deleted = cursor.rowcount
+                    cleanup_stats['subdirektorat_deleted'] = subdirektorat_deleted
+
+                    cursor.execute("DELETE FROM direktorat WHERE tahun = ?", (year,))
+                    direktorat_deleted = cursor.rowcount
+                    cleanup_stats['direktorat_deleted'] = direktorat_deleted
+
+                    cursor.execute("DELETE FROM anak_perusahaan WHERE tahun = ?", (year,))
+                    anak_perusahaan_deleted = cursor.rowcount
+                    cleanup_stats['anak_perusahaan_deleted'] = anak_perusahaan_deleted
+
+                    # Clean users table - NOTE: users table doesn't have tahun column
+                    # Users are cleaned from CSV file only (see step 6b above)
+                    # cursor.execute("DELETE FROM users WHERE tahun = ?", (year,))
+                    # users_deleted = cursor.rowcount
+                    # cleanup_stats['users_deleted'] = users_deleted
+                    cleanup_stats['users_deleted'] = 0  # Users cleaned from CSV, not database
+
                     conn.commit()
-                    print(f"✅ Database cleanup: {checklist_deleted} checklist + {assessments_deleted} assessments + {uploads_deleted} uploads + {metadata_deleted} metadata")
+                    print(f"[OK] Step 7: Database cleanup completed:")
+                    print(f"   - {checklist_deleted} checklist records")
+                    print(f"   - {assessments_deleted} assessment records")
+                    print(f"   - {uploads_deleted} uploaded files records")
+                    print(f"   - {metadata_deleted} metadata records")
+                    print(f"   - {direktorat_deleted} direktorat records")
+                    print(f"   - {subdirektorat_deleted} subdirektorat records")
+                    print(f"   - {divisi_deleted} divisi records")
+                    print(f"   - {anak_perusahaan_deleted} anak perusahaan records")
+                    print(f"   - {users_deleted} users records")
             except Exception as e:
-                print(f"Warning: Could not clean database tables: {e}")
+                print(f"[ERROR] Step 7 ERROR: Could not clean database tables: {e}")
                 cleanup_stats['db_cleanup_error'] = str(e)
+
+            print(f"\n{'='*60}")
+            print(f"[OK] YEAR {year} DELETION COMPLETED")
+            print(f"{'='*60}\n")
 
             return jsonify({
                 'message': 'Year deleted',

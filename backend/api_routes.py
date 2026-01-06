@@ -3,6 +3,10 @@ API Routes for localStorage to SQLite Migration
 Provides CRUD operations for all data tables
 """
 
+print("="*70)
+print("[LOAD CHECK] api_routes.py is being loaded - NEW CODE IS HERE")
+print("="*70)
+
 from flask import Blueprint, request, jsonify
 from database import get_db_connection
 from datetime import datetime
@@ -561,6 +565,9 @@ def get_years():
 @api_bp.route('/years', methods=['POST'])
 def create_year():
     """Add a new year"""
+    print("\n" + "="*70)
+    print("[api_routes.py] POST /api/years CALLED")
+    print("="*70)
     data = request.json
 
     if 'year' not in data:
@@ -569,10 +576,70 @@ def create_year():
     with get_db_connection() as conn:
         cursor = conn.cursor()
         try:
+            # Check if year already exists
+            cursor.execute("SELECT is_active FROM years WHERE year = ?", (data['year'],))
+            existing = cursor.fetchone()
+
+            if existing:
+                if existing['is_active'] == 0:
+                    # IMPORTANT: Before reactivating, clean up ALL old data
+                    year_value = data['year']
+                    print(f"[api_routes.py] Reactivating year {year_value} - cleaning old data first")
+
+                    # Clean database tables for this year
+                    # Note: users table doesn't have year/tahun column - only clean from CSV
+                    cursor.execute("DELETE FROM checklist_gcg WHERE tahun = ?", (year_value,))
+                    cursor.execute("DELETE FROM direktorat WHERE tahun = ?", (year_value,))
+                    cursor.execute("DELETE FROM subdirektorat WHERE tahun = ?", (year_value,))
+                    cursor.execute("DELETE FROM divisi WHERE tahun = ?", (year_value,))
+                    cursor.execute("DELETE FROM anak_perusahaan WHERE tahun = ?", (year_value,))
+                    cursor.execute("DELETE FROM aspek_master WHERE tahun = ?", (year_value,))
+                    cursor.execute("DELETE FROM checklist_assignments WHERE tahun = ?", (year_value,))
+                    cursor.execute("DELETE FROM gcg_assessments WHERE year = ?", (year_value,))
+                    cursor.execute("DELETE FROM gcg_assessment_summary WHERE year = ?", (year_value,))
+                    cursor.execute("DELETE FROM uploaded_files WHERE year = ?", (year_value,))
+                    cursor.execute("DELETE FROM document_metadata WHERE year = ?", (year_value,))
+                    print(f"[api_routes.py] Cleaned database tables for year {year_value}")
+
+                    # Clean CSV files
+                    try:
+                        from app import storage_service
+                        import pandas as pd
+
+                        # Clean users.csv
+                        users_csv = storage_service.read_csv('config/users.csv')
+                        if users_csv is not None and not users_csv.empty and 'tahun' in users_csv.columns:
+                            mask = (users_csv['tahun'].notna()) & (users_csv['tahun'] != '') & (users_csv['tahun'] == year_value)
+                            users_csv = users_csv[~mask]
+                            storage_service.write_csv(users_csv, 'config/users.csv')
+
+                        # Clean checklist.csv
+                        checklist_csv = storage_service.read_csv('config/checklist.csv')
+                        if checklist_csv is not None and not checklist_csv.empty and 'tahun' in checklist_csv.columns:
+                            mask = (checklist_csv['tahun'].notna()) & (checklist_csv['tahun'] != '') & (checklist_csv['tahun'] == year_value)
+                            checklist_csv = checklist_csv[~mask]
+                            storage_service.write_csv(checklist_csv, 'config/checklist.csv')
+
+                        # Clear struktur-organisasi.csv entirely
+                        struktur_csv = pd.DataFrame(columns=['id', 'type', 'nama', 'deskripsi', 'parent_id',
+                                                              'created_at', 'updated_at', 'kode', 'tahun', 'is_active'])
+                        storage_service.write_csv(struktur_csv, 'config/struktur-organisasi.csv')
+                        print(f"[api_routes.py] Cleaned CSV files for year {year_value}")
+                    except Exception as e:
+                        print(f"[api_routes.py WARNING] Could not clean CSV files: {e}")
+
+                    # Now reactivate with clean slate
+                    cursor.execute("UPDATE years SET is_active = 1, created_at = CURRENT_TIMESTAMP WHERE year = ?", (year_value,))
+                    print(f"[api_routes.py] Reactivated year {year_value} with clean slate")
+                    return jsonify({'message': 'Year reactivated with clean data', 'reactivated': True}), 200
+                else:
+                    return jsonify({'error': 'Year already exists'}), 400
+
             cursor.execute("""
                 INSERT INTO years (year, is_active)
                 VALUES (?, ?)
             """, (data['year'], data.get('is_active', 1)))
+            print(f"[api_routes.py] Created new year {data['year']}")
             return jsonify({'message': 'Year created'}), 201
         except Exception as e:
             return jsonify({'error': str(e)}), 400

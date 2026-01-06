@@ -221,14 +221,26 @@ export const ChecklistProvider = ({ children }: { children: ReactNode }) => {
       }
     };
 
+    // Listen for year added events (including reactivated years)
+    const handleYearAdded = (event: CustomEvent) => {
+      if (event.detail?.type === 'yearAdded') {
+        const addedYear = event.detail.year;
+        console.log(`ChecklistContext: Year ${addedYear} added/reactivated, refreshing from API`);
+        // Refresh data from API after year added/reactivated
+        loadDataFrombackend();
+      }
+    };
+
     window.addEventListener('checklistUpdated', handleChecklistUpdate as EventListener);
     window.addEventListener('aspectsUpdated', handleAspectsUpdate as EventListener);
     window.addEventListener('yearDataCleaned', handleYearDataCleaned as EventListener);
-    
+    window.addEventListener('yearAdded', handleYearAdded as EventListener);
+
     return () => {
       window.removeEventListener('checklistUpdated', handleChecklistUpdate as EventListener);
       window.removeEventListener('aspectsUpdated', handleAspectsUpdate as EventListener);
       window.removeEventListener('yearDataCleaned', handleYearDataCleaned as EventListener);
+      window.removeEventListener('yearAdded', handleYearAdded as EventListener);
     };
   }, []);
 

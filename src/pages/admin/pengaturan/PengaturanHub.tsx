@@ -114,7 +114,7 @@ const PengaturanHub = () => {
       <main className={`pt-16 transition-all duration-300 ${isSidebarOpen ? 'lg:ml-64' : ''}`}>
         <div className="p-6 max-w-7xl mx-auto">
           {/* Header */}
-          <div className="mb-8">
+          <div className="mb-8" data-tour="pengaturan-header">
             <div className="flex items-center space-x-3 mb-2">
               <div className="p-3 bg-gradient-to-br from-[#1e3a5f] to-[#2d4a6f] rounded-xl shadow-lg">
                 <Settings className="w-8 h-8 text-white" />
@@ -126,7 +126,7 @@ const PengaturanHub = () => {
             </div>
 
             {/* Progress Bar */}
-            <div className="mt-6 bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+            <div data-tour="progress-pengaturan" className="mt-6 bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium text-gray-700">Progress Pengaturan</span>
                 <span className="text-sm font-semibold text-[#1e3a5f]">{completedCount}/4 selesai</span>
@@ -141,12 +141,13 @@ const PengaturanHub = () => {
           </div>
 
           {/* Menu Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {menuItems.map((item) => {
+          <div data-tour="menu-cards" className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {menuItems.map((item, index) => {
               const Icon = item.icon;
               return (
                 <Card
                   key={item.id}
+                  data-tour={index === 0 ? "tahun-buku-card" : index === 1 ? "struktur-card" : index === 2 ? "akun-card" : index === 3 ? "dokumen-card" : undefined}
                   className={`cursor-pointer transition-all duration-300 ${item.bgColor} ${item.borderColor} ${item.hoverBorderColor} hover:shadow-lg group`}
                   onClick={() => navigate(item.path)}
                 >
@@ -182,7 +183,7 @@ const PengaturanHub = () => {
           </div>
 
           {/* Quick Info */}
-          <div className="mt-8 bg-gradient-to-r from-[#1e3a5f] to-[#2d4a6f] rounded-xl p-6 text-white">
+          <div data-tour="panduan-pengaturan" className="mt-8 bg-gradient-to-r from-[#1e3a5f] to-[#2d4a6f] rounded-xl p-6 text-white">
             <h3 className="text-lg font-semibold mb-2">Panduan Pengaturan</h3>
             <p className="text-white/80 text-sm mb-4">
               Untuk memulai, pastikan Anda telah mengatur semua komponen sistem secara berurutan:

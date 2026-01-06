@@ -300,12 +300,13 @@ const StrukturOrganisasiPage = () => {
               variant="ghost"
               onClick={() => navigate('/admin/pengaturan')}
               className="mb-4 text-gray-600 hover:text-gray-900"
+              data-tour="struktur-back"
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
               Kembali ke Pengaturan
             </Button>
 
-            <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center justify-between flex-wrap gap-4" data-tour="struktur-header">
               <div className="flex items-center space-x-3">
                 <div className="p-3 bg-green-100 rounded-xl">
                   <Building2 className="w-8 h-8 text-green-600" />
@@ -318,7 +319,7 @@ const StrukturOrganisasiPage = () => {
 
               <div className="flex items-center space-x-3">
                 <Select value={selectedYear?.toString() || ''} onValueChange={(value) => setSelectedYear(parseInt(value))}>
-                  <SelectTrigger className="w-[140px]">
+                  <SelectTrigger className="w-[140px]" data-tour="struktur-year-selector">
                     <Calendar className="w-4 h-4 mr-2" />
                     <SelectValue placeholder="Pilih Tahun" />
                   </SelectTrigger>
@@ -329,7 +330,7 @@ const StrukturOrganisasiPage = () => {
                   </SelectContent>
                 </Select>
 
-                <Button variant="outline" onClick={handleUseDefaultData} disabled={isLoading}>
+                <Button variant="outline" onClick={handleUseDefaultData} disabled={isLoading} data-tour="struktur-default-btn">
                   {isLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : 'Data Default'}
                 </Button>
               </div>
@@ -337,8 +338,8 @@ const StrukturOrganisasiPage = () => {
           </div>
 
           {/* View Cards - Horizontal */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-            {viewCards.map((card) => {
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6" data-tour="struktur-view-cards">
+            {viewCards.map((card, index) => {
               const Icon = card.icon;
               const isActive = activeView === card.id;
               return (
@@ -348,6 +349,7 @@ const StrukturOrganisasiPage = () => {
                   className={`p-4 rounded-xl border-2 transition-all text-left ${
                     isActive ? 'border-blue-500 bg-blue-50 shadow-md' : 'border-gray-200 bg-white hover:border-gray-300'
                   }`}
+                  data-tour={index === 0 ? "struktur-view-card" : undefined}
                 >
                   <div className="flex items-center justify-between mb-2">
                     <Icon className={`w-5 h-5 ${isActive ? 'text-blue-600' : 'text-gray-500'}`} />
@@ -360,17 +362,17 @@ const StrukturOrganisasiPage = () => {
           </div>
 
           {/* Quick Actions */}
-          <div className="flex flex-wrap gap-3 mb-6">
-            <Button onClick={() => { setEditingDirektorat(null); setDirektoratForm({ nama: '', deskripsi: '' }); setShowDirektoratDialog(true); }} className="bg-blue-600 hover:bg-blue-700">
+          <div className="flex flex-wrap gap-3 mb-6" data-tour="struktur-quick-actions">
+            <Button onClick={() => { setEditingDirektorat(null); setDirektoratForm({ nama: '', deskripsi: '' }); setShowDirektoratDialog(true); }} className="bg-blue-600 hover:bg-blue-700" data-tour="tambah-direktorat-btn">
               <Plus className="w-4 h-4 mr-2" /> Tambah Direktorat
             </Button>
-            <Button onClick={() => { setEditingSubdirektorat(null); setSubdirektoratForm({ nama: '', direktoratId: '', deskripsi: '' }); setShowSubdirektoratDialog(true); }} className="bg-purple-600 hover:bg-purple-700">
+            <Button onClick={() => { setEditingSubdirektorat(null); setSubdirektoratForm({ nama: '', direktoratId: '', deskripsi: '' }); setShowSubdirektoratDialog(true); }} className="bg-purple-600 hover:bg-purple-700" data-tour="tambah-subdirektorat-btn">
               <Plus className="w-4 h-4 mr-2" /> Tambah Subdirektorat
             </Button>
-            <Button onClick={() => { setEditingAnakPerusahaan(null); setAnakPerusahaanForm({ nama: '', deskripsi: '' }); setShowAnakPerusahaanDialog(true); }} className="bg-emerald-600 hover:bg-emerald-700">
+            <Button onClick={() => { setEditingAnakPerusahaan(null); setAnakPerusahaanForm({ nama: '', deskripsi: '' }); setShowAnakPerusahaanDialog(true); }} className="bg-emerald-600 hover:bg-emerald-700" data-tour="tambah-anak-perusahaan-btn">
               <Plus className="w-4 h-4 mr-2" /> Tambah Anak Perusahaan
             </Button>
-            <Button onClick={() => { setEditingDivisi(null); setDivisiForm({ nama: '', subdirektoratId: '', deskripsi: '' }); setShowDivisiDialog(true); }} className="bg-orange-600 hover:bg-orange-700">
+            <Button onClick={() => { setEditingDivisi(null); setDivisiForm({ nama: '', subdirektoratId: '', deskripsi: '' }); setShowDivisiDialog(true); }} className="bg-orange-600 hover:bg-orange-700" data-tour="tambah-divisi-btn">
               <Plus className="w-4 h-4 mr-2" /> Tambah Divisi
             </Button>
           </div>
@@ -379,7 +381,7 @@ const StrukturOrganisasiPage = () => {
           <div className="space-y-6">
             {/* Direktorat Table */}
             {(activeView === 'all' || activeView === 'direktorat') && (
-              <Card className="border border-blue-200">
+              <Card className="border border-blue-200" data-tour="struktur-direktorat-table">
                 <CardHeader className="bg-blue-50/50">
                   <CardTitle className="text-lg font-semibold text-blue-900 flex items-center">
                     <Building2 className="w-5 h-5 text-blue-600 mr-2" />
@@ -406,8 +408,8 @@ const StrukturOrganisasiPage = () => {
                           <TableCell>{item.tahun}</TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-1">
-                              <Button variant="ghost" size="sm" onClick={() => openEditDirektorat(item)} className="text-blue-600"><Edit className="w-4 h-4" /></Button>
-                              <Button variant="ghost" size="sm" onClick={() => deleteDirektorat(item.id)} className="text-red-600"><Trash2 className="w-4 h-4" /></Button>
+                              <Button variant="ghost" size="sm" onClick={() => openEditDirektorat(item)} className="text-blue-600" data-tour={index === 0 ? "edit-direktorat-btn" : undefined}><Edit className="w-4 h-4" /></Button>
+                              <Button variant="ghost" size="sm" onClick={() => deleteDirektorat(item.id)} className="text-red-600" data-tour={index === 0 ? "delete-direktorat-btn" : undefined}><Trash2 className="w-4 h-4" /></Button>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -422,7 +424,7 @@ const StrukturOrganisasiPage = () => {
 
             {/* Subdirektorat Table */}
             {(activeView === 'all' || activeView === 'subdirektorat') && (
-              <Card className="border border-purple-200">
+              <Card className="border border-purple-200" data-tour="struktur-subdirektorat-table">
                 <CardHeader className="bg-purple-50/50">
                   <CardTitle className="text-lg font-semibold text-purple-900 flex items-center">
                     <Layers className="w-5 h-5 text-purple-600 mr-2" />
@@ -467,7 +469,7 @@ const StrukturOrganisasiPage = () => {
 
             {/* Anak Perusahaan Table */}
             {(activeView === 'all' || activeView === 'anak-perusahaan') && (
-              <Card className="border border-emerald-200">
+              <Card className="border border-emerald-200" data-tour="struktur-anak-perusahaan-table">
                 <CardHeader className="bg-emerald-50/50">
                   <CardTitle className="text-lg font-semibold text-emerald-900 flex items-center">
                     <Building className="w-5 h-5 text-emerald-600 mr-2" />
@@ -510,7 +512,7 @@ const StrukturOrganisasiPage = () => {
 
             {/* Divisi Table */}
             {(activeView === 'all' || activeView === 'divisi') && (
-              <Card className="border border-orange-200">
+              <Card className="border border-orange-200" data-tour="struktur-divisi-table">
                 <CardHeader className="bg-orange-50/50">
                   <CardTitle className="text-lg font-semibold text-orange-900 flex items-center">
                     <Briefcase className="w-5 h-5 text-orange-600 mr-2" />

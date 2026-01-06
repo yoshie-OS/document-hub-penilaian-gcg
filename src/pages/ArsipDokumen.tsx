@@ -1,17 +1,20 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Sidebar from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
-import { PageHeaderPanel } from '@/components/panels';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { useYear } from '@/contexts/YearContext';
 import { useDocumentMetadata } from '@/contexts/DocumentMetadataContext';
 import { useFileUpload } from '@/contexts/FileUploadContext';
 import { useChecklist } from '@/contexts/ChecklistContext';
+import { useAOI } from '@/contexts/AOIContext';
+import { useAOIDocument } from '@/contexts/AOIDocumentContext';
+import { useUser } from '@/contexts/UserContext';
 import { useToast } from '@/hooks/use-toast';
 import { CatatanDialog, DetailDocumentDialog } from '@/components/dialogs';
 import {
@@ -34,16 +37,25 @@ import {
   Info,
   Trash2,
   MessageSquare,
-  Upload
+  Upload,
+  ChevronDown,
+  ChevronRight,
+  Star
 } from 'lucide-react';
 
 
 const ArsipDokumen = () => {
+  // CRITICAL TEST: This proves the new code is loaded!
+  console.log('🚨🚨🚨 ARSIP DOKUMEN - NEW VERSION LOADED - 2025-12-27 🚨🚨🚨');
+
   const { isSidebarOpen } = useSidebar();
   const { selectedYear, setSelectedYear, availableYears } = useYear();
   const { documents } = useDocumentMetadata();
   const { getFilesByYear } = useFileUpload();
   const { checklist } = useChecklist();
+  const { aoiTables, aoiRecommendations } = useAOI();
+  const { aoiDocuments } = useAOIDocument();
+  const { user } = useUser();
   const { toast } = useToast();
 
   // State for bulk download and refresh
@@ -57,6 +69,12 @@ const ArsipDokumen = () => {
   const [selectedAspek, setSelectedAspek] = useState<string>('all');
   const [selectedSubdirektorat, setSelectedSubdirektorat] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+
+  // State for pagination
+  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
+
+  // State for AOI grouping
+  const [expandedAOIGroups, setExpandedAOIGroups] = useState<Set<string>>(new Set());
 
   // State for catatan dialog
   const [isCatatanDialogOpen, setIsCatatanDialogOpen] = useState(false);
@@ -516,6 +534,95 @@ const ArsipDokumen = () => {
 
     return filtered;
   }, [allUploadedDocuments, searchTerm, selectedAspek, selectedSubdirektorat]);
+
+  // Paginated documents for GCG
+  const paginatedDocuments = useMemo(() => {
+    if (itemsPerPage === 0) return filteredDocuments; // Show all
+    return filteredDocuments.slice(0, itemsPerPage);
+  }, [filteredDocuments, itemsPerPage]);
+
+  // Group AOI documents by organization
+  const groupedAOIDocuments = useMemo(() => {
+    if (!selectedYear || !user) return {};
+
+    // Get AOI tables for selected year
+    const yearTables = (aoiTables || []).filter(table => table.tahun === selectedYear);
+
+    const groups: { [key: string]: any[] } = {};
+
+    yearTables.forEach(table => {
+      // Determine group key based on target organization
+      let groupKey = '';
+      if (table.targetDivisi && table.targetDivisi.trim()) {
+        groupKey = `${table.targetDirektorat || ''} / ${table.targetSubdirektorat || ''} / ${table.targetDivisi}`;
+      } else if (table.targetSubdirektorat && table.targetSubdirektorat.trim()) {
+        groupKey = `${table.targetDirektorat || ''} / ${table.targetSubdirektorat}`;
+      } else if (table.targetDirektorat && table.targetDirektorat.trim()) {
+        groupKey = table.targetDirektorat;
+      } else {
+        groupKey = 'Belum Ditentukan';
+      }
+
+      // Get recommendations for this table
+      const tableRecommendations = (aoiRecommendations || []).filter(rec => rec.aoiTableId === table.id);
+
+      // Get documents for each recommendation
+      tableRecommendations.forEach(rec => {
+        const recDocuments = (aoiDocuments || []).filter(doc => doc.aoiRecommendationId === rec.id);
+
+        if (recDocuments.length > 0) {
+          if (!groups[groupKey]) {
+            groups[groupKey] = [];
+          }
+
+          recDocuments.forEach(doc => {
+            groups[groupKey].push({
+              ...doc,
+              recommendation: rec,
+              table: table
+            });
+          });
+        }
+      });
+    });
+
+    return groups;
+  }, [aoiTables, aoiRecommendations, aoiDocuments, selectedYear, user]);
+
+  // Toggle AOI group expansion
+  const toggleAOIGroup = (groupKey: string) => {
+    setExpandedAOIGroups(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(groupKey)) {
+        newSet.delete(groupKey);
+      } else {
+        newSet.add(groupKey);
+      }
+      return newSet;
+    });
+  };
+
+  // Render star rating for urgency
+  const renderStars = (rating: string) => {
+    const ratingMap: Record<string, number> = {
+      'RENDAH': 1,
+      'SEDANG': 2,
+      'TINGGI': 3,
+      'SANGAT_TINGGI': 4,
+      'KRITIS': 5,
+      'TIDAK_ADA': 0
+    };
+    const starCount = ratingMap[rating] || 0;
+
+    return Array.from({ length: 5 }, (_, i) => (
+      <Star
+        key={i}
+        className={`w-3 h-3 ${
+          i < starCount ? 'text-yellow-500 fill-current' : 'text-gray-300'
+        }`}
+      />
+    ));
+  };
 
   // Handle view document
   const handleViewDocument = useCallback(async (checklistId: number) => {
@@ -986,41 +1093,69 @@ const ArsipDokumen = () => {
     return FileText;
   }, []);
 
+  // Check data-tour elements after mount
+  React.useEffect(() => {
+    // Run after a delay to ensure DOM is ready
+    const timer = setTimeout(() => {
+      const allElements = document.querySelectorAll('[data-tour]');
+      console.log('🔍 ARSIP: Total data-tour elements found:', allElements.length);
+      if (allElements.length > 0) {
+        console.log('🔍 ARSIP: Elements:', Array.from(allElements).map(el => el.getAttribute('data-tour')));
+      } else {
+        console.error('❌ ARSIP: NO data-tour elements found in DOM!');
+      }
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
     <>
       <Sidebar />
       <Topbar />
-      
+
       {/* Main Content */}
       <div className={`
         transition-all duration-300 ease-in-out pt-16
         ${isSidebarOpen ? 'lg:ml-64' : 'ml-0'}
       `}>
         <div className="p-6">
-          {/* Header */}
-          <PageHeaderPanel
-            title="Arsip Dokumen"
-            subtitle="Kelola dan unduh dokumen yang telah diupload"
-            actions={[
-              {
-                label: isRefreshing ? "Refreshing..." : "Refresh Tabel",
-                onClick: handleRefreshTables,
-                icon: <RefreshCw className="w-4 h-4" />,
-                variant: "outline" as const,
-                disabled: isRefreshing || fileStatusLoading || isDownloading
-              },
-              {
-                label: isDownloading ? `Downloading... ${downloadProgress}%` : "Download Semua",
-                onClick: handleBulkDownload,
-                icon: <Download className="w-4 h-4" />,
-                variant: "outline" as const,
-                disabled: isDownloading || isRefreshing || fileStatusLoading
-              }
-            ]}
-          />
+          {/* Header with Direct Buttons (NOT using PageHeaderPanel for data-tour compatibility) */}
+          <div className="mb-8">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex-1">
+                <h1 className="text-3xl font-bold text-gray-900">Arsip Dokumen</h1>
+                <p className="text-gray-600 mt-2">Kelola dan unduh dokumen yang telah diupload</p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="outline"
+                  onClick={handleRefreshTables}
+                  disabled={isRefreshing || fileStatusLoading || isDownloading}
+                  className="flex items-center gap-2"
+                  data-tour="refresh-button"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  {isRefreshing ? "Refreshing..." : "Refresh Tabel"}
+                </Button>
+
+                <Button
+                  variant="outline"
+                  onClick={handleBulkDownload}
+                  disabled={isDownloading || isRefreshing || fileStatusLoading}
+                  className="flex items-center gap-2"
+                  data-tour="download-all-button"
+                >
+                  <Download className="w-4 h-4" />
+                  {isDownloading ? `Downloading... ${downloadProgress}%` : "Download Semua"}
+                </Button>
+              </div>
+            </div>
+          </div>
 
           {/* Year Selection - Single Line with Upload/View indication */}
-          <div className="mb-6 bg-white rounded-lg p-3 shadow-sm border border-gray-100">
+          <div className="mb-6 bg-white rounded-lg p-3 shadow-sm border border-gray-100" data-tour="year-selector">
             {/* Main Row */}
             <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-2">
@@ -1094,7 +1229,7 @@ const ArsipDokumen = () => {
           {selectedYear && (
             <div className="space-y-6">
               {/* Statistics Panel */}
-              <Card>
+              <Card data-tour="statistics-panel">
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2">
                     <Archive className="w-5 h-5 text-blue-600" />
@@ -1157,7 +1292,7 @@ const ArsipDokumen = () => {
               {/* Upload & Download Sections */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Section 1: Upload Dokumen */}
-                <Card className="border-2 border-green-200 bg-green-50/30">
+                <Card className="border-2 border-green-200 bg-green-50/30" data-tour="upload-random">
                   <CardHeader>
                     <CardTitle className="flex items-center space-x-2">
                       <Upload className="w-5 h-5 text-green-600" />
@@ -1231,7 +1366,7 @@ const ArsipDokumen = () => {
                   <CardContent>
                     <div className="space-y-4">
                       {/* Filter by Aspek */}
-                      <div className="space-y-2">
+                      <div className="space-y-2" data-tour="filter-aspek">
                         <label className="text-sm font-medium text-gray-700">
                           Filter Aspek
                         </label>
@@ -1249,7 +1384,7 @@ const ArsipDokumen = () => {
                       </div>
 
                       {/* Filter by Subdirektorat */}
-                      <div className="space-y-2">
+                      <div className="space-y-2" data-tour="filter-pic">
                         <label className="text-sm font-medium text-gray-700">
                           Filter PIC / Subdirektorat
                         </label>
@@ -1282,7 +1417,7 @@ const ArsipDokumen = () => {
               </div>
 
               {/* Search Bar - Separate Row */}
-              <Card>
+              <Card data-tour="search-filter">
                 <CardContent className="p-4">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -1297,14 +1432,38 @@ const ArsipDokumen = () => {
               </Card>
 
               {/* Documents Table */}
-              <Card>
+              <Card data-tour="document-table">
                 <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <FileText className="w-5 h-5 text-blue-600" />
-                    <span>Daftar Dokumen Arsip</span>
-                    {fileStatusLoading && (
-                      <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-                    )}
+                  <CardTitle className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <FileText className="w-5 h-5 text-blue-600" />
+                      <span>Daftar Dokumen Arsip GCG</span>
+                      {fileStatusLoading && (
+                        <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                      )}
+                    </div>
+                    {/* Pagination Selector */}
+                    <div className="flex items-center gap-2" data-tour="pagination-selector">
+                      <span className="text-sm text-gray-600">Item per halaman:</span>
+                      <Select
+                        value={itemsPerPage.toString()}
+                        onValueChange={(value) => setItemsPerPage(parseInt(value))}
+                      >
+                        <SelectTrigger className="w-24">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="10">10</SelectItem>
+                          <SelectItem value="25">25</SelectItem>
+                          <SelectItem value="50">50</SelectItem>
+                          <SelectItem value="100">100</SelectItem>
+                          <SelectItem value="0">Semua</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <span className="text-xs text-gray-500">
+                        (Menampilkan {paginatedDocuments.length} dari {filteredDocuments.length})
+                      </span>
+                    </div>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -1336,7 +1495,7 @@ const ArsipDokumen = () => {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {filteredDocuments.map((doc, index) => {
+                          {paginatedDocuments.map((doc, index) => {
                             if (!doc) return null;
 
                             const IconComponent = getAspectIcon(doc.aspek);
@@ -1420,6 +1579,7 @@ const ArsipDokumen = () => {
                                       onClick={() => handleShowCatatan(doc.id)}
                                       disabled={!uploadedDocument}
                                       title={uploadedDocument ? "Lihat catatan" : "Belum ada file"}
+                                      data-tour={index === 0 ? "catatan-button" : undefined}
                                     >
                                       <MessageSquare className={`w-3.5 h-3.5 ${uploadedDocument ? 'text-yellow-600' : 'text-gray-300'}`} />
                                     </Button>
@@ -1432,6 +1592,7 @@ const ArsipDokumen = () => {
                                       onClick={() => handleDownloadDocument(doc.id)}
                                       disabled={!uploadedDocument}
                                       title={uploadedDocument ? "Download" : "Belum ada file"}
+                                      data-tour={index === 0 ? "download-doc-button" : undefined}
                                     >
                                       <Download className={`w-3.5 h-3.5 ${uploadedDocument ? 'text-green-600' : 'text-gray-300'}`} />
                                     </Button>
@@ -1444,6 +1605,7 @@ const ArsipDokumen = () => {
                                       onClick={() => handleViewDocument(doc.id)}
                                       disabled={!uploadedDocument}
                                       title={uploadedDocument ? "Lihat di arsip" : "Belum ada file"}
+                                      data-tour={index === 0 ? "view-button" : undefined}
                                     >
                                       <Eye className={`w-3.5 h-3.5 ${uploadedDocument ? 'text-blue-600' : 'text-gray-300'}`} />
                                     </Button>
@@ -1475,6 +1637,148 @@ const ArsipDokumen = () => {
                           })}
                         </TableBody>
                       </Table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* AOI Documents Archive Section */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Archive className="w-5 h-5 text-purple-600" />
+                    <span>Daftar Dokumen AOI Arsip</span>
+                  </CardTitle>
+                  <p className="text-sm text-gray-600 mt-2">
+                    Dokumen Area of Improvement (AOI) yang telah diupload, dikelompokkan berdasarkan struktur organisasi
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  {Object.keys(groupedAOIDocuments).length === 0 ? (
+                    <div className="text-center py-12">
+                      <Archive className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-gray-500 mb-2">
+                        Belum ada dokumen AOI
+                      </h3>
+                      <p className="text-gray-400">
+                        Dokumen AOI yang telah diupload akan muncul di sini
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {Object.entries(groupedAOIDocuments).map(([groupKey, docs]) => (
+                        <Card key={groupKey} className="border border-gray-200">
+                          <CardHeader
+                            className="cursor-pointer hover:bg-gray-50 transition-colors py-3"
+                            onClick={() => toggleAOIGroup(groupKey)}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                {expandedAOIGroups.has(groupKey) ? (
+                                  <ChevronDown className="w-5 h-5 text-gray-600" />
+                                ) : (
+                                  <ChevronRight className="w-5 h-5 text-gray-600" />
+                                )}
+                                <Building className="w-5 h-5 text-purple-600" />
+                                <div>
+                                  <h4 className="font-semibold text-gray-900">{groupKey}</h4>
+                                  <p className="text-xs text-gray-500">{docs.length} dokumen</p>
+                                </div>
+                              </div>
+                              <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                                {docs.length}
+                              </Badge>
+                            </div>
+                          </CardHeader>
+
+                          {expandedAOIGroups.has(groupKey) && (
+                            <CardContent className="pt-0">
+                              <div className="overflow-x-auto">
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow className="bg-purple-50">
+                                      <TableHead className="w-[50px] text-center">No</TableHead>
+                                      <TableHead className="min-w-[300px]">Rekomendasi</TableHead>
+                                      <TableHead className="w-[120px]">Urgensi</TableHead>
+                                      <TableHead className="w-[150px]">Aspek AOI</TableHead>
+                                      <TableHead className="w-[180px]">Organ Perusahaan</TableHead>
+                                      <TableHead className="w-[200px]">File</TableHead>
+                                      <TableHead className="w-[180px] text-center">Aksi</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {docs.map((doc, index) => (
+                                      <TableRow key={doc.id} className="hover:bg-purple-50/50">
+                                        <TableCell className="text-center text-xs">
+                                          {index + 1}
+                                        </TableCell>
+                                        <TableCell>
+                                          <div className="space-y-1">
+                                            <p className="text-sm font-medium text-gray-900 line-clamp-2">
+                                              {doc.recommendation?.isi || '-'}
+                                            </p>
+                                            <p className="text-xs text-gray-500">
+                                              {doc.table?.nama || 'Tabel AOI'}
+                                            </p>
+                                          </div>
+                                        </TableCell>
+                                        <TableCell>
+                                          <div className="flex items-center gap-1">
+                                            {renderStars(doc.recommendation?.tingkatUrgensi || 'TIDAK_ADA')}
+                                          </div>
+                                          <p className="text-xs text-gray-600 mt-1">
+                                            {doc.recommendation?.tingkatUrgensi?.replace(/_/g, ' ') || 'N/A'}
+                                          </p>
+                                        </TableCell>
+                                        <TableCell>
+                                          <Badge variant="outline" className="text-xs">
+                                            {doc.recommendation?.aspekAOI || '-'}
+                                          </Badge>
+                                        </TableCell>
+                                        <TableCell>
+                                          <p className="text-xs text-gray-700">
+                                            {doc.recommendation?.organPerusahaan || '-'}
+                                          </p>
+                                        </TableCell>
+                                        <TableCell>
+                                          <div className="space-y-1">
+                                            <p className="text-xs font-medium text-gray-900 truncate max-w-[180px]" title={doc.fileName}>
+                                              {doc.fileName}
+                                            </p>
+                                            <p className="text-xs text-gray-500">
+                                              {doc.uploadedBy || 'Unknown'}
+                                            </p>
+                                          </div>
+                                        </TableCell>
+                                        <TableCell>
+                                          <div className="flex items-center justify-center gap-2">
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              className="h-7 w-7"
+                                              title="Download"
+                                            >
+                                              <Download className="w-3.5 h-3.5 text-blue-600" />
+                                            </Button>
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              className="h-7 w-7"
+                                              title="Lihat Detail"
+                                            >
+                                              <Eye className="w-3.5 h-3.5 text-purple-600" />
+                                            </Button>
+                                          </div>
+                                        </TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              </div>
+                            </CardContent>
+                          )}
+                        </Card>
+                      ))}
                     </div>
                   )}
                 </CardContent>

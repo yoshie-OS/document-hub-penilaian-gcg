@@ -21,6 +21,8 @@ interface SuperAdminUser {
   name: string;
   email: string;
   role: string;
+  whatsapp?: string;
+  telegram?: string;
 }
 
 const EditSuperAdmin = () => {
@@ -31,8 +33,11 @@ const EditSuperAdmin = () => {
   const [superAdminList, setSuperAdminList] = useState<SuperAdminUser[]>([]);
   const [selectedSuperAdmin, setSelectedSuperAdmin] = useState<SuperAdminUser | null>(null);
   const [superAdminForm, setSuperAdminForm] = useState({
+    name: '',
     email: '',
-    password: ''
+    password: '',
+    whatsapp: '',
+    telegram: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -71,32 +76,11 @@ const EditSuperAdmin = () => {
 
       setSuperAdminList(superAdmins);
     } catch (error) {
-      console.error('Error fetching superadmins from API, trying fallback:', error);
+      console.error('Error fetching superadmins from API:', error);
 
-      // Fallback: Try localStorage first
-      try {
-        const localUsers = localStorage.getItem('users');
-        if (localUsers) {
-          const users = JSON.parse(localUsers);
-          const superAdmins = users
-            .filter((u: any) => u.role === 'superadmin')
-            .slice(0, 2) as SuperAdminUser[];
-
-          if (superAdmins.length > 0) {
-            setSuperAdminList(superAdmins);
-            return;
-          }
-        }
-      } catch (parseError) {
-        console.warn('Failed to parse localStorage users:', parseError);
-      }
-
-      // Fallback: Use default superadmins
-      const defaultSuperAdmins: SuperAdminUser[] = [
-        { id: 1, name: 'Super Admin 1', email: 'admin1', role: 'superadmin' },
-        { id: 2, name: 'Super Admin 2', email: 'admin2', role: 'superadmin' }
-      ];
-      setSuperAdminList(defaultSuperAdmins);
+      // FIXED: Removed localStorage fallback - API is source of truth
+      // If API fails, show empty list or error state
+      setSuperAdminList([]);
     } finally {
       setIsLoading(false);
     }
@@ -133,39 +117,17 @@ const EditSuperAdmin = () => {
     if (selected) {
       setSelectedSuperAdmin(selected);
       setSuperAdminForm({
+        name: selected.name || '',
         email: selected.email,
-        password: ''
+        password: '',
+        whatsapp: selected.whatsapp || '',
+        telegram: selected.telegram || ''
       });
     }
   };
 
-  // Helper function to update localStorage (keeps it in sync with API)
-  const updateLocalStorage = () => {
-    if (!selectedSuperAdmin) return;
-
-    try {
-      const localUsers = localStorage.getItem('users');
-      if (localUsers) {
-        const users = JSON.parse(localUsers);
-        const updatedUsers = users.map((u: any) => {
-          if (String(u.id) === String(selectedSuperAdmin.id) || u.email === selectedSuperAdmin.email) {
-            return { ...u, email: superAdminForm.email, password: superAdminForm.password };
-          }
-          return u;
-        });
-        localStorage.setItem('users', JSON.stringify(updatedUsers));
-      } else {
-        // Create new users in localStorage with updated superadmin
-        const defaultUsers = [
-          { id: 1, name: 'Super Admin 1', email: selectedSuperAdmin.id === 1 ? superAdminForm.email : 'admin1', password: selectedSuperAdmin.id === 1 ? superAdminForm.password : 'admin123', role: 'superadmin' },
-          { id: 2, name: 'Super Admin 2', email: selectedSuperAdmin.id === 2 ? superAdminForm.email : 'admin2', password: selectedSuperAdmin.id === 2 ? superAdminForm.password : 'admin123', role: 'superadmin' }
-        ];
-        localStorage.setItem('users', JSON.stringify(defaultUsers));
-      }
-    } catch (error) {
-      console.error('Failed to update localStorage:', error);
-    }
-  };
+  // REMOVED: updateLocalStorage function - data managed by backend API only
+  // localStorage sync removed to prevent stale cache issues
 
   // Handler untuk update super admin credentials
   const handleSubmit = async (e: React.FormEvent) => {
@@ -180,10 +142,10 @@ const EditSuperAdmin = () => {
       return;
     }
 
-    if (!superAdminForm.email || !superAdminForm.password) {
+    if (!superAdminForm.email) {
       toast({
         title: "Error",
-        description: "Email dan password wajib diisi!",
+        description: "Email wajib diisi!",
         variant: "destructive"
       });
       return;
@@ -193,47 +155,54 @@ const EditSuperAdmin = () => {
 
     try {
       // Try update via database API
+      // Build update payload - only include fields that are filled
+      const updatePayload: any = {
+        name: superAdminForm.name,
+        email: superAdminForm.email,
+        whatsapp: superAdminForm.whatsapp,
+        telegram: superAdminForm.telegram
+      };
+
+      // Only include password if it's filled (optional)
+      if (superAdminForm.password) {
+        updatePayload.password = superAdminForm.password;
+      }
+
       const response = await fetch(`http://localhost:5001/api/users/${selectedSuperAdmin.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          email: superAdminForm.email,
-          password: superAdminForm.password
-        }),
+        body: JSON.stringify(updatePayload),
       });
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      // Also update localStorage to keep it in sync (for login fallback)
-      updateLocalStorage();
+      // REMOVED: updateLocalStorage() - data managed by backend API only
 
       toast({
         title: "Berhasil!",
         description: `Kredensial ${selectedSuperAdmin.name || selectedSuperAdmin.email} berhasil diperbarui`,
       });
 
+      // Refresh superadmin list to show updated data
+      fetchSuperAdmins();
+
       // Reset form after success
-      setSuperAdminForm({ email: '', password: '' });
+      setSuperAdminForm({ name: '', email: '', password: '', whatsapp: '', telegram: '' });
       setSelectedSuperAdmin(null);
 
     } catch (error) {
-      console.error('Error updating super admin via API, trying localStorage fallback:', error);
+      console.error('Error updating super admin via API:', error);
 
-      // Fallback: Update localStorage only
-      updateLocalStorage();
-
+      // REMOVED: localStorage fallback - show error instead
       toast({
-        title: "Berhasil!",
-        description: `Kredensial ${selectedSuperAdmin.name || selectedSuperAdmin.email} berhasil diperbarui (lokal)`,
+        title: "Error!",
+        description: `Gagal memperbarui kredensial: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        variant: "destructive"
       });
-
-      // Reset form after success
-      setSuperAdminForm({ email: '', password: '' });
-      setSelectedSuperAdmin(null);
     } finally {
       setIsSubmitting(false);
     }
@@ -333,8 +302,21 @@ const EditSuperAdmin = () => {
                 {selectedSuperAdmin && (
                   <>
                     <div>
+                      <Label htmlFor="superadmin-name" className="text-sm font-medium text-gray-700">
+                        Nama Lengkap
+                      </Label>
+                      <Input
+                        id="superadmin-name"
+                        type="text"
+                        value={superAdminForm.name}
+                        onChange={(e) => setSuperAdminForm(prev => ({ ...prev, name: e.target.value }))}
+                        className="mt-2 border-gray-300 focus:border-orange-500"
+                        placeholder="Masukkan nama lengkap"
+                      />
+                    </div>
+                    <div>
                       <Label htmlFor="superadmin-email" className="text-sm font-medium text-gray-700">
-                        Email / Username
+                        Email / Username <span className="text-xs text-gray-500">(Untuk Login)</span>
                       </Label>
                       <Input
                         id="superadmin-email"
@@ -342,13 +324,13 @@ const EditSuperAdmin = () => {
                         value={superAdminForm.email}
                         onChange={(e) => setSuperAdminForm(prev => ({ ...prev, email: e.target.value }))}
                         className="mt-2 border-gray-300 focus:border-orange-500"
-                        placeholder="Masukkan email atau username baru"
+                        placeholder="Masukkan email atau username"
                         required
                       />
                     </div>
                     <div>
                       <Label htmlFor="superadmin-password" className="text-sm font-medium text-gray-700">
-                        Password Baru
+                        Password Baru <span className="text-xs text-gray-500">(Opsional - kosongkan jika tidak ingin mengubah)</span>
                       </Label>
                       <Input
                         id="superadmin-password"
@@ -356,9 +338,61 @@ const EditSuperAdmin = () => {
                         value={superAdminForm.password}
                         onChange={(e) => setSuperAdminForm(prev => ({ ...prev, password: e.target.value }))}
                         className="mt-2 border-gray-300 focus:border-orange-500"
-                        placeholder="Masukkan password baru"
-                        required
+                        placeholder="Masukkan password baru (opsional)"
                       />
+                    </div>
+
+                    {/* Contact Information Section */}
+                    <div className="pt-4 border-t border-gray-200">
+                      <h3 className="text-sm font-semibold text-gray-900 mb-4">Informasi Kontak (Opsional)</h3>
+                      <p className="text-xs text-gray-500 mb-4">
+                        Kontak yang diisi akan ditampilkan kepada user untuk memudahkan komunikasi
+                      </p>
+
+                      <div className="space-y-4">
+                        <div>
+                          <Label htmlFor="superadmin-contact-email" className="text-sm font-medium text-gray-700">
+                            Email Kontak
+                          </Label>
+                          <Input
+                            id="superadmin-contact-email"
+                            type="email"
+                            value={superAdminForm.email}
+                            onChange={(e) => setSuperAdminForm(prev => ({ ...prev, email: e.target.value }))}
+                            className="mt-2 border-gray-300 focus:border-orange-500"
+                            placeholder="Contoh: admin@posindonesia.co.id"
+                            disabled
+                          />
+                          <p className="text-xs text-gray-400 mt-1">Email login akan digunakan sebagai kontak email</p>
+                        </div>
+                        <div>
+                          <Label htmlFor="superadmin-whatsapp" className="text-sm font-medium text-gray-700">
+                            WhatsApp
+                          </Label>
+                          <Input
+                            id="superadmin-whatsapp"
+                            type="text"
+                            value={superAdminForm.whatsapp}
+                            onChange={(e) => setSuperAdminForm(prev => ({ ...prev, whatsapp: e.target.value }))}
+                            className="mt-2 border-gray-300 focus:border-orange-500"
+                            placeholder="Contoh: 628123456789"
+                          />
+                          <p className="text-xs text-gray-400 mt-1">Format: 628xxxxxxxxxx (tanpa tanda +)</p>
+                        </div>
+                        <div>
+                          <Label htmlFor="superadmin-telegram" className="text-sm font-medium text-gray-700">
+                            Telegram
+                          </Label>
+                          <Input
+                            id="superadmin-telegram"
+                            type="text"
+                            value={superAdminForm.telegram}
+                            onChange={(e) => setSuperAdminForm(prev => ({ ...prev, telegram: e.target.value }))}
+                            className="mt-2 border-gray-300 focus:border-orange-500"
+                            placeholder="Contoh: @username atau link t.me/username"
+                          />
+                        </div>
+                      </div>
                     </div>
 
                     <div className="flex space-x-3 pt-4">
@@ -384,7 +418,7 @@ const EditSuperAdmin = () => {
                         variant="outline"
                         onClick={() => {
                           setSelectedSuperAdmin(null);
-                          setSuperAdminForm({ email: '', password: '' });
+                          setSuperAdminForm({ name: '', email: '', password: '', whatsapp: '', telegram: '' });
                         }}
                         className="flex-1 border-gray-300 text-gray-600 hover:bg-gray-50"
                         disabled={isSubmitting}

@@ -46,15 +46,23 @@ def safe_print(*args, **kwargs):
     if sys.platform.startswith('win'):
         try:
             print(*safe_args, **kwargs)
-        except UnicodeEncodeError:
+        except (UnicodeEncodeError, OSError):
             # Fallback: encode as ASCII with replacement characters
+            # Handles both UnicodeEncodeError and OSError: [Errno 22] Invalid argument
             ascii_args = []
             for arg in safe_args:
                 if isinstance(arg, str):
                     ascii_args.append(arg.encode('ascii', 'replace').decode('ascii'))
                 else:
                     ascii_args.append(str(arg).encode('ascii', 'replace').decode('ascii'))
-            print(*ascii_args, **kwargs)
+            try:
+                print(*ascii_args, **kwargs)
+            except (UnicodeEncodeError, OSError):
+                # Last resort: write to stderr with basic string conversion
+                try:
+                    sys.stderr.write(' '.join(str(a) for a in ascii_args) + '\n')
+                except:
+                    pass  # Silently fail if all else fails
     else:
         print(*safe_args, **kwargs)
 

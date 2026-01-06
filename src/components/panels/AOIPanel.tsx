@@ -478,7 +478,7 @@ const AOIPanel: React.FC<AOIPanelProps> = ({ selectedYear, className = "" }) => 
               <div className="text-center py-8 text-blue-600">
                 <FileText className="h-12 w-12 mx-auto mb-4 text-blue-400" />
                 <p className="text-sm">Belum ada rekomendasi untuk tabel ini</p>
-                <p className="text-xs mt-1">Super admin akan menambahkan rekomendasi yang ditujukan untuk {user.direktorat || 'direktorat Anda'}</p>
+                <p className="text-xs mt-1">Rekomendasi akan ditambahkan untuk {user.subdirektorat || user.direktorat || 'organisasi Anda'}</p>
               </div>
             )}
           </div>

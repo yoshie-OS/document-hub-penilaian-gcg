@@ -102,16 +102,7 @@ const AdminUploadDialog: React.FC<AdminUploadDialogProps> = ({
 
   // File validation
   const validateFile = useCallback((file: File): boolean => {
-    const maxSize = 16 * 1024 * 1024; // 16MB
-
-    if (file.size > maxSize) {
-      toast({
-        title: "File terlalu besar",
-        description: "Ukuran file maksimal 16MB",
-        variant: "destructive"
-      });
-      return false;
-    }
+    // No file size limit - removed to allow large documents
 
     const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
     const isValidType = allowedMimeTypes.includes(file.type) || allowedExtensions.includes(fileExtension);

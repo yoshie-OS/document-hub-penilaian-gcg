@@ -14,6 +14,7 @@ interface YearSelectorPanelProps {
   showYearCategories?: boolean; // Untuk menampilkan kategori tahun aktif/sebelumnya
   sticky?: boolean;
   stickyOffset?: number;
+  'data-tour'?: string;
 }
 
 const YearSelectorPanel: React.FC<YearSelectorPanelProps> = ({
@@ -25,7 +26,8 @@ const YearSelectorPanel: React.FC<YearSelectorPanelProps> = ({
   className = "",
   showYearCategories = true,
   sticky = false,
-  stickyOffset = 80
+  stickyOffset = 80,
+  'data-tour': dataTour
 }) => {
   // Safety check for selectedYear
   const safeSelectedYear = selectedYear || null;
@@ -39,8 +41,9 @@ const YearSelectorPanel: React.FC<YearSelectorPanelProps> = ({
   const previousYears = sortedYears.slice(1); // Tahun-tahun sebelumnya
   
   return (
-    <div className={`mb-6 ${className} ${sticky ? 'sticky bg-white/95 backdrop-blur-sm border-b border-gray-200 shadow-sm' : ''}`} 
+    <div className={`mb-6 ${className} ${sticky ? 'sticky bg-white/95 backdrop-blur-sm border-b border-gray-200 shadow-sm' : ''}`}
          id="year-selector"
+         data-tour={dataTour}
          style={sticky ? { top: `${stickyOffset}px`, zIndex: 49 } : {}}>
       <Card className="border-0 shadow-lg bg-gradient-to-r from-white to-blue-50">
         <CardHeader className="pb-4">

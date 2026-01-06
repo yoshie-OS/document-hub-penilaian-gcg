@@ -34,7 +34,6 @@ load_dotenv(dotenv_path=env_path)
 # Import storage service
 from storage_service import storage_service
 # from file_scanner import FileScanner  # COMMENTED OUT: Module doesn't exist, endpoint not used by frontend
-from database import get_db_connection
 
 # Helper function to safely serialize pandas data to JSON
 def safe_serialize_dict(data_dict):
@@ -91,12 +90,13 @@ def generate_checklist_id(year, row_number):
 project_root = str(Path(__file__).parent.parent.parent)
 
 app = Flask(__name__)
-# Enable CORS for React frontend with exposed headers
+# Enable CORS for React frontend with exposed headers (allow all localhost ports for development)
 CORS(app,
-     origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:8081", "http://localhost:8080", "http://localhost:3000", "http://127.0.0.1:8081", "http://127.0.0.1:8080", "http://127.0.0.1:3000"],
+     origins=["*"],  # Allow all origins for development
      methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
      allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
-     expose_headers=['Content-Disposition', 'Content-Type', 'Content-Length'])
+     expose_headers=['Content-Disposition', 'Content-Type', 'Content-Length'],
+     supports_credentials=True)
 
 # Configuration
 UPLOAD_FOLDER = Path(__file__).parent / 'uploads'
@@ -109,7 +109,7 @@ OUTPUT_FOLDER.mkdir(exist_ok=True)
 
 app.config['UPLOAD_FOLDER'] = str(UPLOAD_FOLDER)
 app.config['OUTPUT_FOLDER'] = str(OUTPUT_FOLDER)
-app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max file size
+app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB max file size (increased from 50MB)
 
 def allowed_file(filename: str) -> bool:
     """Check if file extension is allowed."""
@@ -601,77 +601,237 @@ def system_info():
 @app.route('/api/save', methods=['POST'])
 def save_assessment():
     """
-    Save assessment data to SQLite database
+    Save assessment data directly to output.xlsx (no JSON intermediate)
     """
     try:
         data = request.json
         safe_print(f"🔧 DEBUG: Received save request with data keys: {data.keys()}")
-
+        
         # Create assessment record
         assessment_id = f"{data.get('year', 'unknown')}_{data.get('auditor', 'unknown')}_{str(uuid.uuid4())[:8]}"
         saved_at = datetime.now().isoformat()
-
-        year = data.get('year')
+        
+        # Load existing XLSX data and COMPLETELY REPLACE year's data (including deletions)
+        all_rows = []
+        existing_df = storage_service.read_excel('web-output/output.xlsx')
+        
+        if existing_df is not None:
+            try:
+                current_year = data.get('year')
+                
+                safe_print(f"🔧 DEBUG: Loading existing XLSX with {len(existing_df)} rows")
+                safe_print(f"🔧 DEBUG: Current year to save: {current_year}")
+                safe_print(f"🔧 DEBUG: Existing years in file: {existing_df['Tahun'].unique().tolist()}")
+                
+                # COMPLETELY REMOVE all existing data for this year (this handles deletions)
+                if current_year:
+                    original_count = len(existing_df)
+                    existing_df = existing_df[existing_df['Tahun'] != current_year]
+                    removed_count = original_count - len(existing_df)
+                    safe_print(f"🔧 DEBUG: COMPLETELY REMOVED {removed_count} rows for year {current_year} (including deletions)")
+                    safe_print(f"🔧 DEBUG: Preserved {len(existing_df)} rows from other years")
+                
+                # Convert remaining data back to list format
+                for _, row in existing_df.iterrows():
+                    all_rows.append(row.to_dict())
+                    
+                safe_print(f"🔧 DEBUG: Starting with {len(all_rows)} rows from other years")
+            except Exception as e:
+                safe_print(f"WARNING: Could not read existing XLSX: {e}")
+        
+        # Process new data and add to all_rows
+        year = data.get('year', 'unknown')
         auditor = data.get('auditor', 'unknown')
         jenis_asesmen = data.get('jenis_asesmen', 'Internal')
-
-        if not year:
-            return jsonify({'success': False, 'error': 'Year is required'}), 400
-
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-
-            # Delete existing assessments for this year
-            cursor.execute("DELETE FROM gcg_assessments WHERE year = ?", (year,))
-            cursor.execute("DELETE FROM gcg_assessment_summary WHERE year = ?", (year,))
-            safe_print(f"🗑️ Deleted existing assessments for year {year}")
-
-            # Process aspect summary data (primary data)
-            aspect_summary_data = data.get('aspectSummaryData', [])
-            if aspect_summary_data:
-                safe_print(f"💾 Saving {len(aspect_summary_data)} aspect summary rows")
-
-                for summary_row in aspect_summary_data:
-                    aspek = summary_row.get('deskripsi', '')  # aspect name
-                    bobot = summary_row.get('bobot', 0)
-                    skor = summary_row.get('skor', 0)
-                    capaian = summary_row.get('capaian', 0)
-
-                    # Skip empty/meaningless rows
-                    if not aspek or (bobot == 0 and skor == 0):
-                        continue
-
-                    # Determine category based on capaian
-                    if capaian >= 85:
-                        category = "Sangat Baik"
-                    elif capaian >= 70:
-                        category = "Baik"
-                    elif capaian >= 50:
-                        category = "Cukup"
-                    else:
-                        category = "Kurang"
-
-                    # Insert into summary table
-                    cursor.execute("""
-                        INSERT INTO gcg_assessment_summary
-                        (year, aspek, total_nilai, total_skor, percentage, category)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                    """, (year, aspek, bobot, skor, capaian, category))
-
-            conn.commit()
-            safe_print(f"✅ Successfully saved assessment data for year {year}")
-
-            return jsonify({
-                'success': True,
-                'assessment_id': assessment_id,
-                'message': f'Assessment data saved to SQLite for year {year}'
-            })
-
+        
+        # Process main indicator data
+        for row in data.get('data', []):
+            # Map frontend data structure to XLSX format
+            row_id = row.get('id', row.get('no', ''))
+            section = row.get('aspek', row.get('section', ''))
+            is_total = row.get('isTotal', False)
+            
+            # Determine Level and Type based on data structure
+            if is_total:
+                level = "1"
+                row_type = "total"
+            elif str(row_id).isdigit():
+                level = "2"
+                row_type = "indicator"
+            else:
+                level = "1"
+                row_type = "header"
+            
+            xlsx_row = {
+                'Level': level,
+                'Type': row_type,
+                'Section': section,
+                'No': row_id,
+                'Deskripsi': row.get('deskripsi', ''),
+                'Bobot': row.get('bobot', ''),
+                'Skor': row.get('skor', ''),
+                'Capaian': row.get('capaian', ''),
+                'Penjelasan': row.get('penjelasan', ''),
+                'Tahun': year,
+                'Penilai': auditor,
+                'Jenis_Penilaian': jenis_asesmen,
+                'Export_Date': saved_at[:10]
+            }
+            all_rows.append(xlsx_row)
+        
+        # Process aspect summary data (if provided)
+        aspect_summary_data = data.get('aspectSummaryData', [])
+        if aspect_summary_data:
+            safe_print(f"🔧 DEBUG: Processing {len(aspect_summary_data)} aspect summary rows")
+            
+            for summary_row in aspect_summary_data:
+                section = summary_row.get('aspek', '')
+                deskripsi = summary_row.get('deskripsi', '')
+                bobot = summary_row.get('bobot', 0)
+                skor = summary_row.get('skor', 0)
+                
+                # Skip empty aspects or meaningless default data
+                if not section or not deskripsi or (bobot == 0 and skor == 0):
+                    continue
+                    
+                # Skip if this looks like an unedited default row (just roman numerals with no real data)
+                if section in ['I', 'II', 'III', 'IV', 'V', 'VI'] and not deskripsi.strip():
+                    continue
+                    
+                # Row 1: Header for this aspect
+                header_row = {
+                    'Level': "1",
+                    'Type': 'header',
+                    'Section': section,
+                    'No': '',
+                    'Deskripsi': summary_row.get('deskripsi', ''),
+                    'Bobot': '',
+                    'Skor': '',
+                    'Capaian': '',
+                    'Penjelasan': '',
+                    'Tahun': year,
+                    'Penilai': auditor,
+                    'Jenis_Penilaian': jenis_asesmen,
+                    'Export_Date': saved_at[:10]
+                }
+                all_rows.append(header_row)
+                
+                # Row 2: Subtotal for this aspect
+                subtotal_row = {
+                    'Level': "1", 
+                    'Type': 'subtotal',
+                    'Section': section,
+                    'No': '',
+                    'Deskripsi': f'JUMLAH {section}',
+                    'Bobot': summary_row.get('bobot', ''),
+                    'Skor': summary_row.get('skor', ''),
+                    'Capaian': summary_row.get('capaian', ''),
+                    'Penjelasan': summary_row.get('penjelasan', ''),
+                    'Tahun': year,
+                    'Penilai': auditor,
+                    'Jenis_Penilaian': jenis_asesmen,
+                    'Export_Date': saved_at[:10]
+                }
+                all_rows.append(subtotal_row)
+        
+        # Process separate totalData (total row sent separately from main data)
+        total_data = data.get('totalData', {})
+        if total_data and isinstance(total_data, dict):
+            # Check if total data has meaningful values (not all zeros)
+            has_meaningful_total = (
+                total_data.get('bobot', 0) != 0 or 
+                total_data.get('skor', 0) != 0 or 
+                total_data.get('capaian', 0) != 0 or 
+                total_data.get('penjelasan', '').strip() != ''
+            )
+            
+            if has_meaningful_total:
+                safe_print(f"🔧 DEBUG: Processing separate totalData: {total_data}")
+                
+                total_row = {
+                    'Level': "4",
+                    'Type': 'total',
+                    'Section': 'TOTAL',
+                    'No': '',
+                    'Deskripsi': 'TOTAL',
+                    'Bobot': total_data.get('bobot', ''),
+                    'Skor': total_data.get('skor', ''),
+                    'Capaian': total_data.get('capaian', ''),
+                    'Penjelasan': total_data.get('penjelasan', ''),
+                    'Tahun': year,
+                    'Penilai': auditor,
+                    'Jenis_Penilaian': jenis_asesmen,
+                    'Export_Date': saved_at[:10]
+                }
+                all_rows.append(total_row)
+                safe_print(f"🔧 DEBUG: Added totalData row to all_rows")
+            else:
+                safe_print(f"🔧 DEBUG: Skipping totalData - no meaningful values")
+        
+        # Convert to DataFrame and save XLSX
+        if all_rows:
+            df = pd.DataFrame(all_rows)
+            
+            # Remove any duplicate rows
+            df_unique = df.drop_duplicates(subset=['Tahun', 'Section', 'No', 'Deskripsi'], keep='last')
+            safe_print(f"🔧 DEBUG: Removed {len(df) - len(df_unique)} duplicate rows")
+            
+            # Custom sorting: year → aspek → no, then organize headers and subtotals properly
+            def sort_key(row):
+                # Ensure all values are consistently typed for comparison
+                try:
+                    year = int(row['Tahun']) if pd.notna(row['Tahun']) else 0
+                except (ValueError, TypeError):
+                    year = 0
+                
+                section = str(row['Section']) if pd.notna(row['Section']) else ''
+                no = row['No']
+                row_type = str(row['Type']) if pd.notna(row['Type']) else 'indicator'
+                
+                # Convert 'no' to numeric for proper sorting, handle empty values
+                try:
+                    no_numeric = int(no) if str(no).isdigit() else 9999
+                except (ValueError, TypeError):
+                    no_numeric = 9999
+                
+                # Type priority: header=0, indicators=1, subtotal=2, total=3 (appears last)
+                type_priority = {'header': 0, 'indicator': 1, 'subtotal': 2, 'total': 3}.get(row_type, 1)
+                
+                # Special handling for total rows: they should appear at the very end of each year
+                if row_type == 'total':
+                    # Use 'ZZZZZ' as section to ensure total rows sort last within each year
+                    section = 'ZZZZZ'
+                
+                return (year, section, type_priority, no_numeric)
+            
+            # Apply custom sorting
+            df_sorted = df_unique.loc[df_unique.apply(sort_key, axis=1).sort_values().index]
+            
+            # Save XLSX using storage service
+            success = storage_service.write_excel(df_sorted, 'web-output/output.xlsx')
+            if success:
+                safe_print(f"SUCCESS: Saved to output.xlsx with {len(df_sorted)} rows (sorted: year->aspek->no->type)")
+            else:
+                safe_print(f"ERROR: Failed to save output.xlsx")
+            
+        return jsonify({
+            'success': True,
+            'message': 'Data berhasil disimpan',
+            'assessment_id': assessment_id,
+            'saved_at': saved_at
+        })
+        
     except Exception as e:
-        safe_print(f"❌ Error saving assessment: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        safe_print(f"ERROR: Error saving assessment: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+# generate_output_xlsx function removed - now saving directly to XLSX
+
+
 @app.route('/api/delete-year-data', methods=['DELETE'])
 def delete_year_data():
     """
@@ -1140,114 +1300,70 @@ def get_gcg_chart_data():
     """
     Get assessment data formatted for GCGChart component (graphics-2 format)
     Returns data with Level hierarchy as expected by processGCGData function
-    NOW USING SQLITE DATABASE
     """
     try:
-        # Read from SQLite database using the assessment summary table
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-
-            # Get summary data for visualizations (from migrated Excel data)
-            cursor.execute("""
-                SELECT
-                    year as Tahun,
-                    aspek as Deskripsi,
-                    total_nilai as Bobot,
-                    total_skor as Skor,
-                    percentage as Capaian,
-                    category
-                FROM gcg_assessment_summary
-                ORDER BY year DESC, aspek
-            """)
-
-            rows = cursor.fetchall()
-
-            if not rows:
-                safe_print(f"WARNING: No GCG assessment summary data found in database")
-                return jsonify({
-                    'success': True,
-                    'data': [],
-                    'message': 'No chart data available. Please save some assessments first.'
-                })
-
-            safe_print(f"INFO: GCG Chart Data: Loading {len(rows)} summary rows from SQLite database")
-
-            # Convert to graphics-2 GCGData format for visualization
-            # Format: header rows (Level 1) represent the main aspects, total row (Level 4) for aggregation
-            gcg_data = []
-            year_totals = {}  # Track totals per year
-            year_aspect_counters = {}  # Track aspect count per year for Roman numerals
-
-            # Roman numeral mapping
-            roman_numerals = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X']
-
-            for row in rows:
-                year = row['Tahun']
-
-                # Track year totals
-                if year not in year_totals:
-                    year_totals[year] = {'total_skor': 0, 'total_bobot': 0}
-                    year_aspect_counters[year] = 0
-
-                year_totals[year]['total_skor'] += float(row['Skor']) if row['Skor'] else 0
-                year_totals[year]['total_bobot'] += float(row['Bobot']) if row['Bobot'] else 0
-
-                # Assign Roman numeral section for this aspect
-                section_roman = roman_numerals[year_aspect_counters[year]] if year_aspect_counters[year] < len(roman_numerals) else str(year_aspect_counters[year] + 1)
-                year_aspect_counters[year] += 1
-
-                # Add aspect header (Level 1)
-                gcg_item = {
-                    'Tahun': year,
-                    'Skor': round(float(row['Skor']), 2) if row['Skor'] else 0,
-                    'Level': 1,  # Summary data is level 1 (header/aspect level)
-                    'Section': section_roman,  # Roman numeral for aspect identification
-                    'Capaian': round(float(row['Capaian']), 2) if row['Capaian'] else 0,
-                    'Bobot': round(float(row['Bobot']), 2) if row['Bobot'] else 0,
-                    'Jumlah_Parameter': None,
-                    'Penjelasan': f"Category: {row['category']}" if row['category'] else '',
-                    'Penilai': 'Historical Data',
-                    'No': '',
-                    'Deskripsi': row['Deskripsi'] or '',
-                    'Jenis_Penilaian': 'Assessment',
-                    'Type': 'header'
-                }
-                gcg_data.append(gcg_item)
-
-            # Add total row (Level 4) for each year
-            for year, totals in year_totals.items():
-                total_capaian = (totals['total_skor'] / totals['total_bobot'] * 100) if totals['total_bobot'] > 0 else 0
-
-                gcg_data.append({
-                    'Tahun': year,
-                    'Skor': round(totals['total_skor'], 2),
-                    'Level': 4,  # Total level
-                    'Section': 'TOTAL',
-                    'Capaian': round(total_capaian, 2),
-                    'Bobot': round(totals['total_bobot'], 2),
-                    'Jumlah_Parameter': None,
-                    'Penjelasan': 'Total GCG Score',
-                    'Penilai': 'Historical Data',
-                    'No': '',
-                    'Deskripsi': 'TOTAL',
-                    'Jenis_Penilaian': 'Assessment',
-                    'Type': 'total'
-                })
-
-            available_years = list(set([item['Tahun'] for item in gcg_data]))
-
+        # Read XLSX data
+        df = storage_service.read_excel('web-output/output.xlsx')
+        
+        if df is None:
+            safe_print(f"WARNING: output.xlsx not found or empty")
             return jsonify({
                 'success': True,
-                'data': gcg_data,
-                'total_rows': len(gcg_data),
-                'available_years': sorted(available_years),
-                'message': f'Loaded GCG chart data from SQLite summary table: {len(gcg_data)} rows'
+                'data': [],
+                'message': 'No chart data available. Please save some assessments first.'
             })
-
+        
+        safe_print(f"INFO: GCG Chart Data: Loading {len(df)} rows from output.xlsx")
+        
+        # Convert to graphics-2 GCGData format
+        gcg_data = []
+        for _, row in df.iterrows():
+            # Determine level based on row type
+            level = 3  # Default to section level
+            row_type = str(row.get('Type', '')).lower()
+            
+            if row_type == 'total':
+                level = 4
+            elif row_type == 'header':
+                level = 1
+            elif row_type == 'indicator':
+                level = 2
+            elif row_type == 'subtotal':
+                level = 3
+            
+            # Handle NaN values
+            tahun = int(row.get('Tahun', 2022))
+            skor = float(row.get('Skor', 0)) if not pd.isna(row.get('Skor', 0)) else 0
+            capaian = float(row.get('Capaian', 0)) if not pd.isna(row.get('Capaian', 0)) else 0
+            bobot = float(row.get('Bobot', 0)) if not pd.isna(row.get('Bobot', 0)) else None
+            jumlah_param = float(row.get('Jumlah_Parameter', 0)) if not pd.isna(row.get('Jumlah_Parameter', 0)) else None
+            
+            gcg_item = {
+                'Tahun': tahun,
+                'Skor': skor,
+                'Level': level,
+                'Section': str(row.get('Section', '')),
+                'Capaian': capaian,
+                'Bobot': bobot,
+                'Jumlah_Parameter': jumlah_param,
+                'Penjelasan': str(row.get('Penjelasan', '')),
+                'Penilai': str(row.get('Penilai', 'Unknown')),
+                'No': str(row.get('No', '')),
+                'Deskripsi': str(row.get('Deskripsi', '')),
+                'Jenis_Penilaian': str(row.get('Jenis_Penilaian', 'Data Kosong'))
+            }
+            gcg_data.append(gcg_item)
+        
+        return jsonify({
+            'success': True,
+            'data': gcg_data,
+            'total_rows': len(gcg_data),
+            'available_years': list(set([item['Tahun'] for item in gcg_data])),
+            'message': f'Loaded GCG chart data: {len(gcg_data)} rows'
+        })
+        
     except Exception as e:
-        safe_print(f"ERROR: Error loading GCG chart data from SQLite: {str(e)}")
-        import traceback
-        traceback.print_exc()
+        safe_print(f"ERROR: Error loading GCG chart data: {str(e)}")
         return jsonify({
             'success': False,
             'error': str(e),
@@ -2863,6 +2979,10 @@ def update_user(user_id):
             csv_data.at[user_index, 'divisi'] = data['divisi']
         if 'tahun' in data or 'year' in data:
             csv_data.at[user_index, 'tahun'] = data.get('tahun') or data.get('year', '')
+        if 'whatsapp' in data:
+            csv_data.at[user_index, 'whatsapp'] = data['whatsapp']
+        if 'telegram' in data:
+            csv_data.at[user_index, 'telegram'] = data['telegram']
 
         # Save updated CSV
         storage_service.write_csv(csv_data, 'config/users.csv')
@@ -2918,6 +3038,12 @@ def update_user(user_id):
                     if 'divisi' in data:
                         update_fields.append('divisi = ?')
                         update_values.append(data['divisi'])
+                    if 'whatsapp' in data:
+                        update_fields.append('whatsapp = ?')
+                        update_values.append(data['whatsapp'])
+                    if 'telegram' in data:
+                        update_fields.append('telegram = ?')
+                        update_values.append(data['telegram'])
 
                     # Add updated_at timestamp
                     update_fields.append('updated_at = CURRENT_TIMESTAMP')
@@ -3162,13 +3288,7 @@ def upload_random_document():
     safe_print(f"📋 DEBUG: Content-Type: {request.content_type}")
 
     try:
-        # Check content length before parsing
-        if request.content_length and request.content_length > 50 * 1024 * 1024:
-            size_mb = request.content_length / (1024 * 1024)
-            safe_print(f"❌ DEBUG: Request too large: {size_mb:.1f}MB")
-            return jsonify({
-                'error': f'Request terlalu besar ({size_mb:.1f}MB). Maksimal 50MB.'
-            }), 413
+        # File size check removed - now handled by Flask MAX_CONTENT_LENGTH (500MB)
 
         # Check if file is present
         if 'file' not in request.files:
@@ -3182,20 +3302,13 @@ def upload_random_document():
             safe_print("❌ DEBUG: Empty filename")
             return jsonify({'error': 'No file selected'}), 400
 
-        # Check file size after receiving
+        # Log file size for debugging
         try:
             file.seek(0, 2)  # Seek to end
             file_size = file.tell()
             file.seek(0)  # Reset to beginning
             safe_print(f"📦 DEBUG: File size: {file_size / (1024 * 1024):.2f}MB")
-
-            MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
-            if file_size > MAX_FILE_SIZE:
-                size_mb = file_size / (1024 * 1024)
-                safe_print(f"❌ DEBUG: File too large: {size_mb:.1f}MB")
-                return jsonify({
-                    'error': f'File terlalu besar ({size_mb:.1f}MB). Maksimal 50MB.'
-                }), 413
+            # File size limit removed - now handled by Flask MAX_CONTENT_LENGTH (500MB)
         except Exception as seek_error:
             safe_print(f"⚠️ DEBUG: Could not check file size: {seek_error}")
             # Continue anyway
@@ -4198,22 +4311,25 @@ def fix_checklist_ids():
 
 @app.route('/api/config/checklist/batch', methods=['POST'])
 def add_checklist_batch():
-    """Add multiple checklist items in batch"""
+    """Add multiple checklist items in batch to both CSV and SQLite database"""
+    from database import get_db_connection
     try:
         data = request.get_json()
         items = data.get('items', [])
-        
+
         if not items:
             return jsonify({'error': 'No items provided'}), 400
-        
-        # Read existing checklist
+
+        safe_print(f"📦 Batch adding {len(items)} checklist items")
+
+        # Read existing checklist from CSV
         existing_data = storage_service.read_csv('config/checklist.csv')
         if existing_data is not None:
             checklist_df = existing_data
         else:
             checklist_df = pd.DataFrame()
-        
-        # Process each item in the batch - ensure all string fields are properly converted
+
+        # Process each item in the batch
         batch_data = []
         for item in items:
             checklist_data = {
@@ -4226,25 +4342,52 @@ def add_checklist_batch():
                 'created_at': datetime.now().isoformat()
             }
             batch_data.append(checklist_data)
-        
-        # Create new DataFrame from batch data
+
+        # 1. Save to CSV file
         new_batch_df = pd.DataFrame(batch_data)
         updated_df = pd.concat([checklist_df, new_batch_df], ignore_index=True)
-        
-        # Save to storage
-        success = storage_service.write_csv(updated_df, 'config/checklist.csv')
-        
-        if success:
-            return jsonify({
-                'success': True, 
-                'message': f'Successfully added {len(batch_data)} checklist items',
-                'items': batch_data
-            }), 201
-        else:
-            return jsonify({'error': 'Failed to save checklist batch to storage'}), 500
-            
+        csv_success = storage_service.write_csv(updated_df, 'config/checklist.csv')
+
+        if not csv_success:
+            return jsonify({'error': 'Failed to save checklist batch to CSV'}), 500
+
+        # 2. Also save to SQLite database
+        try:
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+                db_saved_count = 0
+
+                for item_data in batch_data:
+                    try:
+                        # Insert into checklist_gcg table
+                        cursor.execute("""
+                            INSERT INTO checklist_gcg (aspek, deskripsi, tahun, is_active, created_at)
+                            VALUES (?, ?, ?, ?, ?)
+                        """, (
+                            item_data['aspek'],
+                            item_data['deskripsi'],
+                            item_data['tahun'],
+                            1,  # is_active = True
+                            item_data['created_at']
+                        ))
+                        db_saved_count += 1
+                    except Exception as item_error:
+                        safe_print(f"⚠️ Error saving item to SQLite: {item_error}")
+
+                safe_print(f"✅ Saved {db_saved_count}/{len(batch_data)} items to SQLite database")
+        except Exception as db_error:
+            safe_print(f"⚠️ SQLite batch save error (CSV saved successfully): {db_error}")
+
+        return jsonify({
+            'success': True,
+            'message': f'Successfully added {len(batch_data)} checklist items',
+            'items': batch_data
+        }), 201
+
     except Exception as e:
-        safe_print(f"Error adding checklist batch: {e}")
+        safe_print(f"❌ Error adding checklist batch: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': f'Failed to add checklist batch: {str(e)}'}), 500
 
 @app.route('/api/config/checklist/migrate-year', methods=['POST'])
@@ -4446,69 +4589,28 @@ if __name__ == '__main__':
 # PENGATURAN BARU CONFIGURATION ENDPOINTS
 # =============================================================================
 
-@app.route('/api/config/tahun-buku', methods=['GET'])
-def get_tahun_buku():
-    """Get all tahun buku data"""
-    try:
-        # Read tahun buku from storage
-        tahun_data = storage_service.read_csv('config/tahun-buku.csv')
-        
-        if tahun_data is None:
-            return jsonify({'tahun_buku': []}), 200
-            
-        # Convert DataFrame to list of dictionaries
-        tahun_list = tahun_data.to_dict('records')
-        
-        return jsonify({'tahun_buku': tahun_list}), 200
-        
-    except Exception as e:
-        safe_print(f"❌ Error getting tahun buku: {e}")
-        return jsonify({'error': str(e)}), 500
+# DISABLED: Using blueprint route from api_config_routes.py instead
+# @app.route('/api/config/tahun-buku', methods=['GET'])
+# def get_tahun_buku():
+#     """Get all tahun buku data"""
+#     try:
+#         # Read tahun buku from storage
+#         tahun_data = storage_service.read_csv('config/tahun-buku.csv')
+#
+#         if tahun_data is None:
+#             return jsonify({'tahun_buku': []}), 200
+#
+#         # Convert DataFrame to list of dictionaries
+#         tahun_list = tahun_data.to_dict('records')
+#
+#         return jsonify({'tahun_buku': tahun_list}), 200
+#
+#     except Exception as e:
+#         safe_print(f"❌ Error getting tahun buku: {e}")
+#         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/config/tahun-buku', methods=['POST'])
-def add_tahun_buku():
-    """Add a new tahun buku"""
-    try:
-        data = request.get_json()
-
-        if not data.get('tahun'):
-            return jsonify({'error': 'Tahun is required'}), 400
-            
-        # Read existing tahun buku
-        try:
-            tahun_data = storage_service.read_csv('config/tahun-buku.csv')
-            if tahun_data is None:
-                tahun_data = pd.DataFrame()
-        except:
-            tahun_data = pd.DataFrame()
-            
-        # Check if tahun already exists
-        if not tahun_data.empty and data['tahun'] in tahun_data['tahun'].values:
-            return jsonify({'error': 'Tahun already exists'}), 400
-        
-        # Create new tahun record
-        new_tahun = {
-            'id': int(time.time() * 1000000),  # microsecond timestamp
-            'tahun': data['tahun'],
-            'nama': data.get('nama', ''),
-            'created_at': datetime.now().isoformat()
-        }
-        
-        # Add to DataFrame
-        new_row = pd.DataFrame([new_tahun])
-        tahun_data = pd.concat([tahun_data, new_row], ignore_index=True)
-        
-        # Save to storage (CSV for easier reading)
-        success = storage_service.write_csv(tahun_data, 'config/tahun-buku.csv')
-        
-        if success:
-            return jsonify({'success': True, 'tahun_buku': new_tahun}), 201
-        else:
-            return jsonify({'error': 'Failed to save tahun buku'}), 500
-            
-    except Exception as e:
-        safe_print(f"❌ Error adding tahun buku: {e}")
-        return jsonify({'error': str(e)}), 500
+# DISABLED: This route is now handled by api_config_routes.py blueprint
+# The blueprint has proper cleanup logic for year reactivation
 
 @app.route('/api/config/tahun-buku/<int:tahun_id>', methods=['DELETE'])
 def delete_tahun_buku(tahun_id):
@@ -4533,10 +4635,20 @@ def delete_tahun_buku(tahun_id):
         # Remove the tahun buku entry
         filtered_data = tahun_data[tahun_data['id'] != tahun_id]
         
-        # Save updated data
+        # Save updated data to CSV
         success = storage_service.write_csv(filtered_data, 'config/tahun-buku.csv')
-        
+
         if success:
+            # IMPORTANT: Also soft-delete from database years table
+            try:
+                from database import get_db_connection
+                with get_db_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("UPDATE years SET is_active = 0 WHERE year = ?", (year_to_delete,))
+                    print(f"[OK] Soft-deleted year {year_to_delete} from database years table")
+            except Exception as db_error:
+                print(f"[WARNING] Could not soft-delete from database: {db_error}")
+
             safe_print(f"✅ Successfully deleted tahun buku {tahun_id} (year {year_to_delete})")
 
             # Clean up all related data for this year
@@ -4634,6 +4746,56 @@ def delete_tahun_buku(tahun_id):
                 except Exception as e:
                     safe_print(f"  ⚠️ AOI documents cleanup skipped: {e}")
 
+                # 10. Clean up SQLite database tables
+                safe_print(f"🗄️ Cleaning up SQLite database tables for year {year_to_delete}")
+                try:
+                    from database import get_db_connection
+                    with get_db_connection() as conn:
+                        cursor = conn.cursor()
+
+                        # Clean struktur organisasi tables (order matters - delete children first)
+                        cursor.execute("DELETE FROM divisi WHERE tahun = ?", (year_to_delete,))
+                        divisi_deleted = cursor.rowcount
+
+                        cursor.execute("DELETE FROM subdirektorat WHERE tahun = ?", (year_to_delete,))
+                        subdirektorat_deleted = cursor.rowcount
+
+                        cursor.execute("DELETE FROM direktorat WHERE tahun = ?", (year_to_delete,))
+                        direktorat_deleted = cursor.rowcount
+
+                        cursor.execute("DELETE FROM anak_perusahaan WHERE tahun = ?", (year_to_delete,))
+                        anak_perusahaan_deleted = cursor.rowcount
+
+                        # Clean users table - NOTE: users table doesn't have tahun column
+                        # Users are cleaned from CSV file only (see step 8 below)
+                        # cursor.execute("DELETE FROM users WHERE tahun = ?", (year_to_delete,))
+                        users_deleted = 0  # Users cleaned from CSV, not database
+
+                        # Clean checklist_gcg table
+                        cursor.execute("DELETE FROM checklist_gcg WHERE tahun = ?", (year_to_delete,))
+                        checklist_gcg_deleted = cursor.rowcount
+
+                        conn.commit()
+
+                        cleanup_stats['db_divisi'] = divisi_deleted
+                        cleanup_stats['db_subdirektorat'] = subdirektorat_deleted
+                        cleanup_stats['db_direktorat'] = direktorat_deleted
+                        cleanup_stats['db_anak_perusahaan'] = anak_perusahaan_deleted
+                        cleanup_stats['db_users'] = users_deleted
+                        cleanup_stats['db_checklist_gcg'] = checklist_gcg_deleted
+
+                        safe_print(f"  ✅ Database cleanup completed:")
+                        safe_print(f"     - {divisi_deleted} divisi records")
+                        safe_print(f"     - {subdirektorat_deleted} subdirektorat records")
+                        safe_print(f"     - {direktorat_deleted} direktorat records")
+                        safe_print(f"     - {anak_perusahaan_deleted} anak_perusahaan records")
+                        safe_print(f"     - {users_deleted} users records")
+                        safe_print(f"     - {checklist_gcg_deleted} checklist_gcg records")
+
+                except Exception as db_error:
+                    safe_print(f"  ⚠️ Database cleanup error: {db_error}")
+                    cleanup_stats['db_error'] = str(db_error)
+
                 safe_print(f"✅ All related data cleaned up successfully")
 
             except Exception as cleanup_error:
@@ -4655,19 +4817,30 @@ def delete_tahun_buku(tahun_id):
 
 @app.route('/api/config/struktur-organisasi', methods=['GET'])
 def get_struktur_organisasi():
-    """Get all struktur organisasi data from SQLite"""
+    """Get all struktur organisasi data from SQLite, optionally filtered by year"""
     from database import get_db_connection
     try:
+        year = request.args.get('year', type=int)
+        safe_print(f"📋 GET struktur-organisasi - year filter: {year}")
+
         with get_db_connection() as conn:
             cursor = conn.cursor()
 
-            # Get direktorat
-            cursor.execute("""
-                SELECT id, nama, deskripsi, tahun, created_at, is_active
-                FROM direktorat
-                WHERE is_active = 1
-                ORDER BY nama
-            """)
+            # Get direktorat with optional year filter
+            if year:
+                cursor.execute("""
+                    SELECT id, nama, deskripsi, tahun, created_at, is_active
+                    FROM direktorat
+                    WHERE is_active = 1 AND tahun = ?
+                    ORDER BY nama
+                """, (year,))
+            else:
+                cursor.execute("""
+                    SELECT id, nama, deskripsi, tahun, created_at, is_active
+                    FROM direktorat
+                    WHERE is_active = 1
+                    ORDER BY nama
+                """)
             direktorat = []
             for row in cursor.fetchall():
                 direktorat.append({
@@ -4680,13 +4853,21 @@ def get_struktur_organisasi():
                     'type': 'direktorat'
                 })
 
-            # Get subdirektorat
-            cursor.execute("""
-                SELECT id, nama, direktorat_id, deskripsi, tahun, created_at, is_active
-                FROM subdirektorat
-                WHERE is_active = 1
-                ORDER BY nama
-            """)
+            # Get subdirektorat with optional year filter
+            if year:
+                cursor.execute("""
+                    SELECT id, nama, direktorat_id, deskripsi, tahun, created_at, is_active
+                    FROM subdirektorat
+                    WHERE is_active = 1 AND tahun = ?
+                    ORDER BY nama
+                """, (year,))
+            else:
+                cursor.execute("""
+                    SELECT id, nama, direktorat_id, deskripsi, tahun, created_at, is_active
+                    FROM subdirektorat
+                    WHERE is_active = 1
+                    ORDER BY nama
+                """)
             subdirektorat = []
             for row in cursor.fetchall():
                 subdirektorat.append({
@@ -4701,13 +4882,21 @@ def get_struktur_organisasi():
                     'type': 'subdirektorat'
                 })
 
-            # Get divisi
-            cursor.execute("""
-                SELECT id, nama, subdirektorat_id, deskripsi, tahun, created_at, is_active
-                FROM divisi
-                WHERE is_active = 1
-                ORDER BY nama
-            """)
+            # Get divisi with optional year filter
+            if year:
+                cursor.execute("""
+                    SELECT id, nama, subdirektorat_id, deskripsi, tahun, created_at, is_active
+                    FROM divisi
+                    WHERE is_active = 1 AND tahun = ?
+                    ORDER BY nama
+                """, (year,))
+            else:
+                cursor.execute("""
+                    SELECT id, nama, subdirektorat_id, deskripsi, tahun, created_at, is_active
+                    FROM divisi
+                    WHERE is_active = 1
+                    ORDER BY nama
+                """)
             divisi = []
             for row in cursor.fetchall():
                 divisi.append({
@@ -4722,13 +4911,21 @@ def get_struktur_organisasi():
                     'type': 'divisi'
                 })
 
-            # Get anak perusahaan
-            cursor.execute("""
-                SELECT id, nama, kategori, deskripsi, tahun, created_at, is_active
-                FROM anak_perusahaan
-                WHERE is_active = 1
-                ORDER BY nama
-            """)
+            # Get anak perusahaan with optional year filter
+            if year:
+                cursor.execute("""
+                    SELECT id, nama, kategori, deskripsi, tahun, created_at, is_active
+                    FROM anak_perusahaan
+                    WHERE is_active = 1 AND tahun = ?
+                    ORDER BY nama
+                """, (year,))
+            else:
+                cursor.execute("""
+                    SELECT id, nama, kategori, deskripsi, tahun, created_at, is_active
+                    FROM anak_perusahaan
+                    WHERE is_active = 1
+                    ORDER BY nama
+                """)
             anak_perusahaan = []
             for row in cursor.fetchall():
                 anak_perusahaan.append({
@@ -4760,52 +4957,82 @@ def get_struktur_organisasi():
 
 @app.route('/api/config/struktur-organisasi', methods=['POST'])
 def add_struktur_organisasi():
-    """Add a new struktur organisasi item"""
+    """Add a new struktur organisasi item to SQLite database"""
+    from database import get_db_connection
     try:
         data = request.get_json()
-        
-        required_fields = ['type', 'nama']
+
+        required_fields = ['type', 'nama', 'tahun']
         for field in required_fields:
             if not data.get(field):
                 return jsonify({'error': f'{field} is required'}), 400
-        
+
         # Validate type
         valid_types = ['direktorat', 'subdirektorat', 'divisi', 'anak_perusahaan']
         if data['type'] not in valid_types:
             return jsonify({'error': f'type must be one of: {", ".join(valid_types)}'}), 400
-            
-        # Read existing struktur organisasi
-        try:
-            struktur_data = storage_service.read_csv('config/struktur-organisasi.csv')
-            if struktur_data is None:
-                struktur_data = pd.DataFrame()
-        except:
-            struktur_data = pd.DataFrame()
-        
-        # Create new struktur record
+
+        item_type = data['type']
+        nama = data['nama']
+        deskripsi = data.get('deskripsi', '')
+        tahun = data['tahun']
+        parent_id = data.get('parent_id')
+
+        safe_print(f"➕ Creating {item_type}: {nama} (tahun: {tahun})")
+
+        # Save to SQLite database
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            if item_type == 'direktorat':
+                cursor.execute("""
+                    INSERT INTO direktorat (nama, deskripsi, tahun, is_active, created_at)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (nama, deskripsi, tahun, 1, datetime.now().isoformat()))
+                new_id = cursor.lastrowid
+
+            elif item_type == 'subdirektorat':
+                cursor.execute("""
+                    INSERT INTO subdirektorat (nama, direktorat_id, deskripsi, tahun, is_active, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (nama, parent_id, deskripsi, tahun, 1, datetime.now().isoformat()))
+                new_id = cursor.lastrowid
+
+            elif item_type == 'divisi':
+                cursor.execute("""
+                    INSERT INTO divisi (nama, subdirektorat_id, deskripsi, tahun, is_active, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (nama, parent_id, deskripsi, tahun, 1, datetime.now().isoformat()))
+                new_id = cursor.lastrowid
+
+            elif item_type == 'anak_perusahaan':
+                # Default to 'Anak Perusahaan' if not provided
+                kategori = data.get('kategori', 'Anak Perusahaan')
+                if not kategori or kategori.strip() == '':
+                    kategori = 'Anak Perusahaan'
+                cursor.execute("""
+                    INSERT INTO anak_perusahaan (nama, kategori, deskripsi, tahun, is_active, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (nama, kategori, deskripsi, tahun, 1, datetime.now().isoformat()))
+                new_id = cursor.lastrowid
+
         new_struktur = {
-            'id': int(time.time() * 1000000),  # microsecond timestamp
-            'type': data['type'],
-            'nama': data['nama'],
-            'deskripsi': data.get('deskripsi', ''),
-            'parent_id': data.get('parent_id'),  # For subdirektorat->direktorat, divisi->subdirektorat
+            'id': new_id,
+            'type': item_type,
+            'nama': nama,
+            'deskripsi': deskripsi,
+            'tahun': tahun,
+            'parent_id': parent_id,
             'created_at': datetime.now().isoformat()
         }
-        
-        # Add to DataFrame
-        new_row = pd.DataFrame([new_struktur])
-        struktur_data = pd.concat([struktur_data, new_row], ignore_index=True)
-        
-        # Save to storage (CSV for easier reading)
-        success = storage_service.write_csv(struktur_data, 'config/struktur-organisasi.csv')
-        
-        if success:
-            return jsonify({'success': True, 'struktur': new_struktur}), 201
-        else:
-            return jsonify({'error': 'Failed to save struktur organisasi'}), 500
-            
+
+        safe_print(f"✅ Created {item_type} with ID: {new_id}")
+        return jsonify({'success': True, 'struktur': new_struktur}), 201
+
     except Exception as e:
         safe_print(f"❌ Error adding struktur organisasi: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/config/struktur-organisasi/batch', methods=['POST'])
@@ -4874,10 +5101,14 @@ def add_struktur_organisasi_batch():
                     new_id = cursor.lastrowid
 
                 elif item_type == 'anak_perusahaan':
+                    # Default to 'Anak Perusahaan' if not provided
+                    kategori = item.get('kategori', 'Anak Perusahaan')
+                    if not kategori or kategori.strip() == '':
+                        kategori = 'Anak Perusahaan'
                     cursor.execute("""
-                        INSERT INTO anak_perusahaan (nama, deskripsi, tahun, created_at, is_active)
-                        VALUES (?, ?, ?, ?, 1)
-                    """, (nama, deskripsi, tahun, datetime.now().isoformat()))
+                        INSERT INTO anak_perusahaan (nama, kategori, deskripsi, tahun, created_at, is_active)
+                        VALUES (?, ?, ?, ?, ?, 1)
+                    """, (nama, kategori, deskripsi, tahun, datetime.now().isoformat()))
                     new_id = cursor.lastrowid
                 else:
                     continue
@@ -4914,36 +5145,12 @@ def add_struktur_organisasi_batch():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/config/struktur-organisasi/<int:struktur_id>', methods=['DELETE'])
-def delete_struktur_organisasi(struktur_id):
-    """Delete a struktur organisasi item"""
-    try:
-        # Read existing struktur organisasi
-        struktur_data = storage_service.read_csv('config/struktur-organisasi.csv')
-        if struktur_data is None:
-            return jsonify({'error': 'No struktur organisasi found'}), 404
-            
-        # Filter out the struktur organisasi to delete
-        original_count = len(struktur_data)
-        struktur_data = struktur_data[struktur_data['id'] != struktur_id]
-        
-        if len(struktur_data) == original_count:
-            return jsonify({'error': 'Struktur organisasi not found'}), 404
-        
-        # Save to storage
-        success = storage_service.write_csv(struktur_data, 'config/struktur-organisasi.csv')
-        
-        if success:
-            return jsonify({'success': True}), 200
-        else:
-            return jsonify({'error': 'Failed to delete struktur organisasi'}), 500
-            
-    except Exception as e:
-        safe_print(f"❌ Error deleting struktur organisasi: {e}")
-        return jsonify({'error': str(e)}), 500
-
 # DISABLED: This route conflicts with blueprint route and uses CSV instead of SQLite
-# Blueprint route at api_config_routes.py:537 handles this correctly with SQLite
+# Blueprint route at api_config_routes.py:537 handles DELETE correctly with SQLite (soft delete)
+# @app.route('/api/config/struktur-organisasi/<int:struktur_id>', methods=['DELETE'])
+# def delete_struktur_organisasi(struktur_id):
+#     """Delete a struktur organisasi item"""
+#     ... (disabled to use SQLite version from blueprint)
 # @app.route('/api/config/struktur-organisasi/<int:struktur_id>', methods=['PUT'])
 # def update_struktur_organisasi(struktur_id):
 #     """Update a struktur organisasi item"""
@@ -5703,5 +5910,30 @@ def refresh_tracking_tables():
 
 if __name__ == '__main__':
     import os
-    port = int(os.environ.get('FLASK_PORT', 5001))
+    import socket
+
+    # Try to find an available port starting from the default
+    default_port = int(os.environ.get('FLASK_PORT', 5001))
+    port = default_port
+    max_attempts = 10
+
+    for attempt in range(max_attempts):
+        try:
+            # Test if port is available
+            test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            test_socket.bind(('0.0.0.0', port))
+            test_socket.close()
+            break  # Port is available
+        except OSError:
+            if attempt < max_attempts - 1:
+                port += 1
+            else:
+                safe_print(f"❌ Could not find available port after {max_attempts} attempts starting from {default_port}")
+                sys.exit(1)
+
+    if port != default_port:
+        safe_print(f"⚠️  WARNING: Default port {default_port} was busy")
+        safe_print(f"⚠️  Backend running on port {port} instead")
+        safe_print(f"⚠️  Update vite.config.ts proxy target to: http://localhost:{port}")
+
     app.run(debug=True, host='0.0.0.0', port=port, use_reloader=False)

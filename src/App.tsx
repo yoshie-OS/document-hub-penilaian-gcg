@@ -12,6 +12,7 @@ import { YearProvider } from './contexts/YearContext';
 import { StrukturPerusahaanProvider } from './contexts/StrukturPerusahaanContext';
 import { AOIProvider } from './contexts/AOIContext';
 import { AOIDocumentProvider } from './contexts/AOIDocumentContext';
+import { TourProvider } from './contexts/TourContext';
 import { Toaster } from './components/ui/toaster';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/auth/Login';
@@ -20,7 +21,7 @@ import DashboardMain from './pages/dashboard/DashboardMain';
 import DocumentManagement from './pages/DocumentManagement';
 import PenilaianGCG from './pages/PenilaianGCG';
 import MonitoringUploadGCG from './pages/MonitoringUploadGCG';
-import ArsipDokumen from './pages/admin/ArsipDokumen';
+import ArsipDokumen from './pages/ArsipDokumen';
 import DashboardAdmin from './pages/admin/DashboardAdmin';
 import PengaturanBaru from './pages/admin/PengaturanBaru';
 import AOIManagement from './pages/admin/AOIManagement';
@@ -227,18 +228,20 @@ const App = () => {
           <ChecklistProvider>
             <FileUploadProvider>
               <DocumentMetadataProvider>
-                                  <YearProvider>
-                      <StrukturPerusahaanProvider>
-                        <AOIProvider>
-                          <AOIDocumentProvider>
-                            <SidebarProvider>
-                              <AppRoutes />
-                              <Toaster />
-                            </SidebarProvider>
-                          </AOIDocumentProvider>
-                        </AOIProvider>
-                      </StrukturPerusahaanProvider>
-                  </YearProvider>
+                <YearProvider>
+                  <StrukturPerusahaanProvider>
+                    <AOIProvider>
+                      <AOIDocumentProvider>
+                        <SidebarProvider>
+                          <TourProvider>
+                            <AppRoutes />
+                            <Toaster />
+                          </TourProvider>
+                        </SidebarProvider>
+                      </AOIDocumentProvider>
+                    </AOIProvider>
+                  </StrukturPerusahaanProvider>
+                </YearProvider>
               </DocumentMetadataProvider>
             </FileUploadProvider>
           </ChecklistProvider>

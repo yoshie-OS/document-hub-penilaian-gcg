@@ -1108,7 +1108,7 @@ const MonitoringUploadGCG = () => {
           />
 
           {/* Year Selection - Single Line with Upload/View indication */}
-          <div className="mb-6 bg-white rounded-lg p-3 shadow-sm border border-gray-100">
+          <div className="mb-6 bg-white rounded-lg p-3 shadow-sm border border-gray-100" data-tour="year-selector">
             {/* Main Row */}
             <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-2">
@@ -1205,7 +1205,7 @@ const MonitoringUploadGCG = () => {
           {selectedYear && getOverallProgress ? (
             <>
               {/* Progress Keseluruhan - Sama seperti Dashboard */}
-              <Card className="mb-6 border-0 shadow-lg bg-gradient-to-br from-purple-600 to-indigo-700 text-white">
+              <Card data-tour="progress-stats" className="mb-6 border-0 shadow-lg bg-gradient-to-br from-purple-600 to-indigo-700 text-white">
                 <CardContent className="p-4">
                   <div className="flex flex-col md:flex-row items-center gap-4">
                     {/* Circular Progress */}
@@ -1267,7 +1267,7 @@ const MonitoringUploadGCG = () => {
               </Card>
 
               {/* Progress Per Aspek - Sama seperti Dashboard */}
-              <Card className="mb-6 border-0 shadow-xl bg-white/80 backdrop-blur-sm">
+              <Card data-tour="progress-per-aspek" className="mb-6 border-0 shadow-xl bg-white/80 backdrop-blur-sm">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <BarChart3 className="w-6 h-6 text-blue-600" />
@@ -1377,6 +1377,7 @@ const MonitoringUploadGCG = () => {
                         onClick={handleRefreshRescan}
                         disabled={isRefreshing || fileStatusLoading}
                         className="text-xs"
+                        data-tour="refresh-button"
                       >
                         {isRefreshing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                       </Button>
@@ -1386,7 +1387,7 @@ const MonitoringUploadGCG = () => {
                   {/* Compact Filters */}
                   <div className="space-y-3">
                     {/* Search */}
-                    <div className="relative">
+                    <div className="relative" data-tour="search-box">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                       <Input
                         type="text"
@@ -1400,7 +1401,7 @@ const MonitoringUploadGCG = () => {
                     {/* Filter Row */}
                     <div className="flex flex-wrap items-center gap-2">
                       {/* Aspek Dropdown */}
-                      <Select value={selectedAspek} onValueChange={setSelectedAspek}>
+                      <Select value={selectedAspek} onValueChange={setSelectedAspek} data-tour="aspek-filter">
                         <SelectTrigger className="w-[180px] h-8 text-xs">
                           <Filter className="w-3 h-3 mr-1 text-gray-400" />
                           <SelectValue placeholder="Filter Aspek" />
@@ -1416,7 +1417,7 @@ const MonitoringUploadGCG = () => {
                       </Select>
 
                       {/* Status Buttons */}
-                      <div className="flex items-center gap-1 p-1 bg-gray-100 rounded-lg">
+                      <div className="flex items-center gap-1 p-1 bg-gray-100 rounded-lg" data-tour="status-filter">
                         <Button
                           variant={selectedStatus === 'all' ? 'default' : 'ghost'}
                           size="sm"
@@ -1446,7 +1447,7 @@ const MonitoringUploadGCG = () => {
                       </div>
 
                       {/* PIC Dropdown dengan Switch dan Search */}
-                      <div className="relative" data-pic-dropdown>
+                      <div className="relative" data-pic-dropdown data-tour="pic-filter">
                         <Button
                           variant="outline"
                           size="sm"
@@ -1576,7 +1577,7 @@ const MonitoringUploadGCG = () => {
                   </div>
                 </CardHeader>
             <CardContent className="px-0 pb-0">
-              <div id="checklist-table" className="overflow-x-auto">
+              <div id="checklist-table" className="overflow-x-auto" data-tour="checklist-table">
               <Table>
                 <TableHeader>
                     <TableRow className="bg-gray-50 border-b border-gray-200">
@@ -1670,6 +1671,7 @@ const MonitoringUploadGCG = () => {
                                 onClick={() => handleDownloadDocument(item.id, item.id)}
                                 disabled={!isChecklistUploaded(item.id)}
                                 title={isChecklistUploaded(item.id) ? 'Download' : 'Belum ada file'}
+                                data-tour={index === 0 ? "download-button" : undefined}
                               >
                                 <Download className={`w-3.5 h-3.5 ${isChecklistUploaded(item.id) ? 'text-green-600' : 'text-gray-300'}`} />
                               </Button>
@@ -1681,6 +1683,7 @@ const MonitoringUploadGCG = () => {
                                 onClick={() => handleUploadClick(item, item.rowNumber || (index + 1))}
                                 disabled={itemsBeingChecked.has(item.id)}
                                 title={uploadedDocument ? 'Reupload / Ganti File' : 'Upload'}
+                                data-tour={index === 0 ? "upload-button" : undefined}
                               >
                             {uploadedDocument ? (
                               <Replace className={`w-3.5 h-3.5 ${itemsBeingChecked.has(item.id) ? 'text-gray-300' : 'text-blue-600'}`} />
@@ -1696,6 +1699,7 @@ const MonitoringUploadGCG = () => {
                             onClick={() => handleViewInArchive(item)}
                             disabled={!uploadedDocument}
                             title={uploadedDocument ? "Lihat di Arsip" : "Belum ada file"}
+                            data-tour={index === 0 ? "view-archive" : undefined}
                           >
                             <Eye className={`w-3.5 h-3.5 ${uploadedDocument ? 'text-blue-600' : 'text-gray-300'}`} />
                           </Button>

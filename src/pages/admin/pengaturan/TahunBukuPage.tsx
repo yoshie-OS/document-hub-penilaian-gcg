@@ -149,12 +149,13 @@ const TahunBukuPage = () => {
               variant="ghost"
               onClick={() => navigate('/admin/pengaturan')}
               className="mb-4 text-gray-600 hover:text-gray-900"
+              data-tour="tahun-buku-back"
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
               Kembali ke Pengaturan
             </Button>
 
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between" data-tour="tahun-buku-header">
               <div className="flex items-center space-x-3">
                 <div className="p-3 bg-orange-100 rounded-xl">
                   <Calendar className="w-8 h-8 text-orange-600" />
@@ -167,7 +168,7 @@ const TahunBukuPage = () => {
 
               <Dialog open={showTahunDialog} onOpenChange={setShowTahunDialog}>
                 <DialogTrigger asChild>
-                  <Button className="bg-orange-600 hover:bg-orange-700">
+                  <Button className="bg-orange-600 hover:bg-orange-700" data-tour="tambah-tahun-btn">
                     <Plus className="w-4 h-4 mr-2" />
                     Tambah Tahun
                   </Button>
@@ -188,7 +189,10 @@ const TahunBukuPage = () => {
                         min="2000"
                         max="2100"
                         value={tahunForm.tahun}
-                        onChange={(e) => setTahunForm({ tahun: parseInt(e.target.value) })}
+                        onChange={(e) => {
+                          const parsedValue = parseInt(e.target.value);
+                          setTahunForm({ tahun: isNaN(parsedValue) ? new Date().getFullYear() : parsedValue });
+                        }}
                         className="mt-1"
                       />
                     </div>
@@ -207,10 +211,10 @@ const TahunBukuPage = () => {
           </div>
 
           {/* Years Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" data-tour="tahun-buku-grid">
             {availableYears
               .sort((a, b) => b - a)
-              .map((year) => (
+              .map((year, index) => (
                 <Card
                   key={year}
                   className={`cursor-pointer transition-all duration-200 ${
@@ -219,6 +223,7 @@ const TahunBukuPage = () => {
                       : 'border-gray-200 hover:border-orange-300 hover:shadow-sm'
                   }`}
                   onClick={() => setSelectedYear(year)}
+                  data-tour={index === 0 ? "tahun-card" : undefined}
                 >
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
@@ -238,7 +243,7 @@ const TahunBukuPage = () => {
 
                       <div className="flex items-center space-x-2">
                         {selectedYear === year && (
-                          <Badge className="bg-orange-500">Aktif</Badge>
+                          <Badge className="bg-orange-500" data-tour={index === 0 ? "tahun-active-badge" : undefined}>Aktif</Badge>
                         )}
                         <Button
                           variant="ghost"
@@ -249,6 +254,7 @@ const TahunBukuPage = () => {
                             setShowDeleteConfirm(year);
                           }}
                           disabled={isDeleting === year}
+                          data-tour={index === 0 ? "delete-tahun-btn" : undefined}
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
@@ -259,7 +265,7 @@ const TahunBukuPage = () => {
               ))}
 
             {availableYears.length === 0 && (
-              <Card className="col-span-full border-dashed border-2 border-gray-300">
+              <Card className="col-span-full border-dashed border-2 border-gray-300" data-tour="tahun-empty-state">
                 <CardContent className="p-8 text-center">
                   <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                   <h3 className="text-lg font-medium text-gray-900 mb-2">Belum Ada Tahun Buku</h3>
@@ -313,7 +319,7 @@ const TahunBukuPage = () => {
                   <span>Copy Data dari Tahun Sebelumnya</span>
                 </DialogTitle>
                 <DialogDescription>
-                  Pilih data yang ingin di-copy dari tahun {copySourceYear}
+                  Pilih data yang ingin di-copy dari tahun {copySourceYear || 'sebelumnya'}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
@@ -360,7 +366,7 @@ const TahunBukuPage = () => {
           </Dialog>
 
           {/* Info Section */}
-          <Card className="mt-6 bg-orange-50 border-orange-200">
+          <Card className="mt-6 bg-orange-50 border-orange-200" data-tour="tahun-tips">
             <CardContent className="p-4">
               <div className="flex items-start space-x-3">
                 <CheckCircle className="w-5 h-5 text-orange-600 mt-0.5" />
